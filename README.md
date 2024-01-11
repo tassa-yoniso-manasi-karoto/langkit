@@ -1,12 +1,9 @@
-<a href="https://commons.wikimedia.org/wiki/File:Subtitleslogo.svg"><img src=".img/Subtitleslogo.svg" align="right" width="150px"/></a>
+Fork of Bunkai, renamed for clarity.
+WIP.
 
-# Bunkai
-[![Conventional Commits](.img/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
-> Decompose subtitles and media into personal language study material
+<hr>
 
-Bunkai (分解) literally means "analysis" or "disassembly" in Japanese. The Bunkai
-application dissects subtitles and corresponding media files into flash cards
-for [sentence mining][1] with an [SRS][2] system like [Anki][3]. It is inspired
+Dissects subtitles and corresponding media files into flash cardsfor [sentence mining][1] with an [SRS][2] system like [Anki][3]. It is inspired
 by the linked article on sentence mining and [existing tools][4], which you
 might want to check out as well.
 
