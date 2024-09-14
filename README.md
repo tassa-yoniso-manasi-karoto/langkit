@@ -9,7 +9,7 @@ Dissects subtitles and corresponding media files into flash cardsfor [sentence m
 by the linked article on sentence mining and [existing tools][4], which you
 might want to check out as well.
 
-[1]: https://massimmersionapproach.com/table-of-contents/stage-1/jp-quickstart-guide/#sentence-mining
+[1]: https://web.archive.org/web/20201220134528/https://massimmersionapproach.com/table-of-contents/stage-1/jp-quickstart-guide/
 [2]: https://en.wikipedia.org/wiki/Spaced_repetition
 [3]: https://ankiweb.net/
 [4]: #known-alternatives
