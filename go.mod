@@ -1,4 +1,4 @@
-module github.com/ustuehler/bunkai
+module github.com/tassa-yoniso-manasi-karoto/subs2cards
 
 go 1.15
 

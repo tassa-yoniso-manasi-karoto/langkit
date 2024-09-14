@@ -8,8 +8,8 @@ import (
 	"time"
 
 	astisub "github.com/asticode/go-astisub"
-	"github.com/ustuehler/bunkai/pkg/media"
-	"github.com/ustuehler/bunkai/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
 )
 
 // ExportedItem represents the exported information of a single subtitle item,

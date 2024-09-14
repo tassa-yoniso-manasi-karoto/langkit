@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/ustuehler/bunkai/pkg/extract"
+	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/extract"
 )
 
 var extractCardsCmd = &cobra.Command{
@@ -15,7 +15,7 @@ var extractCardsCmd = &cobra.Command{
 Anki from subtitles and optional associated media content.
 
 Example:
-  bunkai extract cards -m media-content.mp4 foreign.srt native.srt
+  subs2cards extract cards -m media-content.mp4 foreign.srt native.srt
 
 Based on the given subtitle files and associated media file, the above
 command would create the tab-separated file "foreign.tsv" and a directory

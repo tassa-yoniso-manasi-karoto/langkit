@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/ustuehler/bunkai/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
 )
 
 // ExtractCards specifies the parameters for generating a CSV export of the given

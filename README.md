@@ -1,5 +1,7 @@
-Fork of Bunkai, renamed for clarity.
-WIP.
+Fork of Bunkai, renamed for clarity. WIP.
+
+All new contributions from commit d540bd4 onwards are licensed under GPL-3.0.
+
 
 <hr>
 
@@ -34,17 +36,17 @@ Requirements:
 - `ffmpeg` command in `PATH` (used at runtime)
 
 ```bash
-go get github.com/ustuehler/bunkai
+go get github.com/tassa-yoniso-manasi-karoto/subs2cards
 ```
 
 ## Usage
-Bunkai is mainly used to generate flash cards from one or two subtitle files
+subs2cards is mainly used to generate flash cards from one or two subtitle files
 and a corresponding media file.
 
 For example:
 
 ```bash
-bunkai extract cards -m media-content.mp4 foreign.srt native.srt
+subs2cards extract cards -m media-content.mp4 foreign.srt native.srt
 ```
 
 The above command generates the tab-separated file `foreign.tsv` and a
@@ -79,7 +81,7 @@ either too hard or too easy should be deleted in this pass. Any cards which
 remain in the imported deck after mining should be refined and moved into your
 regular deck for studying the language on a daily basis.
 
-For other uses, run `bunkai --help` to view the built-in documentation.
+For other uses, run `subs2cards --help` to view the built-in documentation.
 
 ## Subtitle editors
 The state of affairs when it comes to open-source subtitle editors is a sad
