@@ -10,9 +10,24 @@ import (
 // automatically based on the given prefix, time range and audio format. If
 // either startAt or endAt is 0, then the start or end of the media is assumed,
 // accordingly.
-func ExtractAudio(startAt, endAt time.Duration, inFile, outPrefix string) (string, error) {
-	outFile := fmt.Sprintf("%s_%s-%s.mp3", outPrefix, pathPosition(startAt), pathPosition(endAt))
-	return outFile, ffmpegExtractAudio(startAt, endAt, inFile, outFile)
+func ExtractAudio(codec string, tracknum int, offset, startAt, endAt time.Duration, inFile, outPrefix string) (string, error) {
+	var outArgs []string
+	switch codec {
+	case "wav":
+		outArgs = []string{
+			"-filter:a", "volume=10dB",
+			"-vn",
+		}
+	case "ogg":
+		outArgs = []string{
+			"-filter:a", "volume=10dB",
+			"-vn",
+			"-acodec", "libopus",
+			"-b:a", "96k", // could be moved to 112kbps but honestly I don't think it would bring any noticable inprovement
+		}
+	}
+	outFile := fmt.Sprintf("%s_%s-%s.%s", outPrefix, pathPosition(startAt), pathPosition(endAt), codec)
+	return outFile, ffmpegExtractAudio(tracknum, offset, startAt, endAt, inFile, outFile, outArgs)
 }
 
 // ExtractImage extracts a single frame from the given media file in the given
@@ -20,7 +35,7 @@ func ExtractAudio(startAt, endAt time.Duration, inFile, outPrefix string) (strin
 // given prefix, time range and audio format. If either startAt or endAt is 0,
 // then the start or end of the media is assumed, accordingly.
 func ExtractImage(startAt, endAt time.Duration, inFile, outPrefix string) (string, error) {
-	outFile := fmt.Sprintf("%s_%s-%s.jpg", outPrefix, pathPosition(startAt), pathPosition(endAt))
+	outFile := fmt.Sprintf("%s_%s-%s.avif", outPrefix, pathPosition(startAt), pathPosition(endAt))
 	return outFile, ffmpegExtractImage(startAt, endAt, inFile, outFile)
 }
 

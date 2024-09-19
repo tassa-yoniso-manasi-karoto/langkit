@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/extract"
@@ -32,15 +33,22 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		if len(args) > 1 {
 			nativeSubs = args[1]
 		}
-
-		action := extract.ExtractCards{
+		targetChan, _ := cmd.Flags().GetInt("chan")
+		audiotrack, _ := cmd.Flags().GetInt("a")
+		STT, _        := cmd.Flags().GetBool("stt")
+		Offset, _     := cmd.Flags().GetInt("offset")
+		action := extract.Task{
+			TargetLang:           targetLang,
+			TargetChan:           targetChan,
+			STT:                  STT,
+			Offset:               time.Duration(Offset)*time.Millisecond,
+			UseAudiotrack:        audiotrack,
 			ForeignSubtitlesFile: foreignSubs,
 			NativeSubtitlesFile:  nativeSubs,
 			MediaSourceFile:      mediaFile,
 			OutputFieldSeparator: "\t",
 			OutputFileExtension:  "tsv",
 		}
-
 		if err := action.Execute(); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)

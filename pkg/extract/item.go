@@ -6,10 +6,13 @@ import (
 	"path"
 	"strings"
 	"time"
+	"strconv"
 
 	astisub "github.com/asticode/go-astisub"
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/media"
+	"github.com/k0kubun/pp"
+	"github.com/gookit/color"
 	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/stt"
 )
 
 // ExportedItem represents the exported information of a single subtitle item,
@@ -30,18 +33,56 @@ type ExportedItem struct {
 	NativeNext  string
 }
 
+type SequenceT struct {
+	StartAt        time.Duration
+	EndAt          time.Duration
+	MusicAndEffect string
+	Files           map[string]PathFileT
+	Item           ExportedItem
+}
+
+
+type PathFileT struct {
+	Orig, Voiceover stringS
+}
+
+
 // ExportedItemWriter should write an exported item in whatever format is
 // selected by the user.
 type ExportedItemWriter func(*ExportedItem) error
 
 // ExportItems calls the write function for each foreign subtitle item.
-func ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) error {
+func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) error {
+	var master []SequenceT
+	last := time.Duration(0)
+	filler := func(last, first time.Duration) {
+		if !IsZeroLengthTimespan(last, first) {
+			master = append(master, SequenceT{
+				StartAt: last,
+				EndAt: first,
+			})
+		}
+	}
 	for i, foreignItem := range foreignSubs.Items {
-		item, err := ExportItem(foreignItem, nativeSubs, outputBase, mediaSourceFile, mediaPrefix)
+		filler(last, foreignItem.StartAt)
+		last = foreignItem.EndAt
+		//---------------------------
+		item, audiofile, err := tsk.ExportItem(foreignItem, nativeSubs, outputBase, mediaSourceFile, mediaPrefix)
 		if err != nil {
 			return fmt.Errorf("can't export item #%d: %s: %v", i+1, foreignItem.String(), err)
 		}
-
+		if tsk.STT {
+			lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
+			item.ForeignCurr = stt.Replicate(audiofile, lang, "openai", "whisper", "")
+			// stt.Replicate(filepath, lang, "vaibhavs10", "incredibly-fast-whisper", "")
+		}
+		sq := SequenceT{
+			StartAt: foreignItem.StartAt,
+			EndAt: foreignItem.EndAt,
+			Files: make(map[string]PathFileT),
+			Item: *item,
+		}
+		master = append(master, sq)
 		if i > 0 {
 			prevItem := foreignSubs.Items[i-1]
 			item.ForeignPrev = prevItem.String()
@@ -51,13 +92,14 @@ func ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourc
 			nextItem := foreignSubs.Items[i+1]
 			item.ForeignNext = nextItem.String()
 		}
-
 		write(item)
 	}
+	end, _ := strconv.ParseFloat(tsk.Meta.GeneralTrack.Duration, 64)
+	filler(last, time.Duration(end*float64(time.Second)))
 	return nil
 }
 
-func ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitles, subsBase, mediaFile, mediaPrefix string) (*ExportedItem, error) {
+func (tsk *Task) ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitles, subsBase, mediaFile, mediaPrefix string) (*ExportedItem, string, error) {
 	item := &ExportedItem{}
 	item.Source = subsBase
 	item.ForeignCurr = joinLines(foreignItem.String())
@@ -67,15 +109,15 @@ func ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitles, subsBase,
 			item.NativeCurr = joinLines(nativeItem.String())
 		}
 	}
-
-	if mediaPrefix != "" {
-		audioFile, err := media.ExtractAudio(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
+	audioFile := "" // FIXME rm this if: providinga .mp4 should not be optional
+	if false && mediaPrefix != "" {
+		audioFile, err := tsk.ExtractAudio("ogg", tsk.UseAudiotrack, tsk.Offset, foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: can't extract audio: %v\n", err)
 			os.Exit(1)
 		}
 
-		imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
+		imageFile, err := tsk.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: can't extract image: %v\n", err)
 			os.Exit(1)
@@ -86,7 +128,7 @@ func ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitles, subsBase,
 		item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audioFile))
 	}
 
-	return item, nil
+	return item, audioFile, nil
 }
 
 // timePosition formats the given time.Duration as a time code which can safely
@@ -106,3 +148,25 @@ func joinLines(s string) string {
 	s = strings.Replace(s, "\t", " ", -1)
 	return strings.Replace(s, "\n", " ", -1)
 }
+
+func IsZeroLengthTimespan(last, t time.Duration) (b bool) {
+	if t - last == 0 {
+		b = true
+	}
+	return
+}
+
+
+func (sq *SequenceT) HasDialog() (b bool) {
+	if sq.Files != nil {
+		b = true
+	}
+	return
+}
+
+func placeholder4() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+}
+
+
