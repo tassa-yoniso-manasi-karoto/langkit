@@ -1,5 +1,7 @@
 Fork of Bunkai, renamed for clarity. WIP.
 
+Require ffmpeg **version 6**, Mediainfo, a [Replicate](https://replicate.com/home) API token to use [Whisper](https://github.com/openai/whisper).
+
 All new contributions from commit d540bd4 onwards are licensed under GPL-3.0.
 
 
