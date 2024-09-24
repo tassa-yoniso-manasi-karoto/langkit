@@ -22,7 +22,7 @@ func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFi
 		"-ss", ffmpegPosition(startAt-offset),
 		"-to", ffmpegPosition(endAt+offset),
 		"-i", inFile,
-		"-map", fmt.Sprint("0:", tracknum),
+		"-map", fmt.Sprint("0:", tracknum+1),
 	}
 	outArgs = append(outArgs, outFile)
 
@@ -32,7 +32,7 @@ func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFi
 	args = append(args, inArgs...)
 	args = append(args, outArgs...)
 
-	return ffmpeg(args...)
+	return Ffmpeg(args...)
 }
 
 func ffmpegExtractImage(startAt, endAt time.Duration, inFile string, outFile string) error {
@@ -68,7 +68,7 @@ func ffmpegExtractImage(startAt, endAt time.Duration, inFile string, outFile str
 	args = append(args, inArgs...)
 	args = append(args, outArgs...)
 
-	return ffmpeg(args...)
+	return Ffmpeg(args...)
 }
 
 func ffmpegPosition(d time.Duration) string {
@@ -78,7 +78,42 @@ func ffmpegPosition(d time.Duration) string {
 	return fmt.Sprintf("%d.%d", s, ms)
 }
 
-func ffmpeg(arg ...string) error {
+
+
+// Creates the concat file for ffmpeg by listing .wav files in the directory
+func CreateConcatFile(wavFiles []string) (string, error) {
+	// Create a temporary file to store the concat list
+	concatFile, err := os.CreateTemp("", "ffmpeg_concat_*.txt")
+	if err != nil {
+		return "", fmt.Errorf("error creating temporary file: %v", err)
+	}
+	defer concatFile.Close()
+
+	// Write the list of .wav files in ffmpeg concat format
+	for _, wavFile := range wavFiles {
+		line := fmt.Sprintf("file '%s'\n", wavFile)
+		if _, err := concatFile.WriteString(line); err != nil {
+			return "", fmt.Errorf("error writing to concat file: %v", err)
+		}
+	}
+
+	return concatFile.Name(), nil
+}
+
+// Runs FFmpeg concat command with the provided concat file and output wav file
+func RunFFmpegConcat(concatFile, outputWav string) error {
+	return Ffmpeg([]string{"-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
+}
+
+// Converts the WAV file to OGG using FFmpeg
+func RunFFmpegConvert(inputWav, outputOgg string) error {
+	return Ffmpeg([]string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "112k", outputOgg}...)
+}
+
+
+
+func Ffmpeg(arg ...string) error {
+	arg = append(arg, "-hide_banner")
 	cmd := exec.Command("ffmpeg", arg...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
@@ -87,9 +122,11 @@ func ffmpeg(arg ...string) error {
 	if err != nil {
 		return fmt.Errorf("ffmpeg command %v failed: %v", arg, err)
 	}
-
 	return nil
 }
+
+
+
 
 func exists(path string) bool {
 	_, err := os.Stat(path)

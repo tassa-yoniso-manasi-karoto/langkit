@@ -1,6 +1,9 @@
 package subs
 
 import (
+	"regexp"
+	"strings"
+
 	astisub "github.com/asticode/go-astisub"
 )
 
@@ -20,6 +23,40 @@ func OpenFile(filename string, clean bool) (*Subtitles, error) {
 
 	return &Subtitles{subs}, nil
 }
+
+func DumbDown2Dubs(subs *Subtitles) *Subtitles {
+	re := regexp.MustCompile(`^[\p{Z}\p{P}]*\[.*\][\p{P}\p{Z}]*$`)
+	for _, item := range subs.Items {
+		item.Lines = filterLines(item.Lines, re)
+	}
+	subs.Items = filterItems(subs.Items)
+	return subs
+}
+
+func filterLines(lines []astisub.Line, re *regexp.Regexp) []astisub.Line {
+	var filtered []astisub.Line
+	for _, line := range lines {
+		if !re.MatchString(line.String()) {
+			text := strings.TrimSpace(line.String())
+			if text != "" {
+				filtered = append(filtered, astisub.Line{Items: []astisub.LineItem{{Text: text}}})
+			}
+		}
+	}
+	return filtered
+}
+
+func filterItems(items []*astisub.Item) []*astisub.Item {
+	var filtered []*astisub.Item
+	for _, item := range items {
+		if len(item.Lines) > 0 {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+
 
 // Translate generates a new subtitle from all subtitles which overlap with the
 // given item.

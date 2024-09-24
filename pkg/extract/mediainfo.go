@@ -170,14 +170,12 @@ func mediainfo(path string) (media MediaInfo) {
 				fmt.Println("Error unmarshalling General track:", err)
 				continue
 			}
-			fmt.Println("GeneralTrack")
 			//fmt.Printf("%+v\n", generalTrack)
 		case "Video":
 			if err := json.Unmarshal(rawTrack, &media.VideoTrack); err != nil {
 				fmt.Println("Error unmarshalling Video track:", err)
 				continue
 			}
-			fmt.Println("VideoTrack")
 			//fmt.Printf("%+v\n", videoTrack)
 		case "Audio":
 			var audioTrack AudioTrack
@@ -186,7 +184,6 @@ func mediainfo(path string) (media MediaInfo) {
 				continue
 			}
 			media.AudioTracks = append(media.AudioTracks, audioTrack)
-			fmt.Println("AudioTrack", audioTrack.Title)
 		default:
 			fmt.Println("Unknown track type:", trackType["@type"])
 		}
@@ -208,6 +205,31 @@ func isMediainfoInstalled() bool {
 	}
 	_, err := exec.LookPath(cmdName)
 	return err == nil
+}
+
+var CodecToExtension = map[string]string{
+    "MP3":        ".mp3",   // MP3 (MPEG Audio Layer III)
+    "AAC":        ".aac",   // AAC (Advanced Audio Codec)
+    "WMA":        ".wma",   // WMA (Windows Media Audio)
+    "FLAC":       ".flac",  // FLAC (Free Lossless Audio Codec)
+    "ALAC":       ".m4a",   // ALAC (Apple Lossless Audio Codec)
+    "Opus":       ".opus",  // Opus
+    "Vorbis":     ".ogg",   // OGG Vorbis
+    "PCM":        ".wav",   // PCM (Pulse Code Modulation - usually in WAV)
+    "WAV":        ".wav",   // WAV (Waveform Audio File Format)
+    "AIFF":       ".aiff",  // AIFF (Audio Interchange File Format)
+    "RealAudio":  ".ra",    // RealAudio
+    "AMR":        ".amr",   // Adaptive Multi-Rate Audio Codec
+    "MPEG-4 ALS": ".mp4",   // MPEG-4 ALS (Audio Lossless Coding)
+    "MPEG Audio": ".mp3",   // MPEG Audio (commonly refers to MP3)
+    "AC-3":       ".ac3",   // AC-3 (Dolby Digital)
+    "DTS":        ".dts",   // DTS (Digital Theater Systems)
+    "TrueHD":     ".thd",   // Dolby TrueHD
+    "E-AC-3":     ".eac3",  // Enhanced AC-3
+    "MKA":        ".mka",   // Matroska Audio
+    "WebM":       ".webm",  // WebM (Opus or Vorbis audio codec)
+    "Speex":      ".spx",   // Speex (mainly used in .ogg containers)
+    "Musepack":   ".mpc",   // Musepack
 }
 
 

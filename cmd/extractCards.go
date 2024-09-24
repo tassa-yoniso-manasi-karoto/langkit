@@ -35,14 +35,19 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		}
 		targetChan, _ := cmd.Flags().GetInt("chan")
 		audiotrack, _ := cmd.Flags().GetInt("a")
-		STT, _        := cmd.Flags().GetBool("stt")
 		Offset, _     := cmd.Flags().GetInt("offset")
+		timeout, _    := cmd.Flags().GetInt("timeout")
+		STT, _        := cmd.Flags().GetBool("stt")
+		CC, _         := cmd.Flags().GetBool("cc")
 		action := extract.Task{
 			TargetLang:           targetLang,
 			TargetChan:           targetChan,
+			Timeout:              timeout,
 			STT:                  STT,
+			Separation:           separator,
+			IsCC:                 CC,
 			Offset:               time.Duration(Offset)*time.Millisecond,
-			UseAudiotrack:        audiotrack,
+			UseAudiotrack:        audiotrack-1,
 			ForeignSubtitlesFile: foreignSubs,
 			NativeSubtitlesFile:  nativeSubs,
 			MediaSourceFile:      mediaFile,

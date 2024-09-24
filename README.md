@@ -1,6 +1,8 @@
-Fork of Bunkai, renamed for clarity. WIP.
+WIP
 
-Require ffmpeg **version 6**, Mediainfo, a [Replicate](https://replicate.com/home) API token to use [Whisper](https://github.com/openai/whisper).
+Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
+
+This fork require ffmpeg **version 6**, Mediainfo, a [Replicate](https://replicate.com/home) API token to use [Whisper](https://github.com/openai/whisper).
 
 All new contributions from commit d540bd4 onwards are licensed under GPL-3.0.
 
