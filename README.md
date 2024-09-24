@@ -18,7 +18,7 @@ subs2cards will automatically make an audio file containing all the audio snippe
 This is meant to be used for passive listening. <br>
 More explanations and context here: https://www.youtube.com/watch?v=QOLTeO-uCYU
 
-### Enhanced audiotrack
+### Enhanced voice audiotrack
 Make a new audiotrack with voices louder by merging the original audiotrack with an audiotrack contatining the voices only.<br>
 This is very useful for languages that are phonetically dense, such as tonal languages, or for languages that sound very different from your native language.<br>
 <br>
