@@ -1,12 +1,40 @@
-WIP
+### Status: prerelease
 
 Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
+### Requirements
+This fork require ffmpeg **version 6 or higher**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
 
-This fork require ffmpeg **version 6**, Mediainfo, a [Replicate](https://replicate.com/home) API token to use [Whisper](https://github.com/openai/whisper).
+## Extra features of this fork
 
+### Default encoding to OPUS / AVIF
+Use modern codecs to save storage
+
+### Automatic Speech Recognition / Speech-to-Text support
+[Translations of recorded dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubs can't be used with the original subs2srs.<br>
+With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles.
+
+### Condensed Audio
+subs2cards will automatically make an audio file containing all the audio snippets of dialog in the audiotrack. <br>
+This is meant to be used for passive listening. <br>
+More explanations and context here: https://www.youtube.com/watch?v=QOLTeO-uCYU
+
+### Enhanced audiotrack
+Make a new audiotrack with voices louder by merging the original audiotrack with an audiotrack contatining the voices only.<br>
+This is very useful for languages that are phonetically dense, such as tonal languages, or for languages that sound very different from your native language.<br>
+<br>
+The separated voices are obtained using one of these:
+
+| Name <br>(to be passed with -s) | Quality of separated vocals | Price                          | Type        | Note                                                           |
+|---------------------------------|-----------------------------|--------------------------------|-------------|----------------------------------------------------------------|
+| demucs                          | good                        | very cheap<br>0.063$/run          | MIT license | **The one I'd recommend**                                      |
+| demucs_ft                       | good                        | cheap<br>0.252$/run               | MIT license | Fine-tuned version: "take 4 times more time but might be a bit better". I couldn't hear any difference with the original in my test. |
+| spleeter                        | rather poor                 | very, very cheap<br>0.00027$/run  | MIT license |                                                                |
+| elevenlabs                      | good                        | very, very expensive<br>1$/minute | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original. <br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
+
+### License
 All new contributions from commit d540bd4 onwards are licensed under GPL-3.0.
 
-
+See original README below:
 <hr>
 
 Dissects subtitles and corresponding media files into flash cardsfor [sentence mining][1] with an [SRS][2] system like [Anki][3]. It is inspired
