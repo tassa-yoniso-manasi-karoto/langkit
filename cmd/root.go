@@ -3,11 +3,15 @@ package cmd
 import (
 	"fmt"
 	"os"
-
+	"time"
+	
+	"github.com/rs/zerolog"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+var logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.TimeOnly}).With().Timestamp().Logger()
 
 var cfgFile string
 
@@ -32,6 +36,7 @@ func Execute() {
 }
 
 func init() {
+	zerolog.SetGlobalLevel(zerolog.InfoLevel) 
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.subs2cards.yaml)")

@@ -84,10 +84,7 @@ func escape(s string) string {
 	return s
 }
 
-func (tsk *Task) Execute() error {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	tsk.Log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.TimeOnly}).With().Timestamp().Logger()
+func (tsk *Task) Execute() {
 	if tsk.MediaSourceFile == "" {
 		tsk.Log.Fatal().Msg("A media file must be specified.")
 	}
@@ -96,7 +93,7 @@ func (tsk *Task) Execute() error {
 	tsk.setDefaults()
 	foreignSubs, err := subs.OpenFile(tsk.ForeignSubtitlesFile, false)
 	if err != nil {
-		return fmt.Errorf("can't read foreign subtitles: %v", err)
+		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
 	if tsk.IsCC || strings.Contains(strings.ToLower(tsk.ForeignSubtitlesFile), "closedcaption") {
 		foreignSubs = subs.DumbDown2Dubs(foreignSubs)
@@ -106,18 +103,18 @@ func (tsk *Task) Execute() error {
 	if tsk.NativeSubtitlesFile != "" {
 		nativeSubs, err = subs.OpenFile(tsk.NativeSubtitlesFile, false)
 		if err != nil {
-			return fmt.Errorf("can't read native subtitles: %v", err)
+			tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
 		}
 	}
 
 	outStream, err := os.Create(tsk.outputFile())
 	if err != nil {
-		return fmt.Errorf("can't create output file: %s: %v", tsk.outputFile(), err)
+		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
 	}
 	defer outStream.Close()
 
 	if err := os.MkdirAll(tsk.mediaOutputDir(), os.ModePerm); err != nil {
-		return fmt.Errorf("can't create output directory: %s: %v", tsk.mediaOutputDir(), err)
+		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
 	}
 	mediaPrefix := path.Join(tsk.mediaOutputDir(), tsk.outputBase())
 	tsk.Meta = mediainfo(tsk.MediaSourceFile)
@@ -144,10 +141,10 @@ func (tsk *Task) Execute() error {
 	if tsk.UseAudiotrack < 0 {
 		tsk.UseAudiotrack = 0
 	}
-	color.Greenln(
-		"Chosen idx:", tsk.UseAudiotrack, "→", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language,
-		"ch=", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Channels,
-	)
+	tsk.Log.Info().
+		Int("UseAudiotrack", tsk.UseAudiotrack).
+		Str("track lang", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language).
+		Str("chan num", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Channels)
 
 	if tsk.Separation != "" {
 		// CAVEAT: All popular lossy encoder I have tried messed up the timings except Opus,
@@ -192,7 +189,7 @@ func (tsk *Task) Execute() error {
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("Voice separation processing error.")
 			}
-			// Must write to disk so that it can be reused
+			// Must write to disk so that it can be reused if ft error
 			if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {
 				tsk.Log.Error().Err(err).Msg("File of separated voice couldn't be written.")
 			}
@@ -218,7 +215,7 @@ func (tsk *Task) Execute() error {
 			tsk.Log.Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
 		}
 	}
-	return tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) error {
+	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
 		fmt.Fprintf(outStream, "%s\t", escape(item.Sound))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Time))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Source))
@@ -229,7 +226,6 @@ func (tsk *Task) Execute() error {
 		fmt.Fprintf(outStream, "%s\t", escape(item.NativePrev))
 		fmt.Fprintf(outStream, "%s\t", escape(item.ForeignNext))
 		fmt.Fprintf(outStream, "%s\n", escape(item.NativeNext))
-		return nil
 	})
 }
 

@@ -35,23 +35,28 @@ type ExportedItem struct {
 	NativeNext  string
 }
 
-// ExportedItemWriter should write an exported item in whatever format is
-// selected by the user.
-type ExportedItemWriter func(*ExportedItem) error
+// ExportedItemWriter should write an exported item in whatever format is // selected by the user.
+type ExportedItemWriter func(*ExportedItem)
 
 // ExportItems calls the write function for each foreign subtitle item.
-func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) error {
+func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) {
 	for i, foreignItem := range foreignSubs.Items {
 		item, audiofile, err := tsk.ExportItem(foreignItem, nativeSubs, outputBase, mediaSourceFile, mediaPrefix)
-		if err != nil { // FIXME log!
-			return fmt.Errorf("can't export item #%d: %s: %v", i+1, foreignItem.String(), err)
+		if err != nil {
+			tsk.Log.Error().
+				Int("srt row", i).
+				Str("item", foreignItem.String()).
+				Err(err).
+				Msg("can't export item")
 		}
 		// TODO Loop in case it fails
 		if tsk.STT {
 			lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
 			b, err := voice.Whisper(audiofile, tsk.Timeout, lang, "")
 			if err != nil {
-				tsk.Log.Error().Err(err).Str("foreignItem=", foreignItem.String()).Msg("Whisper error")
+				tsk.Log.Error().Err(err).
+					Str("item", foreignItem.String()).
+					Msg("Whisper error")
 			}
 			item.ForeignCurr = string(b)
 			// stt.Replicate(filepath, lang, "vaibhavs10", "incredibly-fast-whisper", "")
@@ -68,7 +73,7 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 		write(item)
 	}
 	tsk.ConcatWAVstoOGG("CONDENSED", mediaPrefix)
-	return nil
+	return
 }
 
 func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
@@ -78,11 +83,15 @@ func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
 	}
 	wavFiles, err := filepath.Glob(mediaPrefix+ "_*.wav")
 	if err != nil {
-		tsk.Log.Error().Err(err).Str("mediaOutputDir", tsk.mediaOutputDir()).Msg("Error finding .wav files")
+		tsk.Log.Error().Err(err).
+			Str("mediaOutputDir", tsk.mediaOutputDir()).
+			Msg("Error searching for .wav files")
 	}
 
 	if len(wavFiles) == 0 {
-		tsk.Log.Warn().Str("mediaOutputDir", tsk.mediaOutputDir()).Msg("No .wav files found")
+		tsk.Log.Warn().
+			Str("mediaOutputDir", tsk.mediaOutputDir()).
+			Msg("No .wav files found")
 	}
 	// Generate the concat list for ffmpeg
 	concatFile, err := media.CreateConcatFile(wavFiles)
@@ -119,19 +128,16 @@ func (tsk *Task) ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitle
 	}
 	audioFile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack, tsk.Offset, foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: can't extract ogg audio: %v\n", err)
-		os.Exit(1)
+		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
 	}
 	_, err = media.ExtractAudio("wav", tsk.UseAudiotrack, time.Duration(0), foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: can't extract wav audio: %v\n", err)
-		os.Exit(1)
+		tsk.Log.Error().Err(err).Msg("can't extract wav audio")
 	}
 
 	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: can't extract image: %v\n", err)
-		os.Exit(1)
+		tsk.Log.Error().Err(err).Msg("can't extract image")
 	}
 
 	item.Time = timePosition(foreignItem.StartAt)

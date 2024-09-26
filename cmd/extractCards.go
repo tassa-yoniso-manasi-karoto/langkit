@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -40,6 +38,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		STT, _        := cmd.Flags().GetBool("stt")
 		CC, _         := cmd.Flags().GetBool("cc")
 		action := extract.Task{
+			Log:                  logger,
 			TargetLang:           targetLang,
 			TargetChan:           targetChan,
 			Timeout:              timeout,
@@ -54,10 +53,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 			OutputFieldSeparator: "\t",
 			OutputFileExtension:  "tsv",
 		}
-		if err := action.Execute(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
+		action.Execute()
 	},
 }
 
