@@ -23,7 +23,6 @@ require (
 	github.com/asticode/go-astikit v0.8.0 // indirect
 	github.com/asticode/go-astits v1.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
-	github.com/haguro/elevenlabs-go v0.2.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
@@ -47,7 +46,3 @@ require (
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
-
-replace github.com/tassa-yoniso-manasi-karoto/subs2cards => /home/voiduser/go/src/subs2cards
-
-replace github.com/tassa-yoniso-manasi-karoto/elevenlabs-go => /home/voiduser/go/src/elevenlabs-go
