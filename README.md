@@ -1,8 +1,25 @@
 ### Status: prerelease
 
 Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
+
 ### Requirements
 This fork require ffmpeg **version 6 or higher**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+
+At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ELEVENLABS_API_TOKEN.
+
+### TODO
+- link static ffmpeg for windows
+- loop whisper with n retry
+- make `--stt` into string and add incredibly-fast-whisper as alternative
+- auto subs selection based on ISO lang and display warning if `--stt` is used when dubtitles or CC for that lang are detected
+- integrate with viper and yaml config file:
+    - whisper initial_prompt
+    - tokens
+    - gain & limiter parameters for merging
+
+
+*might:*
+- use Enhanced voice audiotrack as basis for audio clips
 
 ## Extra features of this fork
 
@@ -136,6 +153,3 @@ when I published this repository. Something is off with my search skills! :)
 
 ## Change log
 See the file [CHANGELOG.md](CHANGELOG.md).
-
-## License
-[MIT](LICENSE)
