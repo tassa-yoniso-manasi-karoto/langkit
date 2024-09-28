@@ -194,25 +194,27 @@ func (tsk *Task) Execute() {
 				tsk.Log.Error().Err(err).Msg("File of separated voice couldn't be written.")
 			}
 		} else {
-			tsk.Log.Info().Msg("Reusing previously separated voice audio.")
+			tsk.Log.Info().Msg("Previously separated voice audio was found.")
 		}
 		// MERGE THE ORIGINAL AUDIOTRACK WITH THE VOICE AUDIO FILE
 		// Using a lossless file here could induce A-V desync will playing
 		// because these format aren't designed to be audio tracks of videos, unlike opus.
-		MergedFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + ".MERGED.ogg")
-		tsk.Log.Info().Msg("Merging original and separated voice track into an enhanced voice track...")
-		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
-		err = media.Ffmpeg(
-			[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
-					fmt.Sprintf("[0:a]volume=%ddB[a1];", 13) +
-					fmt.Sprintf("[1:a]volume=%ddB[a2];", -9) +
-					"[a1][a2]amix=inputs=2[amixed];" +
-					fmt.Sprintf("[amixed]alimiter=limit=%f[final]", 0.9),
-					"-map", "[final]", "-acodec", "libopus", "-b:a", "128k",
-					MergedFile,
-		}...)
-		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
+		if strings.ToLower(tsk.Separation) != "elevenlabs" {
+			MergedFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + ".MERGED.ogg")
+			tsk.Log.Info().Msg("Merging original and separated voice track into an enhanced voice track...")
+			// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
+			err = media.Ffmpeg(
+				[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
+						fmt.Sprintf("[0:a]volume=%ddB[a1];", 13) +
+						fmt.Sprintf("[1:a]volume=%ddB[a2];", -9) +
+						"[a1][a2]amix=inputs=2[amixed];" +
+						fmt.Sprintf("[amixed]alimiter=limit=%f[final]", 0.9),
+						"-map", "[final]", "-acodec", "libopus", "-b:a", "128k",
+						MergedFile,
+			}...)
+			if err != nil {
+				tsk.Log.Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
+			}
 		}
 	}
 	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
