@@ -20,6 +20,7 @@ At the moment tokens should be passed through these env variables: REPLICATE_API
 
 *might:*
 - use Enhanced voice audiotrack as basis for audio clips
+- use lower bitrate opus with DRED & LBRR when standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
 
 ## Extra features of this fork
 
