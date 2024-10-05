@@ -28,16 +28,16 @@ type Task struct {
 	OriginalLang         string // FIXME what for?
 	Langs                []string
 	RefLangs             []Lang
-	TargetLang           Lang
-	Separation           string
+	TargLang             Lang
+	SeparationLib        string
 	TargetChan           int
 	UseAudiotrack        int
 	Timeout              int
 	Offset               time.Duration
 	STT, IsCC            bool
 	Log                  zerolog.Logger
-	ForeignSubtitlesFile string
-	NativeSubtitlesFile  string
+	TargSubFile          string
+	RefSubFile           string
 	MediaSourceFile      string
 	OutputFieldSeparator string // defaults to "\t"
 	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv", otherwise
@@ -62,22 +62,22 @@ func (tsk *Task) setDefaults() {
 func (tsk *Task) outputBase() string {
 	// "'" in filename will break the format that ffmpeg's concat filter requires.
 	// No escaping is supported → must be trimmed from mediaPrefix.
-	if strings.Contains(filepath.Dir(tsk.ForeignSubtitlesFile), "'") {
+	if strings.Contains(filepath.Dir(tsk.TargSubFile), "'") {
 		tsk.Log.Fatal().Msg(
 			"Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe (')." +
 				"Apostrophe in the names of the files themselves are supported using a workaround.",
 		)
 	}
-	base := strings.TrimSuffix(path.Base(tsk.ForeignSubtitlesFile), path.Ext(tsk.ForeignSubtitlesFile))
+	base := strings.TrimSuffix(path.Base(tsk.TargSubFile), path.Ext(tsk.TargSubFile))
 	return strings.ReplaceAll(base, "'", " ")
 }
 
 func (tsk *Task) outputFile() string {
-	return path.Join(path.Dir(tsk.ForeignSubtitlesFile), tsk.outputBase()+"."+tsk.OutputFileExtension)
+	return path.Join(path.Dir(tsk.TargSubFile), tsk.outputBase()+"."+tsk.OutputFileExtension)
 }
 
 func (tsk *Task) mediaOutputDir() string {
-	return path.Join(path.Dir(tsk.ForeignSubtitlesFile), tsk.outputBase()+".media")
+	return path.Join(path.Dir(tsk.TargSubFile), tsk.outputBase()+".media")
 }
 
 func escape(s string) string {
@@ -112,18 +112,18 @@ func (tsk *Task) Execute() {
 
 	tsk.setDefaults()
 	
-	if tsk.ForeignSubtitlesFile == "" && tsk.Langs == nil {
+	if tsk.TargSubFile == "" && tsk.Langs == nil {
 		tsk.Log.Fatal().Msg("When no subtitle file is passed desired languages must be specified.")
 	}
 	if len(tsk.Langs) < 2 {
 		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
 	}
-	tsk.TargetLang = readIETFLang([]string{tsk.Langs[0]})[0]
+	tsk.TargLang = readIETFLang([]string{tsk.Langs[0]})[0]
 	tsk.RefLangs = readIETFLang(tsk.Langs[1:])
-	//pp.Println(tsk.TargetLang)
+	//pp.Println(tsk.TargLang)
 	//pp.Println(tsk.RefLangs)
 	//### AUTOSUB ##########################
-	if tsk.ForeignSubtitlesFile == "" {
+	if tsk.TargSubFile == "" {
 		files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Failed to read directory")
@@ -139,37 +139,37 @@ func (tsk *Task) Execute() {
 			l.Str, l.Region = GuessLangFromFilename(file.Name())
 			fmt.Printf("Guessed lang: %s\tRegion: %s\tFile: %s\n", l.Str, l.Region, file.Name())
 			
-			IsPrefered([]Lang{tsk.TargetLang}, l, tsk.TargetLang, file.Name(), &tsk.ForeignSubtitlesFile)
+			IsPrefered([]Lang{tsk.TargLang}, l, tsk.TargLang, file.Name(), &tsk.TargSubFile)
 			for _, RefLang := range tsk.RefLangs {
-				IsPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubtitlesFile)
+				IsPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.RefSubFile)
 			}
 		}
-		tsk.NativeSubtitlesFile  = Base2Absolute(tsk.NativeSubtitlesFile, path.Dir(tsk.MediaSourceFile))
-		tsk.ForeignSubtitlesFile = Base2Absolute(tsk.ForeignSubtitlesFile, path.Dir(tsk.MediaSourceFile))
+		tsk.RefSubFile  = Base2Absolute(tsk.RefSubFile, path.Dir(tsk.MediaSourceFile))
+		tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
 		
 	}
-	if tsk.ForeignSubtitlesFile == "" {
+	if tsk.TargSubFile == "" {
 		tsk.Log.Error().Str("video", tsk.MediaSourceFile).Msg("No sub file for desired target language were found")
 	}
-	if tsk.NativeSubtitlesFile == "" {
+	if tsk.RefSubFile == "" {
 		tsk.Log.Error().Str("video", tsk.MediaSourceFile).Msg("No sub file for any of the desired reference language(s) were found")
 	}
-	color.Redln("TARG:", tsk.ForeignSubtitlesFile)
-	color.Redln("REF:", tsk.NativeSubtitlesFile)
+	color.Redln("TARG:", tsk.TargSubFile)
+	color.Redln("REF:", tsk.RefSubFile)
 	//color.Greenln("WIP!")
 	//os.Exit(0)
 	//#######################################
-	foreignSubs, err := subs.OpenFile(tsk.ForeignSubtitlesFile, false)
+	foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
-	if tsk.IsCC || strings.Contains(strings.ToLower(tsk.ForeignSubtitlesFile), "closedcaption") {
+	if tsk.IsCC || strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
 		foreignSubs = subs.DumbDown2Dubs(foreignSubs)
 		tsk.Log.Info().Msg("Foreign subs are closed captions.")
 	}
 
-	if tsk.NativeSubtitlesFile != "" {
-		nativeSubs, err = subs.OpenFile(tsk.NativeSubtitlesFile, false)
+	if tsk.RefSubFile != "" {
+		nativeSubs, err = subs.OpenFile(tsk.RefSubFile, false)
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
 		}
@@ -196,12 +196,12 @@ func (tsk *Task) Execute() {
 	// FIXME range over func instead of calling it 3 times
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
 		num, _ := strconv.Atoi(track.Channels)
-		if track.Language == tsk.TargetLang.Str && num == tsk.TargetChan {
+		if track.Language == tsk.TargLang.Str && num == tsk.TargetChan {
 			tsk.UseAudiotrack = i
 		}
 	})
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
-		if track.Language == tsk.TargetLang.Str {
+		if track.Language == tsk.TargLang.Str {
 			tsk.UseAudiotrack = i
 		}
 	})
@@ -213,7 +213,7 @@ func (tsk *Task) Execute() {
 		Str("track lang", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language).
 		Str("chan num", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Channels)
 
-	if tsk.Separation != "" {
+	if tsk.SeparationLib != "" {
 		// CAVEAT: All popular lossy encoder I have tried messed up the timings except Opus,
 		// even demuxing with -c:a copy to keep the original encoding somehow did too!
 		// Using flac or opus is critical to keep video, audio and sub in sync.
@@ -236,25 +236,25 @@ func (tsk *Task) Execute() {
 			"spleeter":   "wav",
 			"elevenlabs": "mp3",
 		}
-		VoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.Separation) + "." + extPerProvider[tsk.Separation])
-		//SyncVoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.Separation) + ".SYNC.wav")
+		VoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib])
+		//SyncVoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.SeparationLib) + ".SYNC.wav")
 		if  _, err := os.Stat(VoiceFile); errors.Is(err, os.ErrNotExist) {
 			tsk.Log.Info().Msg("Separating voice from the rest of the audiotrack...")
 			var audio []byte
-			switch strings.ToLower(tsk.Separation) {
+			switch strings.ToLower(tsk.SeparationLib) {
 			case "demucs":
-				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.Separation], tsk.Timeout, false)
+				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.Timeout, false)
 			case "demucs_ft":
-				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.Separation], tsk.Timeout, true)
+				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.Timeout, true)
 			case "spleeter":
 				audio, err = voice.Spleeter(OriginalAudio, tsk.Timeout)
 			case "elevenlabs":
 				audio, err = voice.ElevenlabsIsolator(OriginalAudio, tsk.Timeout)
 			default:
-				tsk.Log.Fatal().Msg("An unknown source separation library was passed. Check for typo.")
+				tsk.Log.Fatal().Msg("An unknown source SeparationLib library was passed. Check for typo.")
 			}
 			if err != nil {
-				tsk.Log.Fatal().Err(err).Msg("Voice separation processing error.")
+				tsk.Log.Fatal().Err(err).Msg("Voice SeparationLib processing error.")
 			}
 			// Must write to disk so that it can be reused if ft error
 			if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {
@@ -266,7 +266,7 @@ func (tsk *Task) Execute() {
 		// MERGE THE ORIGINAL AUDIOTRACK WITH THE VOICE AUDIO FILE
 		// Using a lossless file here could induce A-V desync will playing
 		// because these format aren't designed to be audio tracks of videos, unlike opus.
-		if strings.ToLower(tsk.Separation) != "elevenlabs" {
+		if strings.ToLower(tsk.SeparationLib) != "elevenlabs" {
 			MergedFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + ".MERGED.ogg")
 			tsk.Log.Info().Msg("Merging original and separated voice track into an enhanced voice track...")
 			// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
