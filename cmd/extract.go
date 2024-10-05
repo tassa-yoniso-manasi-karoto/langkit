@@ -2,7 +2,8 @@ package cmd
 
 import "github.com/spf13/cobra"
 
-var mediaFile, targetLang, separator string
+var mediaFile, sep string
+var langs []string
 
 var extractCmd = &cobra.Command{
 	Use:   "extract",
@@ -12,8 +13,8 @@ var extractCmd = &cobra.Command{
 
 func init() {
 	extractCmd.PersistentFlags().StringVarP(&mediaFile, "mediafile", "m", "", "media file to decompose")
-	extractCmd.PersistentFlags().StringVarP(&targetLang, "target", "t", "", "ISO-639-2 code of the target language to learn (ie. 'en', 'ja', 'es'...)")
-	extractCmd.PersistentFlags().StringVarP(&separator, "separator", "s", "", "specifies which source separation library to use to isolate the voice's audio")
+	extractCmd.PersistentFlags().StringSliceVarP(&langs, "langs", "l", []string{}, "ISO-639-1 codes of target language followed by reference language(s) sorted of preference (ie. if learning spanish from english: \"es,en\")")
+	extractCmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", "specifies which source separation library to use to isolate the voice's audio")
 	extractCmd.PersistentFlags().Bool("stt", false, "transcribe audio using an online Speech-To-Text API")
 	extractCmd.PersistentFlags().Bool("cc", false, "enforce treating the foreign subs as closed captions: strip it of its SDH material to keep only the dialog")
 	extractCmd.PersistentFlags().Int("chan", 2, "prefer audiotracks with this number of channels")

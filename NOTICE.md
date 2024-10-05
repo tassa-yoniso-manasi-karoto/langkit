@@ -1,4 +1,6 @@
-This project is a fork of the original project Bunkai by user ustuehler (Uwe Stuehler), which was initially licensed under the MIT License.
+This project is a fork of the original project **Bunkai** by user **ustuehler** (Uwe Stuehler), which was initially licensed under the MIT License.
+One function from **mpv** (licensed LGPLv2.1+) was translated from C into Go and altough no code was directly reused. See lang.go.
+
 All new contributions to this fork from commit d540bd4 onwards are licensed under GPL-3.0.
 
 The portions of the project derived from https://github.com/ustuehler/bunkai remain licensed under the following MIT License:
@@ -24,5 +26,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE."
+
+
+
 
 For more details on the licensing terms of this project, see the LICENSE.txt file for the GPL-3.0 License.

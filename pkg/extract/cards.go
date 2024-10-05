@@ -9,21 +9,26 @@ import (
 	"time"
 	"path/filepath"
 	"errors"
+	"slices"
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/rs/zerolog"
-	
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
+
 	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/voice"
 	//"github.com/schollz/progressbar/v3"
 )
 
+var AstisubSupportedExt = []string{".srt", ".ass", ".ssa", "vtt", ".stl", ".ttml"}
+
 type Task struct {
 	Meta                 MediaInfo
-	OriginalLang         string
-	TargetLang           string
+	OriginalLang         string // FIXME what for?
+	Langs                []string
+	RefLangs             []Lang
+	TargetLang           Lang
 	Separation           string
 	TargetChan           int
 	UseAudiotrack        int
@@ -53,13 +58,14 @@ func (tsk *Task) setDefaults() {
 	}
 }
 
+
 func (tsk *Task) outputBase() string {
-	// "'" in filename will break the format that ffmpeg's concat filter requires. 
+	// "'" in filename will break the format that ffmpeg's concat filter requires.
 	// No escaping is supported → must be trimmed from mediaPrefix.
 	if strings.Contains(filepath.Dir(tsk.ForeignSubtitlesFile), "'") {
 		tsk.Log.Fatal().Msg(
 			"Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe (')." +
-			"Apostrophe in the names of the files themselves are supported using a workaround.",
+				"Apostrophe in the names of the files themselves are supported using a workaround.",
 		)
 	}
 	base := strings.TrimSuffix(path.Base(tsk.ForeignSubtitlesFile), path.Ext(tsk.ForeignSubtitlesFile))
@@ -74,7 +80,6 @@ func (tsk *Task) mediaOutputDir() string {
 	return path.Join(path.Dir(tsk.ForeignSubtitlesFile), tsk.outputBase()+".media")
 }
 
-
 func escape(s string) string {
 	// https://datatracker.ietf.org/doc/html/rfc4180.html#section-2
 	if strings.Contains(s, `"`) || strings.Contains(s, "\t") || strings.Contains(s, "\n") {
@@ -84,6 +89,21 @@ func escape(s string) string {
 	return s
 }
 
+
+func readIETFLang(arr []string) (langs []Lang) {
+	for _, tmp := range arr {
+		items := strings.Split(tmp, "-")
+		lang := Lang{items[0], ""}
+		if len(items) > 1 {
+			lang.Region = items[1]
+		}
+		langs = append(langs, lang)
+	}
+	return
+}
+
+
+
 func (tsk *Task) Execute() {
 	if tsk.MediaSourceFile == "" {
 		tsk.Log.Fatal().Msg("A media file must be specified.")
@@ -91,6 +111,54 @@ func (tsk *Task) Execute() {
 	var nativeSubs *subs.Subtitles
 
 	tsk.setDefaults()
+	
+	if tsk.ForeignSubtitlesFile == "" && tsk.Langs == nil {
+		tsk.Log.Fatal().Msg("When no subtitle file is passed desired languages must be specified.")
+	}
+	if len(tsk.Langs) < 2 {
+		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
+	}
+	tsk.TargetLang = readIETFLang([]string{tsk.Langs[0]})[0]
+	tsk.RefLangs = readIETFLang(tsk.Langs[1:])
+	//pp.Println(tsk.TargetLang)
+	//pp.Println(tsk.RefLangs)
+	//### AUTOSUB ##########################
+	if tsk.ForeignSubtitlesFile == "" {
+		files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Failed to read directory")
+		}
+		trimmedMedia := strings.TrimSuffix(path.Base(tsk.MediaSourceFile), path.Ext(tsk.MediaSourceFile))
+		for _, file := range files {
+			ext := strings.ToLower(filepath.Ext(file.Name()))
+			trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
+			if file.IsDir() || !slices.Contains(AstisubSupportedExt, ext) || !strings.HasPrefix(trimmed, trimmedMedia) {
+				continue
+			}
+			var l Lang
+			l.Str, l.Region = GuessLangFromFilename(file.Name())
+			fmt.Printf("Guessed lang: %s\tRegion: %s\tFile: %s\n", l.Str, l.Region, file.Name())
+			
+			IsPrefered([]Lang{tsk.TargetLang}, l, tsk.TargetLang, file.Name(), &tsk.ForeignSubtitlesFile)
+			for _, RefLang := range tsk.RefLangs {
+				IsPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubtitlesFile)
+			}
+		}
+		tsk.NativeSubtitlesFile  = Base2Absolute(tsk.NativeSubtitlesFile, path.Dir(tsk.MediaSourceFile))
+		tsk.ForeignSubtitlesFile = Base2Absolute(tsk.ForeignSubtitlesFile, path.Dir(tsk.MediaSourceFile))
+		
+	}
+	if tsk.ForeignSubtitlesFile == "" {
+		tsk.Log.Error().Str("video", tsk.MediaSourceFile).Msg("No sub file for desired target language were found")
+	}
+	if tsk.NativeSubtitlesFile == "" {
+		tsk.Log.Error().Str("video", tsk.MediaSourceFile).Msg("No sub file for any of the desired reference language(s) were found")
+	}
+	color.Redln("TARG:", tsk.ForeignSubtitlesFile)
+	color.Redln("REF:", tsk.NativeSubtitlesFile)
+	//color.Greenln("WIP!")
+	//os.Exit(0)
+	//#######################################
 	foreignSubs, err := subs.OpenFile(tsk.ForeignSubtitlesFile, false)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
@@ -106,7 +174,6 @@ func (tsk *Task) Execute() {
 			tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
 		}
 	}
-
 	outStream, err := os.Create(tsk.outputFile())
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
@@ -129,12 +196,12 @@ func (tsk *Task) Execute() {
 	// FIXME range over func instead of calling it 3 times
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
 		num, _ := strconv.Atoi(track.Channels)
-		if track.Language == tsk.TargetLang && num == tsk.TargetChan {
+		if track.Language == tsk.TargetLang.Str && num == tsk.TargetChan {
 			tsk.UseAudiotrack = i
 		}
 	})
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
-		if track.Language == tsk.TargetLang {
+		if track.Language == tsk.TargetLang.Str {
 			tsk.UseAudiotrack = i
 		}
 	})
@@ -151,8 +218,8 @@ func (tsk *Task) Execute() {
 		// even demuxing with -c:a copy to keep the original encoding somehow did too!
 		// Using flac or opus is critical to keep video, audio and sub in sync.
 		audiobase := NoSub(tsk.outputBase())
-		OriginalAudio := filepath.Join(os.TempDir(), audiobase + ".flac")
-		if  _, err := os.Stat(OriginalAudio); errors.Is(err, os.ErrNotExist){
+		OriginalAudio := filepath.Join(os.TempDir(), audiobase+".flac")
+		if _, err := os.Stat(OriginalAudio); errors.Is(err, os.ErrNotExist) {
 			tsk.Log.Info().Msg("Demuxing the audiotrack...")
 			err = media.Ffmpeg(
 				[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
@@ -240,6 +307,13 @@ func (tsk *Task) ChooseAudio(f func(i int, track AudioTrack)) {
 }
 
 
+func Base2Absolute(s, dir string) string {
+	if s != "" {
+		return path.Join(dir, s)
+	}
+	return ""
+}
+
 func NoSub(s string) string {
 	s = strings.ReplaceAll(s, ".closedcaptions", "")
 	s = strings.ReplaceAll(s, ".subtitles", "")
@@ -255,6 +329,3 @@ func placeholder() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
 	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }
-
-
-

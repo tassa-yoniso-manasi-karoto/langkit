@@ -22,12 +22,13 @@ command would create the tab-separated file "foreign.tsv" and a directory
 "foreign.tsv" would have a current, previous and next subtitle item from
 both subtitle files, but the timing reference would be "foreign.srt".`,
 
-	Args: argFuncs(cobra.MinimumNArgs(1), cobra.MaximumNArgs(2)),
+	Args: argFuncs(cobra.MinimumNArgs(0), cobra.MaximumNArgs(2)),
 	Run: func(cmd *cobra.Command, args []string) {
 		var foreignSubs, nativeSubs string
 
-		foreignSubs = args[0]
-
+		if len(args) > 0 {
+			foreignSubs = args[0]
+		}
 		if len(args) > 1 {
 			nativeSubs = args[1]
 		}
@@ -39,11 +40,11 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		CC, _         := cmd.Flags().GetBool("cc")
 		action := extract.Task{
 			Log:                  logger,
-			TargetLang:           targetLang,
+			Langs:                langs,
 			TargetChan:           targetChan,
 			Timeout:              timeout,
 			STT:                  STT,
-			Separation:           separator,
+			Separation:           sep,
 			IsCC:                 CC,
 			Offset:               time.Duration(Offset)*time.Millisecond,
 			UseAudiotrack:        audiotrack-1,

@@ -8,10 +8,17 @@ This fork require ffmpeg **version 6 or higher**, Mediainfo, a [Replicate](https
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ELEVENLABS_API_TOKEN.
 
 ### TODO
-- link static ffmpeg for windows
-- loop whisper with n retry
-- make `--stt` into string and add incredibly-fast-whisper as alternative
+*in progress:*
+
+- verbose, padded mode for when iterating mp4 in a folder
 - auto subs selection based on ISO lang and display warning if `--stt` is used when dubtitles or CC for that lang are detected
+- support ISO-639-3
+
+*later:*
+
+- loop whisper with n retry
+- resume whisper after fatal
+- make `--stt` into string and add incredibly-fast-whisper as alternative
 - integrate with viper and yaml config file:
     - whisper initial_prompt
     - tokens
@@ -19,7 +26,11 @@ At the moment tokens should be passed through these env variables: REPLICATE_API
 
 
 *might:*
+
+- ImageMagick fuzz trim to remove black padding
+- link static ffmpeg for windows
 - use Enhanced voice audiotrack as basis for audio clips
+- more debug info (ffmpeg version, mediainfo, platform...)
 - use lower bitrate opus with DRED & LBRR when standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
 
 ## Extra features of this fork
