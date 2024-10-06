@@ -10,15 +10,14 @@ At the moment tokens should be passed through these env variables: REPLICATE_API
 ### TODO
 *in progress:*
 
+- loop whisper with n retry
+- make dubtitle file from whisper transcription
+- resuming capabilites for whisper
+- (MUST TEST:) incredibly-fast-whisper
 - verbose, padded mode for when iterating mp4 in a folder
-- auto subs selection based on ISO lang and display warning if `--stt` is used when dubtitles or CC for that lang are detected
-- support ISO-639-3
 
 *later:*
 
-- loop whisper with n retry
-- resume whisper after fatal
-- make `--stt` into string and add incredibly-fast-whisper as alternative
 - integrate with viper and yaml config file:
     - whisper initial_prompt
     - tokens
@@ -27,7 +26,7 @@ At the moment tokens should be passed through these env variables: REPLICATE_API
 
 *might:*
 
-- ImageMagick fuzz trim to remove black padding
+- with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 - link static ffmpeg for windows
 - use Enhanced voice audiotrack as basis for audio clips
 - more debug info (ffmpeg version, mediainfo, platform...)
@@ -78,9 +77,6 @@ might want to check out as well.
 ## Features
 - **One or two subtitle files**: Two subtitle files can be used together to
   provide foreign and native language expressions on the same card.
-- **Media files are optional**: Requires only a single foreign subtitles file to
-  generate text-only flash cards. Associated media content is optional, but
-  highly recommended.
 - **Multiple subtitle formats**: Any format which is supported by [go-astisub][5]
   is also supported by this application, although some formats may work slightly
   better than others. If in doubt, try to use `.srt` subtitles.

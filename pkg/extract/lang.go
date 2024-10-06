@@ -1,17 +1,15 @@
 package extract
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"unicode"
 
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
+	iso "github.com/barbashov/iso639-3"
 )
-
-type Lang struct {
-	Str, Region string
-}
 
 const (
 	StrippedSDH = iota
@@ -19,6 +17,14 @@ const (
 	Dub
 	CC
 )
+
+type Lang struct {
+	*iso.Language
+	// Typically a ISO 3166-1 region but can also be a ISO 15924 script
+	Subtag string
+}
+
+
 
 var refmatch = map[string]int{
 	"closedcaptions": CC,
@@ -28,16 +34,16 @@ var refmatch = map[string]int{
 	"stripped_sdh":   StrippedSDH,
 }
 
-func IsPrefered(langs []Lang, l, atm Lang, name string, out *string) bool {
-	if isPreferedLang(langs, l, atm) && isPreferedSubtypeOver(*out, name) {
+func SetPrefered(langs []Lang, l, atm Lang, name string, out *string) bool {
+	if setPreferedLang(langs, l, atm) && isPreferedSubtypeOver(*out, name) {
 		*out = name
-		//color.Yellowln(isPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name), "out becomes", name)
+		//color.Yellowln(setPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name), "out becomes", name)
 		return true
 	}
 	return false
 }
 
-func isPreferedLang(langs []Lang, l, atm Lang) (b bool) {
+func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {
 	//println(fmt.Sprintf("%#v", l), "l idx", getIdx(langs, l))
 	//println(fmt.Sprintf("%#v", atm), "atm idx", getIdx(langs, atm))
 	if getIdx(langs, l) <= getIdx(langs, atm) {
@@ -49,7 +55,7 @@ func isPreferedLang(langs []Lang, l, atm Lang) (b bool) {
 
 func getIdx(langs []Lang, ref Lang) int {
 	for i, l := range langs {
-		if l.Str == ref.Str && l.Region == ref.Region {
+		if l.Part3 == ref.Part3 && l.Subtag == ref.Subtag {
 			return i
 		}
 	}
@@ -77,15 +83,18 @@ func subtypeMatcher(s string) int {
 	return Sub
 }
 
-// The 1st subtag found is considered the region, the others are ignored
-func GuessLangFromFilename(name string) (lang, region string) {
+// Only 1st subtag found is considered, the others are ignored
+func GuessLangFromFilename(name string) (lang Lang, err error) {
 	// this int was in the original algo, not sure if I need it or not at some point
 	var fn_start int
-	lang = guessLangFromFilename(name, &fn_start)
-	if strings.Contains(lang, "-") {
-		region = strings.Split(lang, "-")[1]
-		lang = strings.Split(lang, "-")[0]
-		return
+	l := guessLangFromFilename(name, &fn_start)
+	if arr := strings.Split(l, "-"); strings.Contains(l, "-") {
+		lang.Subtag = arr[1]
+		l = arr[0]
+	}
+	lang.Language = iso.FromAnyCode(l)
+	if lang.Language == nil {
+		err = fmt.Errorf("No language could be identified.")
 	}
 	return
 }
@@ -100,18 +109,19 @@ https://github.com/mpv-player/mpv/blob/master/LICENSE.LGPL
 
 The implementation here is provided under GPL3 as the rest of this project.
 You can test if your subs are found by their algo with "mpv --msg-level=find_files=trace video.mp4"
+
 */
 func guessLangFromFilename(name string, langStart *int) string {
 	stripname := name
 	var ok bool
 	var i, langLength int
+	// this iter decorticates some more in case lang isn't located at the end of the name
 	for x := 0; x < 2; x++ {
-		// Strip the extension and any unwanted characters
 		stripname = strings.TrimSuffix(path.Base(stripname), path.Ext(stripname))
 		stripname = strings.TrimSpace(stripname)
 
 		if len(stripname) < 2 {
-			return "" // return an empty string
+			return ""
 		}
 
 		langLength = 0
@@ -155,12 +165,12 @@ func guessLangFromFilename(name string, langStart *int) string {
 			//color.Yellowln("langLength=", langLength, stripname[i+1 : i+1+langLength])
 			//color.Yellowln("rune(stripname[i])=", string(stripname[i]))
 			//color.Redln(langLength < suffixesLength+2, langLength > suffixesLength+3, i <= 0, rune(name[i]) != delimiter)
-			ok = false // Invalid language tag format
+			ok = false
 		}
-		// if longer than 3 letters, a de
+		// if longer than 3 letters, must have hyphen and subtag
 		if langLength > suffixesLength+3 && !strings.Contains(stripname[i+1:i+1+langLength], "-") {
 			//color.Yellowln(string(stripname[i+1 : i+1+langLength]), "contains no '-'!")
-			ok = false // Invalid language tag format
+			ok = false
 		}
 		if ok {
 			break

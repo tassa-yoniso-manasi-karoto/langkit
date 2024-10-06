@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"errors"
 	"slices"
+	"bufio"
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/rs/zerolog"
+	iso "github.com/barbashov/iso639-3"
 
 	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
@@ -24,18 +26,19 @@ import (
 var AstisubSupportedExt = []string{".srt", ".ass", ".ssa", "vtt", ".stl", ".ttml"}
 
 type Task struct {
+	Log                  zerolog.Logger
 	Meta                 MediaInfo
 	OriginalLang         string // FIXME what for?
 	Langs                []string
 	RefLangs             []Lang
-	TargLang             Lang
+	Targ                 Lang
 	SeparationLib        string
+	STT                  string
 	TargetChan           int
 	UseAudiotrack        int
 	Timeout              int
 	Offset               time.Duration
-	STT, IsCC            bool
-	Log                  zerolog.Logger
+	IsCCorDubs           bool
 	TargSubFile          string
 	RefSubFile           string
 	MediaSourceFile      string
@@ -90,12 +93,13 @@ func escape(s string) string {
 }
 
 
-func readIETFLang(arr []string) (langs []Lang) {
+func readStdLangCode(arr []string) (langs []Lang) {
 	for _, tmp := range arr {
-		items := strings.Split(tmp, "-")
-		lang := Lang{items[0], ""}
-		if len(items) > 1 {
-			lang.Region = items[1]
+		var lang Lang
+		arr := strings.Split(tmp, "-")
+		lang.Language = iso.FromAnyCode(arr[0])
+		if len(arr) > 1 {
+			lang.Subtag = arr[1]
 		}
 		langs = append(langs, lang)
 	}
@@ -118,9 +122,9 @@ func (tsk *Task) Execute() {
 	if len(tsk.Langs) < 2 {
 		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
 	}
-	tsk.TargLang = readIETFLang([]string{tsk.Langs[0]})[0]
-	tsk.RefLangs = readIETFLang(tsk.Langs[1:])
-	//pp.Println(tsk.TargLang)
+	tsk.Targ = readStdLangCode([]string{tsk.Langs[0]})[0]
+	tsk.RefLangs = readStdLangCode(tsk.Langs[1:])
+	//pp.Println(tsk.Targ)
 	//pp.Println(tsk.RefLangs)
 	//### AUTOSUB ##########################
 	if tsk.TargSubFile == "" {
@@ -132,16 +136,21 @@ func (tsk *Task) Execute() {
 		for _, file := range files {
 			ext := strings.ToLower(filepath.Ext(file.Name()))
 			trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
-			if file.IsDir() || !slices.Contains(AstisubSupportedExt, ext) || !strings.HasPrefix(trimmed, trimmedMedia) {
+			if file.IsDir() ||
+				!slices.Contains(AstisubSupportedExt, ext) ||
+					!strings.HasPrefix(trimmed, trimmedMedia) ||
+						strings.Contains(trimmed, "forced") {
 				continue
 			}
-			var l Lang
-			l.Str, l.Region = GuessLangFromFilename(file.Name())
-			fmt.Printf("Guessed lang: %s\tRegion: %s\tFile: %s\n", l.Str, l.Region, file.Name())
+			l, err := GuessLangFromFilename(file.Name())
+			if err != nil {
+				continue
+			}
+			//fmt.Printf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
 			
-			IsPrefered([]Lang{tsk.TargLang}, l, tsk.TargLang, file.Name(), &tsk.TargSubFile)
+			SetPrefered([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile)
 			for _, RefLang := range tsk.RefLangs {
-				IsPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.RefSubFile)
+				tsk.IsCCorDubs = SetPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.RefSubFile)
 			}
 		}
 		tsk.RefSubFile  = Base2Absolute(tsk.RefSubFile, path.Dir(tsk.MediaSourceFile))
@@ -149,10 +158,10 @@ func (tsk *Task) Execute() {
 		
 	}
 	if tsk.TargSubFile == "" {
-		tsk.Log.Error().Str("video", tsk.MediaSourceFile).Msg("No sub file for desired target language were found")
+		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language were found")
 	}
 	if tsk.RefSubFile == "" {
-		tsk.Log.Error().Str("video", tsk.MediaSourceFile).Msg("No sub file for any of the desired reference language(s) were found")
+		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
 	}
 	color.Redln("TARG:", tsk.TargSubFile)
 	color.Redln("REF:", tsk.RefSubFile)
@@ -163,16 +172,9 @@ func (tsk *Task) Execute() {
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
-	if tsk.IsCC || strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
-		foreignSubs = subs.DumbDown2Dubs(foreignSubs)
-		tsk.Log.Info().Msg("Foreign subs are closed captions.")
-	}
-
-	if tsk.RefSubFile != "" {
-		nativeSubs, err = subs.OpenFile(tsk.RefSubFile, false)
-		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
-		}
+	nativeSubs, err = subs.OpenFile(tsk.RefSubFile, false)
+	if err != nil {
+		tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
 	}
 	outStream, err := os.Create(tsk.outputFile())
 	if err != nil {
@@ -185,23 +187,23 @@ func (tsk *Task) Execute() {
 	}
 	mediaPrefix := path.Join(tsk.mediaOutputDir(), tsk.outputBase())
 	tsk.Meta = mediainfo(tsk.MediaSourceFile)
-	for _, track := range tsk.Meta.AudioTracks {
+	/*for _, track := range tsk.Meta.AudioTracks {
 		if strings.Contains(strings.ToLower(track.Title), "original") {
 			tsk.OriginalLang = track.Language
 		}
 	}
 	if tsk.OriginalLang != "" {
 		tsk.Log.Info().Msg("Detected original lang:"+ tsk.OriginalLang)
-	}
+	}*/
 	// FIXME range over func instead of calling it 3 times
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
 		num, _ := strconv.Atoi(track.Channels)
-		if track.Language == tsk.TargLang.Str && num == tsk.TargetChan {
+		if track.Language == tsk.Targ.Language && num == tsk.TargetChan {
 			tsk.UseAudiotrack = i
 		}
 	})
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
-		if track.Language == tsk.TargLang.Str {
+		if track.Language == tsk.Targ.Language {
 			tsk.UseAudiotrack = i
 		}
 	})
@@ -210,7 +212,7 @@ func (tsk *Task) Execute() {
 	}
 	tsk.Log.Info().
 		Int("UseAudiotrack", tsk.UseAudiotrack).
-		Str("track lang", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language).
+		Str("track lang", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language.Part3).
 		Str("chan num", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Channels)
 
 	if tsk.SeparationLib != "" {
@@ -223,8 +225,8 @@ func (tsk *Task) Execute() {
 			tsk.Log.Info().Msg("Demuxing the audiotrack...")
 			err = media.Ffmpeg(
 				[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
-					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack),
-						"-vn", OriginalAudio,
+						"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack),
+							"-vn", OriginalAudio,
 			}...)
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("Failed to demux the desired audiotrack.")
@@ -284,6 +286,20 @@ func (tsk *Task) Execute() {
 			}
 		}
 	}
+	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
+		foreignSubs = subs.DumbDown2Dubs(foreignSubs)
+		tsk.Log.Info().Msg("Foreign subs are closed captions.")
+	}
+	// NOTE: this warning won't occur if the sub file are passed as arg
+	if tsk.IsCCorDubs && tsk.STT != "" {
+		tsk.Log.Warn().Msg("Speech-to-Text is requested but closed captions or dubtitles are available for the target language," +
+			" which are usually reliable transcriptions of dubbings.")
+		if !askForConfirmation() {
+			os.Exit(0)
+		}	
+	}
+	color.Greenln("WIP!")
+	os.Exit(0)
 	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
 		fmt.Fprintf(outStream, "%s\t", escape(item.Sound))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Time))
@@ -323,6 +339,34 @@ func NoSub(s string) string {
 	s = strings.ReplaceAll(s, ".DUBTITLE.subtitles", "")
 	//s = strings.ReplaceAll(s, ".", "")
 	return s
+}
+
+
+func askForConfirmation() bool {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Print("Continue? (y/n): ")
+
+		// Read user input
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input:", err)
+			return false
+		}
+
+		// Convert to lowercase and trim spaces/newlines
+		response = strings.ToLower(strings.TrimSpace(response))
+
+		// Check for confirmation
+		if response == "y" || response == "yes" {
+			return true
+		} else if response == "n" || response == "no" {
+			return false
+		} else {
+			fmt.Println("Please type 'y' or 'n' and press enter.")
+		}
+	}
 }
 
 func placeholder() {

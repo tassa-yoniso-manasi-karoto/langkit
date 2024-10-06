@@ -36,8 +36,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		audiotrack, _ := cmd.Flags().GetInt("a")
 		Offset, _     := cmd.Flags().GetInt("offset")
 		timeout, _    := cmd.Flags().GetInt("timeout")
-		STT, _        := cmd.Flags().GetBool("stt")
-		CC, _         := cmd.Flags().GetBool("cc")
+		//CC, _         := cmd.Flags().GetBool("cc")
 		action := extract.Task{
 			Log:                  logger,
 			Langs:                langs,
@@ -45,7 +44,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 			Timeout:              timeout,
 			STT:                  STT,
 			SeparationLib:        sep,
-			IsCC:                 CC,
+			//IsCC:                 CC,
 			Offset:               time.Duration(Offset)*time.Millisecond,
 			UseAudiotrack:        audiotrack-1,
 			TargSubFile:          foreignSubs,

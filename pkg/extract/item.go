@@ -50,16 +50,25 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 				Msg("can't export item")
 		}
 		// TODO Loop in case it fails
-		if tsk.STT {
-			lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
-			b, err := voice.Whisper(audiofile, tsk.Timeout, lang, "")
+		// TODO keep track of progress like ytdl.part
+		lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
+		switch tsk.STT {
+		case "wh", "whisper":
+			b, err := voice.Whisper(audiofile, tsk.Timeout, lang.Part1, "")
 			if err != nil {
 				tsk.Log.Error().Err(err).
 					Str("item", foreignItem.String()).
 					Msg("Whisper error")
 			}
 			item.ForeignCurr = string(b)
-			// stt.Replicate(filepath, lang, "vaibhavs10", "incredibly-fast-whisper", "")
+		case "fast", "incredibly-fast-whisper":
+			b, err := voice.IncrediblyFastWhisper(audiofile, tsk.Timeout, lang.Part1)
+			if err != nil {
+				tsk.Log.Error().Err(err).
+					Str("item", foreignItem.String()).
+					Msg("IncrediblyFastWhisper error")
+			}
+			item.ForeignCurr = string(b)
 		}
 		if i > 0 {
 			prevItem := foreignSubs.Items[i-1]

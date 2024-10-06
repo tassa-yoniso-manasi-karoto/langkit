@@ -6,6 +6,7 @@ toolchain go1.23.0
 
 require (
 	github.com/asticode/go-astisub v0.12.0
+	github.com/barbashov/iso639-3 v1.0.0
 	github.com/gookit/color v1.5.4
 	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/mitchellh/go-homedir v1.1.0

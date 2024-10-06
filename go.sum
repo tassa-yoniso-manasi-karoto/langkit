@@ -27,6 +27,8 @@ github.com/asticode/go-astisub v0.12.0 h1:OPqsZXVl+Sid0zLD3aL9vR5Iy4QBFER/+qDs5y
 github.com/asticode/go-astisub v0.12.0/go.mod h1:VLP6Gcp27Zk0NkOzUDypLgIB3TNb4a0C+cPiUgnhOQE=
 github.com/asticode/go-astits v1.3.0 h1:tlf2E0uNpL769FQr/2fZSvH1gEG5dqWezfaspGvfd+M=
 github.com/asticode/go-astits v1.3.0/go.mod h1:Dp78dEuksl+pWzlXTkpdd91U1QDX9r57db1XpLHm5Mw=
+github.com/barbashov/iso639-3 v1.0.0 h1:qCp1hUzZT8C8yHcdDo4sZQg2jHEaX6LF5H/dF9ba0qs=
+github.com/barbashov/iso639-3 v1.0.0/go.mod h1:rGod7o6KPeJ+hyBpHfhi4v7blx9sf+QsHsA7KAsdN6U=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=

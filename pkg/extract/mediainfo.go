@@ -9,6 +9,7 @@ import (
 	
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
+	iso "github.com/barbashov/iso639-3"
 )
 
 // CreatingLibrary represents the information about the library used to create the media information
@@ -112,7 +113,8 @@ type AudioTrack struct {
 	StreamSize             string `json:"StreamSize"`
 	StreamSizeProportion   string `json:"StreamSize_Proportion"`
 	Title                  string `json:"Title"`
-	Language               string `json:"Language"`
+	LangRaw                string `json:"Language"`
+	Language               *iso.Language
 	Default                string `json:"Default"`
 	AlternateGroup         string `json:"AlternateGroup"`
 }
@@ -183,6 +185,7 @@ func mediainfo(path string) (media MediaInfo) {
 				fmt.Println("Error unmarshalling Audio track:", err)
 				continue
 			}
+			audioTrack.Language = iso.FromAnyCode(audioTrack.LangRaw)
 			media.AudioTracks = append(media.AudioTracks, audioTrack)
 		default:
 			fmt.Println("Unknown track type:", trackType["@type"])

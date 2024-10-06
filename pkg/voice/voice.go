@@ -41,7 +41,15 @@ func Whisper(filepath string, timeout int, lang, initialPrompt string) ([]byte, 
 		}
 		return input
 	}
-	return runWithAudioFile(filepath, timeout, "soykertje", "spleeter", initRun, whisperParser)
+	return runWithAudioFile(filepath, timeout, "openai", "whisper", initRun, whisperParser)
+}
+
+func IncrediblyFastWhisper(filepath string, timeout int, lang string) ([]byte, error) {
+	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
+		input["language"] = lang
+		return input
+	}
+	return runWithAudioFile(filepath, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
 }
 
 func Spleeter(filepath string, timeout int) ([]byte, error) {
