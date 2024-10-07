@@ -3,39 +3,18 @@
 Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
 
 ### Requirements
-This fork require ffmpeg **version 6 or higher**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+This fork require FFmpeg **v6 or higher, dev build being prefered**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+
+The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-users to only use the [latest builds from the development branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
 
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ELEVENLABS_API_TOKEN.
 
-### TODO
-*in progress:*
-
-- loop whisper with n retry
-- make dubtitle file from whisper transcription
-- resuming capabilites for whisper
-- (MUST TEST:) incredibly-fast-whisper
-- verbose, padded mode for when iterating mp4 in a folder
-
-*later:*
-
-- integrate with viper and yaml config file:
-    - whisper initial_prompt
-    - tokens
-    - gain & limiter parameters for merging
-
-
-*might:*
-
-- with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
-- link static ffmpeg for windows
-- use Enhanced voice audiotrack as basis for audio clips
-- more debug info (ffmpeg version, mediainfo, platform...)
-- use lower bitrate opus with DRED & LBRR when standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
-
-## Extra features of this fork
+# Extra features of this fork
 
 ### Default encoding to OPUS / AVIF
-Use modern codecs to save storage
+Use modern codecs to save storage. The image/audio codecs which langkit uses are state-of-the-art and are currently in active development.
+
+The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.**
 
 ### Automatic Speech Recognition / Speech-to-Text support
 [Translations of recorded dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubs can't be used with the original subs2srs.<br>
@@ -59,10 +38,27 @@ The separated voices are obtained using one of these:
 | spleeter                        | rather poor                 | very, very cheap<br>0.00027$/run  | MIT license |                                                                |
 | elevenlabs                      | good                        | very, very expensive<br>1$/minute | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original. <br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
 
-### License
-All new contributions from commit d540bd4 onwards are licensed under GPL-3.0.
 
-See original README below:
+## ...But why?
+There are plenty of good options already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), subs2srs, online sentence banks, high quality premade Anki decks...
+
+Here is a list: https://github.com/nakopylov/awesome-immersion
+
+They are really awesome but all of them are media-centric: they are implemented around watching shows and you make the most of them by watching a whole lot of shows.
+
+I am more interested in an approach centered around words:
+- **word frequency**: I learn either words I handpicked myself or words taken from the a list of most frequent words found in the content I am interested in and order them in groups of priority. I believe this is the most time efficient approach if you aren't willing to spend most of your time and energy on language learning.
+- **word-centric notes referencing all common meanings**: one note to rule them all. I cross-source dictionaries and LLMs the map the meanings, connotations and register of a word. Then I use another tool to search my database of subs to illustrate & disambiguate with real-world examples the meanings I have found.
+- **word-note reuse for language laddering**: Another awesome advantage of this approach it that you can use this very note as basis for making cards for a new target language further down the line, while keeping all your previous note fields at hand for making the cards template for your new target language. The initial language acts just like Note ID for a meaning mapped across multiple languages. The majority of the basic vocabulary can be translated across languages directly with no real loss of meaning (and you can go on to disambiguate it further, using the method above for example). The effort that you spend on your first target language will thus pay off on subsequent languages.
+
+**This is not meant to replace input or engaging with your target language but, on the SRS side of thing, I believe this is the most efficient time/effort investment to become familiar and knowledgeable enough about a word to use it in its correct, idiomatic meaning with confidence.**
+
+There are several additional tools I made to accomplish this but they are hardcoded messes so don't expect me to publish them, langkit is enough work for me by itself! :)
+
+### License
+All new contributions from commit d540bd4 onward are licensed under GPL-3.0.
+
+See original README of bunkai below for the basic features:
 <hr>
 
 Dissects subtitles and corresponding media files into flash cardsfor [sentence mining][1] with an [SRS][2] system like [Anki][3]. It is inspired
@@ -103,7 +99,7 @@ and a corresponding media file.
 For example:
 
 ```bash
-langkit extract cards -m media-content.mp4 foreign.srt native.srt
+langkit subs2cards media-content.mp4 foreign.srt native.srt
 ```
 
 The above command generates the tab-separated file `foreign.tsv` and a
@@ -158,6 +154,3 @@ when I published this repository. Something is off with my search skills! :)
 - [movies2anki](https://github.com/kelciour/movies2anki]): Fully-integrated add-on for Anki which has some advanced features and supports all platforms
 - [substudy](https://github.com/emk/subtitles-rs/tree/master/substudy): CLI alternative to subs2srs with the ability to export into other formats as well, not just SRS decks
 - [subs2srs](http://subs2srs.sourceforge.net/): GUI software for Windows with many features, and inspiration for substudy and Bunkai
-
-## Change log
-See the file [CHANGELOG.md](CHANGELOG.md).
