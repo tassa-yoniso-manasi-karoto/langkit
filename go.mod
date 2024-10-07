@@ -1,4 +1,4 @@
-module github.com/tassa-yoniso-manasi-karoto/subs2cards
+module github.com/tassa-yoniso-manasi-karoto/langkit
 
 go 1.22
 

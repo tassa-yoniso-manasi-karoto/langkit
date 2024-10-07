@@ -42,7 +42,7 @@ Use modern codecs to save storage
 With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles.
 
 ### Condensed Audio
-subs2cards will automatically make an audio file containing all the audio snippets of dialog in the audiotrack. <br>
+langkit will automatically make an audio file containing all the audio snippets of dialog in the audiotrack. <br>
 This is meant to be used for passive listening. <br>
 More explanations and context here: https://www.youtube.com/watch?v=QOLTeO-uCYU
 
@@ -93,17 +93,17 @@ Requirements:
 - `ffmpeg` command in `PATH` (used at runtime)
 
 ```bash
-go get github.com/tassa-yoniso-manasi-karoto/subs2cards
+go get github.com/tassa-yoniso-manasi-karoto/langkit
 ```
 
 ## Usage
-subs2cards is mainly used to generate flash cards from one or two subtitle files
+langkit is mainly used to generate flash cards from one or two subtitle files
 and a corresponding media file.
 
 For example:
 
 ```bash
-subs2cards extract cards -m media-content.mp4 foreign.srt native.srt
+langkit extract cards -m media-content.mp4 foreign.srt native.srt
 ```
 
 The above command generates the tab-separated file `foreign.tsv` and a
@@ -138,7 +138,7 @@ either too hard or too easy should be deleted in this pass. Any cards which
 remain in the imported deck after mining should be refined and moved into your
 regular deck for studying the language on a daily basis.
 
-For other uses, run `subs2cards --help` to view the built-in documentation.
+For other uses, run `langkit --help` to view the built-in documentation.
 
 ## Subtitle editors
 The state of affairs when it comes to open-source subtitle editors is a sad

@@ -12,9 +12,9 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/media"
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/voice"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/voice"
 )
 
 // ExportedItem represents the exported information of a single subtitle item,

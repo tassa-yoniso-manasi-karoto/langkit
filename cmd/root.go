@@ -17,13 +17,13 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "subs2cards <foreign-subs> [native-subs]",
-	Short: "Decomposes media with subtitles into flash cards",
-	Long: `subs2cards' main purpose is to decompose subtitles and associated
+	Use:   "n/a", //TODO
+	Short: "n/a", //TODO
+	Long: `langkit' main purpose is to decompose subtitles and associated
 media content into flash cards for an SRS application like Anki.
 
 Example:
-  subs2cards extract cards -m media-content.mp4 foreign.srt native.srt`,
+  langkit subs2cards media-content.mp4 foreign.srt native.srt`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -39,7 +39,7 @@ func init() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel) 
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.subs2cards.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.langkit.yaml)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -57,7 +57,7 @@ func initConfig() {
 
 		// Search config in home directory with name ".subs2srs" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".subs2cards")
+		viper.SetConfigName(".langkit")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match

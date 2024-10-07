@@ -17,9 +17,9 @@ import (
 	"github.com/rs/zerolog"
 	iso "github.com/barbashov/iso639-3"
 
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/media"
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/subs"
-	"github.com/tassa-yoniso-manasi-karoto/subs2cards/pkg/voice"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/voice"
 	//"github.com/schollz/progressbar/v3"
 )
 
