@@ -62,7 +62,6 @@ func (tsk *Task) ExportItems(outStream *os.File, foreignSubs, nativeSubs *subs.S
 				Err(err).
 				Msg("can't export item")
 		}
-		// TODO keep track of progress like ytdl.part
 		lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
 		switch tsk.STT {
 		case "wh", "whisper":
