@@ -178,7 +178,7 @@ func checkStringsInFile(file *os.File, inputChan <-chan string, resultChan chan<
 	for searchString := range inputChan {
 		resultChan <- strings.Contains(fileContent, searchString)
 	}
-	return
+	return nil
 }
 
 // timePosition formats the given time.Duration as a time code which can safely

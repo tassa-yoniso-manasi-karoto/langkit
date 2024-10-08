@@ -62,7 +62,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 			TargSubFile:          foreignSubs,
 			RefSubFile:           nativeSubs,
 			MediaSourceFile:      mediafile,
-			OutputFieldSeparator: "\t",
+			FieldSep:             "\t",
 			OutputFileExtension:  "tsv",
 		}
 		media, err := os.Stat(mediafile)

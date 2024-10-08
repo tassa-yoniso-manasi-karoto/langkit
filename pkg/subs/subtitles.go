@@ -1,9 +1,13 @@
 package subs
 
 import (
+	"os"
+	"io"
 	"regexp"
 	"strings"
+	"encoding/csv"
 
+	"github.com/k0kubun/pp"
 	astisub "github.com/asticode/go-astisub"
 )
 
@@ -24,7 +28,42 @@ func OpenFile(filename string, clean bool) (*Subtitles, error) {
 	return &Subtitles{subs}, nil
 }
 
-func DumbDown2Dubs(subs *Subtitles) *Subtitles {
+func (subs *Subtitles) Subs2Dubs(outStream *os.File, FieldSep rune, idx int) {
+	reader := csv.NewReader(outStream)
+	reader.Comma = FieldSep
+	dubbings := []string{}
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if len(row) < idx {
+			//println("row=",len(row))
+			continue
+		}
+		//fmt.Printf("%#v\n", row)
+		pp.Println(row)
+		os.Exit(0)
+		whispered := row[10]
+		dubbings = append(dubbings, whispered)
+	}
+	for i, item := range (*subs).Items {
+		if len(item.Lines) == 0 {
+			continue
+		}
+		// clear the lines except the first
+		(*subs).Items[i].Lines = []astisub.Line{item.Lines[0]}
+		if len(item.Lines[0].Items) == 0 {
+			continue
+		}
+		// clear the items of that first line except the first
+		// because bunkai/subs2cards merge LineItems together in one field in outstream
+		(*subs).Items[i].Lines[0].Items = []astisub.LineItem{item.Lines[0].Items[0]}
+		(*subs).Items[i].Lines[0].Items[0].Text = dubbings[i]
+	}
+}
+
+func (subs *Subtitles) DumbDown2Dubs() *Subtitles {
 	re := regexp.MustCompile(`^[\p{Z}\p{P}]*\[.*\][\p{P}\p{Z}]*$`)
 	for _, item := range subs.Items {
 		item.Lines = filterLines(item.Lines, re)
@@ -32,31 +71,6 @@ func DumbDown2Dubs(subs *Subtitles) *Subtitles {
 	subs.Items = filterItems(subs.Items)
 	return subs
 }
-
-func filterLines(lines []astisub.Line, re *regexp.Regexp) []astisub.Line {
-	var filtered []astisub.Line
-	for _, line := range lines {
-		if !re.MatchString(line.String()) {
-			text := strings.TrimSpace(line.String())
-			if text != "" {
-				filtered = append(filtered, astisub.Line{Items: []astisub.LineItem{{Text: text}}})
-			}
-		}
-	}
-	return filtered
-}
-
-func filterItems(items []*astisub.Item) []*astisub.Item {
-	var filtered []*astisub.Item
-	for _, item := range items {
-		if len(item.Lines) > 0 {
-			filtered = append(filtered, item)
-		}
-	}
-	return filtered
-}
-
-
 
 // Translate generates a new subtitle from all subtitles which overlap with the
 // given item.
@@ -102,6 +116,31 @@ func merge(items []*astisub.Item) []*astisub.Item {
 
 	return mergedItems
 }
+
+
+func filterLines(lines []astisub.Line, re *regexp.Regexp) []astisub.Line {
+	var filtered []astisub.Line
+	for _, line := range lines {
+		if !re.MatchString(line.String()) {
+			text := strings.TrimSpace(line.String())
+			if text != "" {
+				filtered = append(filtered, astisub.Line{Items: []astisub.LineItem{{Text: text}}})
+			}
+		}
+	}
+	return filtered
+}
+
+func filterItems(items []*astisub.Item) []*astisub.Item {
+	var filtered []*astisub.Item
+	for _, item := range items {
+		if len(item.Lines) > 0 {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
 
 func mergeWithPrev(prev *astisub.Item, next *astisub.Item) {
 	prev.Lines = append(prev.Lines, next.Lines...)

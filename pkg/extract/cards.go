@@ -43,17 +43,17 @@ type Task struct {
 	TargSubFile          string
 	RefSubFile           string
 	MediaSourceFile      string
-	OutputFieldSeparator string // defaults to "\t"
+	FieldSep             string // defaults to "\t"
 	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv", otherwise
 }
 
 func (tsk *Task) setDefaults() {
-	if tsk.OutputFieldSeparator == "" {
-		tsk.OutputFieldSeparator = "\t"
+	if tsk.FieldSep == "" {
+		tsk.FieldSep = "\t"
 	}
 
 	if tsk.OutputFileExtension == "" {
-		switch tsk.OutputFieldSeparator {
+		switch tsk.FieldSep {
 		case "\t":
 			tsk.OutputFileExtension = ".tsv"
 		default:
@@ -298,7 +298,7 @@ func (tsk *Task) Execute() {
 		}
 	}
 	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
-		foreignSubs = subs.DumbDown2Dubs(foreignSubs)
+		foreignSubs.DumbDown2Dubs()
 		tsk.Log.Info().Msg("Foreign subs are closed captions.")
 	}
 	// NOTE: this warning won't occur if the sub file are passed as arg

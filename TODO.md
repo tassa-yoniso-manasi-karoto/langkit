@@ -1,8 +1,9 @@
 ### TODO
 *in progress:*
 
+- finish CLI design/structure
 - (MUST TEST:) resuming capabilites for whisper
-- make dubtitle file from whisper transcription
+- (MUST TEST:) make dubtitle file from whisper transcription
 - (MUST TEST:) insanely-fast-whisper
 - verbose, padded mode for when iterating mp4 in a folder
 - link static ffmpeg
@@ -17,6 +18,7 @@
 
 *might:*
 
+- add AssemblyAI Universal-1 for STT (see https://artificialanalysis.ai/speech-to-text)
 - with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 - use Enhanced voice audiotrack as basis for audio clips
 - more debug info (FFmpeg version, mediainfo, platform...)
