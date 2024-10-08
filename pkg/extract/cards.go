@@ -36,7 +36,8 @@ type Task struct {
 	STT                  string
 	TargetChan           int
 	UseAudiotrack        int
-	Timeout              int
+	TimeoutSTT           int
+	TimeoutSep           int
 	Offset               time.Duration
 	IsCCorDubs           bool
 	TargSubFile          string
@@ -245,13 +246,13 @@ func (tsk *Task) Execute() {
 			var audio []byte
 			switch strings.ToLower(tsk.SeparationLib) {
 			case "demucs":
-				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.Timeout, false)
+				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.TimeoutSep, false)
 			case "demucs_ft":
-				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.Timeout, true)
+				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.TimeoutSep, true)
 			case "spleeter":
-				audio, err = voice.Spleeter(OriginalAudio, tsk.Timeout)
+				audio, err = voice.Spleeter(OriginalAudio, tsk.TimeoutSep)
 			case "elevenlabs":
-				audio, err = voice.ElevenlabsIsolator(OriginalAudio, tsk.Timeout)
+				audio, err = voice.ElevenlabsIsolator(OriginalAudio, tsk.TimeoutSep)
 			default:
 				tsk.Log.Fatal().Msg("An unknown source SeparationLib library was passed. Check for typo.")
 			}

@@ -45,13 +45,15 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		targetChan, _ := cmd.Flags().GetInt("chan")
 		audiotrack, _ := cmd.Flags().GetInt("a")
 		Offset, _     := cmd.Flags().GetInt("offset")
-		timeout, _    := cmd.Flags().GetInt("timeout")
+		TimeoutSep, _ := cmd.Flags().GetInt("sep-to")
+		TimeoutSTT, _    := cmd.Flags().GetInt("stt-to")
 		//CC, _         := cmd.Flags().GetBool("cc")
 		tsk := extract.Task{
 			Log:                  logger,
 			Langs:                langs,
 			TargetChan:           targetChan,
-			Timeout:              timeout,
+			TimeoutSep:           TimeoutSep,
+			TimeoutSTT:           TimeoutSTT,
 			STT:                  STT,
 			SeparationLib:        sep,
 			//IsCC:                 CC,
@@ -92,13 +94,13 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 }
 
 func init() {
-	subs2cardsCmd.PersistentFlags().StringVarP(&mediafile, "mediafile", "m", "", "media file to decompose")
 	subs2cardsCmd.PersistentFlags().StringSliceVarP(&langs, "langs", "l", []string{}, "ISO-639-1/3 codes of target language followed by reference language(s) sorted by preference (i.e. learning spanish from english → \"es,en\"). For each language one subtag can be specified after a hyphen \"-\" (i.e. pt-BR or zh-Hant)")
 	subs2cardsCmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", "specifies which source separation library to use to isolate the voice's audio")
 	subs2cardsCmd.PersistentFlags().StringVar(&STT, "stt", "", "transcribe audio using specified online Speech-To-Text API")
 	//subs2cardsCmd.PersistentFlags().Bool("cc", false, "enforce treating the foreign subs as closed captions: strip it of its SDH material to keep only the dialog")
 	subs2cardsCmd.PersistentFlags().Int("chan", 2, "prefer audiotracks with this number of channels")
-	subs2cardsCmd.PersistentFlags().Int("timeout", 100*60, "timeout in seconds for the API request. Due to the upload and remote processing they should be set very high.")
+	subs2cardsCmd.PersistentFlags().Int("stt-to", 45, "timeout in seconds for the request to the STT service.")
+	subs2cardsCmd.PersistentFlags().Int("sep-to", 100*60, "timeout in seconds for the request to the voice separation service. Due to the upload and remote processing it should be set very high.")
 	subs2cardsCmd.PersistentFlags().Int("offset", 250, "pad before & after the timings of each audio clip with this offset in millisecond. Useful to compensate inaccurate sync between subs and voices.")
 	// uh? when using subs2cardsCmd.PersistentFlags().IntP <-- default negative int is reset to 0. maybe force signed integer?
 	subs2cardsCmd.PersistentFlags().Int("a", -1, "force selection of the audiotrack at this index. Useful for audiotracks missing a language tag. Overrides --chan and -l flag. Indexing start at 1.")
