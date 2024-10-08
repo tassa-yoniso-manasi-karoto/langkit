@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"path/filepath"
+	"io"
 
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -38,10 +39,22 @@ type ExportedItem struct {
 // ExportedItemWriter should write an exported item in whatever format is // selected by the user.
 type ExportedItemWriter func(*ExportedItem)
 
+// TODO Choose whether it should be a lib or moved to cmd
+
 // ExportItems calls the write function for each foreign subtitle item.
-func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) {
+func (tsk *Task) ExportItems(outStream *os.File, foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) {
+	// Create channels
+	inputChan := make(chan string)
+	resultChan := make(chan bool)
+	defer close(inputChan)
+	defer close(resultChan)
+	go checkStringsInFile(outStream, inputChan, resultChan)
 	for i, foreignItem := range foreignSubs.Items {
 		item, audiofile, err := tsk.ExportItem(foreignItem, nativeSubs, outputBase, mediaSourceFile, mediaPrefix)
+		// skip lines already in file, if the previous run wasn't completed
+		if inputChan <- tsk.FieldSep + item.Time + tsk.FieldSep; <-resultChan {
+			continue
+		}
 		if err != nil {
 			tsk.Log.Error().
 				Int("srt row", i).
@@ -49,7 +62,6 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 				Err(err).
 				Msg("can't export item")
 		}
-		// TODO Loop in case it fails
 		// TODO keep track of progress like ytdl.part
 		lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
 		switch tsk.STT {
@@ -84,6 +96,41 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 	tsk.ConcatWAVstoOGG("CONDENSED", mediaPrefix)
 	return
 }
+
+func (tsk *Task) ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitles, subsBase, mediaFile, mediaPrefix string) (*ExportedItem, string, error) {
+	item := &ExportedItem{}
+	item.Source = subsBase
+	item.ForeignCurr = joinLines(foreignItem.String())
+
+	if nativeSubs != nil {
+		if nativeItem := nativeSubs.Translate(foreignItem); nativeItem != nil {
+			item.NativeCurr = joinLines(nativeItem.String())
+		}
+	}
+	audioFile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack, tsk.Offset, foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
+	if err != nil {
+		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
+	}
+	_, err = media.ExtractAudio("wav", tsk.UseAudiotrack, time.Duration(0), foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
+	if err != nil {
+		tsk.Log.Error().Err(err).Msg("can't extract wav audio")
+	}
+
+	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
+	if err != nil {
+		tsk.Log.Error().Err(err).Msg("can't extract image")
+	}
+
+	item.Time = timePosition(foreignItem.StartAt)
+	item.Image = fmt.Sprintf("<img src=\"%s\">", path.Base(imageFile))
+	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audioFile))
+
+	return item, audioFile, nil
+}
+
+
+
+
 
 func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
 	out := fmt.Sprint(mediaPrefix, ".", suffix,".ogg")
@@ -124,36 +171,14 @@ func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
 }
 
 
-
-func (tsk *Task) ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitles, subsBase, mediaFile, mediaPrefix string) (*ExportedItem, string, error) {
-	item := &ExportedItem{}
-	item.Source = subsBase
-	item.ForeignCurr = joinLines(foreignItem.String())
-
-	if nativeSubs != nil {
-		if nativeItem := nativeSubs.Translate(foreignItem); nativeItem != nil {
-			item.NativeCurr = joinLines(nativeItem.String())
-		}
+// Function that runs in a goroutine to check multiple strings in a file
+func checkStringsInFile(file *os.File, inputChan <-chan string, resultChan chan<- bool) error {
+	content, _ := io.ReadAll(file)
+	fileContent := string(content)
+	for searchString := range inputChan {
+		resultChan <- strings.Contains(fileContent, searchString)
 	}
-	audioFile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack, tsk.Offset, foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
-	if err != nil {
-		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
-	}
-	_, err = media.ExtractAudio("wav", tsk.UseAudiotrack, time.Duration(0), foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
-	if err != nil {
-		tsk.Log.Error().Err(err).Msg("can't extract wav audio")
-	}
-
-	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
-	if err != nil {
-		tsk.Log.Error().Err(err).Msg("can't extract image")
-	}
-
-	item.Time = timePosition(foreignItem.StartAt)
-	item.Image = fmt.Sprintf("<img src=\"%s\">", path.Base(imageFile))
-	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audioFile))
-
-	return item, audioFile, nil
+	return
 }
 
 // timePosition formats the given time.Duration as a time code which can safely

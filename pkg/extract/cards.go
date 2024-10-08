@@ -177,7 +177,7 @@ func (tsk *Task) Execute() {
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
 	}
-	outStream, err := os.Create(tsk.outputFile())
+	outStream, err := os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
 	}
@@ -309,7 +309,7 @@ func (tsk *Task) Execute() {
 			os.Exit(0)
 		}	
 	}
-	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
+	tsk.ExportItems(outStream, foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
 		fmt.Fprintf(outStream, "%s\t", escape(item.Sound))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Time))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Source))

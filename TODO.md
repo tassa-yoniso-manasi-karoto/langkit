@@ -1,9 +1,8 @@
 ### TODO
 *in progress:*
 
-- loop whisper with n retry
+- (MUST TEST:) resuming capabilites for whisper
 - make dubtitle file from whisper transcription
-- resuming capabilites for whisper
 - (MUST TEST:) insanely-fast-whisper
 - verbose, padded mode for when iterating mp4 in a folder
 - link static ffmpeg
