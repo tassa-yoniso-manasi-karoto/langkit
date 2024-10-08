@@ -1,14 +1,20 @@
 package cmd
 
 import (
+	"os"
 	"time"
+	"strings"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/extract"
 )
 
+var mediafile, sep, STT string
+var langs []string
+
 var subs2cardsCmd = &cobra.Command{
-	Use:   "subs2srs <mediafile> <foreign-subs> [native-subs]",
+	Use:   "subs2cards <mediafile> <foreign-subs> [native-subs]",
 	Short: "Decompose media into flash cards",
 	Long: `This command generates flash cards for an SRS application like Anki from subtitles and optional associated media content.
 
@@ -24,9 +30,11 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 	Args: argFuncs(cobra.MinimumNArgs(0), cobra.MaximumNArgs(2)),
 	Run: func(cmd *cobra.Command, args []string) {
 		var foreignSubs, nativeSubs string
-
+		if len(args) == 0 {
+			logger.Fatal().Msg("this command requires at least one argument: the path to the media file/directory to be processed")
+		}
 		if len(args) > 0 {
-			mediaFile = args[0]
+			mediafile = args[0]
 		}
 		if len(args) > 1 {
 			foreignSubs = args[1]
@@ -39,7 +47,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		Offset, _     := cmd.Flags().GetInt("offset")
 		timeout, _    := cmd.Flags().GetInt("timeout")
 		//CC, _         := cmd.Flags().GetBool("cc")
-		action := extract.Task{
+		tsk := extract.Task{
 			Log:                  logger,
 			Langs:                langs,
 			TargetChan:           targetChan,
@@ -51,16 +59,40 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 			UseAudiotrack:        audiotrack-1,
 			TargSubFile:          foreignSubs,
 			RefSubFile:           nativeSubs,
-			MediaSource:          mediaFile,
+			MediaSourceFile:      mediafile,
 			OutputFieldSeparator: "\t",
 			OutputFileExtension:  "tsv",
 		}
-		action.Execute()
+		media, err := os.Stat(mediafile)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("can't access passed media file/directory")
+		}
+		if !media.IsDir() {
+			tsk.Execute()
+		} else {
+			err = filepath.Walk(mediafile, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					tsk.Log.Fatal().Err(err).Msg("error during recursive exploration of passed directory")
+				}
+				if info.IsDir() && strings.HasSuffix(info.Name(), ".media") {
+					return filepath.SkipDir
+				}
+				filename := filepath.Base(path)
+				if !strings.HasSuffix(path, ".mp4") && !strings.HasSuffix(filename, ".mkv")  {
+					return nil
+				}
+				tsk.RefSubFile = ""
+				tsk.TargSubFile = ""
+				tsk.MediaSourceFile = path
+				tsk.Execute() // TODO go tsk.Execute()?
+				return nil
+			})
+		}
 	},
 }
 
 func init() {
-	subs2cardsCmd.PersistentFlags().StringVarP(&mediaFile, "mediafile", "m", "", "media file to decompose")
+	subs2cardsCmd.PersistentFlags().StringVarP(&mediafile, "mediafile", "m", "", "media file to decompose")
 	subs2cardsCmd.PersistentFlags().StringSliceVarP(&langs, "langs", "l", []string{}, "ISO-639-1/3 codes of target language followed by reference language(s) sorted by preference (i.e. learning spanish from english → \"es,en\"). For each language one subtag can be specified after a hyphen \"-\" (i.e. pt-BR or zh-Hant)")
 	subs2cardsCmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", "specifies which source separation library to use to isolate the voice's audio")
 	subs2cardsCmd.PersistentFlags().StringVar(&STT, "stt", "", "transcribe audio using specified online Speech-To-Text API")

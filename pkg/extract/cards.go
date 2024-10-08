@@ -164,7 +164,7 @@ func (tsk *Task) Execute() {
 		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
 	}
 	color.Redln("TARG:", tsk.TargSubFile)
-	color.Redln("REF:", tsk.RefSubFile)
+	color.Redln("REF:", tsk.RefSubFile) // FIXME
 	//color.Greenln("WIP!")
 	//os.Exit(0)
 	//#######################################
@@ -298,8 +298,6 @@ func (tsk *Task) Execute() {
 			os.Exit(0)
 		}	
 	}
-	color.Greenln("WIP!")
-	os.Exit(0)
 	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
 		fmt.Fprintf(outStream, "%s\t", escape(item.Sound))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Time))
