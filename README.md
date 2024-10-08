@@ -3,7 +3,7 @@
 Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
 
 ### Requirements
-This fork require FFmpeg **v6 or higher, dev build being prefered**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+This fork require FFmpeg **v6 or higher (dev builds being prefered)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
 
 The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-users to only use the [latest builds from the development branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
 
