@@ -233,6 +233,16 @@ func (tsk *Task) Execute() {
 				tsk.Log.Fatal().Err(err).Msg("Failed to demux the desired audiotrack.")
 			}
 		}
+		switch tsk.SeparationLib {
+		case "de":
+			tsk.SeparationLib = "demucs"
+		case "ft":
+			tsk.SeparationLib = "demucs_ft"
+		case "sp":
+			tsk.SeparationLib = "spleeter"
+		case "11", "el":
+			tsk.SeparationLib = "elevenlabs"
+		}
 		extPerProvider := map[string]string{
 			"demucs":     "flac",
 			"demucs_ft":  "flac",
@@ -246,15 +256,15 @@ func (tsk *Task) Execute() {
 			var audio []byte
 			switch strings.ToLower(tsk.SeparationLib) {
 			case "demucs":
-				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.TimeoutSep, false)
+				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], 2, tsk.TimeoutSep, false)
 			case "demucs_ft":
-				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.TimeoutSep, true)
+				audio, err = voice.Demucs(OriginalAudio, extPerProvider[tsk.SeparationLib], 2, tsk.TimeoutSep, true)
 			case "spleeter":
-				audio, err = voice.Spleeter(OriginalAudio, tsk.TimeoutSep)
+				audio, err = voice.Spleeter(OriginalAudio, 2, tsk.TimeoutSep)
 			case "elevenlabs":
 				audio, err = voice.ElevenlabsIsolator(OriginalAudio, tsk.TimeoutSep)
 			default:
-				tsk.Log.Fatal().Msg("An unknown source SeparationLib library was passed. Check for typo.")
+				tsk.Log.Fatal().Msg("An unknown separation library was passed. Check for typo.")
 			}
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("Voice SeparationLib processing error.")

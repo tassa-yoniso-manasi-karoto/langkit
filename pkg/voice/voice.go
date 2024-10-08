@@ -33,7 +33,7 @@ func ElevenlabsIsolator(filePath string, timeout int) ([]byte, error) {
 type initRunT = func(input replicate.PredictionInput) replicate.PredictionInput
 type parserT = func(predictionOutput replicate.PredictionOutput) (string, error)
 
-func Whisper(filepath string, timeout int, lang, initialPrompt string) ([]byte, error) {
+func Whisper(filepath string, maxTry, timeout int, lang, initialPrompt string) ([]byte, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
 		input["language"] = lang
 		if initialPrompt != "" {
@@ -41,26 +41,26 @@ func Whisper(filepath string, timeout int, lang, initialPrompt string) ([]byte, 
 		}
 		return input
 	}
-	return runWithAudioFile(filepath, timeout, "openai", "whisper", initRun, whisperParser)
+	return runWithAudioFile(filepath, maxTry, timeout, "openai", "whisper", initRun, whisperParser)
 }
 
-func IncrediblyFastWhisper(filepath string, timeout int, lang string) ([]byte, error) {
+func IncrediblyFastWhisper(filepath string, maxTry, timeout int, lang string) ([]byte, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
 		input["language"] = lang
 		return input
 	}
-	return runWithAudioFile(filepath, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
+	return runWithAudioFile(filepath, maxTry, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
 }
 
-func Spleeter(filepath string, timeout int) ([]byte, error) {
+func Spleeter(filepath string, maxTry, timeout int) ([]byte, error) {
 	NoMoreInput := func(input replicate.PredictionInput) replicate.PredictionInput {
 		return input
 	}
-	return runWithAudioFile(filepath, timeout, "soykertje", "spleeter", NoMoreInput, spleeterDemucsParser)
+	return runWithAudioFile(filepath, maxTry, timeout, "soykertje", "spleeter", NoMoreInput, spleeterDemucsParser)
 }
 
 
-func Demucs(filepath, ext string, timeout int, wantFinetuned bool) ([]byte, error) {
+func Demucs(filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]byte, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
 		input["output_format"] = ext
 		input["stems"] = "vocals"
@@ -74,38 +74,50 @@ func Demucs(filepath, ext string, timeout int, wantFinetuned bool) ([]byte, erro
 			return input
 		}
 	}
-	return runWithAudioFile(filepath, timeout, "ryan5453", "demucs", initRun, spleeterDemucsParser)
+	return runWithAudioFile(filepath, maxTry, timeout, "ryan5453", "demucs", initRun, spleeterDemucsParser)
 }
 
 
-func runWithAudioFile(filepath string, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
+func runWithAudioFile(filepath string, maxTry, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
 	apiToken := os.Getenv("REPLICATE_API_TOKEN")
 	if apiToken == "" {
 		return nil, fmt.Errorf("Please set the REPLICATE_API_TOKEN environment variable")
 	}
-
-	r8, err := replicate.NewClient(replicate.WithToken(apiToken))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-	defer cancel()
-	
-	model, err := r8.GetModel(ctx, owner, name)
-	if err != nil {
-		pp.Println(err)
-		return nil, fmt.Errorf("Failed retrieving %s's information: %w", name, err)
-	}
-	file, _ := r8.CreateFileFromPath(ctx, filepath, nil)
-	
-	input := replicate.PredictionInput{
-		"audio": file,
-	}
-	input = initRun(input)
-	fmt.Println("Sending request to remote API for processing. Please wait...")
-	predictionOutput, err := r8.Run(ctx, owner+"/"+name+":"+model.LatestVersion.ID, input, nil)
-	// these two are broken as far as I am concerned (err 422, 502):
-	// 	→ prediction, err := r8.CreatePrediction(ctx, version, input, nil, false)
-	// 	→ prediction, err := r8.CreatePredictionWithModel(ctx, "openai", "whisper", input, nil, false)
-	if err != nil {
-		return nil, fmt.Errorf("Failed %s prediction: %w", name, err)
+	var predictionOutput replicate.PredictionOutput
+	for try := 0; try < maxTry; try++ {
+		r8, err := replicate.NewClient(replicate.WithToken(apiToken))
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		defer cancel()
+		
+		model, err := r8.GetModel(ctx, owner, name)
+		if err != nil {
+			pp.Println(err)
+			return nil, fmt.Errorf("Failed retrieving %s's information: %w", name, err)
+		}
+		file, _ := r8.CreateFileFromPath(ctx, filepath, nil)
+		
+		input := replicate.PredictionInput{
+			"audio": file,
+		}
+		input = initRun(input)
+		fmt.Println("Sending request to remote API for processing. Please wait...")
+		predictionOutput, err = r8.Run(ctx, owner+"/"+name+":"+model.LatestVersion.ID, input, nil)
+		// these two are broken as far as I am concerned (err 422, 502):
+		// 	→ prediction, err := r8.CreatePrediction(ctx, version, input, nil, false)
+		// 	→ prediction, err := r8.CreatePredictionWithModel(ctx, "openai", "whisper", input, nil, false)
+		
+		if err == nil {
+			break
+		} else if err == context.DeadlineExceeded {
+			fmt.Printf("Timed out %s prediction (%d/%d)...\n", name, try, maxTry)
+			if try+1 != maxTry {
+				continue
+			}
+			return nil, fmt.Errorf("Timed out %s prediction after %d attempts: %w", name, maxTry, err)
+		} else {
+			pp.Println(err)
+			return nil, fmt.Errorf("Failed %s prediction: %w", name, err)
+		}
 	}
 	pp.Println(predictionOutput)
 	URL, err := parser(predictionOutput)
@@ -113,6 +125,7 @@ func runWithAudioFile(filepath string, timeout int, owner, name string, initRun 
 		pp.Println(err)
 		return nil, fmt.Errorf("Parser failed: %w", err)
 	}
+	// Download file made by API located at URL
 	req, _ := http.NewRequest("GET", URL, nil)
 	resp, _ := http.DefaultClient.Do(req)
 	defer resp.Body.Close()

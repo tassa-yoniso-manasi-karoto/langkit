@@ -54,15 +54,15 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 		lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
 		switch tsk.STT {
 		case "wh", "whisper":
-			b, err := voice.Whisper(audiofile, tsk.TimeoutSTT, lang.Part1, "")
+			b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
 			if err != nil {
 				tsk.Log.Error().Err(err).
 					Str("item", foreignItem.String()).
 					Msg("Whisper error")
 			}
 			item.ForeignCurr = string(b)
-		case "fast", "insanelyy-fast-whisper", "incredibly-fast-whisper":
-			b, err := voice.IncrediblyFastWhisper(audiofile, tsk.TimeoutSTT, lang.Part1)
+		case "fast", "insanely-fast-whisper", "incredibly-fast-whisper":
+			b, err := voice.IncrediblyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 			if err != nil {
 				tsk.Log.Error().Err(err).
 					Str("item", foreignItem.String()).
