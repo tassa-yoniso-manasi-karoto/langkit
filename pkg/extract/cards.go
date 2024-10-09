@@ -15,7 +15,6 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/rs/zerolog"
-	iso "github.com/barbashov/iso639-3"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
@@ -94,21 +93,6 @@ func escape(s string) string {
 }
 
 
-func readStdLangCode(arr []string) (langs []Lang) {
-	for _, tmp := range arr {
-		var lang Lang
-		arr := strings.Split(tmp, "-")
-		lang.Language = iso.FromAnyCode(arr[0])
-		if len(arr) > 1 {
-			lang.Subtag = arr[1]
-		}
-		langs = append(langs, lang)
-	}
-	return
-}
-
-
-
 func (tsk *Task) Execute() {
 	if tsk.MediaSourceFile == "" {
 		tsk.Log.Fatal().Msg("A media file must be specified.")
@@ -123,8 +107,15 @@ func (tsk *Task) Execute() {
 	if len(tsk.Langs) < 2 {
 		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
 	}
-	tsk.Targ = readStdLangCode([]string{tsk.Langs[0]})[0]
-	tsk.RefLangs = readStdLangCode(tsk.Langs[1:])
+	tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
+	if err != nil {
+		tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+	}
+	tsk.Targ = tmp[0]
+	tsk.RefLangs, err = ReadStdLangCode(tsk.Langs[1:])
+	if err != nil {
+		tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+	}
 	//pp.Println(tsk.Targ)
 	//pp.Println(tsk.RefLangs)
 	//### AUTOSUB ##########################

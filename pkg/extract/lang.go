@@ -34,6 +34,22 @@ var refmatch = map[string]int{
 	"stripped_sdh":   StrippedSDH,
 }
 
+func ReadStdLangCode(arr []string) (langs []Lang, err error) {
+	for _, tmp := range arr {
+		var lang Lang
+		arr := strings.Split(tmp, "-")
+		lang.Language = iso.FromAnyCode(arr[0])
+		if lang.Language == nil {
+			return nil, fmt.Errorf("An invalid language code was passed: '%s'", arr[0])
+		}
+		if len(arr) > 1 {
+			lang.Subtag = arr[1]
+		}
+		langs = append(langs, lang)
+	}
+	return
+}
+
 func SetPrefered(langs []Lang, l, atm Lang, name string, out *string) bool {
 	if setPreferedLang(langs, l, atm) && isPreferedSubtypeOver(*out, name) {
 		*out = name
@@ -41,46 +57,6 @@ func SetPrefered(langs []Lang, l, atm Lang, name string, out *string) bool {
 		return true
 	}
 	return false
-}
-
-func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {
-	//println(fmt.Sprintf("%#v", l), "l idx", getIdx(langs, l))
-	//println(fmt.Sprintf("%#v", atm), "atm idx", getIdx(langs, atm))
-	if getIdx(langs, l) <= getIdx(langs, atm) {
-		b = true
-	}
-	//println("is prefered lang?", b)
-	return
-}
-
-func getIdx(langs []Lang, ref Lang) int {
-	for i, l := range langs {
-		if l.Part3 == ref.Part3 && l.Subtag == ref.Subtag {
-			return i
-		}
-	}
-	return 1000 //FIXME
-}
-
-func isPreferedSubtypeOver(curr, test string) bool {
-	currval := subtypeMatcher(curr)
-	testval := subtypeMatcher(test)
-	//println(testval, ">", currval, "IS", testval > currval)
-	return testval > currval
-}
-
-func subtypeMatcher(s string) int {
-	if s == "" {
-		return 0
-	}
-	s = strings.ToLower(s)
-	for subtype, v := range refmatch {
-		if strings.Contains(s, subtype) {
-			return v
-		}
-	}
-	// If nothing is specified in the subtitle file name then it's probably a regular Sub file
-	return Sub
 }
 
 // Only 1st subtag found is considered, the others are ignored
@@ -188,6 +164,51 @@ func guessLangFromFilename(name string, langStart *int) string {
 	// Return the detected language tag as a substring
 	return name[i+1 : i+1+langLength]
 }
+
+
+
+func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {
+	//println(fmt.Sprintf("%#v", l), "l idx", getIdx(langs, l))
+	//println(fmt.Sprintf("%#v", atm), "atm idx", getIdx(langs, atm))
+	langIdx, langIsDesired := getIdx(langs, l)
+	atmIdx, _ := getIdx(langs, atm)
+	// idx = idx in the row of lang sorted by preference the user has passed
+	if langIsDesired && langIdx <= atmIdx {
+		b = true
+	}
+	return
+}
+
+func getIdx(langs []Lang, ref Lang) (int, bool) {
+	for i, l := range langs {
+		if l.Part3 == ref.Part3 && l.Subtag == ref.Subtag {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func isPreferedSubtypeOver(curr, test string) bool {
+	currval := subtypeMatcher(curr)
+	testval := subtypeMatcher(test)
+	//println(testval, ">", currval, "IS", testval > currval)
+	return testval > currval
+}
+
+func subtypeMatcher(s string) int {
+	if s == "" {
+		return 0
+	}
+	s = strings.ToLower(s)
+	for subtype, v := range refmatch {
+		if strings.Contains(s, subtype) {
+			return v
+		}
+	}
+	// If nothing is specified in the subtitle file name then it's probably a regular Sub file
+	return Sub
+}
+
 
 func placeholder34564() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
