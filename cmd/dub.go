@@ -10,21 +10,12 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/extract"
 )
 
-var subs2cardsCmd = &cobra.Command{
-	Use:   "subs2cards <mediafile> <foreign-subs> [native-subs]",
-	Short: "Decompose media into flash cards",
-	Long: `This command generates flash cards for an SRS application like Anki from subtitles and optional associated media content.
 
-Example:
-  langkit subs2cards media-content.mp4 foreign.srt native.srt
+var dubCmd = &cobra.Command{
+	Use:   "dub <foreign-subs>",
+	Short: dubDescr,
 
-Based on the given subtitle files and associated media file, the above
-command would create the tab-separated file "foreign.tsv" and a directory
-"foreign.media/" containing images and audio files. Among other fields,
-"foreign.tsv" would have a current, previous and next subtitle item from
-both subtitle files, but the timing reference would be "foreign.srt".`,
-
-	Args: argFuncs(cobra.MinimumNArgs(0), cobra.MaximumNArgs(2)),
+	Args: argFuncs(cobra.MinimumNArgs(1), cobra.MaximumNArgs(1)),
 	Run: func(cmd *cobra.Command, args []string) {
 		var foreignSubs, nativeSubs string
 		if len(args) == 0 {
@@ -90,10 +81,3 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 	},
 }
 
-func init() {
-	subs2cardsCmd.PersistentFlags().Int("offset", 250, "pad before & after the timings of each audio clip with this\n" +
-		"offset in millisecond. Useful to compensate inaccurate sync\n" +
-			"between subs and voices.")
-
-	rootCmd.AddCommand(subs2cardsCmd)
-}
