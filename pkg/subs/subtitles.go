@@ -58,15 +58,16 @@ func (subs *Subtitles) Subs2Dubs(outputFile string, FieldSep rune, idx int) {
 		if len(item.Lines[0].Items) == 0 {
 			continue
 		}
-		// clear the items of that first line except the first
-		// because bunkai/subs2cards merge LineItems together in one field in outstream
+		// clear the items of that first line except the first because
+		// bunkai/subs2cards merge LineItems together in one field in outputFile
 		(*subs).Items[i].Lines[0].Items = []astisub.LineItem{item.Lines[0].Items[0]}
 		(*subs).Items[i].Lines[0].Items[0].Text = dubbings[i]
 	}
+	// TODO subs.Write(strings.Replace(outputFile, ---, ----", 1))
 }
 
 func (subs *Subtitles) DumbDown2Dubs() *Subtitles {
-	re := regexp.MustCompile(`^[\p{Z}\p{P}]*\[.*\][\p{P}\p{Z}]*$`)
+	re := regexp.MustCompile(`^[\p{Z}\p{P}]*\[.*\][\p{P}\p{Z}]*$`) // TODO add "♪" → lyrics of BG music
 	for _, item := range subs.Items {
 		item.Lines = filterLines(item.Lines, re)
 	}
@@ -74,8 +75,7 @@ func (subs *Subtitles) DumbDown2Dubs() *Subtitles {
 	return subs
 }
 
-// Translate generates a new subtitle from all subtitles which overlap with the
-// given item.
+// Translate generates a new subtitle from all subtitles which overlap with the given item.
 func (subs *Subtitles) Translate(item *astisub.Item) *astisub.Item {
 	newItem := &astisub.Item{}
 

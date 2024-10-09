@@ -1,4 +1,4 @@
-package extract
+package cmd
 
 import (
 	"fmt"
@@ -38,9 +38,9 @@ type ExportedItem struct {
 // ExportedItemWriter should write an exported item in whatever format is // selected by the user.
 type ExportedItemWriter func(*ExportedItem)
 
-// TODO Choose whether it should be a lib or moved to cmd
 
 // ExportItems calls the write function for each foreign subtitle item.
+// FIXME get rid of useless params
 func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) {
 	// Create channels
 	inputChan := make(chan string)
@@ -95,7 +95,10 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 		}
 		write(item)
 	}
-	fmt.Printf("skipped %.1f%% of all items (%d/%d)\n", float64(skipped)/float64(total)*100, skipped, total)
+	if skipped != 0 {
+		fmt.Printf("%.1f%% of all items were done already and skipped (%d/%d)\n",
+			float64(skipped)/float64(total)*100, skipped, total)
+	}
 	tsk.ConcatWAVstoOGG("CONDENSED", mediaPrefix)
 	return
 }
@@ -110,16 +113,17 @@ func (tsk *Task) ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitle
 			item.NativeCurr = joinLines(nativeItem.String())
 		}
 	}
-	audioFile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack, tsk.Offset, foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
+	audioFile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack, tsk.Offset, foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix, tsk.DubsOnly)
 	if err != nil {
 		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
 	}
-	_, err = media.ExtractAudio("wav", tsk.UseAudiotrack, time.Duration(0), foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
-	if err != nil {
-		tsk.Log.Error().Err(err).Msg("can't extract wav audio")
+	if !tsk.DubsOnly {
+		_, err = media.ExtractAudio("wav", tsk.UseAudiotrack, time.Duration(0), foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix, false)
+		if err != nil {
+			tsk.Log.Error().Err(err).Msg("can't extract wav audio")
+		}
 	}
-
-	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix)
+	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix, tsk.DubsOnly)
 	if err != nil {
 		tsk.Log.Error().Err(err).Msg("can't extract image")
 	}

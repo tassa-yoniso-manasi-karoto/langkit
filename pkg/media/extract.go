@@ -10,7 +10,7 @@ import (
 // automatically based on the given prefix, time range and audio format. If
 // either startAt or endAt is 0, then the start or end of the media is assumed,
 // accordingly.
-func ExtractAudio(codec string, tracknum int, offset, startAt, endAt time.Duration, inFile, outPrefix string) (string, error) {
+func ExtractAudio(codec string, tracknum int, offset, startAt, endAt time.Duration, inFile, outPrefix string, dryRun bool) (string, error) {
 	var outArgs []string
 	switch codec {
 	case "wav":
@@ -27,6 +27,9 @@ func ExtractAudio(codec string, tracknum int, offset, startAt, endAt time.Durati
 		}
 	}
 	outFile := fmt.Sprintf("%s_%s-%s.%s", outPrefix, pathPosition(startAt), pathPosition(endAt), codec)
+	if dryRun {
+		return outFile, nil
+	}
 	return outFile, ffmpegExtractAudio(tracknum, offset, startAt, endAt, inFile, outFile, outArgs)
 }
 
@@ -34,8 +37,11 @@ func ExtractAudio(codec string, tracknum int, offset, startAt, endAt time.Durati
 // time range. The image file name is generated automatically based on the
 // given prefix, time range and audio format. If either startAt or endAt is 0,
 // then the start or end of the media is assumed, accordingly.
-func ExtractImage(startAt, endAt time.Duration, inFile, outPrefix string) (string, error) {
+func ExtractImage(startAt, endAt time.Duration, inFile, outPrefix string, dryRun bool) (string, error) {
 	outFile := fmt.Sprintf("%s_%s-%s.avif", outPrefix, pathPosition(startAt), pathPosition(endAt))
+	if dryRun {
+		return outFile, nil
+	}
 	return outFile, ffmpegExtractImage(startAt, endAt, inFile, outFile)
 }
 

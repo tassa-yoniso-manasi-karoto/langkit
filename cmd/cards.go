@@ -1,4 +1,4 @@
-package extract
+package cmd
 
 import (
 	"fmt"
@@ -6,58 +6,19 @@ import (
 	"path"
 	"strings"
 	"strconv"
-	"time"
 	"path/filepath"
 	"slices"
 	"bufio"
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	"github.com/rs/zerolog"
+	//"github.com/rs/zerolog"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
 	//"github.com/schollz/progressbar/v3"
 )
 
 var AstisubSupportedExt = []string{".srt", ".ass", ".ssa", "vtt", ".stl", ".ttml"}
-
-type Task struct {
-	Log                  zerolog.Logger
-	Meta                 MediaInfo
-	OriginalLang         string // FIXME what for?
-	Langs                []string
-	RefLangs             []Lang
-	Targ                 Lang
-	SeparationLib        string
-	STT                  string
-	TargetChan           int
-	UseAudiotrack        int
-	TimeoutSTT           int
-	TimeoutSep           int
-	Offset               time.Duration
-	IsCCorDubs           bool
-	TargSubFile          string
-	RefSubFile           string
-	MediaSourceFile      string
-	FieldSep             string // defaults to "\t"
-	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv", otherwise
-}
-
-func (tsk *Task) setDefaults() {
-	if tsk.FieldSep == "" {
-		tsk.FieldSep = "\t"
-	}
-
-	if tsk.OutputFileExtension == "" {
-		switch tsk.FieldSep {
-		case "\t":
-			tsk.OutputFileExtension = ".tsv"
-		default:
-			tsk.OutputFileExtension = ".csv"
-		}
-	}
-}
-
 
 func (tsk *Task) outputBase() string {
 	// "'" in filename will break the format that ffmpeg's concat filter requires.
@@ -95,8 +56,6 @@ func (tsk *Task) Execute() {
 		tsk.Log.Fatal().Msg("A media file must be specified.")
 	}
 	var nativeSubs *subs.Subtitles
-
-	tsk.setDefaults()
 	
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
@@ -205,7 +164,7 @@ func (tsk *Task) Execute() {
 		Str("chan num", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Channels)
 
 	if tsk.SeparationLib != "" {
-		tsk.Enhance()
+		tsk.enhance()
 	}
 	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
 		foreignSubs.DumbDown2Dubs()
@@ -215,7 +174,7 @@ func (tsk *Task) Execute() {
 	if tsk.IsCCorDubs && tsk.STT != "" {
 		tsk.Log.Warn().Msg("Speech-to-Text is requested but closed captions or dubtitles are available for the target language," +
 			" which are usually reliable transcriptions of dubbings.")
-		if !askForConfirmation() {
+		if !userConfirmed() {
 			os.Exit(0)
 		}	
 	}
@@ -261,7 +220,7 @@ func NoSub(s string) string {
 }
 
 
-func askForConfirmation() bool {
+func userConfirmed() bool {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {

@@ -13,7 +13,7 @@ import (
 
 var (
 	logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.TimeOnly}).With().Timestamp().Logger()
-	cfgFile, mediafile, sep, STT string
+	cfgFile, sep, STT string
 	langs []string
 	subs2dubsDescr = "Use the foreign subtitle file to create a dubtitle using\n" +
 		"transcriptions made by the selected STT service"
