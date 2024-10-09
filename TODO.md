@@ -3,7 +3,6 @@
 
 - (MUST TEST:) insanely-fast-whisper
 - verbose, padded mode for when iterating mp4 in a folder
-- link static ffmpeg
 
 *later:*
 

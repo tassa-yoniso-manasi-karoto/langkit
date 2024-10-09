@@ -65,7 +65,7 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 				Err(err).
 				Msg("can't export item")
 		}
-		lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
+		lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
 		switch tsk.STT {
 		case "whisper":
 			b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")

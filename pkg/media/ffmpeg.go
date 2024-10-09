@@ -10,6 +10,8 @@ import (
 	"github.com/gookit/color"
 )
 
+var FFmpegPath = "ffmpeg"
+
 func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFile, outFile string, outArgs []string) error {
 	if exists(outFile) {
 		return nil
@@ -32,7 +34,7 @@ func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFi
 	args = append(args, inArgs...)
 	args = append(args, outArgs...)
 
-	return Ffmpeg(args...)
+	return FFmpeg(args...)
 }
 
 func ffmpegExtractImage(startAt, endAt time.Duration, inFile string, outFile string) error {
@@ -71,7 +73,7 @@ func ffmpegExtractImage(startAt, endAt time.Duration, inFile string, outFile str
 	args = append(args, inArgs...)
 	args = append(args, outArgs...)
 
-	return Ffmpeg(args...)
+	return FFmpeg(args...)
 }
 
 func ffmpegPosition(d time.Duration) string {
@@ -105,19 +107,19 @@ func CreateConcatFile(wavFiles []string) (string, error) {
 
 // Runs FFmpeg concat command with the provided concat file and output wav file
 func RunFFmpegConcat(concatFile, outputWav string) error {
-	return Ffmpeg([]string{"-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
+	return FFmpeg([]string{"-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
 }
 
 // Converts the WAV file to OGG using FFmpeg
 func RunFFmpegConvert(inputWav, outputOgg string) error {
-	return Ffmpeg([]string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "112k", outputOgg}...)
+	return FFmpeg([]string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "112k", outputOgg}...)
 }
 
 
 
-func Ffmpeg(arg ...string) error {
+func FFmpeg(arg ...string) error {
 	arg = append(arg, "-hide_banner")
-	cmd := exec.Command("ffmpeg", arg...)
+	cmd := exec.Command(FFmpegPath, arg...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout

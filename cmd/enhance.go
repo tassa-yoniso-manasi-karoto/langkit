@@ -45,7 +45,7 @@ func (tsk *Task) enhance() {
 	OriginalAudio := filepath.Join(os.TempDir(), audiobase+".flac")
 	if _, err := os.Stat(OriginalAudio); errors.Is(err, os.ErrNotExist) {
 		tsk.Log.Info().Msg("Demuxing the audiotrack...")
-		err = media.Ffmpeg(
+		err = media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
 					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack),
 						"-vn", OriginalAudio,
@@ -104,7 +104,7 @@ func (tsk *Task) enhance() {
 		MergedFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + ".MERGED.ogg")
 		tsk.Log.Info().Msg("Merging original and separated voice track into an enhanced voice track...")
 		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
-		err := media.Ffmpeg(
+		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
 					fmt.Sprintf("[0:a]volume=%ddB[a1];", 13) +
 					fmt.Sprintf("[1:a]volume=%ddB[a2];", -9) +

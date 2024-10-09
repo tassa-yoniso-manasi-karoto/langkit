@@ -59,6 +59,7 @@ func init() {
 				"Overrides --chan and -l flag.\n" +
 					"Indexing of audiotracks start at 1.",
 	)
+	rootCmd.PersistentFlags().String("ffmpeg", "ffmpeg", "override for the path to FFmpeg binary")
 
 	addSharedSTTflags(subs2cardsCmd)
 	addSharedSTTflags(subs2dubsCmd)

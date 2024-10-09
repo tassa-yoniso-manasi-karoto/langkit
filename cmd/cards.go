@@ -133,8 +133,9 @@ func (tsk *Task) Execute() {
 		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
 	}
 	mediaPrefix := path.Join(tsk.mediaOutputDir(), tsk.outputBase())
-	tsk.Meta = mediainfo(tsk.MediaSourceFile)
-	/*for _, track := range tsk.Meta.AudioTracks {
+	tsk.Meta.MediaInfo = mediainfo(tsk.MediaSourceFile)
+	/*	MediaInfo
+	for _, track := range tsk.Meta.AudioTracks {
 		if strings.Contains(strings.ToLower(track.Title), "original") {
 			tsk.OriginalLang = track.Language
 		}
@@ -159,8 +160,8 @@ func (tsk *Task) Execute() {
 	}
 	tsk.Log.Info().
 		Int("UseAudiotrack", tsk.UseAudiotrack).
-		Str("track lang", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language.Part3).
-		Str("chan num", tsk.Meta.AudioTracks[tsk.UseAudiotrack].Channels)
+		Str("track lang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
+		Str("chan num", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels)
 
 	if tsk.SeparationLib != "" {
 		tsk.enhance()
@@ -214,7 +215,7 @@ func (tsk *Task) Execute() {
 
 func (tsk *Task) ChooseAudio(f func(i int, track AudioTrack)) {
 	if tsk.UseAudiotrack < 0 {
-		for i, track := range tsk.Meta.AudioTracks {
+		for i, track := range tsk.Meta.MediaInfo.AudioTracks {
 			f(i, track)
 		}
 	}
