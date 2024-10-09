@@ -15,7 +15,7 @@ var (
 	logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.TimeOnly}).With().Timestamp().Logger()
 	cfgFile, mediafile, sep, STT string
 	langs []string
-	dubDescr = "Use the foreign subtitle file to create a dubtitle using\n" +
+	subs2dubsDescr = "Use the foreign subtitle file to create a dubtitle using\n" +
 		"transcriptions made by the selected STT service"
 	sepDescr = "Make a new audiotrack with voices louder using specified\n" +
 		"separation library to isolate the voice's audio"
@@ -61,19 +61,19 @@ func init() {
 	)
 
 	addSharedSTTflags(subs2cardsCmd)
-	addSharedSTTflags(dubCmd)
+	addSharedSTTflags(subs2dubsCmd)
 	
 	addSharedSepFlags(subs2cardsCmd)
 	addSharedSepFlags(enhanceCmd)
 	
 	rootCmd.AddCommand(enhanceCmd)
-	rootCmd.AddCommand(dubCmd)
+	rootCmd.AddCommand(subs2dubsCmd)
 }
 
 func addSharedSTTflags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&STT, "stt", "", "transcribe audio using specified online Speech-To-Text API")
 	cmd.PersistentFlags().Int("stt-to", 45, "timeout in seconds for the request to the STT service.\n")
-	cmd.PersistentFlags().Bool("stt-dub", true, dubDescr)
+	cmd.PersistentFlags().Bool("stt-dub", true, subs2dubsDescr)
 	// FIXME subs2cardsCmd.PersistentFlags().Bool("cc", false, "enforce treating the foreign subs as closed captions: strip it of its SDH material to keep only the dialog")
 }
 

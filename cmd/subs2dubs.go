@@ -11,21 +11,21 @@ import (
 )
 
 
-var dubCmd = &cobra.Command{
-	Use:   "dub <foreign-subs>",
-	Short: dubDescr,
+var subs2dubsCmd = &cobra.Command{
+	Use:   "subs2dubs <foreign-subs>",
+	Short: subs2dubsDescr,
 
 	Args: argFuncs(cobra.MinimumNArgs(1), cobra.MaximumNArgs(1)),
 	Run: func(cmd *cobra.Command, args []string) {
+		color.Greenln("WIP!")
+		os.Exit(0)
 		var foreignSubs, nativeSubs string
-		if len(args) == 0 {
-			logger.Fatal().Msg("this command requires at least one argument: the path to the media file/directory to be processed")
+		if len(args) < 2 {
+			logger.Fatal().Msg("this command requires at least 2 arguments:" +
+				"–the path to the media file to be processed\n–the path to the reference subtitle")
 		}
-		if len(args) > 0 {
-			mediafile = args[0]
-		}
-		if len(args) > 1 {
-			foreignSubs = args[1]
+		mediafile = args[0]
+		foreignSubs = args[1]
 		}
 		if len(args) > 2 {
 			nativeSubs = args[2]
