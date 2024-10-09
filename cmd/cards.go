@@ -55,8 +55,6 @@ func (tsk *Task) Execute() {
 	if tsk.MediaSourceFile == "" {
 		tsk.Log.Fatal().Msg("A media file must be specified.")
 	}
-	var nativeSubs *subs.Subtitles
-	
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
 	} else if len(tsk.Langs) == 1 {
@@ -108,22 +106,23 @@ func (tsk *Task) Execute() {
 	if tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language were found")
 	}
-	if tsk.RefSubFile == "" {
-		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
-	}
-	color.Redln("TARG:", tsk.TargSubFile)
-	color.Redln("REF:", tsk.RefSubFile) // FIXME
-	//color.Greenln("WIP!")
-	//os.Exit(0)
-	//#######################################
 	foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
-	nativeSubs, err = subs.OpenFile(tsk.RefSubFile, false)
-	if err != nil {
-		tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
+	color.Redln("TARG:", tsk.TargSubFile) //FIXME
+	if !tsk.DubsOnly && tsk.RefSubFile == "" {
+		tsk.Log.Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
 	}
+	var nativeSubs *subs.Subtitles
+	if tsk.RefSubFile != "" {
+		nativeSubs, err = subs.OpenFile(tsk.RefSubFile, false)
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
+		}
+		color.Redln("REF:", tsk.RefSubFile) // FIXME
+	}
+	//#######################################
 	outStream, err := os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
@@ -178,6 +177,14 @@ func (tsk *Task) Execute() {
 			os.Exit(0)
 		}	
 	}
+	switch tsk.STT {
+	case "wh":
+		tsk.STT = "whisper"
+	case "fast", "incredibly-fast-whisper":
+		tsk.STT = "insanely-fast-whisper"
+	case "u1", "uni":
+		tsk.STT = "universal-1"
+	}
 	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
 		fmt.Fprintf(outStream, "%s\t", escape(item.Sound))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Time))
@@ -190,6 +197,19 @@ func (tsk *Task) Execute() {
 		fmt.Fprintf(outStream, "%s\t", escape(item.ForeignNext))
 		fmt.Fprintf(outStream, "%s\n", escape(item.NativeNext))
 	})
+	if tsk.WantDubs {
+		err = foreignSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("error making dubtitles")
+		}
+		dubs := strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
+		dubs = strings.TrimSuffix(dubs, ".tsv")
+		dubs = path.Join(dubs+"."+strings.ToUpper(tsk.STT)+filepath.Ext(tsk.TargSubFile))
+		
+		if err = foreignSubs.Write(dubs); err != nil {
+			tsk.Log.Fatal().Err(err).Msg("error making dubtitles")
+		}
+	}
 }
 
 func (tsk *Task) ChooseAudio(f func(i int, track AudioTrack)) {
@@ -206,17 +226,6 @@ func Base2Absolute(s, dir string) string {
 		return path.Join(dir, s)
 	}
 	return ""
-}
-
-func NoSub(s string) string {
-	s = strings.ReplaceAll(s, ".closedcaptions", "")
-	s = strings.ReplaceAll(s, ".subtitles", "")
-	s = strings.ReplaceAll(s, ".dubtitles", "")
-	s = strings.ReplaceAll(s, ".dialog", "")
-	s = strings.ReplaceAll(s, ".STRIPPED_SDH.subtitles", "")
-	s = strings.ReplaceAll(s, ".DUBTITLE.subtitles", "")
-	//s = strings.ReplaceAll(s, ".", "")
-	return s
 }
 
 

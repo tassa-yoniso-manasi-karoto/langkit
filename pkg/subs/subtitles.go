@@ -1,12 +1,14 @@
 package subs
 
 import (
+	"fmt"
 	"os"
 	"io"
 	"regexp"
 	"strings"
 	"encoding/csv"
 
+	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 	astisub "github.com/asticode/go-astisub"
 )
@@ -28,26 +30,32 @@ func OpenFile(filename string, clean bool) (*Subtitles, error) {
 	return &Subtitles{subs}, nil
 }
 
-func (subs *Subtitles) Subs2Dubs(outputFile string, FieldSep rune, idx int) {
+func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
+	// Parsing the CSV instead of processing on the fly ensure dubtitle integrity
+	// in cases where the processing is restarted after an interruption or crash
 	file, _ := os.Open(outputFile)
 	defer file.Close()
 	reader := csv.NewReader(file)
-	reader.Comma = FieldSep
+	reader.Comma = rune(FieldSep[0])
 	dubbings := []string{}
 	for {
 		row, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
-		if len(row) < idx {
+		if len(row) < 5 {
 			//println("row=",len(row))
 			continue
 		}
 		//fmt.Printf("%#v\n", row)
-		pp.Println(row) // FIXME
-		os.Exit(0)// FIXME
-		whispered := row[10]
-		dubbings = append(dubbings, whispered)
+		//pp.Println(row)
+		transcription := row[4]
+		dubbings = append(dubbings, transcription)
+	}
+	if len(dubbings) != len((*subs).Items) {
+		return fmt.Errorf("The number of STT transcriptions doesn't match the number of subtitle lines." +
+			" This is likely a bug!\n" +
+				"len transcriptions=%d\tlen sub lines=%d", len(dubbings),len((*subs).Items))
 	}
 	for i, item := range (*subs).Items {
 		if len(item.Lines) == 0 {
@@ -63,7 +71,7 @@ func (subs *Subtitles) Subs2Dubs(outputFile string, FieldSep rune, idx int) {
 		(*subs).Items[i].Lines[0].Items = []astisub.LineItem{item.Lines[0].Items[0]}
 		(*subs).Items[i].Lines[0].Items[0].Text = dubbings[i]
 	}
-	// TODO subs.Write(strings.Replace(outputFile, ---, ----", 1))
+	return nil
 }
 
 func (subs *Subtitles) DumbDown2Dubs() *Subtitles {
@@ -173,3 +181,10 @@ func min(x, y int) int {
 	}
 	return y
 }
+
+
+func placeholder() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+}
+

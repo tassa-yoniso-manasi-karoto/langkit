@@ -67,7 +67,7 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 		}
 		lang := tsk.Meta.AudioTracks[tsk.UseAudiotrack].Language
 		switch tsk.STT {
-		case "wh", "whisper":
+		case "whisper":
 			b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
 			if err != nil {
 				tsk.Log.Error().Err(err).
@@ -75,12 +75,12 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 					Msg("Whisper error")
 			}
 			item.ForeignCurr = string(b)
-		case "fast", "insanely-fast-whisper", "incredibly-fast-whisper":
-			b, err := voice.IncrediblyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+		case "insanely-fast-whisper":
+			b, err := voice.InsanelyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 			if err != nil {
 				tsk.Log.Error().Err(err).
 					Str("item", foreignItem.String()).
-					Msg("IncrediblyFastWhisper error")
+					Msg("InsanelyFastWhisper error")
 			}
 			item.ForeignCurr = string(b)
 		}
@@ -96,7 +96,7 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 		write(item)
 	}
 	if skipped != 0 {
-		fmt.Printf("%.1f%% of all items were done already and skipped (%d/%d)\n",
+		fmt.Printf("%.1f%% of items were already done and skipped (%d/%d)\n",
 			float64(skipped)/float64(total)*100, skipped, total)
 	}
 	tsk.ConcatWAVstoOGG("CONDENSED", mediaPrefix)

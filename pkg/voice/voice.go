@@ -44,11 +44,12 @@ func Whisper(filepath string, maxTry, timeout int, lang, initialPrompt string) (
 	return runWithAudioFile(filepath, maxTry, timeout, "openai", "whisper", initRun, whisperParser)
 }
 
-func IncrediblyFastWhisper(filepath string, maxTry, timeout int, lang string) ([]byte, error) {
+func InsanelyFastWhisper(filepath string, maxTry, timeout int, lang string) ([]byte, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
 		input["language"] = lang
 		return input
 	}
+	// model name is outdated on replicate
 	return runWithAudioFile(filepath, maxTry, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
 }
 

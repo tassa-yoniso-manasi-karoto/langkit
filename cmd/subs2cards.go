@@ -40,6 +40,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		
 		tsk.STT = STT
 		tsk.TimeoutSTT, _ = cmd.Flags().GetInt("stt-to")
+		tsk.WantDubs, _ = cmd.Flags().GetBool("stt-dub")
 		
 		Offset, _     := cmd.Flags().GetInt("offset")
 		tsk.Offset = time.Duration(Offset)*time.Millisecond
@@ -51,6 +52,7 @@ func init() {
 	subs2cardsCmd.PersistentFlags().Int("offset", 250, "pad before & after the timings of each audio clip with this\n" +
 		"offset in millisecond. Useful to compensate inaccurate sync\n" +
 			"between subs and voices.")
+
 
 	rootCmd.AddCommand(subs2cardsCmd)
 }

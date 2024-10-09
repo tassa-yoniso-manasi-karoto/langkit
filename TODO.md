@@ -1,8 +1,6 @@
 ### TODO
 *in progress:*
 
-- finish subs2dubs.go
-- (MUST TEST:) make dubtitle file from whisper transcription
 - (MUST TEST:) insanely-fast-whisper
 - verbose, padded mode for when iterating mp4 in a folder
 - link static ffmpeg
