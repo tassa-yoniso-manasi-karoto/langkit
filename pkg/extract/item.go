@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 	"path/filepath"
-	"io"
 
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -42,17 +41,21 @@ type ExportedItemWriter func(*ExportedItem)
 // TODO Choose whether it should be a lib or moved to cmd
 
 // ExportItems calls the write function for each foreign subtitle item.
-func (tsk *Task) ExportItems(outStream *os.File, foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) {
+func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) {
 	// Create channels
 	inputChan := make(chan string)
 	resultChan := make(chan bool)
 	defer close(inputChan)
 	defer close(resultChan)
-	go checkStringsInFile(outStream, inputChan, resultChan)
+	go checkStringsInFile(tsk.outputFile(), inputChan, resultChan)
+	total := 0
+	skipped := 0
 	for i, foreignItem := range foreignSubs.Items {
 		item, audiofile, err := tsk.ExportItem(foreignItem, nativeSubs, outputBase, mediaSourceFile, mediaPrefix)
+		total += 1
 		// skip lines already in file, if the previous run wasn't completed
 		if inputChan <- tsk.FieldSep + item.Time + tsk.FieldSep; <-resultChan {
+			skipped += 1
 			continue
 		}
 		if err != nil {
@@ -92,6 +95,7 @@ func (tsk *Task) ExportItems(outStream *os.File, foreignSubs, nativeSubs *subs.S
 		}
 		write(item)
 	}
+	fmt.Printf("skipped %.1f%% of all items (%d/%d)\n", float64(skipped)/float64(total)*100, skipped, total)
 	tsk.ConcatWAVstoOGG("CONDENSED", mediaPrefix)
 	return
 }
@@ -171,8 +175,8 @@ func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
 
 
 // Function that runs in a goroutine to check multiple strings in a file
-func checkStringsInFile(file *os.File, inputChan <-chan string, resultChan chan<- bool) error {
-	content, _ := io.ReadAll(file)
+func checkStringsInFile(filepath string, inputChan <-chan string, resultChan chan<- bool) error {
+	content, _ := os.ReadFile(filepath)
 	fileContent := string(content)
 	for searchString := range inputChan {
 		resultChan <- strings.Contains(fileContent, searchString)

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/k0kubun/pp"
+	"github.com/gookit/color"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/extract"
 )
 
@@ -26,7 +28,6 @@ var subs2dubsCmd = &cobra.Command{
 		}
 		mediafile = args[0]
 		foreignSubs = args[1]
-		}
 		if len(args) > 2 {
 			nativeSubs = args[2]
 		}
@@ -81,3 +82,10 @@ var subs2dubsCmd = &cobra.Command{
 	},
 }
 
+
+
+
+func placeholder() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+}

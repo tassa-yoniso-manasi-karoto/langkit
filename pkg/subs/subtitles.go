@@ -28,8 +28,10 @@ func OpenFile(filename string, clean bool) (*Subtitles, error) {
 	return &Subtitles{subs}, nil
 }
 
-func (subs *Subtitles) Subs2Dubs(outStream *os.File, FieldSep rune, idx int) {
-	reader := csv.NewReader(outStream)
+func (subs *Subtitles) Subs2Dubs(outputFile string, FieldSep rune, idx int) {
+	file, _ := os.Open(outputFile)
+	defer file.Close()
+	reader := csv.NewReader(file)
 	reader.Comma = FieldSep
 	dubbings := []string{}
 	for {

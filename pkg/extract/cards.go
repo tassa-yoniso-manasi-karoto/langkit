@@ -219,7 +219,7 @@ func (tsk *Task) Execute() {
 			os.Exit(0)
 		}	
 	}
-	tsk.ExportItems(outStream, foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
+	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {
 		fmt.Fprintf(outStream, "%s\t", escape(item.Sound))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Time))
 		fmt.Fprintf(outStream, "%s\t", escape(item.Source))
