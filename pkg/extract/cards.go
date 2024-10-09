@@ -101,20 +101,20 @@ func (tsk *Task) Execute() {
 
 	tsk.setDefaults()
 	
-	if tsk.TargSubFile == "" && tsk.Langs == nil {
-		tsk.Log.Fatal().Msg("When no subtitle file is passed desired languages must be specified.")
-	}
-	if len(tsk.Langs) < 2 {
+	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
+		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified")
+	} else if len(tsk.Langs) == 1 {
 		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
-	}
-	tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
-	if err != nil {
-		tsk.Log.Fatal().Err(err).Msg("Language parsing error")
-	}
-	tsk.Targ = tmp[0]
-	tsk.RefLangs, err = ReadStdLangCode(tsk.Langs[1:])
-	if err != nil {
-		tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+	} else if len(tsk.Langs) > 1 {
+		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+		}
+		tsk.Targ = tmp[0]
+		tsk.RefLangs, err = ReadStdLangCode(tsk.Langs[1:])
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+		}
 	}
 	//pp.Println(tsk.Targ)
 	//pp.Println(tsk.RefLangs)

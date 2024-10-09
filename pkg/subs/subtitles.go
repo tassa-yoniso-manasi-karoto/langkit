@@ -42,8 +42,8 @@ func (subs *Subtitles) Subs2Dubs(outStream *os.File, FieldSep rune, idx int) {
 			continue
 		}
 		//fmt.Printf("%#v\n", row)
-		pp.Println(row)
-		os.Exit(0)
+		pp.Println(row) // FIXME
+		os.Exit(0)// FIXME
 		whispered := row[10]
 		dubbings = append(dubbings, whispered)
 	}
