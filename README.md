@@ -2,10 +2,30 @@
 
 Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
 
-### Requirements
-This fork require FFmpeg **v6 or higher (dev builds being prefered)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+# tldr
 
-The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-users to only use the [latest builds from the development branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
+```
+𝗕𝗮𝘀𝗶𝗰 𝘀𝘂𝗯𝘀𝟮𝘀𝗿𝘀 𝗳𝘂𝗻𝗰𝘁𝗶𝗼𝗻𝗮𝗹𝗶𝘁𝘆
+$ langkit subs2cards media.mp4 media.th.srt media.en.srt
+
+𝗔𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗰 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘀𝗲𝗹𝗲𝗰𝘁𝗶𝗼𝗻 (𝘩𝘦𝘳𝘦: 𝘭𝘦𝘢𝘳𝘯 𝘣𝘳𝘢𝘻𝘪𝘭𝘪𝘢𝘯 𝘱𝘰𝘳𝘵𝘶𝘨𝘦𝘴𝘦 𝘧𝘳𝘰𝘮 𝘤𝘢𝘯𝘵𝘰𝘯𝘦𝘴𝘦 𝘰𝘳 𝘪𝘧 𝘶𝘯𝘢𝘷𝘢𝘪𝘭𝘢𝘣𝘭𝘦, 𝘵𝘳𝘢𝘥𝘪𝘵𝘪𝘰𝘯𝘢𝘭 𝘤𝘩𝘪𝘯𝘦𝘴𝘦)
+$ langkit subs2cards media.mp4 -l "pt-BR,yue,zh-Hant"
+
+𝗕𝘂𝗹𝗸 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 (𝗿𝗲𝗰𝘂𝗿𝘀𝗶𝘃𝗲)
+$ langkit subs2cards /path/to/media/dir/  -l "th,en"
+
+𝗠𝗮𝗸𝗲 𝗮𝗻 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝘄𝗶𝘁𝗵 𝗲𝗻𝗵𝗮𝗻𝗰𝗲𝗱/𝗮𝗺𝗽𝗹𝗶𝗳𝗶𝗲𝗱 𝘃𝗼𝗶𝗰𝗲𝘀 𝗳𝗿𝗼𝗺 𝘁𝗵𝗲 𝟮𝗻𝗱 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 (𝘯𝘦𝘦𝘥 𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯)
+$ langkit enhance media.mp4 -a 2
+
+𝗠𝗮𝗸𝗲 𝗮 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 𝘂𝘀𝗶𝗻𝗴 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘯𝘦𝘦𝘥 𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯)
+$ langkit subs2dubs media.mp4 media.th.srt
+```
+
+
+### Requirements
+This fork require FFmpeg **v6 or higher (dev builds being preferred)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+
+The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-users to use only the [latest builds from the development branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
 
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ELEVENLABS_API_TOKEN.
 
@@ -14,7 +34,7 @@ At the moment tokens should be passed through these env variables: REPLICATE_API
 ### Default encoding to OPUS / AVIF
 Use modern codecs to save storage. The image/audio codecs which langkit uses are state-of-the-art and are currently in active development.
 
-The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.**
+The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
 
 ### Automatic Speech Recognition / Speech-to-Text support
 [Translations of recorded dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubs can't be used with the original subs2srs.<br>
