@@ -18,7 +18,7 @@ $ langkit subs2cards /path/to/media/dir/  -l "th,en"
 $ langkit enhance media.mp4 -a 2
 
 𝗠𝗮𝗸𝗲 𝗮 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 𝘂𝘀𝗶𝗻𝗴 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘯𝘦𝘦𝘥 𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯)
-$ langkit subs2dubs media.mp4 media.th.srt
+$ langkit subs2dubs --stt whisper media.mp4 (media.th.srt) -l "th"
 ```
 
 

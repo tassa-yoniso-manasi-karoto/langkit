@@ -57,22 +57,26 @@ func (tsk *Task) Execute() {
 	}
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
-	} else if len(tsk.Langs) == 1 {
+	} else if len(tsk.Langs) == 1 && !tsk.DubsOnly {
 		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
-	} else if len(tsk.Langs) > 1 {
+	}
+	if len(tsk.Langs) > 0 {
 		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
 		}
 		tsk.Targ = tmp[0]
-		tsk.RefLangs, err = ReadStdLangCode(tsk.Langs[1:])
+	}
+	if len(tsk.Langs) > 1 {
+		tmp, err := ReadStdLangCode(tsk.Langs[1:])
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
 		}
+		tsk.RefLangs = tmp
 	}
 	//pp.Println(tsk.Targ)
 	//pp.Println(tsk.RefLangs)
-	//### AUTOSUB ##########################
+	//### AUTOSUB ########################## TODO mv it out
 	if tsk.TargSubFile == "" {
 		files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
 		if err != nil {
