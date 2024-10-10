@@ -29,7 +29,7 @@ The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-
 
 The FFmpeg binary's location can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is.
 
-At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ELEVENLABS_API_TOKEN.
+At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
 
 # Extra features of this fork
 

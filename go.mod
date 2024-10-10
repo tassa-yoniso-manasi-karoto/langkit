@@ -5,6 +5,7 @@ go 1.22
 toolchain go1.23.0
 
 require (
+	github.com/AssemblyAI/assemblyai-go-sdk v1.8.1
 	github.com/asticode/go-astisub v0.12.0
 	github.com/barbashov/iso639-3 v1.0.0
 	github.com/gookit/color v1.5.4
@@ -23,10 +24,13 @@ require (
 require (
 	github.com/asticode/go-astikit v0.8.0 // indirect
 	github.com/asticode/go-astits v1.3.0 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
+	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -46,4 +50,5 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	nhooyr.io/websocket v1.8.7 // indirect
 )

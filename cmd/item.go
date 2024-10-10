@@ -83,6 +83,14 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 					Msg("InsanelyFastWhisper error")
 			}
 			item.ForeignCurr = string(b)
+		case "universal-1":
+			s, err := voice.Universal1(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+			if err != nil {
+				tsk.Log.Error().Err(err).
+					Str("item", foreignItem.String()).
+					Msg("Universal1 error")
+			}
+			item.ForeignCurr = s
 		}
 		if i > 0 {
 			prevItem := foreignSubs.Items[i-1]

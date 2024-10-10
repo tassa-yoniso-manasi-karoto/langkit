@@ -9,13 +9,15 @@ import (
 	"io"
 	"net/http"
 	
+	"github.com/tassa-yoniso-manasi-karoto/elevenlabs-go"
+	
 	"github.com/schollz/progressbar/v3"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/rivo/uniseg"
 	"github.com/sergi/go-diff/diffmatchpatch"
 	replicate "github.com/replicate/replicate-go"
-	"github.com/tassa-yoniso-manasi-karoto/elevenlabs-go"
+	aai "github.com/AssemblyAI/assemblyai-go-sdk"
 )
 
 
@@ -29,6 +31,35 @@ func ElevenlabsIsolator(filePath string, timeout int) ([]byte, error) {
 }
 
 
+func Universal1(filepath string, maxTry, timeout int, lang string) (string, error) {
+	apiKey := os.Getenv("ASSEMBLYAI_API_KEY")
+	client := aai.NewClient(apiKey)
+
+	f, err := os.Open(filepath)
+	if err != nil {
+		return "", fmt.Errorf("Couldn't open audio file:", err)
+	}
+	defer f.Close()
+
+	for try := 0; try < maxTry; try++ {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		defer cancel()
+		transcript, err := client.Transcripts.TranscribeFromReader(ctx, f, nil)
+		if err == nil {
+			return *transcript.Text, nil
+		} else if err == context.DeadlineExceeded {
+			fmt.Printf("Timed out Universal-1 prediction (%d/%d)...\n", try, maxTry)
+			if try+1 != maxTry {
+				continue
+			}
+			break
+		} else {
+			pp.Println(err)
+			return "", fmt.Errorf("Failed Universal-1 prediction: %w", err)
+		}
+	}
+	return "", fmt.Errorf("Timed out Universal-1 prediction after %d attempts: %w", maxTry, err)
+}
 
 type initRunT = func(input replicate.PredictionInput) replicate.PredictionInput
 type parserT = func(predictionOutput replicate.PredictionOutput) (string, error)
@@ -41,7 +72,7 @@ func Whisper(filepath string, maxTry, timeout int, lang, initialPrompt string) (
 		}
 		return input
 	}
-	return runWithAudioFile(filepath, maxTry, timeout, "openai", "whisper", initRun, whisperParser)
+	return r8RunWithAudioFile(filepath, maxTry, timeout, "openai", "whisper", initRun, whisperParser)
 }
 
 func InsanelyFastWhisper(filepath string, maxTry, timeout int, lang string) ([]byte, error) {
@@ -50,14 +81,14 @@ func InsanelyFastWhisper(filepath string, maxTry, timeout int, lang string) ([]b
 		return input
 	}
 	// model name is outdated on replicate
-	return runWithAudioFile(filepath, maxTry, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
+	return r8RunWithAudioFile(filepath, maxTry, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
 }
 
 func Spleeter(filepath string, maxTry, timeout int) ([]byte, error) {
 	NoMoreInput := func(input replicate.PredictionInput) replicate.PredictionInput {
 		return input
 	}
-	return runWithAudioFile(filepath, maxTry, timeout, "soykertje", "spleeter", NoMoreInput, spleeterDemucsParser)
+	return r8RunWithAudioFile(filepath, maxTry, timeout, "soykertje", "spleeter", NoMoreInput, spleeterDemucsParser)
 }
 
 
@@ -75,11 +106,11 @@ func Demucs(filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]by
 			return input
 		}
 	}
-	return runWithAudioFile(filepath, maxTry, timeout, "ryan5453", "demucs", initRun, spleeterDemucsParser)
+	return r8RunWithAudioFile(filepath, maxTry, timeout, "ryan5453", "demucs", initRun, spleeterDemucsParser)
 }
 
 
-func runWithAudioFile(filepath string, maxTry, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
+func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
 	apiToken := os.Getenv("REPLICATE_API_TOKEN")
 	if apiToken == "" {
 		return nil, fmt.Errorf("Please set the REPLICATE_API_TOKEN environment variable")
