@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/k0kubun/pp"
+	"github.com/gookit/color"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
 )
@@ -65,13 +66,20 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 			tsk.OutputFileExtension = ".csv"
 		}
 	}
-	ex, err := os.Executable()
+	bin := "ffmpeg"
 	if runtime.GOOS == "windows" {
-		if err != nil {
-			logger.Warn().Err(err).Msg("failed to access directory where langkit is"+
-				"FFmpeg path must be specified manually")
-		}
-		media.FFmpegPath = path.Join(filepath.Dir(ex), "bin", "ffmpeg.exe")
+		bin = "ffmpeg.exe"
+	}
+	ex, err := os.Executable()
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to access directory where langkit is"+
+			"FFmpeg path must be specified manually")
+	}
+	local := path.Join(filepath.Dir(ex), "bin", bin)
+	if _, err := os.Stat(local); err == nil {
+		media.FFmpegPath = local
+	} else {
+		media.FFmpegPath = bin
 	}
 	if cmd.Flags().Changed("ffmpeg") {
 		media.FFmpegPath, _ = cmd.Flags().GetString("ffmpeg")
@@ -81,8 +89,6 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 		logger.Fatal().Err(err). Msg("failed to access FFmpeg binary")
 	}
 	tsk.Meta.Runtime = getRuntimeInfo()
-	pp.Println(tsk.Meta)
-	os.Exit(0)
 	targetChan, _ := cmd.Flags().GetInt("chan")
 	audiotrack, _ := cmd.Flags().GetInt("a")
 	//CC, _         := cmd.Flags().GetBool("cc")
@@ -201,4 +207,13 @@ func getRuntimeInfo() string {
 		sb.WriteString(fmt.Sprintf("%s\n", env))
 	}*/
 	return sb.String()
+}
+
+
+
+
+
+func placeholder2345634567() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }
