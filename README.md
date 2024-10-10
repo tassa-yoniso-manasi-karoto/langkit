@@ -25,7 +25,9 @@ $ langkit subs2dubs media.mp4 media.th.srt
 ### Requirements
 This fork require FFmpeg **v6 or higher (dev builds being preferred)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
 
-The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-users to use only the [latest builds from the development branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
+The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
+
+The FFmpeg binary's location can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is.
 
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ELEVENLABS_API_TOKEN.
 
