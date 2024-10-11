@@ -44,7 +44,11 @@ func Universal1(filepath string, maxTry, timeout int, lang string) (string, erro
 	for try := 0; try < maxTry; try++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 		defer cancel()
-		transcript, err := client.Transcripts.TranscribeFromReader(ctx, f, nil)
+		params := &aai.TranscriptOptionalParams{
+			LanguageCode: aai.TranscriptLanguageCode(lang),
+			SpeechModel: aai.SpeechModelBest,
+		}
+		transcript, err := client.Transcripts.TranscribeFromReader(ctx, f, params)
 		if err == nil {
 			return *transcript.Text, nil
 		} else if err == context.DeadlineExceeded {
