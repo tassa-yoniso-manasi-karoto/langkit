@@ -15,12 +15,14 @@ $ langkit subs2cards media.mp4 -l "pt-BR,yue,zh-Hant"
 $ langkit subs2cards /path/to/media/dir/  -l "th,en"
 
 𝗠𝗮𝗸𝗲 𝗮𝗻 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝘄𝗶𝘁𝗵 𝗲𝗻𝗵𝗮𝗻𝗰𝗲𝗱/𝗮𝗺𝗽𝗹𝗶𝗳𝗶𝗲𝗱 𝘃𝗼𝗶𝗰𝗲𝘀 𝗳𝗿𝗼𝗺 𝘁𝗵𝗲 𝟮𝗻𝗱 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
-$ langkit enhance media.mp4 -a 2
+$ langkit enhance media.mp4 -a 2 --sep demucs
 
-𝗠𝗮𝗸𝗲 𝗮 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 𝘂𝘀𝗶𝗻𝗴 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
+𝗠𝗮𝗸𝗲 𝗮 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 𝘂𝘀𝗶𝗻𝗴 𝗦𝗧𝗧 𝗼𝗻 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
 $ langkit subs2dubs --stt whisper media.mp4 (media.th.srt) -l "th"
-```
 
+𝗖𝗼𝗺𝗯𝗶𝗻𝗲 𝗮𝗹𝗹 𝗼𝗳 𝘁𝗵𝗲 𝗮𝗯𝗼𝘃𝗲 𝗶𝗻 𝗼𝗻𝗲 𝗰𝗼𝗺𝗺𝗮𝗻𝗱
+$ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs
+```
 
 ### Requirements
 This fork require FFmpeg **v6 or higher (dev builds being preferred)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
@@ -42,6 +44,16 @@ The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don
 [Translations of recorded dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubs can't be used with the original subs2srs.<br>
 With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles.
 
+By default **a dubtitle will also be created from these transcriptions.**
+
+See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amgadoz @Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1brqwun/i_compared_the_different_open_source_whisper/) for detailed comparisons.
+
+| Name (to be passed with --stt) | WER (june 2024) | Num of lang supported                                                               | Price        | Type        | Note                                                                                                                                                                                                                                                                                                                   |
+|--------------------------------|-----------------|-------------------------------------------------------------------------------------|--------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| whisper, wh                    | 10,3%           | [57](https://platform.openai.com/docs/guides/speech-to-text/supported-languages%5C) | $1.1/1000min | MIT         | See [here](https://github.com/openai/whisper/discussions/1762) for a breakdown of WER per language. <br>Note: They just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it. |
+| insanely-fast-whisper, fast    | 16,2%           | 57                                                                                  | $0.0071/run  | MIT         |                                                                                                                                                                                                                                                                                                                        |
+| universal-1, u1                | 8,7%            | [17](https://www.assemblyai.com/docs/getting-started/supported-languages)           | $6.2/1000min | proprietary | **Untested** (doesn't support my target lang)                                                                                                                                                                                                                                                                          |
+
 ### Condensed Audio
 langkit will automatically make an audio file containing all the audio snippets of dialog in the audiotrack. <br>
 This is meant to be used for passive listening. <br>
@@ -53,12 +65,12 @@ This is very useful for languages that are phonetically dense, such as tonal lan
 <br>
 The separated voices are obtained using one of these:
 
-| Name <br>(to be passed with -s) | Quality of separated vocals | Price                          | Type        | Note                                                           |
-|---------------------------------|-----------------------------|--------------------------------|-------------|----------------------------------------------------------------|
-| demucs                          | good                        | very cheap<br>0.063$/run          | MIT license | **The one I'd recommend**                                      |
-| demucs_ft                       | good                        | cheap<br>0.252$/run               | MIT license | Fine-tuned version: "take 4 times more time but might be a bit better". I couldn't hear any difference with the original in my test. |
-| spleeter                        | rather poor                 | very, very cheap<br>0.00027$/run  | MIT license |                                                                |
-| elevenlabs                      | good                        | very, very expensive<br>1$/minute | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original. <br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
+| Name (to be passed with --sep) | Quality of separated vocals | Price                               | Type        | Note                                                                                                                                 |                                       |                                                                                                                                                                                       |
+|--------------------------------|-----------------------------|-------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| demucs, de                     | good                        | very cheap 0.063$/run               | MIT license | **The one I'd recommend**                                                                                                            |                                       |                                                                                                                                                                                       |
+| demucs_ft, ft                  | good                        | cheap 0.252$/run                    | MIT license | Fine-tuned version: "take 4 times more time but might be a bit better". I couldn't hear any difference with the original in my test. |                                       |                                                                                                                                                                                       |
+| spleeter, sp                   | rather poor                 | very, very cheap 0.00027$/run       | MIT license |                                                                                                                                      |                                       |                                                                                                                                                                                       |
+| elevenlabs, 11, el             | good                        | very, very expensive<br>1$/*MINUTE* | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original.                   | **Requires an Elevenlabs API token.** | Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
 
 
 ## ...But why?
