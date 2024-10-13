@@ -187,7 +187,7 @@ func (tsk *Task) Execute() {
 		tsk.STT = "whisper"
 	case "fast", "incredibly-fast-whisper":
 		tsk.STT = "insanely-fast-whisper"
-	case "u1", "uni":
+	case "u1":
 		tsk.STT = "universal-1"
 	}
 	tsk.ExportItems(foreignSubs, nativeSubs, tsk.outputBase(), tsk.MediaSourceFile, mediaPrefix, func(item *ExportedItem) {

@@ -3,8 +3,6 @@
 
 - (MUST TEST:) insanely-fast-whisper
 - verbose, padded mode for when iterating mp4 in a folder
-- (MUST TEST:) add AssemblyAI Universal-1 for STT (see https://artificialanalysis.ai/speech-to-text)  
-https://www.assemblyai.com/docs/getting-started/supported-languages
 
 *later:*
 

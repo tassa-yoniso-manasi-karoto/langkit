@@ -66,28 +66,44 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 			tsk.OutputFileExtension = ".csv"
 		}
 	}
-	bin := "ffmpeg"
-	if runtime.GOOS == "windows" {
-		bin = "ffmpeg.exe"
+	for _, name := range []string{"ffmpeg", "mediainfo"} {
+		dest := ""
+		bin := name
+		if runtime.GOOS == "windows" {
+			bin += ".exe"
+		}
+		// get dir of langkit bin
+		ex, err := os.Executable()
+		if err != nil {
+			logger.Debug().Err(err).Msg("failed to access directory where langkit is " +
+				bin + " path must be provided by PATH or specified manually")
+		}
+		local := path.Join(filepath.Dir(ex), "bin", bin)
+		path, _ := exec.LookPath(bin)
+		if _, err := os.Stat(local); err == nil {
+			dest = local
+			logger.Debug().Msg("found a local binary for " + name)
+		} else {
+			dest = path
+			logger.Debug().Msg("PATH provided binary path for " + name)
+		}
+		if cmd.Flags().Changed(name) {
+			tmp, _ := cmd.Flags().GetString(name)
+			dest = tmp
+			logger.Debug().Msg("using flag provided binary for " + name)
+		}
+		switch bin {
+		case "ffmpeg":
+			media.FFmpegPath = dest
+		case "mediainfo":
+			MediainfoPath = dest
+		}
 	}
-	ex, err := os.Executable()
-	if err != nil {
-		logger.Warn().Err(err).Msg("failed to access directory where langkit is"+
-			"FFmpeg path must be specified manually")
-	}
-	local := path.Join(filepath.Dir(ex), "bin", bin)
-	if _, err := os.Stat(local); err == nil {
-		media.FFmpegPath = local
-	} else {
-		media.FFmpegPath = bin
-	}
-	if cmd.Flags().Changed("ffmpeg") {
-		media.FFmpegPath, _ = cmd.Flags().GetString("ffmpeg")
-	}
-	tsk.Meta.FFmpeg, err = getFFmpegVersion(media.FFmpegPath)
+	tmp, err := getFFmpegVersion(media.FFmpegPath)
 	if err != nil {
 		logger.Fatal().Err(err). Msg("failed to access FFmpeg binary")
 	}
+	tsk.Meta.FFmpeg = tmp
 	tsk.Meta.Runtime = getRuntimeInfo()
 	targetChan, _ := cmd.Flags().GetInt("chan")
 	audiotrack, _ := cmd.Flags().GetInt("a")

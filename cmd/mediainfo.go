@@ -12,6 +12,8 @@ import (
 	iso "github.com/barbashov/iso639-3"
 )
 
+var MediainfoPath = "mediainfo"
+
 // CreatingLibrary represents the information about the library used to create the media information
 type CreatingLibrary struct {
 	Name    string `json:"name"`
@@ -196,7 +198,7 @@ func mediainfo(path string) (media MediaInfo) {
 
 
 func getMediaInfoJSON(filePath string) ([]byte, error) {
-	cmd := exec.Command("mediainfo", "--Output=JSON", filePath)
+	cmd := exec.Command(MediainfoPath, "--Output=JSON", filePath)
 	return cmd.Output()
 }
 

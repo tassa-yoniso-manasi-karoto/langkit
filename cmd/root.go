@@ -15,6 +15,7 @@ var (
 	logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.TimeOnly}).With().Timestamp().Logger()
 	cfgFile, sep, STT string
 	langs []string
+	mergeParam []int
 	subs2dubsDescr = "Use the foreign subtitle file to create a dubtitle using\n" +
 		"transcriptions made by the selected STT service"
 	sepDescr = "Make a new audiotrack with voices louder using specified\n" +
@@ -42,7 +43,7 @@ func Execute() {
 
 
 func init() {
-	zerolog.SetGlobalLevel(zerolog.InfoLevel) 
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.langkit.yaml)")
 	rootCmd.PersistentFlags().StringSliceVarP(&langs, "langs", "l", []string{},
@@ -60,6 +61,7 @@ func init() {
 					"Indexing of audiotracks start at 1.",
 	)
 	rootCmd.PersistentFlags().String("ffmpeg", "ffmpeg", "override for the path to FFmpeg binary")
+	rootCmd.PersistentFlags().String("mediainfo", "mediainfo", "override for the path to Mediainfo binary")
 
 	addSharedSTTflags(subs2cardsCmd)
 	addSharedSTTflags(subs2dubsCmd)
