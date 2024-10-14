@@ -104,8 +104,9 @@ func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase
 		write(item)
 	}
 	if skipped != 0 {
-		fmt.Printf("%.1f%% of items were already done and skipped (%d/%d)\n",
-			float64(skipped)/float64(total)*100, skipped, total)
+		tsk.Log.Info().Msg(fmt.Sprintf(
+			"%.1f%% of items were already done and skipped (%d/%d)",
+				float64(skipped)/float64(total)*100, skipped, total))
 	}
 	tsk.ConcatWAVstoOGG("CONDENSED", mediaPrefix)
 	return

@@ -52,6 +52,7 @@ func escape(s string) string {
 
 
 func (tsk *Task) Execute() {
+	// TODO: maybe mv this to defaulttask
 	if tsk.MediaSourceFile == "" {
 		tsk.Log.Fatal().Msg("A media file must be specified.")
 	}
@@ -103,18 +104,21 @@ func (tsk *Task) Execute() {
 				tsk.IsCCorDubs = SetPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.RefSubFile)
 			}
 		}
+		tsk.Log.Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
+		if !tsk.DubsOnly {
+			tsk.Log.Info().Str("Automatically chosen Native subtitle", tsk.RefSubFile).Msg("")
+		}
 		tsk.RefSubFile  = Base2Absolute(tsk.RefSubFile, path.Dir(tsk.MediaSourceFile))
 		tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
-		
 	}
+	//#######################################
 	if tsk.TargSubFile == "" {
-		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language were found")
+		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language was found")
 	}
 	foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
-	color.Redln("TARG:", tsk.TargSubFile) //FIXME
 	if !tsk.DubsOnly && tsk.RefSubFile == "" {
 		tsk.Log.Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
 	}
@@ -124,9 +128,7 @@ func (tsk *Task) Execute() {
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
 		}
-		color.Redln("REF:", tsk.RefSubFile) // FIXME
 	}
-	//#######################################
 	outStream, err := os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
@@ -162,17 +164,19 @@ func (tsk *Task) Execute() {
 	if tsk.UseAudiotrack < 0 {
 		tsk.UseAudiotrack = 0
 	}
-	tsk.Log.Info().
+	tsk.Log.Debug().
 		Int("UseAudiotrack", tsk.UseAudiotrack).
-		Str("track lang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
-		Str("chan num", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels)
+		Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
+		Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
 
 	if tsk.SeparationLib != "" {
 		tsk.enhance()
 	}
 	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
-		foreignSubs.DumbDown2Dubs()
-		tsk.Log.Info().Msg("Foreign subs are closed captions.")
+		tsk.Log.Info().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
+		foreignSubs.TrimCC2Dubs()
+	} else {
+		tsk.Log.Debug().Msg("Foreign subs are NOT detected as closed captions.")
 	}
 	// NOTE: this warning won't occur if the sub file are passed as arg
 	if tsk.IsCCorDubs && tsk.STT != "" {

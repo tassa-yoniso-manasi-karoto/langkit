@@ -36,6 +36,7 @@ type Task struct {
 	TimeoutSep           int
 	Offset               time.Duration
 	WantDubs             bool
+	IsBulkProcess        bool
 	DubsOnly             bool
 	IsCCorDubs           bool
 	TargSubFile          string
@@ -85,7 +86,7 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 			logger.Debug().Msg("found a local binary for " + name)
 		} else {
 			dest = path
-			logger.Debug().Msg("PATH provided binary path for " + name)
+			logger.Trace().Msg("PATH provided binary path for " + name)
 		}
 		if cmd.Flags().Changed(name) {
 			tmp, _ := cmd.Flags().GetString(name)
@@ -130,6 +131,7 @@ func (tsk *Task) routing() {
 	if !media.IsDir() {
 		tsk.Execute()
 	} else {
+		tsk.IsBulkProcess = true
 		err = filepath.Walk(mediafile, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("error during recursive exploration of passed directory")
@@ -144,7 +146,9 @@ func (tsk *Task) routing() {
 			tsk.RefSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
+			tsk.Log.Info().Msg("PROCESSING FILE ." + strings.TrimPrefix(path, mediafile))
 			tsk.Execute() // TODO go tsk.Execute()?
+			fmt.Println("")
 			return nil
 		})
 	}

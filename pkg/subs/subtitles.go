@@ -74,7 +74,7 @@ func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
 	return nil
 }
 
-func (subs *Subtitles) DumbDown2Dubs() *Subtitles {
+func (subs *Subtitles) TrimCC2Dubs() *Subtitles {
 	re := regexp.MustCompile(`^[\p{Z}\p{P}]*\[.*\][\p{P}\p{Z}]*$`) // TODO add "♪" → lyrics of BG music
 	for _, item := range subs.Items {
 		item.Lines = filterLines(item.Lines, re)

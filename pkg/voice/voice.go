@@ -136,7 +136,6 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 			"audio": file,
 		}
 		input = initRun(input)
-		fmt.Println("Sending request to remote API for processing. Please wait...")
 		predictionOutput, err = r8.Run(ctx, owner+"/"+name+":"+model.LatestVersion.ID, input, nil)
 		// these two are broken as far as I am concerned (err 422, 502):
 		// 	→ prediction, err := r8.CreatePrediction(ctx, version, input, nil, false)

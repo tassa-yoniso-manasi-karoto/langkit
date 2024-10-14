@@ -73,7 +73,7 @@ func (tsk *Task) enhance() {
 	VoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib])
 	//SyncVoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.SeparationLib) + ".SYNC.wav")
 	if  _, err := os.Stat(VoiceFile); errors.Is(err, os.ErrNotExist) {
-		tsk.Log.Info().Msg("Separating voice from the rest of the audiotrack...")
+		tsk.Log.Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
 		var audio []byte
 		switch strings.ToLower(tsk.SeparationLib) {
 		case "demucs":
@@ -95,14 +95,14 @@ func (tsk *Task) enhance() {
 			tsk.Log.Error().Err(err).Msg("File of separated voice couldn't be written.")
 		}
 	} else {
-		tsk.Log.Info().Msg("Previously separated voice audio was found.")
+		tsk.Log.Info().Msg("Previously separated voice audio was found and will be reused.")
 	}
 	// MERGE THE ORIGINAL AUDIOTRACK WITH THE VOICE AUDIO FILE
 	// Using a lossless file here could induce A-V desync will playing
 	// because these format aren't designed to be audio tracks of videos, unlike opus.
 	if strings.ToLower(tsk.SeparationLib) != "elevenlabs" {
 		MergedFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + ".MERGED.ogg")
-		tsk.Log.Info().Msg("Merging original and separated voice track into an enhanced voice track...")
+		tsk.Log.Debug().Msg("Merging original and separated voice track into an enhanced voice track...")
 		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
@@ -116,6 +116,8 @@ func (tsk *Task) enhance() {
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
 		}
+	} else {
+		tsk.Log.Info().Msg("No automatic merging possible for Elevenlabs.")
 	}
 }
 
