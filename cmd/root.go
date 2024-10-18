@@ -12,18 +12,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var (
-	logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.TimeOnly}).With().Timestamp().Logger()
-	cfgFile, sep, STT string
-	langs []string
-	workersMax int
-	mergeParam []int
-	subs2dubsDescr = "Use foreign subtitle file to create a dubtitle using\n" +
-		"transcriptions made by the selected STT service\n"
-	sepDescr = "Make a new audiotrack with voices louder using this\n" +
-		"separation API to isolate the voice's audio"
-)
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "langkit <command>",
@@ -44,8 +32,24 @@ func Execute() {
 }
 
 
+var (
+	logger = zerolog.New(zerolog.ConsoleWriter{
+		Out: os.Stdout,
+		TimeFormat: time.TimeOnly,
+	}).With().Timestamp().Logger()
+	cfgFile, sep, STT string
+	langs []string
+	workersMax int
+	mergeParam []int
+	subs2dubsDescr = "Use foreign subtitle file to create a dubtitle using\n" +
+		"transcriptions made by the selected STT service\n"
+	sepDescr = "Make a new audiotrack with voices louder using this\n" +
+		"separation API to isolate the voice's audio"
+)
+
+
 func init() {
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.langkit.yaml)")
 	rootCmd.PersistentFlags().StringSliceVarP(&langs, "langs", "l", []string{},
@@ -86,6 +90,8 @@ func addSharedSTTflags(cmd *cobra.Command) {
 
 func addSharedSepFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", sepDescr)
+	//cmd.PersistentFlags().IntSliceVar(&mergeParam, "merge-param", []int{13, -9, 90},
+	//	"gain of voice-only track, gain of original track and\nlimiter to apply at merging time")
 	cmd.PersistentFlags().Int("sep-to", 100*60, "timeout in seconds for the request to the voice\nseparation" +
 		" service. Due to the upload and remote\nprocessing it should be set very high.")
 }
@@ -130,4 +136,3 @@ func argFuncs(funcs ...cobra.PositionalArgs) cobra.PositionalArgs {
 		return nil
 	}
 }
-

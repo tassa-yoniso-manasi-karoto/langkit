@@ -11,7 +11,8 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
-
+	"io"
+	
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/k0kubun/pp"
@@ -135,6 +136,7 @@ func (tsk *Task) routing() {
 	if tsk.IsBulkProcess = media.IsDir(); !tsk.IsBulkProcess {
 		tsk.Execute()
 	} else {
+		var tasks []Task
 		err = filepath.Walk(mediafile, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("error during recursive exploration of passed directory")
@@ -149,12 +151,40 @@ func (tsk *Task) routing() {
 			tsk.NativeSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
-			tsk.Log.Info().Msg("PROCESSING FILE ." + strings.TrimPrefix(path, mediafile))
-			tsk.Execute()
-			fmt.Println("")
+			tasks = append(tasks, *tsk)
 			return nil
 		})
+		bar := bulkBar(len(tasks))
+		for i, tsk := range tasks {
+			if i != 0 {
+				// trick to have a newline without the log prefix
+				tsk.Log.Info().Msg("\r             \n"+bar.String())
+				// tsk.Log.Info().Msg(strings.TrimPrefix(bar.String(), "\r"))
+			}
+			tsk.Log.Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, mediafile))
+			tsk.Execute()
+			bar.Add(1)
+		}
 	}
+}
+
+// i is the total sum
+func bulkBar(i int) *progressbar.ProgressBar {
+	return progressbar.NewOptions(i,
+		progressbar.OptionSetDescription("Processing videos..."),
+		progressbar.OptionShowCount(),
+		//progressbar.OptionUseANSICodes(false),
+		//progressbar.OptionSetRenderBlankState(true),
+		//progressbar.OptionSetVisibility(false),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionSetWriter(io.Discard),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "#",
+			SaucerPadding: "-",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
+	)
 }
 
 func getFFmpegVersion(FFmpegPath string) (string, error) {
@@ -182,21 +212,7 @@ func getFFmpegVersion(FFmpegPath string) (string, error) {
 	return match[1], nil
 }
 
-// i is the total sum
-func bulkBar(i int) *progressbar.ProgressBar {
-	return progressbar.NewOptions(i,
-		progressbar.OptionSetDescription("Processing tasks..."),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetPredictTime(true),
-		progressbar.OptionSetWriter(os.Stdout),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "#",
-			SaucerPadding: "-",
-			BarStart:      "[",
-			BarEnd:        "]",
-		}),
-	)
-}
+
 
 func getRuntimeInfo() string {
 	var sb strings.Builder

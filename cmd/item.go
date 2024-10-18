@@ -13,6 +13,7 @@ import (
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/schollz/progressbar/v3"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
@@ -92,9 +93,12 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 		close(toCheckChan)
 		close(isAlreadyChan)
 	}()
-	
+	itembar := intraBar(len(foreignSubs.Items))
 	for item := range itemChan {
 		items = append(items, item)
+		if !tsk.IsBulkProcess {
+			itembar.Add(1)
+		}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	for _, item := range items {
@@ -120,7 +124,7 @@ func (tsk *Task) worker(id int, subLineChan <-chan *astisub.Item, itemChan chan 
 		itemChan <- item
 		tsk.Log.Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Item successfully sent")
 	}
-	tsk.Log.Debug().Int("workerID", id).Int("lenSubLineChan", len(subLineChan)).Msg("Terminating worker")
+	tsk.Log.Trace().Int("workerID", id).Int("lenSubLineChan", len(subLineChan)).Msg("Terminating worker")
 	wg.Done()
 }
 
@@ -280,6 +284,21 @@ func IsZeroLengthTimespan(last, t time.Duration) (b bool) {
 		b = true
 	}
 	return
+}
+
+func intraBar(i int) *progressbar.ProgressBar {
+	return progressbar.NewOptions(i,
+		progressbar.OptionShowCount(),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionSetWriter(os.Stdout),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "#",
+			SaucerPadding: "-",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
+	)
 }
 
 

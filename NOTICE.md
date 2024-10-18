@@ -1,5 +1,5 @@
 This project is a fork of the original project **Bunkai** by user **ustuehler** (Uwe Stuehler), which was initially licensed under the MIT License.
-One function from **mpv** (licensed LGPLv2.1+) was translated from C into Go and altough no code was directly reused. See lang.go.
+One function from **mpv** (licensed LGPLv2.1+) was translated from C into Go and although no code was directly reused, see /cmd/lang.go.
 
 All new contributions to this fork from commit d540bd4 onwards are licensed under GPL-3.0.
 

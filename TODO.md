@@ -1,8 +1,8 @@
 ### TODO
 *in progress:*
 
-- for bulk processing: to display both logs and progressbar, implement a mutexable SafeWriter around os.Stdout (or this? https://github.com/vbauerster/mpb/issues/105#issuecomment-1236352376)
 - for bulk processing: leverage WithLevel() to implement --less-lethal
+- create merged track in dir of video instead of the video.media directory that s2s creates → automatic selection with mpv
 - (MUST TEST:) insanely-fast-whisper
 
 *later:*
@@ -11,7 +11,7 @@
     - whisper initial_prompt
     - tokens
     - gain & limiter parameters for merging
-
+- tag merged audiotrack
 
 *might:*
 
