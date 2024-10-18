@@ -42,18 +42,19 @@ The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don
 
 ### Automatic Speech Recognition / Speech-to-Text support
 [Translations of recorded dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubs can't be used with the original subs2srs.<br>
-With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to pioneer this with sentence mining however the accuracy of the STT service used was unimpressive.
+With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
 
-By default **a dubtitle will also be created from these transcriptions.**
+By default **a dubtitle file will also be created from these transcriptions.**
 
 See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amgadoz @Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1brqwun/i_compared_the_different_open_source_whisper/) for detailed comparisons.
 
-| Name (to be passed with --stt) | Word Error Rate average across all supported langs (june 2024) | Num of lang supported                | Price        | Type        | Note                                                                                                                                                                                                                                                                                                                   |
+| Name (to be passed with --stt) | Word Error Rate average across all supported langs (june 2024) | Number of languages supported        | Price        | Type        | Note                                                                                                                                                                                                                                                                                                                   |
 |--------------------------------|-----------------|-------------------------------------------------------------------------------------|--------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| whisper, wh                    | 10,3%           | [57](https://platform.openai.com/docs/guides/speech-to-text/supported-languages%5C) | $1.1/1000min | MIT         | **See [here](https://github.com/openai/whisper/discussions/1762) for a breakdown of WER per language.** <br>Note: They just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it. |
+| whisper, wh                    | 10,3%           | [57](https://platform.openai.com/docs/guides/speech-to-text/supported-languages%5C) | $1.1/1000min | MIT         | **See [here](https://github.com/openai/whisper/discussions/1762) for a breakdown of WER per language.**  |
 | insanely-fast-whisper, fast    | 16,2%           | 57                                                                                  | $0.0071/run  | MIT         |                                                                                                                                                                                                                                                                                                                        |
 | universal-1, u1                | 8,7%            | [17](https://www.assemblyai.com/docs/getting-started/supported-languages)           | $6.2/1000min | proprietary | **Untested** (doesn't support my target lang)                                                                                                                                                                                                                                                                          |
 
+Note: openai just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it.
 ### Condensed Audio
 langkit will automatically make an audio file containing all the audio snippets of dialog in the audiotrack. <br>
 This is meant to be used for passive listening. <br>
@@ -72,6 +73,11 @@ The separated voices are obtained using one of these:
 | spleeter, sp                   | rather poor                 | very, very cheap 0.00027$/run       | MIT license |                                                                                                                                      |
 | elevenlabs, 11, el             | good                        | very, very expensive<br>1$/*MINUTE* | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original.<br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
 
+### Parrallelization / multi-threading built-in thanks to Go
+By default all CPU cores available are used. You can reduce CPU usage by passing a lower ```--workers``` value than the default.
+
+### Bulk / recursive directory processing
+...if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
 
 ## ...But why?
 There are plenty of good options already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), subs2srs, online sentence banks, high quality premade Anki decks...

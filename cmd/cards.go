@@ -202,7 +202,7 @@ func (tsk *Task) Execute() {
 		}
 		dubs := strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
 		dubs = strings.TrimSuffix(dubs, ".tsv")
-		dubs = path.Join(dubs + strings.ToUpper(tsk.STT) + filepath.Ext(tsk.TargSubFile))
+		dubs = path.Join(dubs + "." + strings.ToUpper(tsk.STT) + filepath.Ext(tsk.TargSubFile))
 		
 		if err = foreignSubs.Write(dubs); err != nil {
 			tsk.Log.Fatal().Err(err).Msg("error making dubtitles")

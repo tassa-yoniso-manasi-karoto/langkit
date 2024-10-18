@@ -83,7 +83,7 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 	go func() {
 		tsk.Log.Debug().
 			Int("lenItemChan", len(itemChan)).
-			Int("capItemChan", len(foreignSubs.Items)).
+			Int("capItemChan", len(foreignSubs.Items)). // FIXME cleanup dbg log
 			Int("lenSubLineChan", len(subLineChan)).
 			Msg("Waiting for workers to finish.")
 		wg.Wait()
@@ -123,6 +123,8 @@ func (tsk *Task) worker(id int, subLineChan <-chan *astisub.Item, itemChan chan 
 	tsk.Log.Debug().Int("workerID", id).Int("lenSubLineChan", len(subLineChan)).Msg("Terminating worker")
 	wg.Done()
 }
+
+
 
 func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	item.Source = tsk.outputBase()

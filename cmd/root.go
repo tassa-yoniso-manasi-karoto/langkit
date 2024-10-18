@@ -18,10 +18,10 @@ var (
 	langs []string
 	workersMax int
 	mergeParam []int
-	subs2dubsDescr = "Use the foreign subtitle file to create a dubtitle using\n" +
-		"transcriptions made by the selected STT service"
-	sepDescr = "Make a new audiotrack with voices louder using specified\n" +
-		"separation library to isolate the voice's audio"
+	subs2dubsDescr = "Use foreign subtitle file to create a dubtitle using\n" +
+		"transcriptions made by the selected STT service\n"
+	sepDescr = "Make a new audiotrack with voices louder using this\n" +
+		"separation API to isolate the voice's audio"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -62,10 +62,10 @@ func init() {
 				"Overrides --chan and -l flag.\n" +
 					"Indexing of audiotracks start at 1.",
 	)
-	rootCmd.PersistentFlags().String("ffmpeg", "ffmpeg", "override for the path to FFmpeg binary")
-	rootCmd.PersistentFlags().String("mediainfo", "mediainfo", "override for the path to Mediainfo binary")
-	rootCmd.PersistentFlags().IntVar(&workersMax, "workers", runtime.NumCPU()-1, "set max concurrent workers to use for bulk processing."+
-		"Default is optimized for performance, lower it if needed.")
+	rootCmd.PersistentFlags().String("ffmpeg", "ffmpeg", "override for the path to FFmpeg binary\n")
+	rootCmd.PersistentFlags().String("mediainfo", "mediainfo", "override for the path to Mediainfo binary\n")
+	rootCmd.PersistentFlags().IntVar(&workersMax, "workers", runtime.NumCPU()-1, "max concurrent workers to use for bulk processing.\n"+
+		"Default is optimized for performance, lower it\n if needed.")
 
 	addSharedSTTflags(subs2cardsCmd)
 	addSharedSTTflags(subs2dubsCmd)
@@ -78,16 +78,16 @@ func init() {
 }
 
 func addSharedSTTflags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVar(&STT, "stt", "", "transcribe audio using specified online Speech-To-Text API")
-	cmd.PersistentFlags().Int("stt-to", 45, "timeout in seconds for the request to the STT service.\n")
+	cmd.PersistentFlags().StringVar(&STT, "stt", "", "transcribe audio using specified\nonline Speech-To-Text API")
+	cmd.PersistentFlags().Int("stt-to", 45, "timeout in seconds for the request to the STT service\n")
 	cmd.PersistentFlags().Bool("stt-dub", true, subs2dubsDescr)
 	// FIXME subs2cardsCmd.PersistentFlags().Bool("cc", false, "enforce treating the foreign subs as closed captions: strip it of its SDH material to keep only the dialog")
 }
 
 func addSharedSepFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", sepDescr)
-	cmd.PersistentFlags().Int("sep-to", 100*60, "timeout in seconds for the request to the voice separation\n" +
-		"service. Due to the upload and remote processing it should\n be set very high.")
+	cmd.PersistentFlags().Int("sep-to", 100*60, "timeout in seconds for the request to the voice\nseparation" +
+		" service. Due to the upload and remote\nprocessing it should be set very high.")
 }
 
 // initConfig reads in config file and ENV variables if set.
