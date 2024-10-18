@@ -16,8 +16,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/schollz/progressbar/v3"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
 )
 
 
@@ -40,7 +42,9 @@ type Task struct {
 	DubsOnly             bool
 	IsCCorDubs           bool
 	TargSubFile          string
-	RefSubFile           string
+	NativeSubFile        string
+	NativeSubs           *subs.Subtitles
+	MediaPrefix          string
 	MediaSourceFile      string
 	FieldSep             string // defaults to "\t"
 	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv", otherwise
@@ -128,10 +132,9 @@ func (tsk *Task) routing() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("can't access passed media file/directory")
 	}
-	if !media.IsDir() {
+	if tsk.IsBulkProcess = media.IsDir(); !tsk.IsBulkProcess {
 		tsk.Execute()
 	} else {
-		tsk.IsBulkProcess = true
 		err = filepath.Walk(mediafile, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("error during recursive exploration of passed directory")
@@ -143,11 +146,11 @@ func (tsk *Task) routing() {
 			if !strings.HasSuffix(path, ".mp4") && !strings.HasSuffix(filename, ".mkv")  {
 				return nil
 			}
-			tsk.RefSubFile = ""
+			tsk.NativeSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
 			tsk.Log.Info().Msg("PROCESSING FILE ." + strings.TrimPrefix(path, mediafile))
-			tsk.Execute() // TODO go tsk.Execute()?
+			tsk.Execute()
 			fmt.Println("")
 			return nil
 		})
@@ -179,6 +182,21 @@ func getFFmpegVersion(FFmpegPath string) (string, error) {
 	return match[1], nil
 }
 
+// i is the total sum
+func bulkBar(i int) *progressbar.ProgressBar {
+	return progressbar.NewOptions(i,
+		progressbar.OptionSetDescription("Processing tasks..."),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionSetWriter(os.Stdout),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "#",
+			SaucerPadding: "-",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
+	)
+}
 
 func getRuntimeInfo() string {
 	var sb strings.Builder

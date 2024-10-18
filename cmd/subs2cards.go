@@ -33,7 +33,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 			tsk.TargSubFile = args[1]
 		}
 		if len(args) > 2 { // TODO test without native subs
-			tsk.RefSubFile = args[2]
+			tsk.NativeSubFile = args[2]
 		}
 		tsk.SeparationLib = sep
 		tsk.TimeoutSep, _ = cmd.Flags().GetInt("sep-to")

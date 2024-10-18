@@ -21,7 +21,7 @@ var subs2dubsCmd = &cobra.Command{
 			tsk.TargSubFile = args[1]
 		}
 		if len(args) > 2 {
-			tsk.RefSubFile = args[2]
+			tsk.NativeSubFile = args[2]
 		}
 		if STT == "" {
 			logger.Fatal().Msg("the STT service was not specified")

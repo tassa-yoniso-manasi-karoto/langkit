@@ -1,8 +1,9 @@
 ### TODO
 *in progress:*
 
+- for bulk processing: to display both logs and progressbar, implement a mutexable SafeWriter around os.Stdout (or this? https://github.com/vbauerster/mpb/issues/105#issuecomment-1236352376)
+- for bulk processing: leverage WithLevel() to implement --less-lethal
 - (MUST TEST:) insanely-fast-whisper
-- verbose, padded mode for when iterating mp4 in a folder
 
 *later:*
 

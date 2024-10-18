@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	"runtime"
 	
 	"github.com/rs/zerolog"
 	homedir "github.com/mitchellh/go-homedir"
@@ -15,6 +16,7 @@ var (
 	logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.TimeOnly}).With().Timestamp().Logger()
 	cfgFile, sep, STT string
 	langs []string
+	workersMax int
 	mergeParam []int
 	subs2dubsDescr = "Use the foreign subtitle file to create a dubtitle using\n" +
 		"transcriptions made by the selected STT service"
@@ -43,7 +45,7 @@ func Execute() {
 
 
 func init() {
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.langkit.yaml)")
 	rootCmd.PersistentFlags().StringSliceVarP(&langs, "langs", "l", []string{},
@@ -62,6 +64,8 @@ func init() {
 	)
 	rootCmd.PersistentFlags().String("ffmpeg", "ffmpeg", "override for the path to FFmpeg binary")
 	rootCmd.PersistentFlags().String("mediainfo", "mediainfo", "override for the path to Mediainfo binary")
+	rootCmd.PersistentFlags().IntVar(&workersMax, "workers", runtime.NumCPU()-1, "set max concurrent workers to use for bulk processing."+
+		"Default is optimized for performance, lower it if needed.")
 
 	addSharedSTTflags(subs2cardsCmd)
 	addSharedSTTflags(subs2dubsCmd)

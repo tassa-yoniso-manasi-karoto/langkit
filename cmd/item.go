@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"path/filepath"
+	"sync"
+	"sort"
 
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -17,12 +19,13 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/voice"
 )
 
-// ExportedItem represents the exported information of a single subtitle item,
+// ProcessedItem represents the exported information of a single subtitle item,
 // where Time is the primary field which identifies the item and ForeignCurr is
 // the actual text of the item. The fields NativeCurr, NativePrev and NativeNext
 // will be empty unless a second subtitle file was specified for the export and
 // that second subtitle file is sufficiently aligned with the first.
-type ExportedItem struct {
+type ProcessedItem struct {
+	ID          time.Duration
 	Sound       string
 	Time        string
 	Source      string
@@ -35,125 +38,174 @@ type ExportedItem struct {
 	NativeNext  string
 }
 
-// ExportedItemWriter should write an exported item in whatever format is // selected by the user.
-type ExportedItemWriter func(*ExportedItem)
+// ProcessedItemWriter should write an exported item in whatever format is // selected by the user.
+type ProcessedItemWriter func(*os.File, *ProcessedItem)
 
-
-// ExportItems calls the write function for each foreign subtitle item.
-// FIXME get rid of useless params
-func (tsk *Task) ExportItems(foreignSubs, nativeSubs *subs.Subtitles, outputBase, mediaSourceFile, mediaPrefix string, write ExportedItemWriter) {
-	// Create channels
-	inputChan := make(chan string)
-	resultChan := make(chan bool)
-	defer close(inputChan)
-	defer close(resultChan)
-	go checkStringsInFile(tsk.outputFile(), inputChan, resultChan)
-	total := 0
-	skipped := 0
-	for i, foreignItem := range foreignSubs.Items {
-		item, audiofile, err := tsk.ExportItem(foreignItem, nativeSubs, outputBase, mediaSourceFile, mediaPrefix)
-		total += 1
-		// skip lines already in file, if the previous run wasn't completed
-		if inputChan <- tsk.FieldSep + item.Time + tsk.FieldSep; <-resultChan {
-			skipped += 1
-			continue
+func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, write ProcessedItemWriter) {
+	var (
+		subLineChan = make(chan *astisub.Item)
+		// all results are cached and later sorted, hence the chan has a cache
+		itemChan = make(chan ProcessedItem, len(foreignSubs.Items))
+		items []ProcessedItem
+		wg sync.WaitGroup
+		
+		skipped int
+		toCheckChan   = make(chan string)
+		isAlreadyChan = make(chan bool)
+	)
+	tsk.Log.Debug().
+		Int("capItemChan", len(foreignSubs.Items)).
+		Int("workersMax", workersMax).
+		Msg("Supervisor initialized, starting workers")
+	for i := 1; i <= workersMax; i++ {
+		wg.Add(1)
+		go tsk.worker(i, subLineChan, itemChan, &wg)
+	}
+	go checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan)
+	go func() {
+		for i, subLine := range foreignSubs.Items {
+			if toCheckChan <- tsk.FieldSep + timePosition(subLine.StartAt) + tsk.FieldSep; <-isAlreadyChan {
+				tsk.Log.Trace().Int("lineNum", i).Msg("Skipping subtitle line previously processed")
+				skipped += 1
+				continue
+			}
+			subLineChan <- subLine
 		}
-		if err != nil {
+		close(subLineChan)
+		if skipped != 0 {
+			tsk.Log.Info().Msg(fmt.Sprintf(
+				"%.1f%% of items were already done and skipped (%d/%d)",
+					float64(skipped)/float64(len(foreignSubs.Items))*100, skipped, len(foreignSubs.Items)))
+		} else {
+			tsk.Log.Debug().Msg("No line previously processed was found")
+		}
+	}()
+	go func() {
+		tsk.Log.Debug().
+			Int("lenItemChan", len(itemChan)).
+			Int("capItemChan", len(foreignSubs.Items)).
+			Int("lenSubLineChan", len(subLineChan)).
+			Msg("Waiting for workers to finish.")
+		wg.Wait()
+		tsk.Log.Debug().Msg("All workers finished. Closing itemChan, toCheckChan, isAlreadyChan")
+		close(itemChan)
+		close(toCheckChan)
+		close(isAlreadyChan)
+	}()
+	
+	for item := range itemChan {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	for _, item := range items {
+		write(outStream, &item)
+	}
+	tsk.ConcatWAVstoOGG("CONDENSED") // TODO probably better to put it elsewhere
+}
+
+
+
+func (tsk *Task) worker(id int, subLineChan <-chan *astisub.Item, itemChan chan ProcessedItem, wg *sync.WaitGroup) {
+	for subLine := range subLineChan {
+		tsk.Log.Trace().Int("workerID", id).Msg("received a subLine")
+		item := tsk.ProcessItem(subLine)
+		/*if err != nil { // FIXME, there is no err return anymore
 			tsk.Log.Error().
 				Int("srt row", i).
 				Str("item", foreignItem.String()).
 				Err(err).
 				Msg("can't export item")
-		}
-		lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
-		switch tsk.STT {
-		case "whisper":
-			b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
-			if err != nil {
-				tsk.Log.Error().Err(err).
-					Str("item", foreignItem.String()).
-					Msg("Whisper error")
-			}
-			item.ForeignCurr = string(b)
-		case "insanely-fast-whisper":
-			b, err := voice.InsanelyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
-			if err != nil {
-				tsk.Log.Error().Err(err).
-					Str("item", foreignItem.String()).
-					Msg("InsanelyFastWhisper error")
-			}
-			item.ForeignCurr = string(b)
-		case "universal-1":
-			s, err := voice.Universal1(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
-			if err != nil {
-				tsk.Log.Error().Err(err).
-					Str("item", foreignItem.String()).
-					Msg("Universal1 error")
-			}
-			item.ForeignCurr = s
-		}
-		if i > 0 {
-			prevItem := foreignSubs.Items[i-1]
-			item.ForeignPrev = prevItem.String()
-		}
-
-		if i+1 < len(foreignSubs.Items) {
-			nextItem := foreignSubs.Items[i+1]
-			item.ForeignNext = nextItem.String()
-		}
-		write(item)
+		}*/
+		tsk.Log.Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Sending item")
+		itemChan <- item
+		tsk.Log.Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Item successfully sent")
 	}
-	if skipped != 0 {
-		tsk.Log.Info().Msg(fmt.Sprintf(
-			"%.1f%% of items were already done and skipped (%d/%d)",
-				float64(skipped)/float64(total)*100, skipped, total))
-	}
-	tsk.ConcatWAVstoOGG("CONDENSED", mediaPrefix)
-	return
+	tsk.Log.Debug().Int("workerID", id).Int("lenSubLineChan", len(subLineChan)).Msg("Terminating worker")
+	wg.Done()
 }
 
-func (tsk *Task) ExportItem(foreignItem *astisub.Item, nativeSubs *subs.Subtitles, subsBase, mediaFile, mediaPrefix string) (*ExportedItem, string, error) {
-	item := &ExportedItem{}
-	item.Source = subsBase
+func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
+	item.Source = tsk.outputBase()
 	item.ForeignCurr = joinLines(foreignItem.String())
 
-	if nativeSubs != nil {
-		if nativeItem := nativeSubs.Translate(foreignItem); nativeItem != nil {
+	if tsk.NativeSubs != nil {
+		if nativeItem := tsk.NativeSubs.Translate(foreignItem); nativeItem != nil {
 			item.NativeCurr = joinLines(nativeItem.String())
 		}
 	}
-	audioFile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack, tsk.Offset, foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix, tsk.DubsOnly)
+	audiofile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack,
+		tsk.Offset, foreignItem.StartAt, foreignItem.EndAt,
+			tsk.MediaSourceFile, tsk.MediaPrefix, tsk.DubsOnly)
 	if err != nil {
 		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
 	}
 	if !tsk.DubsOnly {
-		_, err = media.ExtractAudio("wav", tsk.UseAudiotrack, time.Duration(0), foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix, false)
+		_, err = media.ExtractAudio("wav", tsk.UseAudiotrack,
+			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
+				tsk.MediaSourceFile, tsk.MediaPrefix, false)
 		if err != nil {
 			tsk.Log.Error().Err(err).Msg("can't extract wav audio")
 		}
 	}
-	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt, mediaFile, mediaPrefix, tsk.DubsOnly)
+	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt,
+		tsk.MediaSourceFile, tsk.MediaPrefix, tsk.DubsOnly)
 	if err != nil {
 		tsk.Log.Error().Err(err).Msg("can't extract image")
 	}
-
+	item.ID = foreignItem.StartAt
 	item.Time = timePosition(foreignItem.StartAt)
 	item.Image = fmt.Sprintf("<img src=\"%s\">", path.Base(imageFile))
-	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audioFile))
+	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
+	
+	lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
+	switch tsk.STT {
+	case "whisper":
+		b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
+		if err != nil {
+			tsk.Log.Error().Err(err).
+				Str("item", foreignItem.String()).
+				Msg("Whisper error")
+		}
+		item.ForeignCurr = string(b)
+	case "insanely-fast-whisper":
+		b, err := voice.InsanelyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+		if err != nil {
+			tsk.Log.Error().Err(err).
+				Str("item", foreignItem.String()).
+				Msg("InsanelyFastWhisper error")
+		}
+		item.ForeignCurr = string(b)
+	case "universal-1":
+		s, err := voice.Universal1(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+		if err != nil {
+			tsk.Log.Error().Err(err).
+				Str("item", foreignItem.String()).
+				Msg("Universal1 error")
+		}
+		item.ForeignCurr = s
+	}
+	/*if i > 0 { // FIXME this has never worked for some reason
+		prevItem := foreignSubs.Items[i-1]
+		item.ForeignPrev = prevItem.String()
+	}
 
-	return item, audioFile, nil
+	if i+1 < len(foreignSubs.Items) {
+		nextItem := foreignSubs.Items[i+1]
+		item.ForeignNext = nextItem.String()
+	}*/
+	return
 }
 
 
 
 
 
-func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
-	out := fmt.Sprint(mediaPrefix, ".", suffix,".ogg")
+func (tsk *Task) ConcatWAVstoOGG(suffix string) {
+	out := fmt.Sprint(tsk.MediaPrefix, ".", suffix,".ogg")
 	if  _, err := os.Stat(out); err == nil {
 		return
 	}
-	wavFiles, err := filepath.Glob(mediaPrefix+ "_*.wav")
+	wavFiles, err := filepath.Glob(tsk.MediaPrefix+ "_*.wav")
 	if err != nil {
 		tsk.Log.Error().Err(err).
 			Str("mediaOutputDir", tsk.mediaOutputDir()).
@@ -173,12 +225,12 @@ func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
 	defer os.Remove(concatFile)
 
 	// Run FFmpeg to concatenate and create the audio file
-	media.RunFFmpegConcat(concatFile, mediaPrefix+".wav")
+	media.RunFFmpegConcat(concatFile, tsk.MediaPrefix+".wav")
 
 	// Convert WAV to OPUS using FFmpeg
-	media.RunFFmpegConvert(mediaPrefix+".wav", out)
+	media.RunFFmpegConvert(tsk.MediaPrefix+".wav", out)
 	// Clean up
-	os.Remove(mediaPrefix+".wav")
+	os.Remove(tsk.MediaPrefix+".wav")
 	for _, f := range wavFiles {
 		if err := os.Remove(f); err != nil {
 			tsk.Log.Warn().Str("file", f).Msg("Removing file failed")
@@ -188,11 +240,17 @@ func (tsk *Task) ConcatWAVstoOGG(suffix, mediaPrefix string) {
 
 
 // Function that runs in a goroutine to check multiple strings in a file
-func checkStringsInFile(filepath string, inputChan <-chan string, resultChan chan<- bool) error {
+func checkStringsInFile(filepath string, toCheckChan <-chan string, isAlreadyChan chan<- bool) error {
 	content, _ := os.ReadFile(filepath)
 	fileContent := string(content)
-	for searchString := range inputChan {
-		resultChan <- strings.Contains(fileContent, searchString)
+	for searchString := range toCheckChan {
+		if len(content) == 0 {
+			//color.Redln("len(content) == 0, ASSUMING "+searchString+" IT IS NOT IN FILE "+filepath)
+			isAlreadyChan <- false
+		} else {
+			//color.Redln("SEARCHING "+searchString+"IN FILE")
+			isAlreadyChan <- strings.Contains(fileContent, searchString)
+		}
 	}
 	return nil
 }
