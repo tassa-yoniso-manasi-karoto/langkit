@@ -41,7 +41,7 @@ Use modern codecs to save storage. The image/audio codecs which langkit uses are
 The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
 
 ### Automatic Speech Recognition / Speech-to-Text support
-[Translations of recorded dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubs can't be used with the original subs2srs.<br>
+[Translations of dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubbings can't be used with subtitles in the old subs2srs unless said subs are closed captions or dubtitles.<br>
 With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
 
 By default **a dubtitle file will also be created from these transcriptions.**

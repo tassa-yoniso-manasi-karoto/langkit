@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"sync"
 	"sort"
+	"io/fs"
+	"errors"
 
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	"github.com/schollz/progressbar/v3"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
@@ -27,6 +28,7 @@ import (
 // that second subtitle file is sufficiently aligned with the first.
 type ProcessedItem struct {
 	ID          time.Duration
+	AlreadyDone bool
 	Sound       string
 	Time        string
 	Source      string
@@ -65,9 +67,15 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 	go checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan)
 	go func() {
 		for i, subLine := range foreignSubs.Items {
+			// FIXME: Right now, due to parrallelism, wirting is only done when all the workers are done
+			// so this kind of check will only work on completed tasks, therefore there is no resuming capability
+			// therefore ASR/TTS already done is lost upon interruption (when Ctrl+C)
+			// The obvious way to fix this is to write another goroutine that checks the ID of items and
+			// write them on the fly in order when the next ID expected is available, Keeping that for some other time...
 			if toCheckChan <- tsk.FieldSep + timePosition(subLine.StartAt) + tsk.FieldSep; <-isAlreadyChan {
 				tsk.Log.Trace().Int("lineNum", i).Msg("Skipping subtitle line previously processed")
 				skipped += 1
+				totalItems -= 1
 				continue
 			}
 			subLineChan <- subLine
@@ -93,12 +101,17 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 		close(toCheckChan)
 		close(isAlreadyChan)
 	}()
-	itembar := intraBar(len(foreignSubs.Items))
 	for item := range itemChan {
 		items = append(items, item)
-		if !tsk.IsBulkProcess {
+		if !item.AlreadyDone {
+			if itembar == nil {
+				itembar = mkItemBar(totalItems)
+			}
 			itembar.Add(1)
 		}
+	}
+	if itembar != nil {
+		itembar.Clear()
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	for _, item := range items {
@@ -142,21 +155,27 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	audiofile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack,
 		tsk.Offset, foreignItem.StartAt, foreignItem.EndAt,
 			tsk.MediaSourceFile, tsk.MediaPrefix, tsk.DubsOnly)
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrExist) {
 		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
 	}
 	if !tsk.DubsOnly {
 		_, err = media.ExtractAudio("wav", tsk.UseAudiotrack,
 			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
 				tsk.MediaSourceFile, tsk.MediaPrefix, false)
-		if err != nil {
+		if err != nil && !errors.Is(err, fs.ErrExist) {
 			tsk.Log.Error().Err(err).Msg("can't extract wav audio")
 		}
 	}
 	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt,
 		tsk.MediaSourceFile, tsk.MediaPrefix, tsk.DubsOnly)
 	if err != nil {
-		tsk.Log.Error().Err(err).Msg("can't extract image")
+		// check done on the AVIF because it is the most computing intensive
+		if errors.Is(err, fs.ErrExist) {
+			item.AlreadyDone = true
+			totalItems -= 1
+		} else {
+			tsk.Log.Error().Err(err).Msg("can't extract image")
+		}
 	}
 	item.ID = foreignItem.StartAt
 	item.Time = timePosition(foreignItem.StartAt)
@@ -284,21 +303,6 @@ func IsZeroLengthTimespan(last, t time.Duration) (b bool) {
 		b = true
 	}
 	return
-}
-
-func intraBar(i int) *progressbar.ProgressBar {
-	return progressbar.NewOptions(i,
-		progressbar.OptionShowCount(),
-		progressbar.OptionClearOnFinish(),
-		progressbar.OptionSetPredictTime(true),
-		progressbar.OptionSetWriter(os.Stdout),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "#",
-			SaucerPadding: "-",
-			BarStart:      "[",
-			BarEnd:        "]",
-		}),
-	)
 }
 
 

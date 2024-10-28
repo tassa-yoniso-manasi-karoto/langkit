@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"time"
+	"io/fs"
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -14,7 +15,7 @@ var FFmpegPath = "ffmpeg"
 
 func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFile, outFile string, outArgs []string) error {
 	if exists(outFile) {
-		return nil
+		return fs.ErrExist
 	}
 	/* https://stackoverflow.com/questions/18444194/cutting-multimedia-files-based-on-start-and-end-time-using-ffmpeg
 	using -t after -i result in inaccurate cuts but using -to before -i fix it, resulting in the same timecode as subs2srs
@@ -39,7 +40,7 @@ func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFi
 
 func ffmpegExtractImage(startAt, endAt time.Duration, inFile string, outFile string) error {
 	if exists(outFile) {
-		return nil
+		return fs.ErrExist
 	}
 
 	var frameAt = startAt

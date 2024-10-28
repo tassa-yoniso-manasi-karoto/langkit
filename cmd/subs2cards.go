@@ -26,9 +26,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 			logger.Fatal().Msg("this command requires at least one argument: the path to the media file/directory to be processed")
 		}
 		tsk := DefaultTask(cmd)
-		if len(args) > 0 {
-			tsk.MediaSourceFile = args[0]
-		}
+		tsk.MediaSourceFile = args[0]
 		if len(args) > 1 {
 			tsk.TargSubFile = args[1]
 		}

@@ -52,68 +52,13 @@ func escape(s string) string {
 
 
 func (tsk *Task) Execute() {
-	// TODO: maybe mv this to defaulttask
-	if tsk.MediaSourceFile == "" {
-		tsk.Log.Fatal().Msg("A media file must be specified.")
-	}
-	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
-		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
-	} else if len(tsk.Langs) == 1 && !tsk.DubsOnly {
-		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
-	}
-	if len(tsk.Langs) > 0 {
-		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
-		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
-		}
-		tsk.Targ = tmp[0]
-	}
-	if len(tsk.Langs) > 1 {
-		tmp, err := ReadStdLangCode(tsk.Langs[1:])
-		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
-		}
-		tsk.RefLangs = tmp
-	}
+	//if tsk.Langs != nil {
+	//	tsk.PrepareLangs()
+	//}
 	//pp.Println(tsk.Targ)
 	//pp.Println(tsk.RefLangs)
-	//### AUTOSUB ########################## TODO mv it out
 	if tsk.TargSubFile == "" {
-		files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
-		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Failed to read directory")
-		}
-		trimmedMedia := strings.TrimSuffix(path.Base(tsk.MediaSourceFile), path.Ext(tsk.MediaSourceFile))
-		for _, file := range files {
-			ext := strings.ToLower(filepath.Ext(file.Name()))
-			trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
-			if file.IsDir() ||
-				!slices.Contains(AstisubSupportedExt, ext) ||
-					!strings.HasPrefix(trimmed, trimmedMedia) ||
-						strings.Contains(trimmed, "forced") {
-				continue
-			}
-			l, err := GuessLangFromFilename(file.Name())
-			if err != nil {
-				continue
-			}
-			//fmt.Printf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
-			
-			SetPrefered([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile)
-			for _, RefLang := range tsk.RefLangs {
-				tsk.IsCCorDubs = SetPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile)
-			}
-		}
-		tsk.Log.Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
-		if !tsk.DubsOnly {
-			tsk.Log.Info().Str("Automatically chosen Native subtitle", tsk.NativeSubFile).Msg("")
-		}
-		tsk.NativeSubFile  = Base2Absolute(tsk.NativeSubFile, path.Dir(tsk.MediaSourceFile))
-		tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
-	}
-	//#######################################
-	if tsk.TargSubFile == "" {
-		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language was found")
+		tsk.Autosub()
 	}
 	foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 	if err != nil {
@@ -209,6 +154,69 @@ func (tsk *Task) Execute() {
 		}
 	}
 }
+
+
+func (tsk *Task) Autosub() {
+	files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
+	if err != nil {
+		tsk.Log.Fatal().Err(err).Msg("Failed to read directory")
+	}
+	trimmedMedia := strings.TrimSuffix(path.Base(tsk.MediaSourceFile), path.Ext(tsk.MediaSourceFile))
+	for _, file := range files {
+		ext := strings.ToLower(filepath.Ext(file.Name()))
+		trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
+		if file.IsDir() ||
+			!slices.Contains(AstisubSupportedExt, ext) ||
+				!strings.HasPrefix(trimmed, trimmedMedia) ||
+					strings.Contains(trimmed, "forced") {
+			continue
+		}
+		l, err := GuessLangFromFilename(file.Name())
+		if err != nil {
+			continue
+		}
+		//fmt.Printf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
+		
+		SetPrefered([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile)
+		for _, RefLang := range tsk.RefLangs {
+			tsk.IsCCorDubs = SetPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile)
+		}
+	}
+	tsk.Log.Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
+	if !tsk.DubsOnly {
+		tsk.Log.Info().Str("Automatically chosen Native subtitle", tsk.NativeSubFile).Msg("")
+	}
+	tsk.NativeSubFile  = Base2Absolute(tsk.NativeSubFile, path.Dir(tsk.MediaSourceFile))
+	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
+	if tsk.TargSubFile == "" {
+		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language was found")
+	}
+}
+
+
+func (tsk *Task) PrepareLangs() {
+	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
+		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
+	} else if len(tsk.Langs) == 1 && !tsk.DubsOnly {
+		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
+	}
+	if len(tsk.Langs) > 0 {
+		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+		}
+		tsk.Targ = tmp[0]
+	}
+	if len(tsk.Langs) > 1 {
+		tmp, err := ReadStdLangCode(tsk.Langs[1:])
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+		}
+		tsk.RefLangs = tmp
+	}
+	tsk.Langs = nil
+}
+
 
 func write(outStream *os.File, item *ProcessedItem) {
 	fmt.Fprintf(outStream, "%s\t", escape(item.Sound))

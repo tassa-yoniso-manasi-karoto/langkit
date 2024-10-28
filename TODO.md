@@ -1,6 +1,7 @@
 ### TODO
 *in progress:*
 
+- MUST CHECK integrity of multiplexed tsv
 - for bulk processing: leverage WithLevel() to implement --less-lethal
 - create merged track in dir of video instead of the video.media directory that s2s creates → automatic selection with mpv
 - (MUST TEST:) insanely-fast-whisper

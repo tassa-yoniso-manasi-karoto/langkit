@@ -23,6 +23,8 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
 )
 
+var itembar *progressbar.ProgressBar
+var totalItems int
 
 type Task struct {
 	Log                  zerolog.Logger
@@ -123,6 +125,7 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 		FieldSep:             "\t",
 		OutputFileExtension:  "tsv",
 	}
+	tsk.PrepareLangs()
 	return &tsk
 }
 
@@ -151,32 +154,38 @@ func (tsk *Task) routing() {
 			tsk.NativeSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
+			tsk.Autosub()
+			foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
+			if err != nil {
+				tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
+			}
+			totalItems += len(foreignSubs.Items)
 			tasks = append(tasks, *tsk)
 			return nil
 		})
-		bar := bulkBar(len(tasks))
+		mediabar := mkMediabar(len(tasks))
 		for i, tsk := range tasks {
 			if i != 0 {
-				// trick to have a newline without the log prefix
-				tsk.Log.Info().Msg("\r             \n"+bar.String())
+				// trick to have a new line without the log prefix
+				tsk.Log.Info().Msg("\r             \n"+mediabar.String())
 				// tsk.Log.Info().Msg(strings.TrimPrefix(bar.String(), "\r"))
 			}
 			tsk.Log.Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, mediafile))
 			tsk.Execute()
-			bar.Add(1)
+			mediabar.Add(1)
 		}
 	}
 }
 
 // i is the total sum
-func bulkBar(i int) *progressbar.ProgressBar {
+func mkMediabar(i int) *progressbar.ProgressBar {
 	return progressbar.NewOptions(i,
 		progressbar.OptionSetDescription("Processing videos..."),
 		progressbar.OptionShowCount(),
 		//progressbar.OptionUseANSICodes(false),
 		//progressbar.OptionSetRenderBlankState(true),
 		//progressbar.OptionSetVisibility(false),
-		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionSetPredictTime(false),
 		progressbar.OptionSetWriter(io.Discard),
 		progressbar.OptionSetTheme(progressbar.Theme{
 			Saucer:        "#",
@@ -186,6 +195,25 @@ func bulkBar(i int) *progressbar.ProgressBar {
 		}),
 	)
 }
+
+func mkItemBar(i int) *progressbar.ProgressBar {
+	return progressbar.NewOptions(i,
+		progressbar.OptionSetDescription("Bulk"),
+		progressbar.OptionShowCount(),		
+		progressbar.OptionSetWidth(31),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionSetWriter(os.Stdout),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "#",
+			SaucerPadding: "-",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
+	)
+}
+
+
 
 func getFFmpegVersion(FFmpegPath string) (string, error) {
 	cmd := exec.Command(FFmpegPath, "-version")
