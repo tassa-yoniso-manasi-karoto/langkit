@@ -105,7 +105,7 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 		items = append(items, item)
 		if !item.AlreadyDone {
 			if itembar == nil {
-				itembar = mkItemBar(totalItems)
+				itembar = mkItemBar(totalItems, tsk.descrBar())
 			}
 			itembar.Add(1)
 		}
@@ -261,6 +261,14 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) {
 			tsk.Log.Warn().Str("file", f).Msg("Removing file failed")
 		}
 	}
+}
+
+
+func (tsk *Task) descrBar() string {
+	if tsk.IsBulkProcess {
+		return "Bulk"
+	}
+	return "Items"
 }
 
 

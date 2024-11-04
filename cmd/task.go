@@ -131,13 +131,16 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 
 
 func (tsk *Task) routing() {
+	// reassign because to have root dir if IsBulkProcess 
 	mediafile := tsk.MediaSourceFile
-	media, err := os.Stat(mediafile)
+	m, err := os.Stat(mediafile)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("can't access passed media file/directory")
 	}
-	if tsk.IsBulkProcess = media.IsDir(); !tsk.IsBulkProcess {
-		tsk.Execute()
+	if tsk.IsBulkProcess = m.IsDir(); !tsk.IsBulkProcess {
+		if ok := tsk.checkIntegrity(); ok  {
+			tsk.Execute()
+		}		
 	} else {
 		var tasks []Task
 		err = filepath.Walk(mediafile, func(path string, info os.FileInfo, err error) error {
@@ -154,6 +157,9 @@ func (tsk *Task) routing() {
 			tsk.NativeSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
+			if ok := tsk.checkIntegrity(); !ok  {
+				return nil
+			}
 			tsk.Autosub()
 			foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 			if err != nil {
@@ -177,6 +183,17 @@ func (tsk *Task) routing() {
 	}
 }
 
+func (tsk *Task) checkIntegrity() bool {
+	isCorrupted, err := media.CheckValidData(tsk.MediaSourceFile)
+	l := logger.Error().Err(err).Str("video", tsk.MediaSourceFile)
+	if isCorrupted {
+		l.Msg("Invalid data found when processing video. Video is misformed or corrupted.")
+	} else if err != nil {
+		l.Msg("unspecified error found trying to check the video's integrity")
+	}
+	return !isCorrupted
+}
+
 // i is the total sum
 func mkMediabar(i int) *progressbar.ProgressBar {
 	return progressbar.NewOptions(i,
@@ -196,9 +213,9 @@ func mkMediabar(i int) *progressbar.ProgressBar {
 	)
 }
 
-func mkItemBar(i int) *progressbar.ProgressBar {
+func mkItemBar(i int, descr string) *progressbar.ProgressBar {
 	return progressbar.NewOptions(i,
-		progressbar.OptionSetDescription("Bulk"),
+		progressbar.OptionSetDescription(descr),
 		progressbar.OptionShowCount(),		
 		progressbar.OptionSetWidth(31),
 		progressbar.OptionClearOnFinish(),

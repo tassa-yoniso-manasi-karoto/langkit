@@ -6,6 +6,9 @@ import (
 	"os/exec"
 	"time"
 	"io/fs"
+	"bytes"
+	"regexp"
+	"strings"
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -131,6 +134,59 @@ func FFmpeg(arg ...string) error {
 	return nil
 }
 
+
+func CheckValidData(filepath string) (bool, error) {
+	cmd := exec.Command(FFmpegPath,
+		"-loglevel", "error",
+		"-i", filepath,
+		// all ↓ needed to suppress "At least one output file must be specified"
+		"-t", "0",
+		"-f", "null", "-",
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	errorOutput := stderr.String()
+	headerPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`Invalid data found when processing input`),
+		regexp.MustCompile(`Error while decoding stream`),
+		regexp.MustCompile(`could not find codec parameters`),
+		regexp.MustCompile(`Failed to open input`),
+		regexp.MustCompile(`Invalid header`),
+		regexp.MustCompile(`error reading header`),
+		regexp.MustCompile(`Invalid NAL`),
+		regexp.MustCompile(`Error splitting the input into NAL units`),
+	}
+
+	dataPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`Sample size \d+ is too large`),
+		regexp.MustCompile(`Invalid sample size`),
+		regexp.MustCompile(`moov atom not found`),
+		regexp.MustCompile(`Invalid chunk offset`),
+		regexp.MustCompile(`Error while decoding frame`),
+		regexp.MustCompile(`broken frame`),
+		regexp.MustCompile(`Invalid index`),
+		regexp.MustCompile(`invalid frame size`),
+		regexp.MustCompile(`Invalid data found`),
+	}
+
+	for _, pattern := range headerPatterns {
+		if pattern.MatchString(errorOutput) {
+			return true, fmt.Errorf("%s", strings.TrimSuffix(stderr.String(), "\n"))
+		}
+	}
+
+	for _, pattern := range dataPatterns {
+		if pattern.MatchString(errorOutput) {
+			return true, fmt.Errorf("%s", strings.TrimSuffix(stderr.String(), "\n"))
+		}
+	}
+	
+	if err != nil {
+		return false, err
+	}
+	return false, nil
+}
 
 
 

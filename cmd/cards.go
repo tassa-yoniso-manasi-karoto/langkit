@@ -64,6 +64,9 @@ func (tsk *Task) Execute() {
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
+	if totalItems == 0 {
+		totalItems = len(foreignSubs.Items)
+	}
 	if !tsk.DubsOnly && tsk.NativeSubFile == "" {
 		tsk.Log.Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
 	}
@@ -117,7 +120,7 @@ func (tsk *Task) Execute() {
 		tsk.enhance()
 	}
 	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
-		tsk.Log.Info().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
+		tsk.Log.Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
 		foreignSubs.TrimCC2Dubs()
 	} else {
 		tsk.Log.Debug().Msg("Foreign subs are NOT detected as closed captions.")
