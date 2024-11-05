@@ -52,11 +52,9 @@ func escape(s string) string {
 
 
 func (tsk *Task) Execute() {
-	//if tsk.Langs != nil {
-	//	tsk.PrepareLangs()
-	//}
-	//pp.Println(tsk.Targ)
-	//pp.Println(tsk.RefLangs)
+	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
+		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
+	}
 	if tsk.TargSubFile == "" {
 		tsk.Autosub()
 	}
@@ -198,9 +196,7 @@ func (tsk *Task) Autosub() {
 
 
 func (tsk *Task) PrepareLangs() {
-	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
-		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
-	} else if len(tsk.Langs) == 1 && !tsk.DubsOnly {
+	if len(tsk.Langs) == 1 && !tsk.DubsOnly {
 		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
 	}
 	if len(tsk.Langs) > 0 {

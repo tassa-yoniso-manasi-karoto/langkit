@@ -20,7 +20,7 @@ command would create the tab-separated file "foreign.tsv" and a directory
 "foreign.tsv" would have a current, previous and next subtitle item from
 both subtitle files, but the timing reference would be "foreign.srt".`,
 
-	Args: argFuncs(cobra.MinimumNArgs(0), cobra.MaximumNArgs(2)),
+	Args: argFuncs(cobra.MinimumNArgs(0), cobra.MaximumNArgs(3)),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			logger.Fatal().Msg("this command requires at least one argument: the path to the media file/directory to be processed")
