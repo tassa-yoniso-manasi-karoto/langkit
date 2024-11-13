@@ -131,19 +131,19 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 
 
 func (tsk *Task) routing() {
-	// reassign because to have root dir if IsBulkProcess 
-	mediafile := tsk.MediaSourceFile
-	m, err := os.Stat(mediafile)
+	// reassign to have root dir if IsBulkProcess
+	userProvided := tsk.MediaSourceFile
+	stat, err := os.Stat(userProvided)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("can't access passed media file/directory")
 	}
-	if tsk.IsBulkProcess = m.IsDir(); !tsk.IsBulkProcess {
+	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
 		if ok := tsk.checkIntegrity(); ok  {
 			tsk.Execute()
 		}		
 	} else {
 		var tasks []Task
-		err = filepath.Walk(mediafile, func(path string, info os.FileInfo, err error) error {
+		err = filepath.Walk(userProvided, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("error during recursive exploration of passed directory")
 			}
@@ -165,20 +165,20 @@ func (tsk *Task) routing() {
 			if err != nil {
 				tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 			}
+			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L120
+				foreignSubs.TrimCC2Dubs()
+			}
 			totalItems += len(foreignSubs.Items)
 			tasks = append(tasks, *tsk)
 			return nil
 		})
 		mediabar := mkMediabar(len(tasks))
-		for i, tsk := range tasks {
-			if i != 0 {
-				// trick to have a new line without the log prefix
-				tsk.Log.Info().Msg("\r             \n"+mediabar.String())
-				// tsk.Log.Info().Msg(strings.TrimPrefix(bar.String(), "\r"))
-			}
-			tsk.Log.Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, mediafile))
-			tsk.Execute()
+		for _, tsk := range tasks {
 			mediabar.Add(1)
+			// trick to have a new line without the log prefix
+			tsk.Log.Info().Msg("\r             \n"+mediabar.String())
+			tsk.Log.Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
+			tsk.Execute()
 		}
 	}
 }

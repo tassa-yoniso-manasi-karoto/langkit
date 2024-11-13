@@ -74,13 +74,13 @@ func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
 	return nil
 }
 
-func (subs *Subtitles) TrimCC2Dubs() *Subtitles {
+func (subs *Subtitles) TrimCC2Dubs() {
 	re := regexp.MustCompile(`^[\p{Z}\p{P}]*\[.*\][\p{P}\p{Z}]*$`) // TODO add "♪" → lyrics of BG music
-	for _, item := range subs.Items {
-		item.Lines = filterLines(item.Lines, re)
+	for i, item := range subs.Items {
+		subs.Items[i].Lines = filterLines(item.Lines, re)
 	}
 	subs.Items = filterItems(subs.Items)
-	return subs
+	return
 }
 
 // Translate generates a new subtitle from all subtitles which overlap with the given item.

@@ -106,6 +106,12 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 		if !item.AlreadyDone {
 			if itembar == nil {
 				itembar = mkItemBar(totalItems, tsk.descrBar())
+			// in case: some encoding was done with incorrect settings,
+			// user deleted .media directory to redo but in the os.Walk order,
+			// there is some already processed media between that deleted dir
+			// and the one that remain to do. Hence need to update bar to count these out.
+			} else if itembar.GetMax() != totalItems {
+				itembar.ChangeMax(totalItems)
 			}
 			itembar.Add(1)
 		}
