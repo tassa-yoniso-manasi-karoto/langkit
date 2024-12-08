@@ -130,8 +130,10 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 			pp.Println(err)
 			return nil, fmt.Errorf("Failed retrieving %s's information: %w", name, err)
 		}
-		file, _ := r8.CreateFileFromPath(ctx, filepath, nil)
-		
+		file, err := r8.CreateFileFromPath(ctx, filepath, nil)
+		if err != nil {
+			return nil, fmt.Errorf("CreateFileFromPath failed when passed with \"%s\": %w", filepath, err)
+		}
 		input := replicate.PredictionInput{
 			"audio": file,
 		}

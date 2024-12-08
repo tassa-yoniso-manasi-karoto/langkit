@@ -97,12 +97,12 @@ func (tsk *Task) Execute() {
 	// FIXME range over func instead of calling it 3 times
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
 		num, _ := strconv.Atoi(track.Channels)
-		if track.Language == tsk.Targ.Language && num == tsk.TargetChan {
+		if *track.Language == *tsk.Targ.Language && num == tsk.TargetChan {
 			tsk.UseAudiotrack = i
 		}
 	})
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
-		if track.Language == tsk.Targ.Language {
+		if *track.Language == *tsk.Targ.Language {
 			tsk.UseAudiotrack = i
 		}
 	})
@@ -113,7 +113,6 @@ func (tsk *Task) Execute() {
 		Int("UseAudiotrack", tsk.UseAudiotrack).
 		Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
 		Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
-
 	if tsk.SeparationLib != "" {
 		tsk.enhance()
 	}
