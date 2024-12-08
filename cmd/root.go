@@ -49,7 +49,7 @@ var (
 
 
 func init() {
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	zerolog.SetGlobalLevel(zerolog.TraceLevel)
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.langkit.yaml)")
 	rootCmd.PersistentFlags().StringSliceVarP(&langs, "langs", "l", []string{},

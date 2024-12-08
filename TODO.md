@@ -1,7 +1,9 @@
 ### TODO
 *in progress:*
 
-- fork progressbar bc it's time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
+- add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
+	Tokenization needed: deepcut (tha), ginza (jpn), HanLP (zh) (also no space: Lao, Burmese, Khmer, Tibetan.)
+- fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
 - MUST CHECK integrity of multiplexed tsv
 - for bulk processing: leverage WithLevel() to implement --less-lethal
 - create merged track in dir of video instead of the video.media directory that s2s creates → automatic selection with mpv

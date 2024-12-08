@@ -109,7 +109,7 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 	}
 	tmp, err := getFFmpegVersion(media.FFmpegPath)
 	if err != nil {
-		logger.Fatal().Err(err). Msg("failed to access FFmpeg binary")
+		logger.Fatal().Err(err).Msg("failed to access FFmpeg binary")
 	}
 	tsk.Meta.FFmpeg = tmp
 	tsk.Meta.Runtime = getRuntimeInfo()
@@ -126,11 +126,15 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 		OutputFileExtension:  "tsv",
 	}
 	tsk.PrepareLangs()
+	logger.Trace().Err(err).Strs("langs", langs).Msg("PrepareLangs done:")
 	return &tsk
 }
 
 
 func (tsk *Task) routing() {
+	if len(tsk.Langs) == 1 && !tsk.DubsOnly {
+		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
+	}
 	// reassign to have root dir if IsBulkProcess
 	userProvided := tsk.MediaSourceFile
 	stat, err := os.Stat(userProvided)

@@ -34,6 +34,23 @@ var refmatch = map[string]int{
 	"stripped_sdh":   StrippedSDH,
 }
 
+func (tsk *Task) PrepareLangs() {
+	if len(tsk.Langs) > 0 {
+		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+		}
+		tsk.Targ = tmp[0]
+	}
+	if len(tsk.Langs) > 1 {
+		tmp, err := ReadStdLangCode(tsk.Langs[1:])
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+		}
+		tsk.RefLangs = tmp
+	}
+}
+
 func ReadStdLangCode(arr []string) (langs []Lang, err error) {
 	for _, tmp := range arr {
 		var lang Lang
@@ -43,7 +60,7 @@ func ReadStdLangCode(arr []string) (langs []Lang, err error) {
 			return nil, fmt.Errorf("An invalid language code was passed: '%s'", arr[0])
 		}
 		if len(arr) > 1 {
-			lang.Subtag = arr[1]
+			lang.Subtag = strings.ToLower(arr[1])
 		}
 		langs = append(langs, lang)
 	}
@@ -51,6 +68,7 @@ func ReadStdLangCode(arr []string) (langs []Lang, err error) {
 }
 
 func SetPrefered(langs []Lang, l, atm Lang, name string, out *string) bool {
+	// color.Redln(atm.Language, setPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name))
 	if setPreferedLang(langs, l, atm) && isPreferedSubtypeOver(*out, name) {
 		*out = name
 		//color.Yellowln(setPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name), "out becomes", name)
@@ -65,7 +83,7 @@ func GuessLangFromFilename(name string) (lang Lang, err error) {
 	var fn_start int
 	l := guessLangFromFilename(name, &fn_start)
 	if arr := strings.Split(l, "-"); strings.Contains(l, "-") {
-		lang.Subtag = arr[1]
+		lang.Subtag = strings.ToLower(arr[1])
 		l = arr[0]
 	}
 	lang.Language = iso.FromAnyCode(l)
@@ -168,10 +186,13 @@ func guessLangFromFilename(name string, langStart *int) string {
 
 
 func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {
-	//println(fmt.Sprintf("%#v", l), "l idx", getIdx(langs, l))
-	//println(fmt.Sprintf("%#v", atm), "atm idx", getIdx(langs, atm))
+	// i, ok1 := getIdx(langs, l)
+	// println(l.Part1, l.Subtag, "l idx", i, ok1)
+	// j, ok2 := getIdx(langs, atm)
+	// println(atm.Part1, atm.Subtag, "atm idx", j, ok2)
 	langIdx, langIsDesired := getIdx(langs, l)
 	atmIdx, _ := getIdx(langs, atm)
+	// color.Greenln("langIsDesired", langIsDesired, "MorePreferedLang", langIdx, "<=", atmIdx, "? →", langIdx <= atmIdx)
 	// idx = idx in the row of lang sorted by preference the user has passed
 	if langIsDesired && langIdx <= atmIdx {
 		b = true
@@ -179,20 +200,29 @@ func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {
 	return
 }
 
-func getIdx(langs []Lang, ref Lang) (int, bool) {
+func getIdx(langs []Lang, candidate Lang) (int, bool) {
 	for i, l := range langs {
-		if l.Part3 == ref.Part3 && l.Subtag == ref.Subtag {
+		// support redundant compositon implicitly i.e. de-DE or th-TH
+		var isRedundantSubtag bool
+		if match := iso.FromAnyCode(candidate.Subtag); match != nil {
+			isRedundantSubtag = match.Part3 == l.Language.Part3	
+		}
+		// pp.Println(candidate)
+		// color.Blueln("candidateSubtag", candidate.Subtag)
+		// color.Blueln("sameLangAsAsked?", l.Part3 == candidate.Part3, "subtagCheckOK?", (l.Subtag == candidate.Subtag || candidate.Subtag == l.Part3), "redundant?", isRedundantSubtag)
+		// color.Yellowln("passing?", l.Part3 == candidate.Part3 && (l.Subtag == candidate.Subtag || isRedundantSubtag))
+		if l.Part3 == candidate.Part3 && (l.Subtag == candidate.Subtag || l.Subtag == "" && isRedundantSubtag) {
 			return i, true
 		}
 	}
 	return 0, false
 }
 
-func isPreferedSubtypeOver(curr, test string) bool {
-	currval := subtypeMatcher(curr)
-	testval := subtypeMatcher(test)
-	//println(testval, ">", currval, "IS", testval > currval)
-	return testval > currval
+func isPreferedSubtypeOver(curr, candidate string) bool {
+	currVal := subtypeMatcher(curr)
+	candidateVal := subtypeMatcher(candidate)
+	//println(candidateval, ">", currVal, "IS", candidateval > currVal)
+	return candidateVal > currVal
 }
 
 func subtypeMatcher(s string) int {

@@ -170,10 +170,11 @@ func (tsk *Task) Autosub() {
 			!slices.Contains(AstisubSupportedExt, ext) ||
 				!strings.HasPrefix(trimmed, trimmedMedia) ||
 					strings.Contains(trimmed, "forced") {
-			continue
+						continue
 		}
 		l, err := GuessLangFromFilename(file.Name())
 		if err != nil {
+			tsk.Log.Debug().Err(err).Msg("error guessing lang")
 			continue
 		}
 		//fmt.Printf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
@@ -191,29 +192,9 @@ func (tsk *Task) Autosub() {
 	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
 	if tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language was found")
+	} else {
+		tsk.Log.Trace().Msg("TargSubtitle successfully auto-selected")
 	}
-}
-
-
-func (tsk *Task) PrepareLangs() {
-	if len(tsk.Langs) == 1 && !tsk.DubsOnly {
-		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
-	}
-	if len(tsk.Langs) > 0 {
-		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
-		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
-		}
-		tsk.Targ = tmp[0]
-	}
-	if len(tsk.Langs) > 1 {
-		tmp, err := ReadStdLangCode(tsk.Langs[1:])
-		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
-		}
-		tsk.RefLangs = tmp
-	}
-	tsk.Langs = nil
 }
 
 
