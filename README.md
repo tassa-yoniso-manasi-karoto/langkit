@@ -1,3 +1,11 @@
+<p align="center">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-blackBg.webp">
+        <source media="(prefers-color-scheme: light)" srcset="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-whiteBg.webp">
+        <img width=500 src="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-whiteBg.webp">
+    </picture>
+</p>
+
 ### Status: prerelease
 
 Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
