@@ -17,7 +17,6 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/voice"
 )
 
-
 var enhanceCmd = &cobra.Command{
 	Use:   "enhance <mediafile>",
 	Short: sepDescr,
@@ -33,17 +32,27 @@ var enhanceCmd = &cobra.Command{
 		tsk.SeparationLib = sep
 		tsk.TimeoutSep, _ = cmd.Flags().GetInt("sep-to")
 
-		tsk.enhance()
+		tsk.Mode = Enhance
+		tsk.routing()
 	},
 }
 
+
+var extPerProvider = map[string]string{
+	"demucs":     "flac",
+	"demucs_ft":  "flac",
+	"spleeter":   "wav",
+	"elevenlabs": "mp3",
+}
 
 // CAVEAT: All popular lossy encoder I have tried messed up the timings (except Opus),
 // even demuxing with -c:a copy to keep the original encoding somehow did too!
 // Using flac or opus is critical to keep video, audio and sub in sync.
 func (tsk *Task) enhance() {
-	audiobase := NoSub(tsk.outputBase())
-	OriginalAudio := filepath.Join(os.TempDir(), audiobase+".ogg")
+	//tsk.audioBase() := NoSub(tsk.outputBase())
+	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
+	audioPrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
+	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.ogg")
 	stat, err := os.Stat(OriginalAudio)
 	if errors.Is(err, os.ErrNotExist) {
 		tsk.Log.Info().Msg("Demuxing the audiotrack...")
@@ -70,14 +79,8 @@ func (tsk *Task) enhance() {
 	case "11", "el":
 		tsk.SeparationLib = "elevenlabs"
 	}
-	extPerProvider := map[string]string{
-		"demucs":     "flac",
-		"demucs_ft":  "flac",
-		"spleeter":   "wav",
-		"elevenlabs": "mp3",
-	}
-	VoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib])
-	//SyncVoiceFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + "." +  strings.ToUpper(tsk.SeparationLib) + ".SYNC.wav")
+	VoiceFile := audioPrefix + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib]
+	//SyncVoiceFile :=  filepath.Join(tsk.mediaOutputDir(), tsk.audioBase() + "." +  strings.ToUpper(tsk.SeparationLib) + ".SYNC.wav")
 	if  _, err := os.Stat(VoiceFile); errors.Is(err, os.ErrNotExist) {
 		tsk.Log.Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
 		var audio []byte
@@ -107,7 +110,7 @@ func (tsk *Task) enhance() {
 	// Using a lossless file here could induce A-V desync will playing
 	// because these format aren't designed to be audio tracks of videos, unlike opus.
 	if strings.ToLower(tsk.SeparationLib) != "elevenlabs" {
-		MergedFile :=  filepath.Join(tsk.mediaOutputDir(), audiobase + ".MERGED.ogg")
+		MergedFile := audioPrefix + ".ENHANCED.ogg"
 		tsk.Log.Debug().Msg("Merging original and separated voice track into an enhanced voice track...")
 		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
 		err := media.FFmpeg(
@@ -121,9 +124,12 @@ func (tsk *Task) enhance() {
 		}...)
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
+		} else {
+			tsk.Log.Trace().Msg("Merging success.")
 		}
 	} else {
-		tsk.Log.Info().Msg("No automatic merging possible for Elevenlabs.")
+		tsk.Log.Info().Msg("No automatic merging possible with Elevenlabs. " +
+			"You may synchronize both tracks and merge them using an audio editor (ie. Audacity).")
 	}
 }
 

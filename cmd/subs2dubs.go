@@ -14,7 +14,7 @@ var subs2dubsCmd = &cobra.Command{
 		if len(args) < 1 {
 			logger.Fatal().Msg("this command requires at least 1 argument:" +
 				"the path to the media file to be processed")
-		}		
+		}
 		tsk := DefaultTask(cmd)
 		tsk.MediaSourceFile = args[0]
 		if len(args) > 1 {
@@ -26,11 +26,15 @@ var subs2dubsCmd = &cobra.Command{
 		if STT == "" {
 			logger.Fatal().Msg("the STT service was not specified")
 		}
+		tsk.SeparationLib = sep
+		tsk.TimeoutSep, _ = cmd.Flags().GetInt("sep-to")
+		
 		tsk.STT = STT
 		tsk.TimeoutSTT, _ = cmd.Flags().GetInt("stt-to")
 		
 		tsk.WantDubs = true
 		tsk.DubsOnly = true
+		tsk.Mode = Subs2Dubs
 		tsk.routing()
 	},
 }

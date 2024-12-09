@@ -26,9 +26,23 @@ import (
 var itembar *progressbar.ProgressBar
 var totalItems int
 
+type Mode int
+
+const (
+	Subs2Cards = iota
+	Subs2Dubs
+	Subs2Translit
+	Enhance
+)
+
+func (m Mode) String() string{
+	return []string{"Subs2Cards", "Subs2Dubs", "Subs2Translit", "Enhance"}[m]
+}
+
 type Task struct {
 	Log                  zerolog.Logger
 	Meta                 Meta
+	Mode                 Mode
 	OriginalLang         string // FIXME what for?
 	Langs                []string
 	RefLangs             []Lang
@@ -47,7 +61,9 @@ type Task struct {
 	TargSubFile          string
 	NativeSubFile        string
 	NativeSubs           *subs.Subtitles
+	// mediaprefix is the base string for building AVIF / OPUS to which timecodes of a subtitle line will be added.
 	MediaPrefix          string
+	// mediaSourceFile is the path of the actual media provided or any media found while routing()
 	MediaSourceFile      string
 	FieldSep             string // defaults to "\t"
 	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv", otherwise
@@ -132,9 +148,6 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 
 
 func (tsk *Task) routing() {
-	if len(tsk.Langs) == 1 && !tsk.DubsOnly {
-		tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
-	}
 	// reassign to have root dir if IsBulkProcess
 	userProvided := tsk.MediaSourceFile
 	stat, err := os.Stat(userProvided)

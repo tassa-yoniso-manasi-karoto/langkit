@@ -71,14 +71,18 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&workersMax, "workers", runtime.NumCPU()-1, "max concurrent workers to use for bulk processing.\n"+
 		"Default is optimized for performance, lower it\n if needed.")
 
+	rootCmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", sepDescr)
+	//cmd.PersistentFlags().IntSliceVar(&mergeParam, "merge-param", []int{13, -9, 90},
+	//	"gain of voice-only track, gain of original track and\nlimiter to apply at merging time")
+	rootCmd.PersistentFlags().Int("sep-to", 100*60, "timeout in seconds for the request to the voice\nseparation" +
+		" service. Due to the upload and remote\nprocessing it should be set very high.")
+	
 	addSharedSTTflags(subs2cardsCmd)
 	addSharedSTTflags(subs2dubsCmd)
 	
-	addSharedSepFlags(subs2cardsCmd)
-	addSharedSepFlags(enhanceCmd)
-	
 	rootCmd.AddCommand(enhanceCmd)
 	rootCmd.AddCommand(subs2dubsCmd)
+	rootCmd.AddCommand(subs2cardsCmd)
 }
 
 func addSharedSTTflags(cmd *cobra.Command) {
@@ -88,13 +92,6 @@ func addSharedSTTflags(cmd *cobra.Command) {
 	// FIXME subs2cardsCmd.PersistentFlags().Bool("cc", false, "enforce treating the foreign subs as closed captions: strip it of its SDH material to keep only the dialog")
 }
 
-func addSharedSepFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", sepDescr)
-	//cmd.PersistentFlags().IntSliceVar(&mergeParam, "merge-param", []int{13, -9, 90},
-	//	"gain of voice-only track, gain of original track and\nlimiter to apply at merging time")
-	cmd.PersistentFlags().Int("sep-to", 100*60, "timeout in seconds for the request to the voice\nseparation" +
-		" service. Due to the upload and remote\nprocessing it should be set very high.")
-}
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {

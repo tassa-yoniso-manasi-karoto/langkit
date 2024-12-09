@@ -42,6 +42,10 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		
 		Offset, _     := cmd.Flags().GetInt("offset")
 		tsk.Offset = time.Duration(Offset)*time.Millisecond
+		tsk.Mode = Subs2Cards
+		if len(tsk.Langs) == 1 {
+			tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
+		}
 		tsk.routing()
 	},
 }

@@ -41,6 +41,11 @@ func (tsk *Task) mediaOutputDir() string {
 	return path.Join(path.Dir(tsk.TargSubFile), tsk.outputBase()+".media")
 }
 
+func (tsk *Task) audioBase() string {
+	base := strings.TrimSuffix(path.Base(tsk.MediaSourceFile), path.Ext(tsk.MediaSourceFile))
+	return base
+}
+
 func escape(s string) string {
 	// https://datatracker.ietf.org/doc/html/rfc4180.html#section-2
 	if strings.Contains(s, `"`) || strings.Contains(s, "\t") || strings.Contains(s, "\n") {
@@ -55,17 +60,19 @@ func (tsk *Task) Execute() {
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
 	}
-	if tsk.TargSubFile == "" {
+	if tsk.TargSubFile == "" && tsk.Mode != Enhance {
 		tsk.Autosub()
 	}
 	foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
-	if err != nil {
-		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
+	if tsk.Mode != Enhance {
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
+		}
+		if totalItems == 0 {
+			totalItems = len(foreignSubs.Items)
+		}
 	}
-	if totalItems == 0 {
-		totalItems = len(foreignSubs.Items)
-	}
-	if !tsk.DubsOnly && tsk.NativeSubFile == "" {
+	if tsk.Mode == Subs2Cards && tsk.NativeSubFile == "" { // FIXME may be redundant
 		tsk.Log.Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
 	}
 	if tsk.NativeSubFile != "" {
@@ -76,12 +83,12 @@ func (tsk *Task) Execute() {
 	}
 	outStream, err := os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
-		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
+		tsk.Log.Fatal().Err(err).Msgf("can't create output file: %s", tsk.outputFile())
 	}
 	defer outStream.Close()
 
 	if err := os.MkdirAll(tsk.mediaOutputDir(), os.ModePerm); err != nil {
-		tsk.Log.Fatal().Err(err).Msg(fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
+		tsk.Log.Fatal().Err(err).Msgf("can't create output directory: %s", tsk.mediaOutputDir())
 	}
 	tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
 	tsk.Meta.MediaInfo = mediainfo(tsk.MediaSourceFile)
@@ -115,14 +122,18 @@ func (tsk *Task) Execute() {
 		Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
 	if tsk.SeparationLib != "" {
 		tsk.enhance()
+	} else if tsk.Mode == Enhance {
+		tsk.Log.Error().Msg("No separation API to isolate the voice's audio was specified.")
 	}
-	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
-		tsk.Log.Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
-		foreignSubs.TrimCC2Dubs()
-	} else {
-		tsk.Log.Debug().Msg("Foreign subs are NOT detected as closed captions.")
+	if tsk.Mode != Enhance {
+		if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
+			tsk.Log.Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
+			foreignSubs.TrimCC2Dubs()
+		} else {
+			tsk.Log.Debug().Msg("Foreign subs are NOT detected as closed captions.")
+		}
 	}
-	// NOTE: this warning won't occur if the sub file are passed as arg
+	// FIXME this warning won't occur if the sub file are passed as arg
 	if tsk.IsCCorDubs && tsk.STT != "" {
 		tsk.Log.Warn().Msg("Speech-to-Text is requested but closed captions or dubtitles are available for the target language," +
 			" which are usually reliable transcriptions of dubbings.")
@@ -138,7 +149,9 @@ func (tsk *Task) Execute() {
 	case "u1":
 		tsk.STT = "universal-1"
 	}
-	tsk.Supervisor(foreignSubs, outStream, write)
+	if tsk.Mode != Enhance {
+		tsk.Supervisor(foreignSubs, outStream, write)
+	}
 	
 	if tsk.STT != "" && tsk.WantDubs {
 		err = foreignSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
@@ -189,9 +202,12 @@ func (tsk *Task) Autosub() {
 	if tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language was found")
 	}
+	if tsk.Mode != Subs2Cards {
+		return
+	}
 	if tsk.NativeSubFile == "" {
 		tsk.Log.Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for reference/native language was found")
-	} else if !tsk.DubsOnly {
+	} else {
 		tsk.Log.Info().Str("Automatically chosen Native subtitle", tsk.NativeSubFile).Msg("")
 	}
 }

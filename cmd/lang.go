@@ -24,7 +24,23 @@ type Lang struct {
 	Subtag string
 }
 
+func (l *Lang) String() string {
+	return Str(l.Language)
+}
 
+func Str(l *iso.Language) string {
+	switch {
+	case l.Part1 != "":
+		return l.Part1
+	case l.Part3 != "":
+		return l.Part3
+	case l.Part2T != "":
+		return l.Part2T
+	case l.Part2B != "":
+		return l.Part2B
+	}
+	return "n.a."
+}
 
 var refmatch = map[string]int{
 	"closedcaptions": CC,
