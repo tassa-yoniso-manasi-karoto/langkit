@@ -184,15 +184,15 @@ func (tsk *Task) Autosub() {
 		}
 	}
 	tsk.Log.Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
-	if !tsk.DubsOnly {
-		tsk.Log.Info().Str("Automatically chosen Native subtitle", tsk.NativeSubFile).Msg("")
-	}
 	tsk.NativeSubFile  = Base2Absolute(tsk.NativeSubFile, path.Dir(tsk.MediaSourceFile))
 	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
 	if tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for desired target language was found")
-	} else {
-		tsk.Log.Trace().Msg("TargSubtitle successfully auto-selected")
+	}
+	if tsk.NativeSubFile == "" {
+		tsk.Log.Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for reference/native language was found")
+	} else if !tsk.DubsOnly {
+		tsk.Log.Info().Str("Automatically chosen Native subtitle", tsk.NativeSubFile).Msg("")
 	}
 }
 

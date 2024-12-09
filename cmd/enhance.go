@@ -10,8 +10,9 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	//"github.com/rs/zerolog"
-
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
+	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/voice"
 )
@@ -37,23 +38,28 @@ var enhanceCmd = &cobra.Command{
 }
 
 
-// CAVEAT: All popular lossy encoder I have tried messed up the timings except Opus,
+// CAVEAT: All popular lossy encoder I have tried messed up the timings (except Opus),
 // even demuxing with -c:a copy to keep the original encoding somehow did too!
 // Using flac or opus is critical to keep video, audio and sub in sync.
 func (tsk *Task) enhance() {
 	audiobase := NoSub(tsk.outputBase())
-	OriginalAudio := filepath.Join(os.TempDir(), audiobase+".flac")
-	if _, err := os.Stat(OriginalAudio); errors.Is(err, os.ErrNotExist) {
+	OriginalAudio := filepath.Join(os.TempDir(), audiobase+".ogg")
+	stat, err := os.Stat(OriginalAudio)
+	if errors.Is(err, os.ErrNotExist) {
 		tsk.Log.Info().Msg("Demuxing the audiotrack...")
 		err = media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
-					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack),
-						"-vn", OriginalAudio,
+					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn",
+						"-acodec", "libopus", "-b:a", "128k", OriginalAudio,
 		}...)
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Failed to demux the desired audiotrack.")
 		}
+	} else {
+		tsk.Log.Debug().Msg("Reusing demuxed audiotrack.")
 	}
+	stat, err = os.Stat(OriginalAudio)
+	tsk.Log.Trace().Str("filesize", humanize.Bytes(uint64(stat.Size()))).Msg("Stat of OriginalAudio to enhance")
 	switch tsk.SeparationLib {
 	case "de":
 		tsk.SeparationLib = "demucs"

@@ -160,7 +160,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	}
 	audiofile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack,
 		tsk.Offset, foreignItem.StartAt, foreignItem.EndAt,
-			tsk.MediaSourceFile, tsk.MediaPrefix, tsk.DubsOnly)
+			tsk.MediaSourceFile, tsk.MediaPrefix, false)
 	if err != nil && !errors.Is(err, fs.ErrExist) {
 		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
 	}
