@@ -74,7 +74,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&sep, "sep", "s", "", sepDescr)
 	//cmd.PersistentFlags().IntSliceVar(&mergeParam, "merge-param", []int{13, -9, 90},
 	//	"gain of voice-only track, gain of original track and\nlimiter to apply at merging time")
-	rootCmd.PersistentFlags().Int("sep-to", 100*60, "timeout in seconds for the request to the voice\nseparation" +
+	rootCmd.PersistentFlags().Int("sep-to", 15*60, "timeout in seconds for the request to the voice\nseparation" +
 		" service. Due to the upload and remote\nprocessing it should be set very high.")
 	
 	addSharedSTTflags(subs2cardsCmd)
@@ -87,7 +87,7 @@ func init() {
 
 func addSharedSTTflags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&STT, "stt", "", "transcribe audio using specified\nonline Speech-To-Text API")
-	cmd.PersistentFlags().Int("stt-to", 45, "timeout in seconds for the request to the STT service\n")
+	cmd.PersistentFlags().Int("stt-to", 90, "timeout in seconds for the request to the STT service\n")
 	cmd.PersistentFlags().Bool("stt-dub", true, subs2dubsDescr)
 	// FIXME subs2cardsCmd.PersistentFlags().Bool("cc", false, "enforce treating the foreign subs as closed captions: strip it of its SDH material to keep only the dialog")
 }

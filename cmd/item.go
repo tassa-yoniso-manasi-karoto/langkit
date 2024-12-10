@@ -67,11 +67,11 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 	go checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan)
 	go func() {
 		for i, subLine := range foreignSubs.Items {
-			// FIXME: Right now, due to parrallelism, wirting is only done when all the workers are done
+			// FIXME: Right now, due to parrallelism, writing is only done when all workers are done
 			// so this kind of check will only work on completed tasks, therefore there is no resuming capability
-			// therefore ASR/TTS already done is lost upon interruption (when Ctrl+C)
-			// The obvious way to fix this is to write another goroutine that checks the ID of items and
-			// write them on the fly in order when the next ID expected is available, Keeping that for some other time...
+			// therefore ASR/TTS already done is lost upon interruption.
+			// The obvious way to fix this is to write another goroutine that sorts and checks the ID of items and
+			// write them on-the-fly in order when the next ID expected is available, Keeping that for some other time...
 			if toCheckChan <- tsk.FieldSep + timePosition(subLine.StartAt) + tsk.FieldSep; <-isAlreadyChan {
 				tsk.Log.Trace().Int("lineNum", i).Msg("Skipping subtitle line previously processed")
 				skipped += 1

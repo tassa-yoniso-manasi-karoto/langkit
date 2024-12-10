@@ -49,7 +49,6 @@ var extPerProvider = map[string]string{
 // even demuxing with -c:a copy to keep the original encoding somehow did too!
 // Using flac or opus is critical to keep video, audio and sub in sync.
 func (tsk *Task) enhance() {
-	//tsk.audioBase() := NoSub(tsk.outputBase())
 	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
 	audioPrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
 	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.ogg")
@@ -80,7 +79,6 @@ func (tsk *Task) enhance() {
 		tsk.SeparationLib = "elevenlabs"
 	}
 	VoiceFile := audioPrefix + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib]
-	//SyncVoiceFile :=  filepath.Join(tsk.mediaOutputDir(), tsk.audioBase() + "." +  strings.ToUpper(tsk.SeparationLib) + ".SYNC.wav")
 	if  _, err := os.Stat(VoiceFile); errors.Is(err, os.ErrNotExist) {
 		tsk.Log.Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
 		var audio []byte
@@ -133,6 +131,7 @@ func (tsk *Task) enhance() {
 	}
 }
 
+// remove?
 func NoSub(s string) string {
 	s = strings.ReplaceAll(s, ".closedcaptions", "")
 	s = strings.ReplaceAll(s, ".subtitles", "")

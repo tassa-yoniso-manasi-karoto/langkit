@@ -1,6 +1,7 @@
 ### TODO
 *in progress:*
 
+- WARN USERS IN DOCS ABOUT REPLICATE ERRORS FOR DEMUCS / SPLEETER
 - add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
 	Tokenization needed: deepcut (tha), ginza (jpn), HanLP (zh) (also no space: Lao, Burmese, Khmer, Tibetan.)
 - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
