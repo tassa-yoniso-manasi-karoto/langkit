@@ -96,7 +96,13 @@ func (tsk *Task) enhance() {
 			tsk.Log.Fatal().Msg("An unknown separation library was passed. Check for typo.")
 		}
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Voice SeparationLib processing error.")
+			tsk.Log.Fatal().Err(err).Msg("Voice SeparationLib processing error.\n\n" +
+				"LANGKIT DEVELOPER NOTE: These voice separation libraries are originally meant for songs " +
+				"(ie. tracks a few minutes long) and the GPUs allocated by Replicate to these models are not the best.\n" +
+				"You may encounter OOM GPU (out of memory) errors when trying to process audio tracks of movies.\n" +
+				"As far as my testing goes, trying a few hours later solves the problem.\n" +
+				"Replicate also offers to make deployments with a GPU of one's choice, " +
+				"but this isn't cost-effective or user-friendly so AFAIK it won't be supported.")
 		}
 		// Must write to disk so that it can be reused if ft error
 		if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {

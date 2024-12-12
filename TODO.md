@@ -2,7 +2,6 @@
 *in progress:*
 
 - Make autosub local-independent: en match if en-US, no match if en-US and en-IN. Add a --strict
-- WARN USERS IN DOCS ABOUT REPLICATE ERRORS FOR DEMUCS / SPLEETER, add details in error log too
 - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
 - for bulk processing: leverage WithLevel() to implement --less-lethal
 - (MUST TEST:) insanely-fast-whisper

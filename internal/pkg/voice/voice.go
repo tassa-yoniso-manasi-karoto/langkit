@@ -152,7 +152,18 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 			}
 			return nil, fmt.Errorf("Timed out %s prediction after %d attempts: %w", name, maxTry, err)
 		} else {
+			err, ok := err.(*replicate.ModelError)
+			logs := ""
+			if ok {
+				logs = *err.Prediction.Logs
+				if logs == err.Prediction.Error && strings.Contains(logs, ":") {
+					err.Prediction.Error, _, _ = strings.Cut(err.Prediction.Error.(string), ":")
+				}
+				s := "see below"
+				err.Prediction.Logs = &s
+			}
 			pp.Println(err)
+			color.Redln(strings.ReplaceAll(logs, "\n", "\n\t"))
 			return nil, fmt.Errorf("Failed %s prediction: %w", name, err)
 		}
 	}
