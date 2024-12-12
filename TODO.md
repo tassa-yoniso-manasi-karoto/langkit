@@ -1,17 +1,16 @@
 ### TODO
 *in progress:*
 
-- WARN USERS IN DOCS ABOUT REPLICATE ERRORS FOR DEMUCS / SPLEETER
-- add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
-	Tokenization needed: deepcut (tha), ginza (jpn), HanLP (zh) (also no space: Lao, Burmese, Khmer, Tibetan.)
+- Make autosub local-independent: en match if en-US, no match if en-US and en-IN. Add a --strict
+- WARN USERS IN DOCS ABOUT REPLICATE ERRORS FOR DEMUCS / SPLEETER, add details in error log too
 - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
-- MUST CHECK integrity of multiplexed tsv
 - for bulk processing: leverage WithLevel() to implement --less-lethal
-- create merged track in dir of video instead of the video.media directory that s2s creates → automatic selection with mpv
 - (MUST TEST:) insanely-fast-whisper
 
 *later:*
 
+- add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
+	Tokenization needed: deepcut (tha), ginza (jpn), HanLP (zh) (also no space: Lao, Burmese, Khmer, Tibetan.)
 - integrate with viper and yaml config file:
     - whisper initial_prompt
     - tokens

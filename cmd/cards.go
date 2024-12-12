@@ -34,11 +34,11 @@ func (tsk *Task) outputBase() string {
 }
 
 func (tsk *Task) outputFile() string {
-	return path.Join(path.Dir(tsk.TargSubFile), tsk.outputBase()+"."+tsk.OutputFileExtension)
+	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase()+"."+tsk.OutputFileExtension)
 }
 
 func (tsk *Task) mediaOutputDir() string {
-	return path.Join(path.Dir(tsk.TargSubFile), tsk.outputBase()+".media")
+	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase()+".media")
 }
 
 func (tsk *Task) audioBase() string {
@@ -57,23 +57,47 @@ func escape(s string) string {
 
 
 func (tsk *Task) Execute() {
+	var err error // compiler shenanigans
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		tsk.Log.Fatal().Msg("Neither languages and nor subtitle files were specified.")
 	}
-	if tsk.TargSubFile == "" && tsk.Mode != Enhance {
+	if tsk.TargSubFile == "" {
 		tsk.Autosub()
-	}
-	foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
-	if tsk.Mode != Enhance {
+	} else {
+		tsk.Targ, err = GuessLangFromFilename(tsk.TargSubFile)
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
+			tsk.Log.Warn().
+				Str("TargSubFile", tsk.TargSubFile).
+				Msg("Couldn't guess the language of foreign subtitle file")
 		}
-		if totalItems == 0 {
-			totalItems = len(foreignSubs.Items)
+		// NOTE: Native subtitle declared in CLI must trail foreign subtitle declaration,
+		// thus if the native subtitle's lang needs guessing, TargSubFile can't be empty. //TODO make 100% sure
+		tsk.Native, err = GuessLangFromFilename(tsk.NativeSubFile)
+		if tsk.NativeSubFile != "" && err != nil {
+			tsk.Log.Warn().
+				Str("NativeSubFile", tsk.NativeSubFile).
+				Msg("Couldn't guess the language of native subtitle file")
 		}
 	}
-	if tsk.Mode == Subs2Cards && tsk.NativeSubFile == "" { // FIXME may be redundant
-		tsk.Log.Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for any of the desired reference language(s) were found")
+	var outStream *os.File
+	var foreignSubs *subs.Subtitles
+	if tsk.Mode == Enhance {
+		goto ResumeEnhance // TODO remove when I rewrite Execute with proper functions
+	}
+	foreignSubs, err = subs.OpenFile(tsk.TargSubFile, false)
+	if err != nil {
+		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
+	}
+	if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
+		tsk.Log.Fatal().Msg("Neither native language and nor native subtitle file was specified.")
+	}
+	if totalItems == 0 {
+		totalItems = len(foreignSubs.Items)
+	}
+	if tsk.Mode == Subs2Cards && tsk.NativeSubFile == "" { // FIXME maybe redundant
+		tsk.Log.Warn().
+			Str("video", path.Base(tsk.MediaSourceFile)).
+			Msg("No sub file for any of the desired reference language(s) were found")
 	}
 	if tsk.NativeSubFile != "" {
 		tsk.NativeSubs, err = subs.OpenFile(tsk.NativeSubFile, false)
@@ -81,7 +105,7 @@ func (tsk *Task) Execute() {
 			tsk.Log.Fatal().Err(err).Msg("can't read native subtitles")
 		}
 	}
-	outStream, err := os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
+	outStream, err = os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msgf("can't create output file: %s", tsk.outputFile())
 	}
@@ -91,8 +115,9 @@ func (tsk *Task) Execute() {
 		tsk.Log.Fatal().Err(err).Msgf("can't create output directory: %s", tsk.mediaOutputDir())
 	}
 	tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
+ResumeEnhance:
 	tsk.Meta.MediaInfo = mediainfo(tsk.MediaSourceFile)
-	/*	MediaInfo
+	/* MediaInfo // FIXME use this to cancel susb2dubs if *tsk.Targ == *tsk.OriginalLang
 	for _, track := range tsk.Meta.AudioTracks {
 		if strings.Contains(strings.ToLower(track.Title), "original") {
 			tsk.OriginalLang = track.Language
@@ -169,7 +194,9 @@ func (tsk *Task) Execute() {
 }
 
 
+// idea: rework to create register: whichSub, whichLang map[string]string and scan subtitles passively without declaring tsk.Native or tsk.NativeSubFile
 func (tsk *Task) Autosub() {
+	// TODO tsk.Mode == Enhance →→→ log with level debug
 	files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("Failed to read directory")
@@ -191,9 +218,11 @@ func (tsk *Task) Autosub() {
 		}
 		//fmt.Printf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
 		
-		SetPrefered([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile)
+		// Check if subtitle name matches our target language
+		SetPrefered([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile, &tsk.Targ)
+		// Check if subtitle name matches any of our native/reference languages
 		for _, RefLang := range tsk.RefLangs {
-			tsk.IsCCorDubs = SetPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile)
+			tsk.IsCCorDubs = SetPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile, &tsk.Native)
 		}
 	}
 	tsk.Log.Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")

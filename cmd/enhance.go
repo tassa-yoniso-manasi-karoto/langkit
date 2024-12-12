@@ -79,6 +79,7 @@ func (tsk *Task) enhance() {
 		tsk.SeparationLib = "elevenlabs"
 	}
 	VoiceFile := audioPrefix + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib]
+	tsk.Log.Trace().Str("VoiceFile", VoiceFile).Msg("")
 	if  _, err := os.Stat(VoiceFile); errors.Is(err, os.ErrNotExist) {
 		tsk.Log.Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
 		var audio []byte
@@ -105,7 +106,7 @@ func (tsk *Task) enhance() {
 		tsk.Log.Info().Msg("Previously separated voice audio was found and will be reused.")
 	}
 	// MERGE THE ORIGINAL AUDIOTRACK WITH THE VOICE AUDIO FILE
-	// Using a lossless file here could induce A-V desync will playing
+	// Using a lossless audio file in the video could induce A-V desync will playing
 	// because these format aren't designed to be audio tracks of videos, unlike opus.
 	if strings.ToLower(tsk.SeparationLib) != "elevenlabs" {
 		MergedFile := audioPrefix + ".ENHANCED.ogg"
@@ -123,12 +124,95 @@ func (tsk *Task) enhance() {
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
 		} else {
-			tsk.Log.Trace().Msg("Merging success.")
+			tsk.Log.Trace().Msg("Audio merging success.")
+		}
+		// CAVEAT: on my machine, HW decoder (VAAPI) doesn't accept Matrovska with Opus audio
+		// and webm accepts only VP8/VP9/AV1 so must use mp4 by default
+		MergedVideo := audioPrefix + ".MERGED."
+		tsk.Log.Debug().Msg("Merging newly created audiotrack with the video...")
+		c := tsk.buildVideoMergingCmd(MergedFile, MergedVideo, "mkv")
+		err = media.FFmpeg(c...)
+		if err != nil {
+			tsk.Log.Fatal().Err(err).Msg("Failed to merge video with merged audiotrack.")
+		} else {
+			tsk.Log.Trace().Msg("Video merging success.")
 		}
 	} else {
 		tsk.Log.Info().Msg("No automatic merging possible with Elevenlabs. " +
 			"You may synchronize both tracks and merge them using an audio editor (ie. Audacity).")
 	}
+}
+
+func (tsk *Task) buildVideoMergingCmd(MergedFile, MergedVideo, ext string) []string {
+	var subfmt string
+	switch ext {
+		case "mp4":
+			subfmt = "mov_text"
+		case "mkv":
+			subfmt = "ass"
+		case "webm":
+			subfmt = "webvtt"
+	}
+	// Start with base command
+	c := []string{"-loglevel", "error", "-y"}
+	
+	// Collect input files and their corresponding maps
+	inputs := []string{tsk.MediaSourceFile, MergedFile}
+	maps := []string{
+		"-map", "0:v",	// video from first input
+		"-map", "1:a",	// audio from second input
+		"-map", "0:a?",   // optional audio from first input
+	}
+
+	// Add metadata for the merged audio track (assuming it's the first audio track)
+	metadata := []string{
+		"-metadata:s:a:0", "language=" + tsk.Targ.String(),
+	}
+
+	// Add subtitle files if they exist
+	subFiles := []struct {
+		path string
+		lang string
+	}{
+		{tsk.TargSubFile, tsk.Targ.String()},
+		{tsk.NativeSubFile, tsk.Native.String()},
+	}
+
+	subIndex := 0
+	for _, sub := range subFiles {
+		if sub.path != "" {
+			inputs = append(inputs, sub.path)
+			maps = append(maps, "-map", fmt.Sprintf("%d:s", len(inputs)-1))
+			metadata = append(metadata, 
+				fmt.Sprintf("-metadata:s:s:%d", subIndex), 
+				fmt.Sprintf("language=%s", sub.lang),
+			)
+			subIndex++
+		}
+	}
+
+	// Add all input files
+	for _, input := range inputs {
+		c = append(c, "-i", input)
+	}
+
+	// Add all maps
+	c = append(c, maps...)
+
+	// Add all metadata
+	c = append(c, metadata...)
+
+	// Add the rest of the parameters
+	c = append(c, []string{
+		"-c:v", "copy",
+		"-c:a", "copy",
+		"-c:s", subfmt,
+		"-disposition:a:0", "default",
+		"-disposition:a:1", "none",
+		MergedVideo + ext,
+	}...)
+	tsk.Log.Trace().Strs("mergeVideoCmd", c).Msg("")
+	return c
 }
 
 // remove?

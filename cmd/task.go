@@ -47,6 +47,7 @@ type Task struct {
 	Langs                []string
 	RefLangs             []Lang
 	Targ                 Lang
+	Native               Lang
 	SeparationLib        string
 	STT                  string
 	TargetChan           int

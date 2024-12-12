@@ -18,10 +18,11 @@ const (
 	CC
 )
 
+const unknownLang = "❔❔" // avoid "n/a" or "?" for path safety
+
 type Lang struct {
 	*iso.Language
-	// Typically a ISO 3166-1 region but can also be a ISO 15924 script
-	Subtag string
+	Subtag string // Typically a ISO 3166-1 region but can also be a ISO 15924 script
 }
 
 func (l *Lang) String() string {
@@ -29,6 +30,9 @@ func (l *Lang) String() string {
 }
 
 func Str(l *iso.Language) string {
+	if l == nil {
+		return unknownLang
+	}
 	switch {
 	case l.Part1 != "":
 		return l.Part1
@@ -39,7 +43,7 @@ func Str(l *iso.Language) string {
 	case l.Part2B != "":
 		return l.Part2B
 	}
-	return "n.a."
+	return unknownLang
 }
 
 var refmatch = map[string]int{
@@ -83,10 +87,11 @@ func ReadStdLangCode(arr []string) (langs []Lang, err error) {
 	return
 }
 
-func SetPrefered(langs []Lang, l, atm Lang, name string, out *string) bool {
+func SetPrefered(langs []Lang, l, atm Lang, filename string, out *string, Native *Lang) bool {
 	// color.Redln(atm.Language, setPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name))
-	if setPreferedLang(langs, l, atm) && isPreferedSubtypeOver(*out, name) {
-		*out = name
+	if setPreferedLang(langs, l, atm) && isPreferedSubtypeOver(*out, filename) {
+		*out = filename
+		*Native = atm
 		//color.Yellowln(setPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name), "out becomes", name)
 		return true
 	}
@@ -118,7 +123,7 @@ The C code they provide is under GNU Lesser General Public License LGPL version 
 https://github.com/mpv-player/mpv/blob/master/LICENSE.LGPL
 
 The implementation here is provided under GPL3 as the rest of this project.
-You can test if your subs are found by their algo with "mpv --msg-level=find_files=trace video.mp4"
+You can test if your subs are found by their algo with "mpv --sub-auto=fuzzy --msg-level=find_files=trace video.mp4"
 
 */
 func guessLangFromFilename(name string, langStart *int) string {
@@ -234,6 +239,7 @@ func getIdx(langs []Lang, candidate Lang) (int, bool) {
 	return 0, false
 }
 
+// compare subtitles filenames
 func isPreferedSubtypeOver(curr, candidate string) bool {
 	currVal := subtypeMatcher(curr)
 	candidateVal := subtypeMatcher(candidate)
