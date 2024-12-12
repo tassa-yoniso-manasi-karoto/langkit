@@ -14,7 +14,7 @@ import (
 	"github.com/gookit/color"
 	//"github.com/rs/zerolog"
 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	//"github.com/schollz/progressbar/v3"
 )
 

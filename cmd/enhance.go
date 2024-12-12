@@ -13,8 +13,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/voice"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 var enhanceCmd = &cobra.Command{
