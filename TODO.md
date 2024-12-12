@@ -14,7 +14,6 @@
     - whisper initial_prompt
     - tokens
     - gain & limiter parameters for merging
-- tag merged audiotrack
 
 *might:*
 

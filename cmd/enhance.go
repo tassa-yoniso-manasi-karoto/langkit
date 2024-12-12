@@ -124,7 +124,8 @@ func (tsk *Task) enhance() {
 					fmt.Sprintf("[1:a]volume=%ddB[a2];", -9) +
 					"[a1][a2]amix=inputs=2[amixed];" +
 					fmt.Sprintf("[amixed]alimiter=limit=%f[final]", 0.9),
-					"-map", "[final]", "-acodec", "libopus", "-b:a", "128k",
+					"-map", "[final]", "-metadata:s:a:0", "language=" + tsk.Targ.String(),
+					"-acodec", "libopus", "-b:a", "128k",
 					MergedFile,
 		}...)
 		if err != nil {
@@ -136,7 +137,7 @@ func (tsk *Task) enhance() {
 		// and webm accepts only VP8/VP9/AV1 so must use mp4 by default
 		MergedVideo := audioPrefix + ".MERGED."
 		tsk.Log.Debug().Msg("Merging newly created audiotrack with the video...")
-		c := tsk.buildVideoMergingCmd(MergedFile, MergedVideo, "mkv")
+		c := tsk.buildVideoMergingCmd(MergedFile, MergedVideo, "mkv") // FIXME add flag to choose video fmt
 		err = media.FFmpeg(c...)
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("Failed to merge video with merged audiotrack.")
