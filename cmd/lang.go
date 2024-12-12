@@ -109,7 +109,7 @@ func GuessLangFromFilename(name string) (lang Lang, err error) {
 	}
 	lang.Language = iso.FromAnyCode(l)
 	if lang.Language == nil {
-		err = fmt.Errorf("No language could be identified.")
+		err = fmt.Errorf("No language could be identified: lang='%s'", l)
 	}
 	return
 }
@@ -127,12 +127,16 @@ You can test if your subs are found by their algo with "mpv --sub-auto=fuzzy --m
 
 */
 func guessLangFromFilename(name string, langStart *int) string {
-	stripname := name
+	stripname := stripCommonSubsMention(path.Base(name))
 	var ok bool
 	var i, langLength int
 	// this iter decorticates some more in case lang isn't located at the end of the name
 	for x := 0; x < 2; x++ {
-		stripname = strings.TrimSuffix(path.Base(stripname), path.Ext(stripname))
+		//fmt.Printf("stripname_%d=\"%s\"\n", x, stripname)
+		// Trim ext during 1st loop and then in further loops, attempt to
+		// decorticate any potential dot-separated irrelevant info such as:
+		// movie version (director's cut...), video quality, rip method used or whatnot
+		stripname = strings.TrimSuffix(stripname, path.Ext(stripname))
 		stripname = strings.TrimSpace(stripname)
 
 		if len(stripname) < 2 {
@@ -201,9 +205,22 @@ func guessLangFromFilename(name string, langStart *int) string {
 	}
 
 	// Return the detected language tag as a substring
-	return name[i+1 : i+1+langLength]
+	return stripname[i+1 : i+1+langLength]
 }
 
+
+func stripCommonSubsMention(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "closedcaptions", "")
+	s = strings.ReplaceAll(s, "subtitles", "")
+	s = strings.ReplaceAll(s, "subtitle", "")
+	s = strings.ReplaceAll(s, "dubtitles", "")
+	s = strings.ReplaceAll(s, "dialog", "")
+	s = strings.ReplaceAll(s, "stripped_sdh.subtitles", "")
+	s = strings.ReplaceAll(s, "dubtitles.subtitles", "")
+	//s = strings.ReplaceAll(s, "", "")
+	return s
+}
 
 
 func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {

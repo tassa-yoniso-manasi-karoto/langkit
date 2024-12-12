@@ -66,7 +66,7 @@ func (tsk *Task) Execute() {
 	} else {
 		tsk.Targ, err = GuessLangFromFilename(tsk.TargSubFile)
 		if err != nil {
-			tsk.Log.Warn().
+			tsk.Log.Warn().Err(err).
 				Str("TargSubFile", tsk.TargSubFile).
 				Msg("Couldn't guess the language of foreign subtitle file")
 		}
@@ -74,10 +74,14 @@ func (tsk *Task) Execute() {
 		// thus if the native subtitle's lang needs guessing, TargSubFile can't be empty. //TODO make 100% sure
 		tsk.Native, err = GuessLangFromFilename(tsk.NativeSubFile)
 		if tsk.NativeSubFile != "" && err != nil {
-			tsk.Log.Warn().
+			tsk.Log.Warn().Err(err).
 				Str("NativeSubFile", tsk.NativeSubFile).
 				Msg("Couldn't guess the language of native subtitle file")
 		}
+		tsk.Log.Trace().
+			Str("Targ", tsk.Targ.String()).
+			Str("Native", tsk.Native.String()).
+			Msg("No language flag passed. Attempted to guess language from filename.")
 	}
 	var outStream *os.File
 	var foreignSubs *subs.Subtitles

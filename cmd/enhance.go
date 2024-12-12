@@ -215,17 +215,6 @@ func (tsk *Task) buildVideoMergingCmd(MergedFile, MergedVideo, ext string) []str
 	return c
 }
 
-// remove?
-func NoSub(s string) string {
-	s = strings.ReplaceAll(s, ".closedcaptions", "")
-	s = strings.ReplaceAll(s, ".subtitles", "")
-	s = strings.ReplaceAll(s, ".dubtitles", "")
-	s = strings.ReplaceAll(s, ".dialog", "")
-	s = strings.ReplaceAll(s, ".STRIPPED_SDH.subtitles", "")
-	s = strings.ReplaceAll(s, ".DUBTITLE.subtitles", "")
-	//s = strings.ReplaceAll(s, ".", "")
-	return s
-}
 
 
 func placeholder234567() {
