@@ -157,7 +157,8 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 			if ok {
 				logs = *err.Prediction.Logs
 				if logs == err.Prediction.Error && strings.Contains(logs, ":") {
-					err.Prediction.Error, _, _ = strings.Cut(err.Prediction.Error.(string), ":")
+					e := strings.TrimPrefix(err.Prediction.Error.(string), "model error: ")
+					err.Prediction.Error, _, _ = strings.Cut(e, ":")
 				}
 				s := "see below"
 				err.Prediction.Logs = &s

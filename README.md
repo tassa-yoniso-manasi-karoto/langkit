@@ -2,7 +2,7 @@
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-blackBg.webp">
         <source media="(prefers-color-scheme: light)" srcset="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-whiteBg.webp">
-        <img width=500 src="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-whiteBg.webp">
+        <img width=375 src="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-whiteBg.webp">
     </picture>
 </p>
 
@@ -35,9 +35,7 @@ $ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs
 ### Requirements
 This fork require FFmpeg **v6 or higher (dev builds being preferred)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
 
-The [FFmpeg dev team recommends](https://ffmpeg.org/download.html#releases) end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
-
-The FFmpeg binary's location can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is.
+The FFmpeg dev team recommends end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). The FFmpeg binary's location can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is.
 
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
 
@@ -49,12 +47,12 @@ Use modern codecs to save storage. The image/audio codecs which langkit uses are
 The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
 
 ### Automatic Speech Recognition / Speech-to-Text support
-[Translations of dubbings and of subtitles differ](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself). Therefore dubbings can't be used with subtitles in the old subs2srs unless said subs are closed captions or dubtitles.<br>
+Translations of dubbings and of subtitles differ.[¹](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself) Therefore dubbings can't be used with subtitles in the old subs2srs unless said subs are closed captions or dubtitles.<br>
 With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
 
 By default **a dubtitle file will also be created from these transcriptions.**
 
-See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amgadoz @Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1brqwun/i_compared_the_different_open_source_whisper/) for detailed comparisons.
+
 
 | Name (to be passed with --stt) | Word Error Rate average across all supported langs (june 2024) | Number of languages supported        | Price        | Type        | Note                                                                                                                                                                                                                                                                                                                   |
 |--------------------------------|-----------------|-------------------------------------------------------------------------------------|--------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -62,49 +60,52 @@ See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amg
 | insanely-fast-whisper, fast    | 16,2%           | 57                                                                                  | $0.0071/run  | MIT         |                                                                                                                                                                                                                                                                                                                        |
 | universal-1, u1                | 8,7%            | [17](https://www.assemblyai.com/docs/getting-started/supported-languages)           | $6.2/1000min | proprietary | **Untested** (doesn't support my target lang)                                                                                                                                                                                                                                                                          |
 
-Note: openai just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it.
+See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amgadoz @Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1brqwun/i_compared_the_different_open_source_whisper/) for detailed comparisons.
+
+Note: OpenAI just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it.
 ### Condensed Audio
-langkit will automatically make an audio file containing all the audio snippets of dialog in the audiotrack. <br>
+langkit will automatically **make an audio file containing all the audio snippets of dialog** in the audiotrack. <br>
 This is meant to be used for passive listening. <br>
-More explanations and context here: https://www.youtube.com/watch?v=QOLTeO-uCYU
+More explanations and context here: [Optimizing Passive Immersion: Condensed Audio - YouTube](https://www.youtube.com/watch?v=QOLTeO-uCYU)
 
 ### Enhanced voice audiotrack
-Make a new audiotrack with voices louder by merging the original audiotrack with an audiotrack contatining the voices only.<br>
-This is very useful for languages that are phonetically dense, such as tonal languages, or for languages that sound very different from your native language.<br>
+**Make a new audiotrack with voices louder**. This is very useful for languages that are phonetically dense, such as tonal languages, or for languages that sound very different from your native language.<br>
+<br>
+It works by merging the original audiotrack with an audiotrack containing the voices only.
 <br>
 The separated voices are obtained using one of these:
 
 | Name (to be passed with --sep) | Quality of separated vocals | Price                               | Type        | Note                                                                                                                                 |
 |--------------------------------|-----------------------------|-------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| demucs, de                     | good                        | very cheap 0.063$/run               | MIT license | **The one I'd recommend**                                                                                                            |
+| demucs, de                     | good                        | very cheap 0.063$/run               | MIT license | **Recommended**                                                                                                            |
 | demucs_ft, ft                  | good                        | cheap 0.252$/run                    | MIT license | Fine-tuned version: "take 4 times more time but might be a bit better". I couldn't hear any difference with the original in my test. | 
 | spleeter, sp                   | rather poor                 | very, very cheap 0.00027$/run       | MIT license |                                                                                                                                      |
 | elevenlabs, 11, el             | good                        | very, very expensive<br>1$/*MINUTE* | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original.<br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
 
-### Parrallelization / multi-threading built-in thanks to Go
+> [!NOTE]
+> demucs and spleeter are originally meant for _songs_ (ie. tracks a few minutes long) and the GPUs allocated by Replicate to these models are not the best. You may encounter _OOM GPU (out of memory) errors_ when trying to process audio tracks of movies. As far as my testing goes, trying a few hours later solves the problem.<br> Replicate also offers to make deployments with a GPU of one's choice, but this isn't cost-effective or user-friendly so it probably won't ever be supported.
+
+### Parallelization / multi-threading by default
 By default all CPU cores available are used. You can reduce CPU usage by passing a lower ```--workers``` value than the default.
 
 ### Bulk / recursive directory processing
 ...if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
 
 ## ...But why?
-There are plenty of good options already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), subs2srs, online sentence banks, high quality premade Anki decks...
+There are plenty of good options already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), [memento](https://github.com/ripose-jp/Memento)...
 
-Here is a list: https://github.com/nakopylov/awesome-immersion
+Here is a list: [awesome-immersion](https://github.com/nakopylov/awesome-immersion)
 
-They are really awesome but all of them are media-centric: they are implemented around watching shows and you make the most of them by watching a whole lot of shows.
+They are awesome but all of them are media-centric: they are implemented around watching shows.
 
-I am more interested in an approach centered around words:
-- **word frequency**: I learn either words I handpicked myself or words taken from the a list of most frequent words found in the content I am interested in and then sort them in groups of priority. I believe this is the most time efficient approach if you aren't willing to spend most of your time and energy on language learning.
-- **word-centric notes referencing all common meanings**: one note to rule them all. I cross-source dictionaries and LLMs to the map the meanings, connotations and register of a word. Then I use another tool to search my database of subs to illustrate & disambiguate with real-world examples the meanings I have found.
-- **word-note reuse for language laddering**: Another awesome advantage of this approach it that you can use this very note as basis for making cards for a new target language further down the line, while keeping all your previous note fields at hand for making the cards template for your new target language. The initial language acts just like Note ID for a meaning mapped across multiple languages. The majority of the basic vocabulary can be translated across languages directly with no real loss of meaning (and you can go on to disambiguate it further, using the method above for example). The effort that you spend on your first target language will thus pay off on subsequent languages.
-
-**This is not meant to replace input or engaging with your target language but, on the SRS side of thing, I believe this is the most efficient time/effort investment to become familiar and knowledgeable enough about a word to use it in its correct, idiomatic meaning with confidence.**
+The approach here is word-centric:
+- **word-centric notes referencing all common meanings**: I cross-source dictionaries, LLMs to the map the meanings, connotations and register of a word. Then I use another tool to search my database of generated TSV to illustrate & disambiguate with real-world examples the meanings I have found. This results in high quality notes regrouping all examples sentences, TTS, picture... and any other fields related to the word, allowing for maximum context.
+- **word-note reuse for language laddering**: another advantage of this approach it that you can use this very note as basis for making cards for a new target language further down the line, while keeping all your previous note fields at hand for making the cards template for your new target language. The initial language acts just like Note ID for a meaning mapped across multiple languages. The majority of the basic vocabulary can be translated across languages directly with no real loss of meaning (and you can go on to disambiguate it further, using the method above for example). The effort that you spend on your first target language will thus pay off on subsequent languages.
 
 There are several additional tools I made to accomplish this but they are hardcoded messes so don't expect me to publish them, langkit is enough work for me by itself! :)
 
 ### License
-All new contributions from commit d540bd4 onward are licensed under GPL-3.0.
+All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
 
 See original README of bunkai below for the basic features:
 <hr>
