@@ -41,19 +41,22 @@ At the moment tokens should be passed through these env variables: REPLICATE_API
 
 # Extra features of this fork
 
-### Default encoding to OPUS / AVIF
+## Default encoding to OPUS / AVIF
 Use modern codecs to save storage. The image/audio codecs which langkit uses are state-of-the-art and are currently in active development.
 
 The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
 
-### Automatic Speech Recognition / Speech-to-Text support
+## Automatic Speech Recognition / Speech-to-Text support
 Translations of dubbings and of subtitles differ.[¹](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself) Therefore dubbings can't be used with subtitles in the old subs2srs unless said subs are closed captions or dubtitles.<br>
 With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
 
 By default **a dubtitle file will also be created from these transcriptions.**
+<details>
+<summary> 
 
-
-
+#### Side-by-side comparison table
+</summary>
+    
 | Name (to be passed with --stt) | Word Error Rate average across all supported langs (june 2024) | Number of languages supported        | Price        | Type        | Note                                                                                                                                                                                                                                                                                                                   |
 |--------------------------------|-----------------|-------------------------------------------------------------------------------------|--------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | whisper, wh                    | 10,3%           | [57](https://platform.openai.com/docs/guides/speech-to-text/supported-languages%5C) | $1.1/1000min | MIT         | **See [here](https://github.com/openai/whisper/discussions/1762) for a breakdown of WER per language.**  |
@@ -62,18 +65,25 @@ By default **a dubtitle file will also be created from these transcriptions.**
 
 See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amgadoz @Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1brqwun/i_compared_the_different_open_source_whisper/) for detailed comparisons.
 
+</details>
+
 Note: OpenAI just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it.
-### Condensed Audio
+## Condensed Audio
 langkit will automatically **make an audio file containing all the audio snippets of dialog** in the audiotrack. <br>
 This is meant to be used for passive listening. <br>
 More explanations and context here: [Optimizing Passive Immersion: Condensed Audio - YouTube](https://www.youtube.com/watch?v=QOLTeO-uCYU)
 
-### Enhanced voice audiotrack
+## Enhanced voice audiotrack
 **Make a new audiotrack with voices louder**. This is very useful for languages that are phonetically dense, such as tonal languages, or for languages that sound very different from your native language.<br>
 <br>
 It works by merging the original audiotrack with an audiotrack containing the voices only.
 <br>
 The separated voices are obtained using one of these:
+<details>
+<summary> 
+
+#### Side-by-side comparison table
+</summary>
 
 | Name (to be passed with --sep) | Quality of separated vocals | Price                               | Type        | Note                                                                                                                                 |
 |--------------------------------|-----------------------------|-------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------|
@@ -82,16 +92,20 @@ The separated voices are obtained using one of these:
 | spleeter, sp                   | rather poor                 | very, very cheap 0.00027$/run       | MIT license |                                                                                                                                      |
 | elevenlabs, 11, el             | good                        | very, very expensive<br>1$/*MINUTE* | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original.<br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
 
+</details>
+
 > [!NOTE]
 > demucs and spleeter are originally meant for _songs_ (ie. tracks a few minutes long) and the GPUs allocated by Replicate to these models are not the best. You may encounter _OOM GPU (out of memory) errors_ when trying to process audio tracks of movies. As far as my testing goes, trying a few hours later solves the problem.<br> Replicate also offers to make deployments with a GPU of one's choice, but this isn't cost-effective or user-friendly so it probably won't ever be supported.
 
-### Parallelization / multi-threading by default
+
+
+## Parallelization / multi-threading by default
 By default all CPU cores available are used. You can reduce CPU usage by passing a lower ```--workers``` value than the default.
 
-### Bulk / recursive directory processing
+## Bulk / recursive directory processing
 ...if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
 
-## ...But why?
+# ...But why?
 There are plenty of good options already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), [memento](https://github.com/ripose-jp/Memento)...
 
 Here is a list: [awesome-immersion](https://github.com/nakopylov/awesome-immersion)
