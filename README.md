@@ -39,7 +39,7 @@ The FFmpeg dev team recommends end-users to use only the latest [builds from the
 
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
 
-# Extra features of this fork
+# Extra features compared to subs2srs
 
 ## Default encoding to OPUS / AVIF
 Use modern codecs to save storage. The image/audio codecs which langkit uses are state-of-the-art and are currently in active development.
