@@ -31,12 +31,12 @@ type Mode int
 const (
 	Subs2Cards = iota
 	Subs2Dubs
-	Subs2Translit
 	Enhance
+	Translit
 )
 
 func (m Mode) String() string{
-	return []string{"Subs2Cards", "Subs2Dubs", "Subs2Translit", "Enhance"}[m]
+	return []string{"Subs2Cards", "Subs2Dubs", "Enhance", "Translit"}[m]
 }
 
 type Task struct {
@@ -54,14 +54,17 @@ type Task struct {
 	UseAudiotrack        int
 	TimeoutSTT           int
 	TimeoutSep           int
+	TimeoutTranslit      int
 	Offset               time.Duration
 	WantDubs             bool
+	WantTranslit         bool
 	IsBulkProcess        bool
 	DubsOnly             bool
 	IsCCorDubs           bool
 	TargSubFile          string
 	NativeSubFile        string
 	NativeSubs           *subs.Subtitles
+	TargSubs             *subs.Subtitles
 	// mediaprefix is the base string for building AVIF / OPUS to which timecodes of a subtitle line will be added.
 	MediaPrefix          string
 	// mediaSourceFile is the path of the actual media provided or any media found while routing()
@@ -90,6 +93,24 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 		default:
 			tsk.OutputFileExtension = ".csv"
 		}
+	}
+	switch tsk.STT {
+	case "wh":
+		tsk.STT = "whisper"
+	case "fast", "incredibly-fast-whisper":
+		tsk.STT = "insanely-fast-whisper"
+	case "u1":
+		tsk.STT = "universal-1"
+	}
+	switch tsk.SeparationLib {
+	case "de":
+		tsk.SeparationLib = "demucs"
+	case "ft":
+		tsk.SeparationLib = "demucs_ft"
+	case "sp":
+		tsk.SeparationLib = "spleeter"
+	case "11", "el":
+		tsk.SeparationLib = "elevenlabs"
 	}
 	for _, name := range []string{"ffmpeg", "mediainfo"} {
 		dest := ""

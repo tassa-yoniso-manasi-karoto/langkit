@@ -40,7 +40,8 @@ var (
 	cfgFile, sep, STT string
 	langs []string
 	workersMax int
-	mergeParam []int
+	mergeParam []int // TODO
+	BrowserAccessURL string
 	subs2dubsDescr = "Use foreign subtitle file to create a dubtitle using\n" +
 		"transcriptions made by the selected STT service\n"
 	sepDescr = "Make a new audiotrack with voices louder using this\n" +
@@ -80,9 +81,13 @@ func init() {
 	addSharedSTTflags(subs2cardsCmd)
 	addSharedSTTflags(subs2dubsCmd)
 	
+	addSharedTranslitFlags(subs2cardsCmd)
+	addSharedTranslitFlags(translitCmd)
+	
 	rootCmd.AddCommand(enhanceCmd)
 	rootCmd.AddCommand(subs2dubsCmd)
 	rootCmd.AddCommand(subs2cardsCmd)
+	rootCmd.AddCommand(translitCmd)
 }
 
 func addSharedSTTflags(cmd *cobra.Command) {
@@ -92,6 +97,11 @@ func addSharedSTTflags(cmd *cobra.Command) {
 	// FIXME subs2cardsCmd.PersistentFlags().Bool("cc", false, "enforce treating the foreign subs as closed captions: strip it of its SDH material to keep only the dialog")
 }
 
+func addSharedTranslitFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().Int("translit-to", 90, "timeout in seconds for the request to the transliteration service\n")
+	cmd.PersistentFlags().String("browser-access-url", "", "websocket URL for DevTools remote debugging of a Chromium-based browser.\n" +
+		"Default behavior of the scraping library is to download a web browser. Pass this flag it if you want it to reuse your own browser.")
+}
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {

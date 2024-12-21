@@ -17,7 +17,6 @@ import (
 	"github.com/gookit/color"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
@@ -44,47 +43,46 @@ type ProcessedItem struct {
 // ProcessedItemWriter should write an exported item in whatever format is // selected by the user.
 type ProcessedItemWriter func(*os.File, *ProcessedItem)
 
-func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, write ProcessedItemWriter) {
+func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
 	var (
 		subLineChan = make(chan *astisub.Item)
 		// all results are cached and later sorted, hence the chan has a cache
-		itemChan = make(chan ProcessedItem, len(foreignSubs.Items))
+		itemChan = make(chan ProcessedItem, len(tsk.TargSubs.Items))
 		items []ProcessedItem
 		wg sync.WaitGroup
 		
 		skipped int
-		toCheckChan   = make(chan string)
-		isAlreadyChan = make(chan bool)
+		//toCheckChan   = make(chan string)
+		//isAlreadyChan = make(chan bool)
 	)
 	tsk.Log.Debug().
-		Int("capItemChan", len(foreignSubs.Items)).
+		Int("capItemChan", len(tsk.TargSubs.Items)).
 		Int("workersMax", workersMax).
 		Msg("Supervisor initialized, starting workers")
 	for i := 1; i <= workersMax; i++ {
 		wg.Add(1)
 		go tsk.worker(i, subLineChan, itemChan, &wg)
 	}
-	go checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan)
+	//go checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan)
 	go func() {
-		for i, subLine := range foreignSubs.Items {
+		for _, subLine := range tsk.TargSubs.Items {
 			// FIXME: Right now, due to parrallelism, writing is only done when all workers are done
 			// so this kind of check will only work on completed tasks, therefore there is no resuming capability
 			// therefore ASR/TTS already done is lost upon interruption.
 			// The obvious way to fix this is to write another goroutine that sorts and checks the ID of items and
-			// write them on-the-fly in order when the next ID expected is available, Keeping that for some other time...
-			if toCheckChan <- tsk.FieldSep + timePosition(subLine.StartAt) + tsk.FieldSep; <-isAlreadyChan {
+			// write them on-the-fly in order when the next ID expected is available, keeping that for some other time...
+			/*if toCheckChan <- tsk.FieldSep + timePosition(subLine.StartAt) + tsk.FieldSep; <-isAlreadyChan {
 				tsk.Log.Trace().Int("lineNum", i).Msg("Skipping subtitle line previously processed")
 				skipped += 1
 				totalItems -= 1
 				continue
-			}
+			}*/
 			subLineChan <- subLine
 		}
 		close(subLineChan)
 		if skipped != 0 {
-			tsk.Log.Info().Msg(fmt.Sprintf(
-				"%.1f%% of items were already done and skipped (%d/%d)",
-					float64(skipped)/float64(len(foreignSubs.Items))*100, skipped, len(foreignSubs.Items)))
+			tsk.Log.Info().Msgf("%.1f%% of items were already done and skipped (%d/%d)",
+					float64(skipped)/float64(len(tsk.TargSubs.Items))*100, skipped, len(tsk.TargSubs.Items))
 		} else {
 			tsk.Log.Debug().Msg("No line previously processed was found")
 		}
@@ -92,14 +90,14 @@ func (tsk *Task) Supervisor(foreignSubs *subs.Subtitles, outStream *os.File, wri
 	go func() {
 		tsk.Log.Debug().
 			Int("lenItemChan", len(itemChan)).
-			Int("capItemChan", len(foreignSubs.Items)). // FIXME cleanup dbg log
+			Int("capItemChan", len(tsk.TargSubs.Items)). // FIXME cleanup dbg log
 			Int("lenSubLineChan", len(subLineChan)).
 			Msg("Waiting for workers to finish.")
 		wg.Wait()
-		tsk.Log.Debug().Msg("All workers finished. Closing itemChan, toCheckChan, isAlreadyChan")
+		tsk.Log.Debug().Msg("All workers finished. Closing remaining channels.")
 		close(itemChan)
-		close(toCheckChan)
-		close(isAlreadyChan)
+		//close(toCheckChan)
+		//close(isAlreadyChan)
 	}()
 	for item := range itemChan {
 		items = append(items, item)
@@ -216,12 +214,12 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 		item.ForeignCurr = s
 	}
 	/*if i > 0 { // FIXME this has never worked for some reason
-		prevItem := foreignSubs.Items[i-1]
+		prevItem := tsk.TargSubs.Items[i-1]
 		item.ForeignPrev = prevItem.String()
 	}
 
-	if i+1 < len(foreignSubs.Items) {
-		nextItem := foreignSubs.Items[i+1]
+	if i+1 < len(tsk.TargSubs.Items) {
+		nextItem := tsk.TargSubs.Items[i+1]
 		item.ForeignNext = nextItem.String()
 	}*/
 	return

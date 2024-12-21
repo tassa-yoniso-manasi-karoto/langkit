@@ -9,7 +9,7 @@ import (
 var subs2cardsCmd = &cobra.Command{
 	Use:   "subs2cards <mediafile> <foreign-subs> [native-subs]",
 	Short: "Decompose media into flash cards",
-	Long: `This command generates flash cards for an SRS application like Anki from subtitles and optional associated media content.
+	Long: `This command generates flash cards for an SRS application like Anki from subtitles and media content.
 
 Example:
   langkit subs2cards media-content.mp4 foreign.srt native.srt
@@ -39,6 +39,10 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		tsk.STT = STT
 		tsk.TimeoutSTT, _ = cmd.Flags().GetInt("stt-to")
 		tsk.WantDubs, _ = cmd.Flags().GetBool("stt-dub")
+
+		tsk.WantTranslit, _ = cmd.Flags().GetBool("translit")
+		tsk.TimeoutTranslit, _ = cmd.Flags().GetInt("translit-to")
+		BrowserAccessURL, _ = cmd.Flags().GetString("browser-access-url")
 		
 		Offset, _     := cmd.Flags().GetInt("offset")
 		tsk.Offset = time.Duration(Offset)*time.Millisecond
@@ -53,6 +57,7 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 func init() {
 	subs2cardsCmd.PersistentFlags().Int("offset", 250, "pad before & after the timings of each audio clip\n"+
 		"with this offset in millisecond. Useful to compensate\ninaccurate sync between subs and voices")
+	subs2cardsCmd.PersistentFlags().Bool("translit", false, "transliterate and tokenize the subtitle file or the newly created dubtitle file")
 
 
 	rootCmd.AddCommand(subs2cardsCmd)

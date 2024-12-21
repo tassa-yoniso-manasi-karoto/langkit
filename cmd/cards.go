@@ -71,7 +71,7 @@ func (tsk *Task) Execute() {
 				Msg("Couldn't guess the language of foreign subtitle file")
 		}
 		// NOTE: Native subtitle declared in CLI must trail foreign subtitle declaration,
-		// thus if the native subtitle's lang needs guessing, TargSubFile can't be empty. //TODO make 100% sure
+		// thus if the native subtitle's lang needs guessing, TargSubFile can't be empty.
 		tsk.Native, err = GuessLangFromFilename(tsk.NativeSubFile)
 		if tsk.NativeSubFile != "" && err != nil {
 			tsk.Log.Warn().Err(err).
@@ -84,19 +84,22 @@ func (tsk *Task) Execute() {
 			Msg("No language flag passed. Attempted to guess language from filename.")
 	}
 	var outStream *os.File
-	var foreignSubs *subs.Subtitles
-	if tsk.Mode == Enhance {
-		goto ResumeEnhance // TODO remove when I rewrite Execute with proper functions
+	switch tsk.Mode { // TODO remove when I rewrite Execute with proper functions
+	case Enhance:
+		goto ResumeEnhance
+	case Translit:
+		goto ResumeTranslit
 	}
-	foreignSubs, err = subs.OpenFile(tsk.TargSubFile, false)
+	tsk.TargSubs, err = subs.OpenFile(tsk.TargSubFile, false)
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
 	if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
 		tsk.Log.Fatal().Msg("Neither native language and nor native subtitle file was specified.")
 	}
+	// if not in bulk mode then it wasn't assigned yet
 	if totalItems == 0 {
-		totalItems = len(foreignSubs.Items)
+		totalItems = len(tsk.TargSubs.Items)
 	}
 	if tsk.Mode == Subs2Cards && tsk.NativeSubFile == "" { // FIXME maybe redundant
 		tsk.Log.Warn().
@@ -149,15 +152,10 @@ ResumeEnhance:
 		Int("UseAudiotrack", tsk.UseAudiotrack).
 		Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
 		Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
-	if tsk.SeparationLib != "" {
-		tsk.enhance()
-	} else if tsk.Mode == Enhance {
-		tsk.Log.Error().Msg("No separation API to isolate the voice's audio was specified.")
-	}
 	if tsk.Mode != Enhance {
 		if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
 			tsk.Log.Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
-			foreignSubs.TrimCC2Dubs()
+			tsk.TargSubs.TrimCC2Dubs()
 		} else {
 			tsk.Log.Debug().Msg("Foreign subs are NOT detected as closed captions.")
 		}
@@ -170,30 +168,39 @@ ResumeEnhance:
 			os.Exit(0)
 		}	
 	}
-	switch tsk.STT {
-	case "wh":
-		tsk.STT = "whisper"
-	case "fast", "incredibly-fast-whisper":
-		tsk.STT = "insanely-fast-whisper"
-	case "u1":
-		tsk.STT = "universal-1"
-	}
-	if tsk.Mode != Enhance {
-		tsk.Supervisor(foreignSubs, outStream, write)
+	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
+		tsk.Supervisor(outStream, write)
 	}
 	
+ResumeTranslit:
+	subs2translit := tsk.TargSubFile
 	if tsk.STT != "" && tsk.WantDubs {
-		err = foreignSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
+		// Subs2Dubs uses the TSV file to transform the subtitles into dubtitles in place
+		err = tsk.TargSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
 		if err != nil {
 			tsk.Log.Fatal().Err(err).Msg("error making dubtitles")
 		}
-		dubs := strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
-		dubs = strings.TrimSuffix(dubs, ".tsv")
-		dubs = path.Join(dubs + "." + strings.ToUpper(tsk.STT) + filepath.Ext(tsk.TargSubFile))
+		subs2translit = strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
+		subs2translit = strings.TrimSuffix(subs2translit, ".tsv")
+		// FIXME path.Join what for???
+		subs2translit = path.Join(subs2translit + "." + strings.ToUpper(tsk.STT) + filepath.Ext(tsk.TargSubFile))
 		
-		if err = foreignSubs.Write(dubs); err != nil {
+		if err = tsk.TargSubs.Write(subs2translit); err != nil {
 			tsk.Log.Fatal().Err(err).Msg("error making dubtitles")
 		}
+	}
+	if tsk.WantTranslit {
+		// TODO: find a way to provide transliteration in the TSV as well
+		if slices.Contains(SupportedTranslitLangsRaw(), tsk.Targ.Part3) {
+			tsk.Translit(subs2translit)
+		} else {
+			tsk.Log.Fatal().Msgf("Language %s is not currently supported by transliteration module", tsk.Targ.String())
+		}
+	}
+	if tsk.SeparationLib != "" {
+		tsk.enhance()
+	} else if tsk.Mode == Enhance {
+		tsk.Log.Error().Msg("No separation API to isolate the voice's audio was specified.")
 	}
 }
 
@@ -212,7 +219,7 @@ func (tsk *Task) Autosub() {
 		if file.IsDir() ||
 			!slices.Contains(AstisubSupportedExt, ext) ||
 				!strings.HasPrefix(trimmed, trimmedMedia) ||
-					strings.Contains(trimmed, "forced") {
+					strings.Contains(strings.ToLower(trimmed), "forced") {
 						continue
 		}
 		l, err := GuessLangFromFilename(file.Name())

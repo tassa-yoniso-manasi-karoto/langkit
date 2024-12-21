@@ -13,12 +13,10 @@ import (
 	astisub "github.com/asticode/go-astisub"
 )
 
-// Subtitles represents a collection of subtitles corresponding to some media.
 type Subtitles struct {
 	*astisub.Subtitles
 }
 
-// OpenFile opens the given subtitles file for reading.
 func OpenFile(filename string, clean bool) (*Subtitles, error) {
 	subs, err := astisub.OpenFile(filename)
 	if err != nil {
@@ -31,31 +29,11 @@ func OpenFile(filename string, clean bool) (*Subtitles, error) {
 }
 
 func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
-	// Parsing the CSV instead of processing on the fly ensure dubtitle integrity
-	// in cases where the processing is restarted after an interruption or crash
-	file, _ := os.Open(outputFile)
-	defer file.Close()
-	reader := csv.NewReader(file)
-	reader.Comma = rune(FieldSep[0])
-	dubbings := []string{}
-	for {
-		row, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if len(row) < 5 {
-			//println("row=",len(row))
-			continue
-		}
-		//fmt.Printf("%#v\n", row)
-		//pp.Println(row)
-		transcription := row[4]
-		dubbings = append(dubbings, transcription)
-	}
-	if len(dubbings) != len((*subs).Items) {
+	transcriptedLines := loadSTTfromTSV(outputFile, FieldSep)
+	if len(transcriptedLines) != len((*subs).Items) {
 		return fmt.Errorf("The number of STT transcriptions doesn't match the number of subtitle lines." +
-			" This is likely a bug!\n" +
-				"len transcriptions=%d\tlen sub lines=%d", len(dubbings),len((*subs).Items))
+				" This is most likely a bug, please report it.\n" +
+					"len transcriptions=%d\tlen sub lines=%d", len(transcriptedLines),len((*subs).Items))
 	}
 	for i, item := range (*subs).Items {
 		if len(item.Lines) == 0 {
@@ -69,9 +47,34 @@ func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
 		// clear the items of that first line except the first because
 		// bunkai/subs2cards merge LineItems together in one field in outputFile
 		(*subs).Items[i].Lines[0].Items = []astisub.LineItem{item.Lines[0].Items[0]}
-		(*subs).Items[i].Lines[0].Items[0].Text = dubbings[i]
+		(*subs).Items[i].Lines[0].Items[0].Text = transcriptedLines[i]
 	}
 	return nil
+}
+
+
+// Parsing the TSV instead of processing on the fly ensure dubtitle integrity
+// in cases where the processing is restarted after an interruption or crash
+// edit: atm on-the-fly writing to TSV is gone due to parallelization implementation
+func loadSTTfromTSV(outputFile, FieldSep string) (transcriptedLines []string) {
+	file, _ := os.Open(outputFile)
+	defer file.Close()
+	reader := csv.NewReader(file)
+	reader.Comma = rune(FieldSep[0])
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if len(row) < 5 {
+			//println("row=",len(row))
+			continue
+		}
+		//fmt.Printf("%#v\n", row)
+		//pp.Println(row)
+		transcriptedLines = append(transcriptedLines, row[4])
+	}
+	return
 }
 
 func (subs *Subtitles) TrimCC2Dubs() {

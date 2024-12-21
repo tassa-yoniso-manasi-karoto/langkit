@@ -20,6 +20,14 @@ const (
 
 const unknownLang = "❔❔" // avoid "n/a" or "?" for path safety
 
+var refmatch = map[string]int{
+	"closedcaptions": CC,
+	"dubtitles":      Dub,
+	"subtitles":      Sub,
+	"dialog":         Sub,
+	"stripped_sdh":   StrippedSDH,
+}
+
 type Lang struct {
 	*iso.Language
 	Subtag string // Typically a ISO 3166-1 region but can also be a ISO 15924 script
@@ -46,13 +54,6 @@ func Str(l *iso.Language) string {
 	return unknownLang
 }
 
-var refmatch = map[string]int{
-	"closedcaptions": CC,
-	"dubtitles":      Dub,
-	"subtitles":      Sub,
-	"dialog":         Sub,
-	"stripped_sdh":   StrippedSDH,
-}
 
 func (tsk *Task) PrepareLangs() {
 	if len(tsk.Langs) > 0 {
@@ -77,6 +78,11 @@ func ReadStdLangCode(arr []string) (langs []Lang, err error) {
 		arr := strings.Split(tmp, "-")
 		lang.Language = iso.FromAnyCode(arr[0])
 		if lang.Language == nil {
+			// because everybody confuses the domain name .jp with the ISO language code
+			if arr[0] == "jp" {
+				return nil, fmt.Errorf("'%s' is not a valid ISO-639 code," +
+				"for Japanese the code to use is either 'ja' or 'jpn'", arr[0])
+			}
 			return nil, fmt.Errorf("An invalid language code was passed: '%s'", arr[0])
 		}
 		if len(arr) > 1 {
@@ -131,7 +137,7 @@ func guessLangFromFilename(name string, langStart *int) string {
 	var ok bool
 	var i, langLength int
 	// this iter decorticates some more in case lang isn't located at the end of the name
-	for x := 0; x < 2; x++ {
+	for x := 0; x < 3; x++ {
 		//fmt.Printf("stripname_%d=\"%s\"\n", x, stripname)
 		// Trim ext during 1st loop and then in further loops, attempt to
 		// decorticate any potential dot-separated irrelevant info such as:
@@ -243,7 +249,7 @@ func getIdx(langs []Lang, candidate Lang) (int, bool) {
 		// support redundant compositon implicitly i.e. de-DE or th-TH
 		var isRedundantSubtag bool
 		if match := iso.FromAnyCode(candidate.Subtag); match != nil {
-			isRedundantSubtag = match.Part3 == l.Language.Part3	
+			isRedundantSubtag = *match == *l.Language
 		}
 		// pp.Println(candidate)
 		// color.Blueln("candidateSubtag", candidate.Subtag)
