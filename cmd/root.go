@@ -91,6 +91,8 @@ func init() {
 }
 
 func addSharedSTTflags(cmd *cobra.Command) {
+	cmd.PersistentFlags().Int("offset", 250, "pad before & after the timings of each audio clip\n"+
+		"with this offset in millisecond. Useful to compensate\ninaccurate sync between subs and voices")
 	cmd.PersistentFlags().StringVar(&STT, "stt", "", "transcribe audio using specified\nonline Speech-To-Text API")
 	cmd.PersistentFlags().Int("stt-to", 90, "timeout in seconds for the request to the STT service\n")
 	cmd.PersistentFlags().Bool("stt-dub", true, subs2dubsDescr)
