@@ -16,28 +16,25 @@ Fork of Bunkai, which reimplemented the functionality first pioneered by **cb496
 𝗕𝗮𝘀𝗶𝗰 𝘀𝘂𝗯𝘀𝟮𝘀𝗿𝘀 𝗳𝘂𝗻𝗰𝘁𝗶𝗼𝗻𝗮𝗹𝗶𝘁𝘆
 $ langkit subs2cards media.mp4 media.th.srt media.en.srt
 
-𝗔𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗰 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘀𝗲𝗹𝗲𝗰𝘁𝗶𝗼𝗻 (𝘩𝘦𝘳𝘦: 𝘭𝘦𝘢𝘳𝘯 𝘣𝘳𝘢𝘻𝘪𝘭𝘪𝘢𝘯 𝘱𝘰𝘳𝘵𝘶𝘨𝘦𝘴𝘦 𝘧𝘳𝘰𝘮 𝘤𝘢𝘯𝘵𝘰𝘯𝘦𝘴𝘦 𝘰𝘳 𝘪𝘧 𝘶𝘯𝘢𝘷𝘢𝘪𝘭𝘢𝘣𝘭𝘦, 𝘵𝘳𝘢𝘥𝘪𝘵𝘪𝘰𝘯𝘢𝘭 𝘤𝘩𝘪𝘯𝘦𝘴𝘦)
+𝗕𝘂𝗹𝗸 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 𝘄𝗶𝘁𝗵 𝗮𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗰 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘀𝗲𝗹𝗲𝗰𝘁𝗶𝗼𝗻 (𝘩𝘦𝘳𝘦: 𝘭𝘦𝘢𝘳𝘯 𝘣𝘳𝘢𝘻𝘪𝘭𝘪𝘢𝘯 𝘱𝘰𝘳𝘵𝘶𝘨𝘦𝘴𝘦 𝘧𝘳𝘰𝘮 𝘤𝘢𝘯𝘵𝘰𝘯𝘦𝘴𝘦 𝘰𝘳 𝘪𝘧 𝘶𝘯𝘢𝘷𝘢𝘪𝘭𝘢𝘣𝘭𝘦, 𝘵𝘳𝘢𝘥𝘪𝘵𝘪𝘰𝘯𝘢𝘭 𝘤𝘩𝘪𝘯𝘦𝘴𝘦)
 $ langkit subs2cards media.mp4 -l "pt-BR,yue,zh-Hant"
 
-𝗕𝘂𝗹𝗸 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 (𝗿𝗲𝗰𝘂𝗿𝘀𝗶𝘃𝗲)
-$ langkit subs2cards /path/to/media/dir/  -l "th,en"
+𝗦𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘁𝗿𝗮𝗻𝘀𝗹𝗶𝘁𝗲𝗿𝗮𝘁𝗶𝗼𝗻¹ (+𝘁𝗼𝗸𝗲𝗻𝗶𝘇𝗮𝘁𝗶𝗼𝗻 𝗶𝗳 𝗻𝗲𝗰𝗲𝘀𝘀𝗮𝗿𝘆)
+$ langkit translit media.ja.srt
 
 𝗠𝗮𝗸𝗲 𝗮𝗻 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝘄𝗶𝘁𝗵 𝗲𝗻𝗵𝗮𝗻𝗰𝗲𝗱/𝗮𝗺𝗽𝗹𝗶𝗳𝗶𝗲𝗱 𝘃𝗼𝗶𝗰𝗲𝘀 𝗳𝗿𝗼𝗺 𝘁𝗵𝗲 𝟮𝗻𝗱 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
 $ langkit enhance media.mp4 -a 2 --sep demucs
 
-𝗠𝗮𝗸𝗲 𝗮 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 𝘂𝘀𝗶𝗻𝗴 𝗦𝗧𝗧 𝗼𝗻 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
+𝗠𝗮𝗸𝗲 𝗮 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲² 𝗳𝗶𝗹𝗲 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 𝘂𝘀𝗶𝗻𝗴 𝗦𝗽𝗲𝗲𝗰𝗵-𝘁𝗼-𝗧𝗲𝘅𝘁 𝗼𝗻 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
 $ langkit subs2dubs --stt whisper media.mp4 (media.th.srt) -l "th"
 
 𝗖𝗼𝗺𝗯𝗶𝗻𝗲 𝗮𝗹𝗹 𝗼𝗳 𝘁𝗵𝗲 𝗮𝗯𝗼𝘃𝗲 𝗶𝗻 𝗼𝗻𝗲 𝗰𝗼𝗺𝗺𝗮𝗻𝗱
-$ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs
+$ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs --translit
 ```
 
-### Requirements
-This fork require FFmpeg **v6 or higher (dev builds being preferred)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+<sub> ¹ for the list of supported languages by the transliteration feature see [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators) </sub>
 
-The FFmpeg dev team recommends end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). The FFmpeg binary's location can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is.
-
-At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
+<sup> ² 'dubtitle' is a ***subtitle file that matches the dubbing lines exactly***. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sup>
 
 # Extra features compared to subs2srs
 
@@ -47,8 +44,8 @@ Use modern codecs to save storage. The image/audio codecs which langkit uses are
 The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
 
 ## Automatic Speech Recognition / Speech-to-Text support
-Translations of dubbings and of subtitles differ.[¹](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself) Therefore dubbings can't be used with subtitles in the old subs2srs unless said subs are closed captions or dubtitles.<br>
-With the flag `--stt` you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
+Dubbings can't be used with subtitles in the old subs2srs unless said subs are closed captions or dubtitles.<br>
+With the flag <kbd>--stt</kbd> you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
 
 By default **a dubtitle file will also be created from these transcriptions.**
 <details>
@@ -65,9 +62,11 @@ By default **a dubtitle file will also be created from these transcriptions.**
 
 See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amgadoz @Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1brqwun/i_compared_the_different_open_source_whisper/) for detailed comparisons.
 
-</details>
 
 Note: OpenAI just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it.
+
+</details>
+
 ## Condensed Audio
 langkit will automatically **make an audio file containing all the audio snippets of dialog** in the audiotrack. <br>
 This is meant to be used for passive listening. <br>
@@ -105,6 +104,13 @@ By default all CPU cores available are used. You can reduce CPU usage by passing
 ## Bulk / recursive directory processing
 ...if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
 
+# Requirements
+This fork require FFmpeg **v6 or higher (dev builds being preferred)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
+
+The FFmpeg dev team recommends end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). The FFmpeg binary's location can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is.
+
+At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
+
 # ...But why?
 There are plenty of good options already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), [memento](https://github.com/ripose-jp/Memento)...
 
@@ -121,8 +127,9 @@ There are several additional tools I made to accomplish this but they are hardco
 ### License
 All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
 
-See original README of bunkai below for the basic features:
+See original README of bunkai below for the basic features: <br>
 <hr>
+<br><br><br>
 
 Dissects subtitles and corresponding media files into flash cardsfor [sentence mining][1] with an [SRS][2] system like [Anki][3]. It is inspired
 by the linked article on sentence mining and [existing tools][4], which you
