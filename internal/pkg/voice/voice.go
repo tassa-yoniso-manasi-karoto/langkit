@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"math"
 	
 	"github.com/tassa-yoniso-manasi-karoto/elevenlabs-go"
 	
 	"github.com/schollz/progressbar/v3"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	"github.com/rivo/uniseg"
-	"github.com/sergi/go-diff/diffmatchpatch"
+	//"github.com/rivo/uniseg"
+	//"github.com/sergi/go-diff/diffmatchpatch"
 	replicate "github.com/replicate/replicate-go"
 	aai "github.com/AssemblyAI/assemblyai-go-sdk"
 )
@@ -120,6 +121,7 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 		return nil, fmt.Errorf("Please set the REPLICATE_API_TOKEN environment variable")
 	}
 	var predictionOutput replicate.PredictionOutput
+	baseDelay := time.Millisecond * 500
 	for try := 0; try < maxTry; try++ {
 		r8, err := replicate.NewClient(replicate.WithToken(apiToken))
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
@@ -146,8 +148,10 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 		if err == nil {
 			break
 		} else if err == context.DeadlineExceeded {
-			fmt.Printf("Timed out %s prediction (%d/%d)...\n", name, try, maxTry)
+			fmt.Fprintf(os.Stderr, "WARN: Timed out %s prediction (%d/%d)...\n", name, try, maxTry)
 			if try+1 != maxTry {
+				delay := calcExponentialBackoff(try, baseDelay)
+				time.Sleep(delay)
 				continue
 			}
 			return nil, fmt.Errorf("Timed out %s prediction after %d attempts: %w", name, maxTry, err)
@@ -175,8 +179,10 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 		return nil, fmt.Errorf("Parser failed: %w", err)
 	}
 	// Download file made by API located at URL
-	req, _ := http.NewRequest("GET", URL, nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := makeRequestWithRetry(URL, maxTry)
+	if err != nil {
+		return nil, fmt.Errorf("Failed request on prediction output after %d attempts: %v", maxTry, err)
+	}
 	defer resp.Body.Close()
 
 	bar := progressbar.DefaultBytes(
@@ -194,10 +200,7 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 }
 
 
-func placeholder5() {
-	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
-	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
-}
+
 
 
 func spleeterDemucsParser (predictionOutput replicate.PredictionOutput) (string, error) {
@@ -217,30 +220,76 @@ func whisperParser (predictionOutput replicate.PredictionOutput) (string, error)
 	return transcription, nil
 }
 
-const SEP = "𓃰"
 
-// Compute Character Error Rate (CER)
-func computeCER(ref, hyp string) float64 {
-	refTokens := tokenizeChars(ref)
-	hypTokens := tokenizeChars(hyp)
-	refStr := strings.Join(refTokens, SEP)
-	hypStr := strings.Join(hypTokens, SEP)
-
-	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(refStr, hypStr, false)
-	distance := dmp.DiffLevenshtein(diffs)
-
-	cer := float64(distance) / float64(len(refTokens))
-	return cer
-}
-
-
-// Tokenize the input string into grapheme clusters (characters)
-func tokenizeChars(s string) []string {
-	var chars []string
-	gr := uniseg.NewGraphemes(s)
-	for gr.Next() {
-		chars = append(chars, gr.Str())
+func makeRequestWithRetry(URL string, maxTry int) (*http.Response, error) {
+	var resp *http.Response
+	
+	baseDelay := time.Millisecond * 500
+	
+	for attempt := 1; attempt <= maxTry; attempt++ {
+		req, err := http.NewRequest("GET", URL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		
+		resp, err = http.DefaultClient.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+		
+		if attempt == maxTry {
+			return nil, fmt.Errorf("failed after %d attempts, last error: %w", maxTry, err)
+		}
+		
+		// Check if the response body exists before trying to close it
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+		
+		delay := calcExponentialBackoff(attempt, baseDelay)
+		
+		fmt.Fprintf(os.Stderr, "WARN: Request failed (attempt %d/%d): %v. Retrying in %v...\n", 
+			attempt, maxTry, err, delay)
+		
+		time.Sleep(delay)
 	}
-	return chars
+	
+	return nil, fmt.Errorf("unexpected error in retry logic")
 }
+
+func calcExponentialBackoff(attempt int, baseDelay time.Duration) time.Duration {
+	return time.Duration(math.Pow(2, float64(attempt))) * baseDelay
+}
+
+func placeholder5() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+}
+
+// const SEP = "𓃰"
+
+// // Compute Character Error Rate (CER)
+// func computeCER(ref, hyp string) float64 {
+// 	refTokens := tokenizeChars(ref)
+// 	hypTokens := tokenizeChars(hyp)
+// 	refStr := strings.Join(refTokens, SEP)
+// 	hypStr := strings.Join(hypTokens, SEP)
+
+// 	dmp := diffmatchpatch.New()
+// 	diffs := dmp.DiffMain(refStr, hypStr, false)
+// 	distance := dmp.DiffLevenshtein(diffs)
+
+// 	cer := float64(distance) / float64(len(refTokens))
+// 	return cer
+// }
+
+
+// // Tokenize the input string into grapheme clusters (characters)
+// func tokenizeChars(s string) []string {
+// 	var chars []string
+// 	gr := uniseg.NewGraphemes(s)
+// 	for gr.Next() {
+// 		chars = append(chars, gr.Str())
+// 	}
+// 	return chars
+// }

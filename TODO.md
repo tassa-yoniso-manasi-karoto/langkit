@@ -76,8 +76,31 @@
 
 *in progress:*
 - add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
-	Tokenization needed: thai2english.com/pythaiNLP/deepcut (tha), ginza (jpn), HanLP (zh) (also no space: Lao, Burmese, Khmer, Tibetan.)
-	Transliteration needed too: Korean, Arabic, Russian, indic languages (Hindi/Bengali at least), Cantonese
+https://awesome-go.com/tokenizers/
+https://go.libhunt.com/
+	Thai:
+		✅ thai2english.com
+		PythaiNLP + my own lib?
+		❌ deepcut: accurate but bad perf, unmaintained
+	Japanese:	https://github.com/taishi-i/awesome-japanese-nlp-resources/
+		✅ go-ichiran
+		ikawaha / kagome
+		❌ shogo82148 / go-mecab : above should be enough
+		ginza (py)
+		Kanji translit: https://github.com/ysugimoto/go-kakasi
+		Kana-romaji transliterator: robpike / nihongo  OR  gojp / kana 
+	Chinese: 
+		Tokenizer https://github.com/yanyiwu/gojieba
+		Transliterator https://github.com/mozillazg/go-pinyin or https://github.com/mozillazg/go-unidecode (same author)
+	Korean:
+		Transliterator https://github.com/hangulize/hangulize // doubt it's worth it: learning hangul is easy
+	Indic languages/scripts:
+		https://github.com/libindic/indic-trans
+		https://github.com/virtualvinodh/aksharamukha (already offers a docker-compose)
+	Cyrillic:
+		https://github.com/barseghyanartur/transliterate OR https://github.com/mehanizm/iuliia-go
+	
+	Transliteration needed too: Arabic, Cantonese
 - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
 - for bulk processing: leverage WithLevel() to implement --less-lethal
 - (MUST TEST:) insanely-fast-whisper

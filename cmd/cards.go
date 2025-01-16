@@ -94,17 +94,19 @@ func (tsk *Task) Execute() {
 	if err != nil {
 		tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
 	}
-	if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
-		tsk.Log.Fatal().Msg("Neither native language and nor native subtitle file was specified.")
-	}
 	// if not in bulk mode then it wasn't assigned yet
 	if totalItems == 0 {
 		totalItems = len(tsk.TargSubs.Items)
 	}
-	if tsk.Mode == Subs2Cards && tsk.NativeSubFile == "" { // FIXME maybe redundant
-		tsk.Log.Warn().
-			Str("video", path.Base(tsk.MediaSourceFile)).
-			Msg("No sub file for any of the desired reference language(s) were found")
+	if tsk.Mode == Subs2Cards {
+		if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
+			tsk.Log.Fatal().Msg("Neither native language and nor native subtitle file was specified.")
+		}
+		if tsk.NativeSubFile == "" { // FIXME maybe redundant
+			tsk.Log.Warn().
+				Str("video", path.Base(tsk.MediaSourceFile)).
+				Msg("No sub file for any of the desired reference language(s) were found")
+		}
 	}
 	if tsk.NativeSubFile != "" {
 		tsk.NativeSubs, err = subs.OpenFile(tsk.NativeSubFile, false)
@@ -136,8 +138,9 @@ ResumeEnhance:
 	// FIXME range over func instead of calling it 3 times
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
 		num, _ := strconv.Atoi(track.Channels)
-		if *track.Language == *tsk.Targ.Language && num == tsk.TargetChan {
-			tsk.UseAudiotrack = i
+		if *track.Language == *tsk.Targ.Language && num == tsk.TargetChan &&
+			(track.Title == "" || track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")) {
+				tsk.UseAudiotrack = i
 		}
 	})
 	tsk.ChooseAudio(func(i int, track AudioTrack) {
@@ -191,11 +194,7 @@ ResumeTranslit:
 	}
 	if tsk.WantTranslit {
 		// TODO: find a way to provide transliteration in the TSV as well
-		if slices.Contains(SupportedTranslitLangsRaw(), tsk.Targ.Part3) {
-			tsk.Translit(subs2translit)
-		} else {
-			tsk.Log.Fatal().Msgf("Language %s is not currently supported by transliteration module", tsk.Targ.String())
-		}
+		tsk.Translit(subs2translit)
 	}
 	if tsk.SeparationLib != "" {
 		tsk.enhance()

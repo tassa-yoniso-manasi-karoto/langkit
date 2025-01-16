@@ -28,7 +28,7 @@ func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFi
 		"-ss", ffmpegPosition(startAt-offset),
 		"-to", ffmpegPosition(endAt+offset),
 		"-i", inFile,
-		"-map", fmt.Sprint("0:", tracknum+1),
+		"-map", fmt.Sprint("0:a:", tracknum),
 	}
 	outArgs = append(outArgs, outFile)
 

@@ -191,7 +191,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	case "whisper":
 		b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
 		if err != nil {
-			tsk.Log.Error().Err(err).
+			tsk.Log.Fatal().Err(err).
 				Str("item", foreignItem.String()).
 				Msg("Whisper error")
 		}
@@ -199,7 +199,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	case "insanely-fast-whisper":
 		b, err := voice.InsanelyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 		if err != nil {
-			tsk.Log.Error().Err(err).
+			tsk.Log.Fatal().Err(err).
 				Str("item", foreignItem.String()).
 				Msg("InsanelyFastWhisper error")
 		}
@@ -207,7 +207,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	case "universal-1":
 		s, err := voice.Universal1(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 		if err != nil {
-			tsk.Log.Error().Err(err).
+			tsk.Log.Fatal().Err(err).
 				Str("item", foreignItem.String()).
 				Msg("Universal1 error")
 		}

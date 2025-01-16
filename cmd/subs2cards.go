@@ -55,8 +55,6 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 }
 
 func init() {
-	subs2cardsCmd.PersistentFlags().Int("offset", 250, "pad before & after the timings of each audio clip\n"+
-		"with this offset in millisecond. Useful to compensate\ninaccurate sync between subs and voices")
 	subs2cardsCmd.PersistentFlags().Bool("translit", false, "transliterate and tokenize the subtitle file or the newly created dubtitle file")
 
 

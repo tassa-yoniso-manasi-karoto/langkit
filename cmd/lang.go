@@ -18,7 +18,8 @@ const (
 	CC
 )
 
-const unknownLang = "❔❔" // avoid "n/a" or "?" for path safety
+//const unknownLang = "❔❔" // avoid "n/a" or "?" for path safety
+const unknownLang = "und" // = undetermined, special code part of the ISO639 spec
 
 var refmatch = map[string]int{
 	"closedcaptions": CC,
