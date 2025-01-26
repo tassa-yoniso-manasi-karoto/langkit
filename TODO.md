@@ -1,13 +1,15 @@
 ### TODO
 
-- File Drop Zone: ***"Select a directory or a video to process"***
+- **Minimum Viable Product ASAP**
 - Add logging to the LogViewer component
+- Add error Handling with more or less critical ERR that may cause a a particular task to be but not all of them, or cancel the run and display a warning
+- rm multi-file selection & instead: ***"Select a directory or a video to process"***
+
 - then:
-   - add progress bar
    - Add File Drop Zone Handling: file validation and preprocessing
-   - Add Error Handling with more or less critical ERR that may cause a a particular task to be but not all of them, or cancel the run and display a warning
-   - Add Settings Persistence
+   - Add Settings Persistence with viper (or koanf?)
    - Add tooltips and help documentation
+   - add progress bar
    - Implement cancel capability
  
   <hr>
