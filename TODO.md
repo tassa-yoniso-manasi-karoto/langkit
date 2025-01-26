@@ -1,4 +1,18 @@
 ### TODO
+
+- File Drop Zone: ***"Select a directory or a video to process"***
+- Add logging to the LogViewer component
+- then:
+   - add progress bar
+   - Add File Drop Zone Handling: file validation and preprocessing
+   - Add Error Handling with more or less critical ERR that may cause a a particular task to be but not all of them, or cancel the run and display a warning
+   - Add Settings Persistence
+   - Add tooltips and help documentation
+   - Implement cancel capability
+ 
+  <hr>
+
+  
 <table><thead>
   <tr>
     <th></th>
@@ -79,11 +93,8 @@
 https://awesome-go.com/tokenizers/
 https://go.libhunt.com/
 	Thai:
-		✅ thai2english.com
 		PythaiNLP + my own lib?
-		❌ deepcut: accurate but bad perf, unmaintained
 	Japanese:	https://github.com/taishi-i/awesome-japanese-nlp-resources/
-		✅ go-ichiran
 		ikawaha / kagome
 		❌ shogo82148 / go-mecab : above should be enough
 		ginza (py)
@@ -92,13 +103,6 @@ https://go.libhunt.com/
 	Chinese: 
 		Tokenizer https://github.com/yanyiwu/gojieba
 		Transliterator https://github.com/mozillazg/go-pinyin or https://github.com/mozillazg/go-unidecode (same author)
-	Korean:
-		Transliterator https://github.com/hangulize/hangulize // doubt it's worth it: learning hangul is easy
-	Indic languages/scripts:
-		https://github.com/libindic/indic-trans
-		https://github.com/virtualvinodh/aksharamukha (already offers a docker-compose)
-	Cyrillic:
-		https://github.com/barseghyanartur/transliterate OR https://github.com/mehanizm/iuliia-go
 	
 	Transliteration needed too: Arabic, Cantonese
 - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
