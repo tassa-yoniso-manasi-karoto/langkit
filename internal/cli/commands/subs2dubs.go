@@ -1,21 +1,23 @@
-package cmd
+package commands
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 )
 
 
 var subs2dubsCmd = &cobra.Command{
 	Use:   "subs2dubs <mediafile> <foreign-subs> [native-subs]",
-	Short: subs2dubsDescr,
+	Short: "Use foreign subtitle file to create a dubtitle using transcriptions made by the selected STT service",
 
 	Args: argFuncs(cobra.MinimumNArgs(1), cobra.MaximumNArgs(2)),
 	Run: func(cmd *cobra.Command, args []string) {
+		tsk := core.NewTask(core.NewCLIHandler())
 		if len(args) < 1 {
-			logger.Fatal().Msg("this command requires at least 1 argument:" +
+			tsk.Handler.ZeroLog().Fatal().Msg("this command requires at least 1 argument:" +
 				"the path to the media file to be processed")
 		}
-		tsk := DefaultTask(cmd)
+		tsk.ApplyFlags(cmd)
 		tsk.MediaSourceFile = args[0]
 		if len(args) > 1 {
 			tsk.TargSubFile = args[1]
@@ -23,18 +25,13 @@ var subs2dubsCmd = &cobra.Command{
 		if len(args) > 2 {
 			tsk.NativeSubFile = args[2]
 		}
-		if STT == "" {
-			logger.Fatal().Msg("the STT service was not specified")
+		if tsk.STT == "" {
+			tsk.Handler.ZeroLog().Fatal().Msg("the STT service was not specified")
 		}
-		tsk.SeparationLib = sep
-		tsk.TimeoutSep, _ = cmd.Flags().GetInt("sep-to")
-		
-		tsk.STT = STT
-		tsk.TimeoutSTT, _ = cmd.Flags().GetInt("stt-to")
 		
 		tsk.WantDubs = true
 		tsk.DubsOnly = true
-		tsk.Mode = Subs2Dubs
-		tsk.routing()
+		tsk.Mode = core.Subs2Dubs
+		tsk.Routing()
 	},
 }

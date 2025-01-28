@@ -1,9 +1,8 @@
-package cmd
+package commands
 
 import (
-	"time"
-
 	"github.com/spf13/cobra"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 )
 
 var subs2cardsCmd = &cobra.Command{
@@ -22,10 +21,11 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 
 	Args: argFuncs(cobra.MinimumNArgs(0), cobra.MaximumNArgs(3)),
 	Run: func(cmd *cobra.Command, args []string) {
+		tsk := core.NewTask(core.NewCLIHandler())
 		if len(args) == 0 {
-			logger.Fatal().Msg("this command requires at least one argument: the path to the media file/directory to be processed")
+			tsk.Handler.ZeroLog().Fatal().Msg("this command requires at least one argument: the path to the media file/directory to be processed")
 		}
-		tsk := DefaultTask(cmd)
+		tsk.ApplyFlags(cmd)
 		tsk.MediaSourceFile = args[0]
 		if len(args) > 1 {
 			tsk.TargSubFile = args[1]
@@ -33,30 +33,11 @@ both subtitle files, but the timing reference would be "foreign.srt".`,
 		if len(args) > 2 { // TODO test without native subs
 			tsk.NativeSubFile = args[2]
 		}
-		tsk.SeparationLib = sep
-		tsk.TimeoutSep, _ = cmd.Flags().GetInt("sep-to")
 		
-		tsk.STT = STT
-		tsk.TimeoutSTT, _ = cmd.Flags().GetInt("stt-to")
-		tsk.WantDubs, _ = cmd.Flags().GetBool("stt-dub")
-
-		tsk.WantTranslit, _ = cmd.Flags().GetBool("translit")
-		tsk.TimeoutTranslit, _ = cmd.Flags().GetInt("translit-to")
-		BrowserAccessURL, _ = cmd.Flags().GetString("browser-access-url")
-		
-		Offset, _     := cmd.Flags().GetInt("offset")
-		tsk.Offset = time.Duration(Offset)*time.Millisecond
-		tsk.Mode = Subs2Cards
+		tsk.Mode = core.Subs2Cards
 		if len(tsk.Langs) == 1 {
-			tsk.Log.Fatal().Msg("Passed languages are improperly formatted or incomplete.")
+			tsk.Handler.ZeroLog().Fatal().Msg("Passed languages are improperly formatted or incomplete.")
 		}
-		tsk.routing()
+		tsk.Routing()
 	},
-}
-
-func init() {
-	subs2cardsCmd.PersistentFlags().Bool("translit", false, "transliterate and tokenize the subtitle file or the newly created dubtitle file")
-
-
-	rootCmd.AddCommand(subs2cardsCmd)
 }

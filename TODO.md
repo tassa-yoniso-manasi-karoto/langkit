@@ -1,9 +1,7 @@
 ### TODO
 
-- **Minimum Viable Product ASAP**
 - Add logging to the LogViewer component
 - Add error Handling with more or less critical ERR that may cause a a particular task to be but not all of them, or cancel the run and display a warning
-- rm multi-file selection & instead: ***"Select a directory or a video to process"***
 
 - then:
    - Add File Drop Zone Handling: file validation and preprocessing

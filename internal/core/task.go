@@ -1,4 +1,4 @@
-package cmd
+package core
 
 import (
 	"os"
@@ -23,8 +23,15 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
 
-var itembar *progressbar.ProgressBar
-var totalItems int
+
+var (
+	itembar *progressbar.ProgressBar
+	totalItems int
+)
+
+func init() {	
+	zerolog.SetGlobalLevel(zerolog.TraceLevel)
+}
 
 type Mode int
 
@@ -39,53 +46,85 @@ func (m Mode) String() string{
 	return []string{"Subs2Cards", "Subs2Dubs", "Enhance", "Translit"}[m]
 }
 
+type Meta struct {
+	FFmpeg string
+	MediaInfo MediaInfo
+	Runtime string
+	WorkersMax int
+}
+
+
 type Task struct {
-	Log                  zerolog.Logger
 	Meta                 Meta
 	Mode                 Mode
+	Handler              MessageHandler
+	
+	// Language settings
 	OriginalLang         string // FIXME what for?
 	Langs                []string
 	RefLangs             []Lang
 	Targ                 Lang
 	Native               Lang
-	SeparationLib        string
-	STT                  string
-	TargetChan           int
-	UseAudiotrack        int
-	TimeoutSTT           int
-	TimeoutSep           int
-	TimeoutTranslit      int
-	Offset               time.Duration
-	WantDubs             bool
-	WantTranslit         bool
+	
+	// File paths
+	// mediaSourceFile is the path of the actual media provided or any media found while routing()
+	MediaSourceFile      string
+	TargSubFile          string
+	NativeSubFile        string
+	// mediaprefix is the base string for building AVIF / OPUS to which timecodes of a subtitle line will be added.
+	MediaPrefix          string // base string for building AVIF/OPUS
+	
+	// Subtitles
+	NativeSubs           *subs.Subtitles
+	TargSubs             *subs.Subtitles
+	
+	// Processing options
 	IsBulkProcess        bool
 	DubsOnly             bool
 	IsCCorDubs           bool
-	TargSubFile          string
-	NativeSubFile        string
-	NativeSubs           *subs.Subtitles
-	TargSubs             *subs.Subtitles
-	// mediaprefix is the base string for building AVIF / OPUS to which timecodes of a subtitle line will be added.
-	MediaPrefix          string
-	// mediaSourceFile is the path of the actual media provided or any media found while routing()
-	MediaSourceFile      string
+	
+	// Common options
 	FieldSep             string // defaults to "\t"
-	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv", otherwise
+	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv" otherwise
+	Offset               time.Duration
+	
+	// Audio track options
+	TargetChan           int
+	UseAudiotrack        int
+	
+	// Voice enhancement options
+	SeparationLib        string
+	TimeoutSep           int
+	VoiceBoost          float64
+	OriginalBoost       float64
+	Limiter             float64
+	MergingFormat       string
+	
+	// STT options
+	STT                  string
+	TimeoutSTT           int
+	WantDubs             bool
+	
+	// Screenshot options
+	ScreenshotWidth      int
+	ScreenshotHeight     int
+	CondensedAudio       bool
+	
+	// Romanization options
+	WantTranslit         bool
+	TimeoutTranslit      int
+	RomanizationStyle    string
+	KanjiThreshold       int
+	BrowserAccessURL     string
 }
 
-
-type Meta struct {
-	FFmpeg string
-	MediaInfo MediaInfo
-	Runtime string
-}
-
-func DefaultTask(cmd *cobra.Command) (*Task) {
-	var tsk Task
+func NewTask(handler MessageHandler) (tsk *Task) {
+	tsk = &Task{
+		Handler: handler,
+	}
 	if tsk.FieldSep == "" {
 		tsk.FieldSep = "\t"
 	}
-
 	if tsk.OutputFileExtension == "" {
 		switch tsk.FieldSep {
 		case "\t":
@@ -94,6 +133,106 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 			tsk.OutputFileExtension = ".csv"
 		}
 	}
+	
+	for _, name := range []string{"ffmpeg", "mediainfo"} {
+		dest := ""
+		bin := name
+		if runtime.GOOS == "windows" {
+			bin += ".exe"
+		}
+		// get dir of langkit bin
+		ex, err := os.Executable()
+		if err != nil {
+			tsk.Handler.ZeroLog().Debug().Err(err).Msg("failed to access directory where langkit is " +
+				bin + " path must be provided by PATH or specified manually")
+		}
+		local := path.Join(filepath.Dir(ex), "bin", bin)
+		path, _ := exec.LookPath(bin)
+		if _, err := os.Stat(local); err == nil {
+			dest = local
+			tsk.Handler.ZeroLog().Debug().Msg("found a local binary for " + name)
+		} else {
+			dest = path
+			tsk.Handler.ZeroLog().Trace().Msg("PATH provided binary path for " + name)
+		}
+		switch bin {
+		case "ffmpeg":
+			media.FFmpegPath = dest
+		case "mediainfo":
+			MediainfoPath = dest
+		}
+	}
+	tsk.Meta.WorkersMax = runtime.NumCPU()-1
+	return tsk
+}
+
+func (tsk *Task) ApplyFlags(cmd *cobra.Command) {
+	for _, name := range []string{"ffmpeg", "mediainfo"} {
+		dest := ""
+		bin := name
+		if runtime.GOOS == "windows" {
+			bin += ".exe"
+		}
+		if cmd.Flags().Changed(name) {
+			tmp, _ := cmd.Flags().GetString(name)
+			dest = tmp
+			tsk.Handler.ZeroLog().Debug().Msg("using flag provided binary for " + name)
+		}
+		switch bin {
+		case "ffmpeg":
+			media.FFmpegPath = dest
+		case "mediainfo":
+			MediainfoPath = dest
+		}
+	}
+	tmp, err := getFFmpegVersion(media.FFmpegPath)
+	if err != nil {
+		tsk.Handler.ZeroLog().Fatal().Err(err).Msg("failed to access FFmpeg binary")
+	}
+	tsk.Meta.FFmpeg = tmp
+	tsk.Meta.Runtime = getRuntimeInfo()
+	
+	tsk.TargetChan, _ = cmd.Flags().GetInt("chan")
+	audiotrack, _ := cmd.Flags().GetInt("a")
+	tsk.UseAudiotrack = audiotrack-1
+	if cmd.Flags().Changed("workers") {
+		tsk.Meta.WorkersMax, _ = cmd.Flags().GetInt("workers")
+	}
+	if exists, value := IsFlagStrSet(cmd, "sep"); exists {
+		tsk.SeparationLib = value
+	}
+	if exists, value := IsFlagStrSet(cmd, "stt"); exists {
+		tsk.STT = value
+	}
+	if exists, value := IsFlagStrSet(cmd, "browser-access-url"); exists {
+		tsk.BrowserAccessURL = value
+	}
+	
+	
+	if exists, value := IsFlagIntSet(cmd, "sep-to"); exists {
+		tsk.TimeoutSep = value
+	}
+	if exists, value := IsFlagIntSet(cmd, "stt-to"); exists {
+		tsk.TimeoutSTT = value
+	}
+	if exists, value := IsFlagIntSet(cmd, "translit-to"); exists {
+		tsk.TimeoutTranslit = value
+	}
+	if exists, value := IsFlagIntSet(cmd, "offset"); exists {
+		tsk.Offset = time.Duration(value)*time.Millisecond
+	}
+	
+	
+	if exists, value := IsFlagBoolSet(cmd, "stt-dub"); exists {
+		tsk.WantDubs = value
+	}
+	if exists, value := IsFlagBoolSet(cmd, "translit"); exists {
+		tsk.WantTranslit = value
+	}
+	
+	tsk.Langs, _ = cmd.Flags().GetStringSlice("langs")
+	tsk.PrepareLangs()
+	tsk.Handler.ZeroLog().Trace().Err(err).Strs("langs", tsk.Langs).Msg("PrepareLangs done:")
 	switch tsk.STT {
 	case "wh":
 		tsk.STT = "whisper"
@@ -112,79 +251,39 @@ func DefaultTask(cmd *cobra.Command) (*Task) {
 	case "11", "el":
 		tsk.SeparationLib = "elevenlabs"
 	}
-	for _, name := range []string{"ffmpeg", "mediainfo"} {
-		dest := ""
-		bin := name
-		if runtime.GOOS == "windows" {
-			bin += ".exe"
-		}
-		// get dir of langkit bin
-		ex, err := os.Executable()
-		if err != nil {
-			logger.Debug().Err(err).Msg("failed to access directory where langkit is " +
-				bin + " path must be provided by PATH or specified manually")
-		}
-		local := path.Join(filepath.Dir(ex), "bin", bin)
-		path, _ := exec.LookPath(bin)
-		if _, err := os.Stat(local); err == nil {
-			dest = local
-			logger.Debug().Msg("found a local binary for " + name)
-		} else {
-			dest = path
-			logger.Trace().Msg("PATH provided binary path for " + name)
-		}
-		if cmd.Flags().Changed(name) {
-			tmp, _ := cmd.Flags().GetString(name)
-			dest = tmp
-			logger.Debug().Msg("using flag provided binary for " + name)
-		}
-		switch bin {
-		case "ffmpeg":
-			media.FFmpegPath = dest
-		case "mediainfo":
-			MediainfoPath = dest
-		}
-	}
-	tmp, err := getFFmpegVersion(media.FFmpegPath)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to access FFmpeg binary")
-	}
-	tsk.Meta.FFmpeg = tmp
-	tsk.Meta.Runtime = getRuntimeInfo()
-	targetChan, _ := cmd.Flags().GetInt("chan")
-	audiotrack, _ := cmd.Flags().GetInt("a")
-	//CC, _         := cmd.Flags().GetBool("cc")
-	tsk = Task{
-		Log:                  logger,
-		Langs:                langs,
-		TargetChan:           targetChan,
-		//IsCC:                 CC,
-		UseAudiotrack:        audiotrack-1,
-		FieldSep:             "\t",
-		OutputFileExtension:  "tsv",
-	}
-	tsk.PrepareLangs()
-	logger.Trace().Err(err).Strs("langs", langs).Msg("PrepareLangs done:")
-	return &tsk
 }
 
 
-func (tsk *Task) routing() {
+func (tsk *Task) Routing() {
 	// reassign to have root dir if IsBulkProcess
 	userProvided := tsk.MediaSourceFile
+	
+	tsk.Handler.ZeroLog().Info().
+		Str("path", userProvided).
+		Str("mode", tsk.Mode.String()).
+		Msg("Starting processing")
+	
 	stat, err := os.Stat(userProvided)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("can't access passed media file/directory")
+		tsk.Handler.ZeroLog().Fatal().Err(err).Msg("can't access passed media file/directory")
 	}
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
 		if ok := tsk.checkIntegrity(); ok  {
 			tsk.Execute()
-		}		
+		}
 	} else {
 		var tasks []Task
 		err = filepath.Walk(userProvided, func(path string, info os.FileInfo, err error) error {
+		// Update progress for file start
+		// 	a.updateProgress(ProgressUpdate{
+		// 		Progress:    float64(i) / float64(totalFiles) * 100,
+		// 		Current:     i + 1,
+		// 		Total:      totalFiles,
+		// 		CurrentFile: file,
+		// 		Operation:   string(task.Mode),
+		// 	})
 			if err != nil {
-				tsk.Log.Fatal().Err(err).Msg("error during recursive exploration of passed directory")
+				tsk.Handler.ZeroLog().Fatal().Err(err).Msg("error during recursive exploration of passed directory")
 			}
 			if info.IsDir() && strings.HasSuffix(info.Name(), ".media") {
 				return filepath.SkipDir
@@ -202,7 +301,7 @@ func (tsk *Task) routing() {
 			tsk.Autosub()
 			foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 			if err != nil {
-				tsk.Log.Fatal().Err(err).Msg("can't read foreign subtitles")
+				tsk.Handler.ZeroLog().Fatal().Err(err).Msg("can't read foreign subtitles")
 			}
 			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L120
 				foreignSubs.TrimCC2Dubs()
@@ -215,8 +314,8 @@ func (tsk *Task) routing() {
 		for _, tsk := range tasks {
 			mediabar.Add(1)
 			// trick to have a new line without the log prefix
-			tsk.Log.Info().Msg("\r             \n"+mediabar.String())
-			tsk.Log.Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
+			tsk.Handler.ZeroLog().Info().Msg("\r             \n"+mediabar.String())
+			tsk.Handler.ZeroLog().Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
 			tsk.Execute()
 		}
 	}
@@ -224,7 +323,7 @@ func (tsk *Task) routing() {
 
 func (tsk *Task) checkIntegrity() bool {
 	isCorrupted, err := media.CheckValidData(tsk.MediaSourceFile)
-	l := logger.Error().Err(err).Str("video", tsk.MediaSourceFile)
+	l := tsk.Handler.ZeroLog().Error().Err(err).Str("video", tsk.MediaSourceFile)
 	if isCorrupted {
 		l.Msg("Invalid data found when processing video. Video is misformed or corrupted.")
 	} else if err != nil {
@@ -294,6 +393,41 @@ func getFFmpegVersion(FFmpegPath string) (string, error) {
 
 	// Return the version found in the output
 	return match[1], nil
+}
+
+
+func IsFlagStrSet(cmd *cobra.Command, flagName string) (bool, string) {
+	if flag := cmd.Flags().Lookup(flagName); flag != nil {
+	    if cmd.Flags().Changed(flagName) {
+	        value, _ := cmd.Flags().GetString(flagName)
+	        return true, value
+	    }
+	}
+	return false, ""
+}
+
+
+
+func IsFlagIntSet(cmd *cobra.Command, flagName string) (bool, int) {
+	if flag := cmd.Flags().Lookup(flagName); flag != nil {
+	    if cmd.Flags().Changed(flagName) {
+	        value, _ := cmd.Flags().GetInt(flagName)
+	        return true, value
+	    }
+	}
+	return false, 0
+}
+
+
+
+func IsFlagBoolSet(cmd *cobra.Command, flagName string) (bool, bool) {
+	if flag := cmd.Flags().Lookup(flagName); flag != nil {
+	    if cmd.Flags().Changed(flagName) {
+	        value, _ := cmd.Flags().GetBool(flagName)
+	        return true, value
+	    }
+	}
+	return false, false
 }
 
 

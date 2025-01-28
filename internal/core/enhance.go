@@ -1,4 +1,4 @@
-package cmd
+package core
 
 import (
 	"fmt"
@@ -9,33 +9,12 @@ import (
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	//"github.com/rs/zerolog"
 	"github.com/dustin/go-humanize"
-	"github.com/spf13/cobra"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
-var enhanceCmd = &cobra.Command{
-	Use:   "enhance <mediafile>",
-	Short: sepDescr,
-
-	Args: argFuncs(cobra.MinimumNArgs(1), cobra.MaximumNArgs(1)),
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			logger.Fatal().Msg("this command requires at least one argument: the path to the media file to be processed")
-		}
-		tsk := DefaultTask(cmd)
-		tsk.MediaSourceFile = args[0]
-		
-		tsk.SeparationLib = sep
-		tsk.TimeoutSep, _ = cmd.Flags().GetInt("sep-to")
-
-		tsk.Mode = Enhance
-		tsk.routing()
-	},
-}
 
 
 var extPerProvider = map[string]string{
@@ -58,25 +37,25 @@ func (tsk *Task) enhance() {
 	_, errVoice := os.Stat(VoiceFile)
 	// 				no need to demux if isolate voicefile exists already
 	if errors.Is(errOriginal, os.ErrNotExist) && errors.Is(errVoice, os.ErrNotExist) {
-		tsk.Log.Info().Msg("Demuxing the audiotrack...")
+		tsk.Handler.ZeroLog().Info().Msg("Demuxing the audiotrack...")
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
 					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn",
 						"-acodec", "libopus", "-b:a", "128k", OriginalAudio,
 		}...)
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Failed to demux the desired audiotrack.")
+			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Failed to demux the desired audiotrack.")
 		}
 	} else if errOriginal == nil {
-		tsk.Log.Debug().Msg("Reusing demuxed audiotrack.")
+		tsk.Handler.ZeroLog().Debug().Msg("Reusing demuxed audiotrack.")
 	}
 	if stat, errOriginal = os.Stat(OriginalAudio); errOriginal == nil {
-		tsk.Log.Trace().Str("filesize", humanize.Bytes(uint64(stat.Size()))).Msg("Stat of OriginalAudio to enhance")
+		tsk.Handler.ZeroLog().Trace().Str("filesize", humanize.Bytes(uint64(stat.Size()))).Msg("Stat of OriginalAudio to enhance")
 	}
-	tsk.Log.Trace().Str("VoiceFile", VoiceFile).Msg("")
+	tsk.Handler.ZeroLog().Trace().Str("VoiceFile", VoiceFile).Msg("")
 	
 	if errors.Is(errVoice, os.ErrNotExist) {
-		tsk.Log.Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
+		tsk.Handler.ZeroLog().Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
 		var audio []byte
 		var err error
 		switch strings.ToLower(tsk.SeparationLib) {
@@ -89,10 +68,10 @@ func (tsk *Task) enhance() {
 		case "elevenlabs":
 			audio, err = voice.ElevenlabsIsolator(OriginalAudio, tsk.TimeoutSep)
 		default:
-			tsk.Log.Fatal().Msg("An unknown separation library was passed. Check for typo.")
+			tsk.Handler.ZeroLog().Fatal().Msg("An unknown separation library was passed. Check for typo.")
 		}
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Voice SeparationLib processing error.\n\n" +
+			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Voice SeparationLib processing error.\n\n" +
 				"LANGKIT DEVELOPER NOTE: These voice separation libraries are originally meant" +
 				"for songs (ie. tracks a few minutes long) and the GPUs allocated by Replicate" +
 				"to these models are not the best. You may face OOM (out of memory) GPU errors" +
@@ -101,10 +80,10 @@ func (tsk *Task) enhance() {
 		}
 		// Must write to disk so that it can be reused if ft error
 		if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {
-			tsk.Log.Error().Err(err).Msg("File of separated voice couldn't be written.")
+			tsk.Handler.ZeroLog().Error().Err(err).Msg("File of separated voice couldn't be written.")
 		}
 	} else {
-		tsk.Log.Info().Msg("Previously separated voice audio was found and will be reused.")
+		tsk.Handler.ZeroLog().Info().Msg("Previously separated voice audio was found and will be reused.")
 	}
 	// MERGE THE ORIGINAL AUDIOTRACK WITH THE VOICE AUDIO FILE
 	// Using a lossless audio file in the video could induce A-V desync will playing
@@ -112,12 +91,12 @@ func (tsk *Task) enhance() {
 	MergedFile := audioPrefix + ".ENHANCED.ogg"
 	_, err := os.Stat(MergedFile)
 	if strings.ToLower(tsk.SeparationLib) != "elevenlabs" {
-		tsk.Log.Info().Msg("No automatic merging possible with Elevenlabs. " +
+		tsk.Handler.ZeroLog().Info().Msg("No automatic merging possible with Elevenlabs. " +
 			"You may synchronize both tracks and merge them using an audio editor (ie. Audacity).")
 		return
 	}
 	if err == nil {
-		tsk.Log.Debug().Msg("Merging original and separated voice track into an enhanced voice track...")
+		tsk.Handler.ZeroLog().Debug().Msg("Merging original and separated voice track into an enhanced voice track...")
 		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
@@ -130,9 +109,9 @@ func (tsk *Task) enhance() {
 					MergedFile,
 		}...)
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
+			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Failed to merge original with separated voice track.")
 		} else {
-			tsk.Log.Trace().Msg("Audio merging success.")
+			tsk.Handler.ZeroLog().Trace().Msg("Audio merging success.")
 		}
 	}
 	// CAVEAT: on my machine, HW decoder (VAAPI) doesn't accept Matrovska with Opus audio
@@ -140,13 +119,13 @@ func (tsk *Task) enhance() {
 	ext := "mp4"
 	MergedVideo := audioPrefix + ".MERGED." + ext
 	if _, err = os.Stat(MergedVideo); errors.Is(err, os.ErrNotExist) {
-		tsk.Log.Debug().Msg("Merging newly created audiotrack with the video...")
+		tsk.Handler.ZeroLog().Debug().Msg("Merging newly created audiotrack with the video...")
 		c := tsk.buildVideoMergingCmd(MergedFile, MergedVideo, ext)
 		err = media.FFmpeg(c...)
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Failed to merge video with merged audiotrack.")
+			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Failed to merge video with merged audiotrack.")
 		} else {
-			tsk.Log.Trace().Msg("Video merging success.")
+			tsk.Handler.ZeroLog().Trace().Msg("Video merging success.")
 		}
 	}
 }
@@ -219,7 +198,7 @@ func (tsk *Task) buildVideoMergingCmd(MergedFile, MergedVideo, ext string) []str
 		"-disposition:a:1", "none",
 		MergedVideo + ext,
 	}...)
-	tsk.Log.Trace().Strs("mergeVideoCmd", c).Msg("")
+	tsk.Handler.ZeroLog().Trace().Strs("mergeVideoCmd", c).Msg("")
 	return c
 }
 

@@ -1,4 +1,4 @@
-package cmd
+package core
 
 import (
 	"fmt"
@@ -55,11 +55,11 @@ func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
 		//toCheckChan   = make(chan string)
 		//isAlreadyChan = make(chan bool)
 	)
-	tsk.Log.Debug().
+	tsk.Handler.ZeroLog().Debug().
 		Int("capItemChan", len(tsk.TargSubs.Items)).
-		Int("workersMax", workersMax).
+		Int("workersMax", tsk.Meta.WorkersMax).
 		Msg("Supervisor initialized, starting workers")
-	for i := 1; i <= workersMax; i++ {
+	for i := 1; i <= tsk.Meta.WorkersMax; i++ {
 		wg.Add(1)
 		go tsk.worker(i, subLineChan, itemChan, &wg)
 	}
@@ -72,7 +72,7 @@ func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
 			// The obvious way to fix this is to write another goroutine that sorts and checks the ID of items and
 			// write them on-the-fly in order when the next ID expected is available, keeping that for some other time...
 			/*if toCheckChan <- tsk.FieldSep + timePosition(subLine.StartAt) + tsk.FieldSep; <-isAlreadyChan {
-				tsk.Log.Trace().Int("lineNum", i).Msg("Skipping subtitle line previously processed")
+				tsk.Handler.ZeroLog().Trace().Int("lineNum", i).Msg("Skipping subtitle line previously processed")
 				skipped += 1
 				totalItems -= 1
 				continue
@@ -81,20 +81,20 @@ func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
 		}
 		close(subLineChan)
 		if skipped != 0 {
-			tsk.Log.Info().Msgf("%.1f%% of items were already done and skipped (%d/%d)",
+			tsk.Handler.ZeroLog().Info().Msgf("%.1f%% of items were already done and skipped (%d/%d)",
 					float64(skipped)/float64(len(tsk.TargSubs.Items))*100, skipped, len(tsk.TargSubs.Items))
 		} else {
-			tsk.Log.Debug().Msg("No line previously processed was found")
+			tsk.Handler.ZeroLog().Debug().Msg("No line previously processed was found")
 		}
 	}()
 	go func() {
-		tsk.Log.Debug().
+		tsk.Handler.ZeroLog().Debug().
 			Int("lenItemChan", len(itemChan)).
 			Int("capItemChan", len(tsk.TargSubs.Items)). // FIXME cleanup dbg log
 			Int("lenSubLineChan", len(subLineChan)).
 			Msg("Waiting for workers to finish.")
 		wg.Wait()
-		tsk.Log.Debug().Msg("All workers finished. Closing remaining channels.")
+		tsk.Handler.ZeroLog().Debug().Msg("All workers finished. Closing remaining channels.")
 		close(itemChan)
 		//close(toCheckChan)
 		//close(isAlreadyChan)
@@ -128,20 +128,20 @@ func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
 
 func (tsk *Task) worker(id int, subLineChan <-chan *astisub.Item, itemChan chan ProcessedItem, wg *sync.WaitGroup) {
 	for subLine := range subLineChan {
-		tsk.Log.Trace().Int("workerID", id).Msg("received a subLine")
+		tsk.Handler.ZeroLog().Trace().Int("workerID", id).Msg("received a subLine")
 		item := tsk.ProcessItem(subLine)
 		/*if err != nil { // FIXME, there is no err return anymore
-			tsk.Log.Error().
+			tsk.Handler.ZeroLog().Error().
 				Int("srt row", i).
 				Str("item", foreignItem.String()).
 				Err(err).
 				Msg("can't export item")
 		}*/
-		tsk.Log.Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Sending item")
+		tsk.Handler.ZeroLog().Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Sending item")
 		itemChan <- item
-		tsk.Log.Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Item successfully sent")
+		tsk.Handler.ZeroLog().Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Item successfully sent")
 	}
-	tsk.Log.Trace().Int("workerID", id).Int("lenSubLineChan", len(subLineChan)).Msg("Terminating worker")
+	tsk.Handler.ZeroLog().Trace().Int("workerID", id).Int("lenSubLineChan", len(subLineChan)).Msg("Terminating worker")
 	wg.Done()
 }
 
@@ -160,14 +160,14 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 		tsk.Offset, foreignItem.StartAt, foreignItem.EndAt,
 			tsk.MediaSourceFile, tsk.MediaPrefix, false)
 	if err != nil && !errors.Is(err, fs.ErrExist) {
-		tsk.Log.Error().Err(err).Msg("can't extract ogg audio")
+		tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract ogg audio")
 	}
 	if !tsk.DubsOnly {
 		_, err = media.ExtractAudio("wav", tsk.UseAudiotrack,
 			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
 				tsk.MediaSourceFile, tsk.MediaPrefix, false)
 		if err != nil && !errors.Is(err, fs.ErrExist) {
-			tsk.Log.Error().Err(err).Msg("can't extract wav audio")
+			tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract wav audio")
 		}
 	}
 	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt,
@@ -178,7 +178,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 			item.AlreadyDone = true
 			totalItems -= 1
 		} else {
-			tsk.Log.Error().Err(err).Msg("can't extract image")
+			tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract image")
 		}
 	}
 	item.ID = foreignItem.StartAt
@@ -191,7 +191,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	case "whisper":
 		b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
 		if err != nil {
-			tsk.Log.Fatal().Err(err).
+			tsk.Handler.ZeroLog().Fatal().Err(err).
 				Str("item", foreignItem.String()).
 				Msg("Whisper error")
 		}
@@ -199,7 +199,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	case "insanely-fast-whisper":
 		b, err := voice.InsanelyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 		if err != nil {
-			tsk.Log.Fatal().Err(err).
+			tsk.Handler.ZeroLog().Fatal().Err(err).
 				Str("item", foreignItem.String()).
 				Msg("InsanelyFastWhisper error")
 		}
@@ -207,7 +207,7 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	case "universal-1":
 		s, err := voice.Universal1(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 		if err != nil {
-			tsk.Log.Fatal().Err(err).
+			tsk.Handler.ZeroLog().Fatal().Err(err).
 				Str("item", foreignItem.String()).
 				Msg("Universal1 error")
 		}
@@ -236,20 +236,20 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) {
 	}
 	wavFiles, err := filepath.Glob(tsk.MediaPrefix+ "_*.wav")
 	if err != nil {
-		tsk.Log.Error().Err(err).
+		tsk.Handler.ZeroLog().Error().Err(err).
 			Str("mediaOutputDir", tsk.mediaOutputDir()).
 			Msg("Error searching for .wav files")
 	}
 
 	if len(wavFiles) == 0 {
-		tsk.Log.Warn().
+		tsk.Handler.ZeroLog().Warn().
 			Str("mediaOutputDir", tsk.mediaOutputDir()).
 			Msg("No .wav files found")
 	}
 	// Generate the concat list for ffmpeg
 	concatFile, err := media.CreateConcatFile(wavFiles)
 	if err != nil {
-		tsk.Log.Error().Err(err).Msg("Error creating temporary concat file")
+		tsk.Handler.ZeroLog().Error().Err(err).Msg("Error creating temporary concat file")
 	}
 	defer os.Remove(concatFile)
 
@@ -262,7 +262,7 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) {
 	os.Remove(tsk.MediaPrefix+".wav")
 	for _, f := range wavFiles {
 		if err := os.Remove(f); err != nil {
-			tsk.Log.Warn().Str("file", f).Msg("Removing file failed")
+			tsk.Handler.ZeroLog().Warn().Str("file", f).Msg("Removing file failed")
 		}
 	}
 }

@@ -1,5 +1,4 @@
-
-package cmd
+package core
 
 import (
 	//"net/url"
@@ -9,7 +8,6 @@ import (
 	//"os"
 	//"unicode/utf8"
 	
-	"github.com/spf13/cobra"
 	//"github.com/go-rod/rod"
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -26,44 +24,21 @@ var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
 
-
-var translitCmd = &cobra.Command{
-	Use:   "translit <foreign-subs>",
-	Short: "transliterate and tokenize a subtitle file",
-
-	Args: argFuncs(cobra.MinimumNArgs(1), cobra.MaximumNArgs(1)),
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			logger.Fatal().Msg("this command requires one argument: the path to the subtitle file to be processed")
-		}
-		tsk := DefaultTask(cmd)
-		tsk.TargSubFile = args[0]
-		
-		tsk.WantTranslit = true
-		tsk.TimeoutTranslit, _ = cmd.Flags().GetInt("translit-to")
-		BrowserAccessURL, _ = cmd.Flags().GetString("browser-access-url")
-		
-		tsk.Mode = Translit
-		tsk.Execute() // TODO check if any initialization is missing
-	},
-}
-
-
 func (tsk *Task) Translit(subsFilepath string) {
-	common.BrowserAccessURL = BrowserAccessURL
+	common.BrowserAccessURL = tsk.BrowserAccessURL
 	m, err := translitkit.DefaultModule(tsk.Targ.Language.Part3)
 	if err != nil {
-		tsk.Log.Fatal().Err(err).
+		tsk.Handler.ZeroLog().Fatal().Err(err).
 			Str("lang", tsk.Targ.Language.Part3).
 			Msg("couldn't get default provider")
 	}
-	tsk.Log.Trace().Msg("Transliteration module successfully retrived default module for lang: " + m.Lang)
+	tsk.Handler.ZeroLog().Trace().Msg("Transliteration module successfully retrived default module for lang: " + m.Lang)
 	if err := m.Init(); err != nil {
-		tsk.Log.Fatal().Err(err).
+		tsk.Handler.ZeroLog().Fatal().Err(err).
 			Str("lang", tsk.Targ.Language.Part3).
 			Msg("failed to initialize default")
 	}
-	tsk.Log.Trace().Msgf("Transliteration module %s-%s successfully initialized", m.Lang, m.ProviderNames())
+	tsk.Handler.ZeroLog().Trace().Msgf("Transliteration module %s-%s successfully initialized", m.Lang, m.ProviderNames())
 	
 	SubTranslit, _ := astisub.OpenFile(subsFilepath)
 	SubTokenized, _ := astisub.OpenFile(subsFilepath)
@@ -74,16 +49,16 @@ func (tsk *Task) Translit(subsFilepath string) {
 	// we can replace directly of mergedSubsStr, before splitting mergedSubsStr to recover subtitles
 	tokens, err := m.Tokens(mergedSubsStr)
 	if err != nil {
-		tsk.Log.Fatal().Err(err).
+		tsk.Handler.ZeroLog().Fatal().Err(err).
 			Str("lang", tsk.Targ.Language.Part3).
 			Str("module-lang", m.Lang).
 			Str("module-provider", m.ProviderNames()).
 			Msg("couldn't get tokens")
 	}
-	tsk.Log.Trace().Msgf("Transliteration module %s-%s returned tokens", m.Lang, m.ProviderNames())
+	tsk.Handler.ZeroLog().Trace().Msgf("Transliteration module %s-%s returned tokens", m.Lang, m.ProviderNames())
 	tokenizeds := tokens.TokenizedParts()
 	translits  := tokens.RomanParts()
-	tsk.Log.Trace().Msg("Tokenization/transliteration query finished")
+	tsk.Handler.ZeroLog().Trace().Msg("Tokenization/transliteration query finished")
 	
 	mergedSubsStrTranslit := mergedSubsStr
 	for i, tokenized := range tokenizeds {
@@ -103,7 +78,7 @@ func (tsk *Task) Translit(subsFilepath string) {
 	idx := 0
 	subSliceTranslit  := strings.Split(mergedSubsStrTranslit, Splitter)
 	subSliceTokenized := strings.Split(mergedSubsStrTokenized, Splitter)
-	tsk.Log.Trace().
+	tsk.Handler.ZeroLog().Trace().
 		Int("len(subSliceTranslit)", len(subSliceTranslit)).
 		Int("len(subSliceTokenized)", len(subSliceTokenized)).
 		Msg("")
@@ -118,17 +93,17 @@ func (tsk *Task) Translit(subsFilepath string) {
 			}
 		}
 	}
-	tsk.Log.Trace().
+	tsk.Handler.ZeroLog().Trace().
 		Int("len(SubTokenized.Items)", len(SubTokenized.Items)).
 		Int("len(SubTranslit.Items)", len(SubTranslit.Items)).
 		Msg("")
 	if err := SubTokenized.Write(strings.TrimSuffix(subsFilepath, ".srt") + "_tokenized.srt"); err != nil {
-		tsk.Log.Error().Err(err).Msg("Failed to write tokenized subtitles")
+		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write tokenized subtitles")
 	}
 	if err := SubTranslit.Write(strings.TrimSuffix(subsFilepath, ".srt") + "_translit.srt"); err != nil {
-		tsk.Log.Error().Err(err).Msg("Failed to write transliterated subtitles")
+		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write transliterated subtitles")
 	}
-	tsk.Log.Debug().Msg("Foreign subs were transliterated")
+	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
 }
 
 

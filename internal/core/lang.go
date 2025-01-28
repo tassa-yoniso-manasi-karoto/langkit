@@ -1,4 +1,4 @@
-package cmd
+package core
 
 import (
 	"fmt"
@@ -60,14 +60,14 @@ func (tsk *Task) PrepareLangs() {
 	if len(tsk.Langs) > 0 {
 		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Language parsing error")
 		}
 		tsk.Targ = tmp[0]
 	}
 	if len(tsk.Langs) > 1 {
 		tmp, err := ReadStdLangCode(tsk.Langs[1:])
 		if err != nil {
-			tsk.Log.Fatal().Err(err).Msg("Language parsing error")
+			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Language parsing error")
 		}
 		tsk.RefLangs = tmp
 	}
