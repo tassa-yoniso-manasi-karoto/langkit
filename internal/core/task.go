@@ -281,16 +281,9 @@ func (tsk *Task) Routing() {
 	} else {
 		var tasks []Task
 		err = filepath.Walk(userProvided, func(path string, info os.FileInfo, err error) error {
-		// Update progress for file start
-		// 	a.updateProgress(ProgressUpdate{
-		// 		Progress:    float64(i) / float64(totalFiles) * 100,
-		// 		Current:     i + 1,
-		// 		Total:      totalFiles,
-		// 		CurrentFile: file,
-		// 		Operation:   string(task.Mode),
-		// 	})
 			if err != nil {
-				tsk.Handler.ZeroLog().Fatal().Err(err).Msg("error during recursive exploration of passed directory")
+				return tsk.Handler.LogErr(err, AbortAllTasks,
+					"error during recursive exploration of provided directory").Err
 			}
 			if info.IsDir() && strings.HasSuffix(info.Name(), ".media") {
 				return filepath.SkipDir
@@ -308,7 +301,8 @@ func (tsk *Task) Routing() {
 			tsk.Autosub()
 			foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 			if err != nil {
-				tsk.Handler.ZeroLog().Fatal().Err(err).Msg("can't read foreign subtitles")
+				return tsk.Handler.LogErr(err, ContinueWithWarning,
+					"can't read foreign subtitles").Err
 			}
 			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L120
 				foreignSubs.TrimCC2Dubs()
@@ -317,12 +311,23 @@ func (tsk *Task) Routing() {
 			tasks = append(tasks, *tsk)
 			return nil
 		})
+		if err != nil {
+			return
+		}
 		mediabar := mkMediabar(len(tasks))
 		for _, tsk := range tasks {
 			mediabar.Add(1)
 			// trick to have a new line without the log prefix
 			tsk.Handler.ZeroLog().Info().Msg("\r             \n"+mediabar.String())
 			tsk.Handler.ZeroLog().Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
+			// Update progress for file start
+			// 	a.updateProgress(ProgressUpdate{
+			// 		Progress:    float64(i) / float64(totalFiles) * 100,
+			// 		Current:     i + 1,
+			// 		Total:      totalFiles,
+			// 		CurrentFile: file,
+			// 		Operation:   string(task.Mode),
+			// 	})
 			tsk.Execute()
 		}
 	}

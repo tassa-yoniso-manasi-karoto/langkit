@@ -147,7 +147,7 @@ func (h *GUIHandler) LogErrFields(err error, behavior string, msg string, fields
 func log(h MessageHandler, level int8, err error, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
 	event := h.ZeroLog().WithLevel(zerolog.Level(level))
 	if err != nil {
-		event.Err(err)
+		//event.Err(err)
 		msg = fmt.Sprint("%s: %v", msg, err)
 	}
 	if fields != nil {
@@ -158,9 +158,10 @@ func log(h MessageHandler, level int8, err error, behavior string, msg string, f
 	if level >= int8(Error) {
 		return &ProcessingError{
 			Behavior: behavior,
-			Level:    level,
-			Message:  msg,
-			Context:  fields,
+			Err:      err,
+			//Level:    level,
+			//Message:  msg,
+			//Context:  fields,
 		}
 	}
 	return nil
