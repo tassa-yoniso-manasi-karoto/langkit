@@ -6,6 +6,8 @@
     import LogViewer from './components/LogViewer.svelte';
     import GlowEffect from './components/GlowEffect.svelte';
     import Settings from './components/Settings.svelte';
+    
+    import { ProcessFiles } from '../wailsjs/go/gui/App';
     import '@material-design-icons/font';
 
     let selectedFiles: VideoInfo[] = [];
@@ -45,7 +47,7 @@
             };
 
             // Call the backend
-            await window.go.main.App.ProcessFiles(request);
+            await ProcessFiles(request);
         } catch (error) {
             console.error('Processing failed:', error);
             // Show error in log viewer

@@ -39,7 +39,7 @@ func (a *App) ProcessFiles(request ProcessRequest) {
 		Bool("is_directory", task.IsBulkProcess).
 		Msg("Processing mode determined")*/
 
-	pp.Println(task)
+	pp.Println(request)
 	color.Redln("WIP: Blocking indefinitely...")
 	select {}
 	

@@ -32,6 +32,18 @@
     }
     
     let romanizationStyles: string[] = ["n/a"];
+    
+    // Define option choices as a constant
+    const optionChoices = {
+        dubtitles: {
+            stt: ["whisper", "insanely-fast-whisper", "universal-1"]
+        },
+        voiceEnhancing: {
+            sepLib: ["demucs", "demucs_ft", "spleeter"],
+            mergingFormat: ["mp4", "mkv"]
+        }
+    };
+    
     let currentFeatureOptions = {
         subs2cards: {
             padTiming: 250,
@@ -41,21 +53,27 @@
         },
         dubtitles: {
             padTiming: 250,
-            STT: ["whisper", "insanely-fast-whisper", "universal-1"],
-            STTtimeout: 90
+            stt: "whisper",          // Default value
+            sttTimeout: 90
         },
         voiceEnhancing: {
-            sepLib: ["demucs", "demucs_ft", "spleeter"],
+            sepLib: "demucs",        // Default value
             voiceBoost: 13,
             originalBoost: -9,
             limiter: 0.9,
-            mergingFormat: ["mp4", "mkv"]
+            mergingFormat: "mp4"     // Default value
         },
         subtitleRomanization: {
-            style: romanizationStyles,
-            
+            style: "",
+            selectiveTransliteration: 0
         }
     };
+
+    // When a dropdown selection changes, update the corresponding option
+    function handleDropdownChange(feature: string, option: string, value: string) {
+        currentFeatureOptions[feature][option] = value;
+        dispatch('optionsChange', currentFeatureOptions);
+    }
 
     const optionLabels = {
         subs2cards: {
@@ -295,66 +313,48 @@
                     <div class="p-4" transition:slide={{ duration: 300 }}>
                         <div class="grid grid-cols-[1fr,1.5fr] gap-x-6 gap-y-3 transition-opacity duration-300">
                             {#each Object.entries(currentFeatureOptions[feature]) as [option, value]}
-                                {#if !(option === 'selectiveTransliteration' && !isJapanese)}
-                                    <div class="flex items-center">
-                                        <span class="text-gray-300 text-sm">
-                                            {optionLabels[feature][option] || formatDisplayText(option)}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        {#if feature === 'subtitleRomanization' && option === 'style'}
-                                            <Dropdown
-                                                options={romanizationStyles}
-                                                bind:value={selectedValues[`${feature}_${option}`]}
-                                                label={optionLabels[feature][option] || formatDisplayText(option)}
-                                            />
-                                        {:else if option === 'selectiveTransliteration'}
+                                <div class="flex items-center">
+                                    <span class="text-gray-300 text-sm">
+                                        {optionLabels[feature][option] || formatDisplayText(option)}
+                                    </span>
+                                </div>
+                                <div>
+                                    {#if optionChoices[feature]?.[option]}
+                                        <Dropdown
+                                            options={optionChoices[feature][option]}
+                                            value={currentFeatureOptions[feature][option]}
+                                            on:change={(e) => handleDropdownChange(feature, option, e.detail)}
+                                            label={optionLabels[feature][option] || formatDisplayText(option)}
+                                        />
+                                    {:else if typeof value === 'boolean'}
+                                        <label class="inline-flex items-center cursor-pointer">
                                             <input 
-                                                type="number" 
-                                                bind:value={currentFeatureOptions[feature][option]}
-                                                min="1"
-                                                class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
-                                                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                                                       transition-colors duration-200 text-sm
-                                                       font-medium"
-                                                placeholder="Enter threshold (e.g., 1000)"
+                                                type="checkbox" 
+                                                class="w-4 h-4 accent-accent"
+                                                bind:checked={currentFeatureOptions[feature][option]}
                                             />
-                                        {:else if Array.isArray(value)}
-                                            <Dropdown
-                                                options={value}
-                                                bind:value={selectedValues[`${feature}_${option}`]}
-                                                label={optionLabels[feature][option] || formatDisplayText(option)}
-                                            />
-                                        {:else if typeof value === 'boolean'}
-                                            <label class="inline-flex items-center cursor-pointer">
-                                                <input 
-                                                    type="checkbox" 
-                                                    class="w-4 h-4 accent-accent"
-                                                    bind:checked={currentFeatureOptions[feature][option]}
-                                                />
-                                            </label>
-                                        {:else if typeof value === 'number'}
-                                            <input 
-                                                type="number" 
-                                                step="0.1"
-                                                bind:value={currentFeatureOptions[feature][option]}
-                                                class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
-                                                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                                                       transition-colors duration-200 text-sm
-                                                       font-medium" 
-                                            />
-                                        {:else}
-                                            <input 
-                                                type="text"
-                                                bind:value={currentFeatureOptions[feature][option]}
-                                                class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
-                                                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                                                       transition-colors duration-200 text-sm
-                                                       font-medium" 
-                                            />
-                                        {/if}
-                                    </div>
-                                {/if}
+                                        </label>
+                                    {:else if typeof value === 'number'}
+                                        <input 
+                                            type="number" 
+                                            step="0.1"
+                                            bind:value={currentFeatureOptions[feature][option]}
+                                            class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
+                                                   focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                                                   transition-colors duration-200 text-sm
+                                                   font-medium" 
+                                        />
+                                    {:else}
+                                        <input 
+                                            type="text"
+                                            bind:value={currentFeatureOptions[feature][option]}
+                                            class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
+                                                   focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                                                   transition-colors duration-200 text-sm
+                                                   font-medium" 
+                                        />
+                                    {/if}
+                                </div>
                             {/each}
                         </div>
                     </div>

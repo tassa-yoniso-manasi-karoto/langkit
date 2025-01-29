@@ -55,9 +55,9 @@ type Meta struct {
 
 
 type Task struct {
+	Handler              MessageHandler
 	Meta                 Meta
 	Mode                 Mode
-	Handler              MessageHandler
 	
 	// Language settings
 	OriginalLang         string // FIXME what for?

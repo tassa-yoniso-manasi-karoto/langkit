@@ -4,6 +4,11 @@ import (
 	"os"
 	"time"
 	"context"
+	
+	"fmt"
+	"github.com/k0kubun/pp"
+	"github.com/gookit/color"
+	
 	"github.com/rs/zerolog"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -23,6 +28,12 @@ type MessageHandler interface {
 	HandleProgress(current, total int, description string)
 	HandleStatus(status string)
 }
+
+
+// #############################################################################
+// #############################################################################
+// #############################################################################
+
 
 // CLI implementation
 type CLIHandler struct {
@@ -57,47 +68,68 @@ func (h *CLIHandler) ZeroLog() *zerolog.Logger {
 }
 
 func (h *CLIHandler) HandleProgress(current, total int, description string) {
-	// Implementation for CLI progress bar
+	// TODO Implementation for CLI progress bar
 }
 
 func (h *CLIHandler) HandleStatus(status string) {
 	h.logger.Info().Msg(status)
 }
 
+
+
+// #############################################################################
+// #############################################################################
+// #############################################################################
+
+
+
 // GUI implementation
 type GUIHandler struct {
 	ctx	context.Context
-	logger *zerolog.Logger
+	logger  *zerolog.Logger
 }
 
-func NewGUIHandler(ctx context.Context, logger *zerolog.Logger) *GUIHandler {
+// LogWriter must implement io.Writer for zerolog.MultiLevelWriter
+type LogWriter struct {
+	ctx context.Context
+}
+
+func (w *LogWriter) Write(p []byte) (n int, err error) {
+	// Emit the raw JSON directly to frontend
+	runtime.EventsEmit(w.ctx, "log", string(p))
+	return len(p), nil
+}
+
+func NewGUIHandler(ctx context.Context) *GUIHandler {
+	// Create MultiLevelWriter with both GUI and console output
+	multiWriter := zerolog.MultiLevelWriter(
+		&LogWriter{ctx: ctx},
+		zerolog.ConsoleWriter{
+			Out:        os.Stderr,
+			NoColor:    true,
+			TimeFormat: time.TimeOnly,
+		},
+	)
+	
+	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
+	
 	return &GUIHandler{
-		ctx:	ctx,
-		logger: logger,
+		ctx:    ctx,
+		logger: &logger,
 	}
 }
 
 func (h *GUIHandler) Log(level LogLevel, behavior ErrorBehavior, msg string, fields map[string]interface{}) *ProcessingError {
-	// Log to console
 	event := h.logger.WithLevel(level.ZerologLevel())
 	if fields != nil {
 		event = event.Fields(fields)
 	}
 	event.Str("behavior", behavior.String()).Msg(msg)
 
-	// Emit to frontend
-	runtime.EventsEmit(h.ctx, "log", LogMessage{
-		Level:	level.String(),
-		Message:  msg,
-		Time:	 time.Now().Format(time.TimeOnly),
-		Fields:   fields,
-		Behavior: behavior.String(),
-	})
-
 	if level >= LevelError {
 		return &ProcessingError{
 			Behavior: behavior,
-			Level:	level,
+			Level:    level,
 			Message:  msg,
 			Context:  fields,
 		}
@@ -111,12 +143,19 @@ func (h *GUIHandler) ZeroLog() *zerolog.Logger {
 
 func (h *GUIHandler) HandleProgress(current, total int, description string) {
 	runtime.EventsEmit(h.ctx, "progress", map[string]interface{}{
-		"current":	 current,
-		"total":	   total,
+		"current":     current,
+		"total":       total,
 		"description": description,
 	})
 }
 
 func (h *GUIHandler) HandleStatus(status string) {
 	runtime.EventsEmit(h.ctx, "status", status)
+}
+
+
+func placeholder3456() {
+	fmt.Println("")
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }

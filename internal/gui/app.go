@@ -17,7 +17,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.handler = core.NewGUIHandler(ctx, core.NewLogger())
+	a.handler = core.NewGUIHandler(ctx)
 }
 
 // domReady is called after front-end resources have been loaded
