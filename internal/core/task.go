@@ -265,7 +265,8 @@ func (tsk *Task) Routing() {
 	
 	stat, err := os.Stat(userProvided)
 	if err != nil {
-		tsk.Handler.ZeroLog().Fatal().Err(err).Msg("can't access passed media file/directory")
+		tsk.Handler.LogErr(err, AbortAllTasks, "can't access passed media file/directory")
+		tsk.Handler.ZeroLog().Error().Err(err).Str("behavior", AbortAllTasks).Msg("can't access passed media file/directory")
 	}
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
 		if ok := tsk.checkIntegrity(); ok  {

@@ -25,7 +25,7 @@ func Run() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:             "langkit-ui",
+		Title:             "langkit",
 		/*Width:             1024,
 		Height:            768,
 		MinWidth:          1024,
@@ -75,7 +75,7 @@ func Run() {
 			WebviewIsTransparent: true,
 			WindowIsTranslucent:  true,
 			About: &mac.AboutInfo{
-				Title:   "langkit-ui",
+				Title:   "langkit",
 				Message: "",
 				Icon:    icon,
 			},

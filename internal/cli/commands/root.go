@@ -1,4 +1,4 @@
-// internal/cli/commands/root.go
+
 package commands
 
 import (
