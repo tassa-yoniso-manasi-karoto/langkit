@@ -1,14 +1,20 @@
 ### TODO
 
-- Add logging to the LogViewer component
-- Add error Handling with more or less critical ERR that may cause a a particular task to be but not all of them, or cancel the run and display a warning
+
+- Adopt error Handling.Log wherever necessary: with more or less critical ERR that may cause a a particular task to be but not all of them, or cancel the run and display a warning
 
 - then:
-   - Add File Drop Zone Handling: file validation and preprocessing
-   - Add Settings Persistence with viper (or koanf?)
-   - Add tooltips and help documentation
-   - add progress bar
+   - Add Settings Persistence with viper
    - Implement cancel capability
+   
+   - check that Docker Desktop/Engine is available, if jp/indic translit
+   - Transliteration STYLE
+   - find a way to provide native, reference language too
+   
+   - Add tests
+   - add progress bar
+   - Add tooltips (aborted tasks...)
+   - Add documentation
  
   <hr>
 
@@ -26,14 +32,14 @@
     <td>Make tokenized subtitle</td>
     <td>✅</td>
     <td>🚫</td>
-    <td>❌</td>
+    <td>✅</td>
     <td>✅</td>
   </tr>
   <tr>
     <td>Make translit subtitle</td>
     <td>✅</td>
     <td>🚫<br></td>
-    <td>❌<br></td>
+    <td>✅</td>
     <td>✅<br></td>
   </tr>
   <tr>
@@ -54,14 +60,14 @@
     <td>Make tokenized dubtitle</td>
     <td>✅</td>
     <td>✅</td>
-    <td>❌</td>
+    <td>🚫</td>
     <td>🚫<br></td>
   </tr>
   <tr>
     <td>Make translit dubtitle</td>
     <td>✅</td>
     <td>✅</td>
-    <td>❌</td>
+    <td>🚫</td>
     <td>🚫<br></td>
   </tr>
   <tr>
