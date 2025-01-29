@@ -265,8 +265,14 @@ func (tsk *Task) Routing() {
 	
 	stat, err := os.Stat(userProvided)
 	if err != nil {
+		// NOTE: these two loggers are equivalent: they would both log to STDERR
+		// and to the GUI (if applicable). The only difference is that
+		// Log[Err][Fields]() returns a ProcessingError that can be used
+		// to define an error handling strategy. Also, it is a bit more concise.
 		tsk.Handler.LogErr(err, AbortAllTasks, "can't access passed media file/directory")
-		tsk.Handler.ZeroLog().Error().Err(err).Str("behavior", AbortAllTasks).Msg("can't access passed media file/directory")
+		//tsk.Handler.ZeroLog().Error().
+		//	Err(err).Str("behavior", AbortAllTasks).
+		//	Msg("can't access passed media file/directory")
 	}
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
 		if ok := tsk.checkIntegrity(); ok  {
