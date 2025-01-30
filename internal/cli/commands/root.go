@@ -9,7 +9,7 @@ import (
 	
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	homedir "github.com/mitchellh/go-homedir" // FIXME migrate to XDG
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 )
@@ -35,11 +35,15 @@ func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 	}
 }
 
+var cfgFile string
+
 func init() {
 	cobra.OnInitialize(initConfig)
+	// FIXME ↓
+	RootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.config/langkit/config.yaml)")
 	
-	RootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is $HOME/.langkit.yaml)")
-	RootCmd.PersistentFlags().StringSliceP("langs", "l", []string{},
+	// TODO Keep existing flags but don't set defaults - they'll come from config
+	RootCmd.PersistentFlags().StringSliceP("langs", "l", nil,
 		"ISO-639-1/3 codes of target language followed by\n" +
 			"reference language(s) sorted by preference\n" +
 				"(i.e. learning spanish from english → \"es,en\").\n\n" +
@@ -73,25 +77,29 @@ func init() {
 	RootCmd.AddCommand(translitCmd)
 }
 
-// TODO FIXME initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	cfgFile, _ := RootCmd.Flags().GetString("config")
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".langkit")
+	if err := config.InitConfig(cfgFile); err != nil {
+		fmt.Println("Error initializing config:", err)
+		os.Exit(1)
 	}
 
+	// Bind environment variables
+	viper.SetEnvPrefix("LANGKIT")
 	viper.AutomaticEnv()
+	
+	// Bind specific environment variables to their config counterparts
+	envBindings := map[string]string{
+		"REPLICATE_API_KEY": "api_keys.replicate",
+		"ASSEMBLYAI_API_KEY": "api_keys.assemblyai",
+		"ELEVENLABS_API_KEY": "api_keys.elevenlabs",
+		"TARGET_LANG": "target_language",
+		"NATIVE_LANG": "native_language",
+	}
 
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	for env, conf := range envBindings {
+		if err := viper.BindEnv(conf, env); err != nil {
+			fmt.Printf("Warning: failed to bind environment variable %s: %v\n", env, err)
+		}
 	}
 }
 

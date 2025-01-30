@@ -3,6 +3,9 @@ package gui
 import (
 	"context"
 	
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 )
 
@@ -20,9 +23,21 @@ func (a *App) startup(ctx context.Context) {
 	a.handler = core.NewGUIHandler(ctx)
 }
 
-// domReady is called after front-end resources have been loaded
-func (a App) domReady(ctx context.Context) {
-	// Add your action here
+func (a *App) domReady(ctx context.Context) {
+	if err := config.InitConfig(""); err != nil {
+		runtime.LogError(ctx, "Failed to initialize config: "+err.Error())
+		return
+	}
+
+	// Load settings and emit to frontend
+	settings, err := config.LoadSettings()
+	if err != nil {
+		runtime.LogError(ctx, "Failed to load settings: "+err.Error())
+		return
+	}
+
+	// Emit settings to frontend
+	runtime.EventsEmit(ctx, "settings-loaded", settings)
 }
 
 // beforeClose is called when the application is about to quit,

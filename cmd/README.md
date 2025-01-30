@@ -1,1 +1,1 @@
-No gui directory because the GUI is build directly from the root (idiomatic for Wails apparently).
+No gui directory because the GUI is built directly from the root (idiomatic for Wails apparently).

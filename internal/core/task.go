@@ -20,6 +20,7 @@ import (
 	"github.com/gookit/color"
 	"github.com/schollz/progressbar/v3"
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
@@ -168,6 +169,35 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 }
 
 func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
+	// Load settings first as defaults
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to load settings")
+	}
+
+	// Set defaults from config
+	if !cmd.Flags().Changed("langs") && settings.TargetLanguage != "" {
+		if settings.NativeLanguage != "" {
+			tsk.Langs = []string{settings.TargetLanguage, settings.NativeLanguage}
+		} else {
+			tsk.Langs = []string{settings.TargetLanguage}
+		}
+	} else {
+		// Get from flags if specified
+		tsk.Langs, _ = cmd.Flags().GetStringSlice("langs")
+	}
+
+	// Apply API keys from config if not in environment
+	if settings.APIKeys.Replicate != "" && os.Getenv("REPLICATE_API_KEY") == "" {
+		os.Setenv("REPLICATE_API_KEY", settings.APIKeys.Replicate)
+	}
+	if settings.APIKeys.AssemblyAI != "" && os.Getenv("ASSEMBLYAI_API_KEY") == "" {
+		os.Setenv("ASSEMBLYAI_API_KEY", settings.APIKeys.AssemblyAI)
+	}
+	if settings.APIKeys.ElevenLabs != "" && os.Getenv("ELEVENLABS_API_KEY") == "" {
+		os.Setenv("ELEVENLABS_API_KEY", settings.APIKeys.ElevenLabs)
+	}
+
 	for _, name := range []string{"ffmpeg", "mediainfo"} {
 		dest := ""
 		bin := name

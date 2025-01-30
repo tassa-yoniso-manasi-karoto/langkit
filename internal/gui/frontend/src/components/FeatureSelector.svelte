@@ -1,18 +1,21 @@
 <script lang="ts">
+    import { createEventDispatcher } from 'svelte';
     import { slide } from 'svelte/transition';
     import { debounce } from 'lodash';
-    import { CheckLanguageCode } from '../../wailsjs/go/gui/App';
+    
+    import { settings } from '../lib/stores.ts';
     import Dropdown from './Dropdown.svelte';
+    
     import { GetRomanizationStyles } from '../../wailsjs/go/gui/App';
-    import { createEventDispatcher } from 'svelte';
+    import { CheckLanguageCode } from '../../wailsjs/go/gui/App';
     
     const dispatch = createEventDispatcher();
 
-    // When options change
     $: {
         dispatch('optionsChange', currentFeatureOptions);
     }
     
+    export let defaultLanguage = '';
     export let selectedFeatures = {
         subs2cards: false,
         dubtitles: false,
@@ -83,8 +86,8 @@
         },
         dubtitles: {
             padTiming: "Padding (ms)",
-            STT: "STT",
-            STTtimeout: "STT Timeout (sec)"
+            stt: "STT",
+            sttTimeout: "STT Timeout (sec)"
         },
         voiceEnhancing: {
             sepLib: "Voice separation library to use",
@@ -118,6 +121,15 @@
         return 'text-white/70';
     }
 
+    let isDefaultLoaded = false;
+
+    settings.subscribe(value => {
+        if (value.targetLanguage && !isDefaultLoaded) {
+            languageCode = value.targetLanguage;
+            checkLanguageCode(value.targetLanguage);
+            isDefaultLoaded = true;
+        }
+    });
     const checkLanguageCode = debounce(async (code: string) => {
         if (!code) {
             isValidLanguage = null;

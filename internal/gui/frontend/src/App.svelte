@@ -1,6 +1,10 @@
 <script lang="ts">
     import { fade, slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
+    import { onMount } from 'svelte';
+    
+    
+    import { settings } from './lib/stores.ts';
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
     import LogViewer from './components/LogViewer.svelte';
@@ -66,10 +70,45 @@
     function handleOptionsChange(event) {
         currentFeatureOptions = event.detail;
     }
+    
+    let defaultTargetLanguage = '';
+    
+    let showGlow: boolean = true;
+
+    onMount(() => {
+        // Listen for initial settings load
+        window.runtime.EventsOn("settings-loaded", (loadedSettings) => {
+            settings.set(loadedSettings);
+            showGlow = loadedSettings.enableGlow;
+            defaultTargetLanguage = loadedSettings.targetLanguage;
+        });
+
+        // Also keep the manual loading as fallback
+        loadSettings();
+    });
+
+    async function loadSettings() {
+        try {
+            const loadedSettings = await window.go.gui.App.LoadSettings();
+            settings.set(loadedSettings);
+            showGlow = loadedSettings.enableGlow;
+            defaultTargetLanguage = loadedSettings.targetLanguage;
+        } catch (error) {
+            console.error('Failed to load settings:', error);
+        }
+    }
+
+    // Listen for settings updates
+    window.addEventListener('settingsUpdated', ((event: CustomEvent) => {
+        settings.set(event.detail);
+        showGlow = event.detail.enableGlow;
+    }) as EventListener);
 </script>
 
 <div class="min-h-screen min-w-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
-    <GlowEffect {isProcessing} />
+    {#if showGlow}
+        <GlowEffect {isProcessing} />
+    {/if}
     <div class="flex h-full p-8 gap-8 relative z-10">
         <div class="absolute top-4 right-4 z-20">
             <button 
@@ -91,6 +130,7 @@
                         <FeatureSelector 
                             bind:selectedFeatures 
                             on:optionsChange={handleOptionsChange}
+                            defaultLanguage={defaultTargetLanguage}
                         />
                     </div>
                 </div>

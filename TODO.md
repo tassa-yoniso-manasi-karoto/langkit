@@ -1,18 +1,19 @@
 ### TODO
 
-- then:
-   - Implement native language code input box
-   - Add Settings Persistence with viper
-	- Disable Glow effect in settings
-
-   - implement ctx support in translitkit
+UI:
    - check that Docker Desktop/Engine is available, if jp/indic translit
-   - Transliteration STYLE
+   - Add hovertips
+
+TRANSLITKIT:
+   - implement ctx support
+   - Transliteration: LIST STYLES AVAILABLE
+
 
 
    - Add tests
-   - add progress bar
    - Add tooltips (aborted tasks...)
+   - add progress bar
+   
    - Add documentation
    - fix newlines in builtin documentation
 
