@@ -24,38 +24,35 @@ var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
 
-func (tsk *Task) Translit(subsFilepath string) {
+func (tsk *Task) Translit(subsFilepath string) *ProcessingError {
 	common.BrowserAccessURL = tsk.BrowserAccessURL
 	m, err := translitkit.DefaultModule(tsk.Targ.Language.Part3)
 	if err != nil {
-		tsk.Handler.ZeroLog().Fatal().Err(err).
-			Str("lang", tsk.Targ.Language.Part3).
-			Msg("couldn't get default provider")
+		return tsk.Handler.LogErr(err, AbortAllTasks,
+			fmt.Sprintf("translit: couldn't get default provider for language %s", tsk.Targ.Language.Part3))
 	}
-	tsk.Handler.ZeroLog().Trace().Msg("Transliteration module successfully retrived default module for lang: " + m.Lang)
+	tsk.Handler.ZeroLog().Trace().Msg("translit: successfully retrived default module for lang: " + m.Lang)
 	if err := m.Init(); err != nil {
-		tsk.Handler.ZeroLog().Fatal().Err(err).
-			Str("lang", tsk.Targ.Language.Part3).
-			Msg("failed to initialize default")
+		return tsk.Handler.LogErr(err, AbortAllTasks,
+			fmt.Sprintf("translit: failed to init default provider for language %s", tsk.Targ.Language.Part3))
 	}
-	tsk.Handler.ZeroLog().Trace().Msgf("Transliteration module %s-%s successfully initialized", m.Lang, m.ProviderNames())
+	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s-%s successfully initialized", m.Lang, m.ProviderNames())
 	
 	SubTranslit, _ := astisub.OpenFile(subsFilepath)
 	SubTokenized, _ := astisub.OpenFile(subsFilepath)
 	mergedSubsStr, subSlice := Subs2StringBlock(SubTranslit)
-	fmt.Println("Len=", len(subSlice))
+	fmt.Println("Len=", len(subSlice)) // FIXME
 	
 	// module returns array of all tokenized and all tokenized+transliteration that
 	// we can replace directly of mergedSubsStr, before splitting mergedSubsStr to recover subtitles
 	tokens, err := m.Tokens(mergedSubsStr)
 	if err != nil {
-		tsk.Handler.ZeroLog().Fatal().Err(err).
-			Str("lang", tsk.Targ.Language.Part3).
-			Str("module-lang", m.Lang).
-			Str("module-provider", m.ProviderNames()).
-			Msg("couldn't get tokens")
+		return tsk.Handler.LogErr(err, AbortAllTasks,
+			fmt.Sprintf("couldn't get tokens from default provider for language %s", tsk.Targ.Language.Part3))
+			//Str("module-lang", m.Lang).
+			//Str("module-provider", m.ProviderNames()).
 	}
-	tsk.Handler.ZeroLog().Trace().Msgf("Transliteration module %s-%s returned tokens", m.Lang, m.ProviderNames())
+	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s-%s returned tokens", m.Lang, m.ProviderNames())
 	tokenizeds := tokens.TokenizedParts()
 	translits  := tokens.RomanParts()
 	tsk.Handler.ZeroLog().Trace().Msg("Tokenization/transliteration query finished")
@@ -104,6 +101,7 @@ func (tsk *Task) Translit(subsFilepath string) {
 		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write transliterated subtitles")
 	}
 	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
+	return nil
 }
 
 

@@ -2,7 +2,6 @@ package gui
 
 import (
 	"embed"
-	"log"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -83,7 +82,7 @@ func Run() {
 	})
 
 	if err != nil {
-		log.Fatal(err)
+		app.handler.ZeroLog().Fatal().Err(err).Msg("Wails failed to run")
 	}
 }
 

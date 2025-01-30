@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"regexp"
 	"io"
+	"context"
 	
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -166,7 +167,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 	return tsk
 }
 
-func (tsk *Task) ApplyFlags(cmd *cobra.Command) {
+func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 	for _, name := range []string{"ffmpeg", "mediainfo"} {
 		dest := ""
 		bin := name
@@ -187,7 +188,7 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) {
 	}
 	tmp, err := getFFmpegVersion(media.FFmpegPath)
 	if err != nil {
-		tsk.Handler.ZeroLog().Fatal().Err(err).Msg("failed to access FFmpeg binary")
+		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to access FFmpeg binary")
 	}
 	tsk.Meta.FFmpeg = tmp
 	tsk.Meta.Runtime = getRuntimeInfo()
@@ -231,8 +232,10 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) {
 	}
 	
 	tsk.Langs, _ = cmd.Flags().GetStringSlice("langs")
-	tsk.PrepareLangs()
-	tsk.Handler.ZeroLog().Trace().Err(err).Strs("langs", tsk.Langs).Msg("PrepareLangs done:")
+	if procErr := tsk.PrepareLangs(); procErr.Err != nil {
+		return procErr
+	}
+	tsk.Handler.ZeroLog().Trace().Strs("langs", tsk.Langs).Msg("PrepareLangs done:")
 	switch tsk.STT {
 	case "wh":
 		tsk.STT = "whisper"
@@ -251,10 +254,11 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) {
 	case "11", "el":
 		tsk.SeparationLib = "elevenlabs"
 	}
+	return nil
 }
 
 
-func (tsk *Task) Routing() {
+func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	// reassign to have root dir if IsBulkProcess
 	userProvided := tsk.MediaSourceFile
 	
@@ -268,7 +272,7 @@ func (tsk *Task) Routing() {
 		// NOTE: these two loggers are equivalent: they would both log to STDERR
 		// and to the GUI (if applicable). The only difference is that
 		// Log[Err][Fields]() returns a ProcessingError that can be used
-		// to define an error handling strategy. Also, it is a bit more concise.
+		// to define an error handling strategy. Also, it can be a bit more concise.
 		tsk.Handler.LogErr(err, AbortAllTasks, "can't access passed media file/directory")
 		//tsk.Handler.ZeroLog().Error().
 		//	Err(err).Str("behavior", AbortAllTasks).
@@ -276,7 +280,7 @@ func (tsk *Task) Routing() {
 	}
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
 		if ok := tsk.checkIntegrity(); ok  {
-			tsk.Execute()
+			tsk.Execute(ctx)
 		}
 	} else {
 		var tasks []Task
@@ -301,8 +305,7 @@ func (tsk *Task) Routing() {
 			tsk.Autosub()
 			foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 			if err != nil {
-				return tsk.Handler.LogErr(err, ContinueWithWarning,
-					"can't read foreign subtitles").Err
+				tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
 			}
 			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L120
 				foreignSubs.TrimCC2Dubs()
@@ -328,10 +331,20 @@ func (tsk *Task) Routing() {
 			// 		CurrentFile: file,
 			// 		Operation:   string(task.Mode),
 			// 	})
-			tsk.Execute()
+			
+			if procErr = tsk.Execute(ctx); procErr.Err != nil {
+				color.Redf("Routing:behavior %s after irrecoverable error: %v",
+					procErr.Behavior, procErr.Err)
+				if procErr.Behavior == AbortTask {
+					continue
+				}
+				return
+			}
 		}
 	}
+	return
 }
+
 
 func (tsk *Task) checkIntegrity() bool {
 	isCorrupted, err := media.CheckValidData(tsk.MediaSourceFile)

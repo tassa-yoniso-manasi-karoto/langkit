@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"context"
 	
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	homedir "github.com/mitchellh/go-homedir" // FIXME migrate to XDG
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -21,6 +24,16 @@ Example:
   langkit subs2cards media-content.mp4 foreign.srt native.srt`,
 }
 
+type RunFunc func(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []string) *core.ProcessingError
+
+func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
+	return func(cmd *cobra.Command, args []string) {
+		tsk := core.NewTask(core.NewCLIHandler())
+		if err := fn(tsk, context.Background(), cmd, args); err != nil {
+			os.Exit(1)
+		}
+	}
+}
 
 func init() {
 	cobra.OnInitialize(initConfig)

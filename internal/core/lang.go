@@ -56,21 +56,22 @@ func Str(l *iso.Language) string {
 }
 
 
-func (tsk *Task) PrepareLangs() {
+func (tsk *Task) PrepareLangs() *ProcessingError {
 	if len(tsk.Langs) > 0 {
 		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
 		if err != nil {
-			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Language parsing error")
+			return tsk.Handler.LogErr(err, AbortTask, "Language parsing error on index 0")
 		}
 		tsk.Targ = tmp[0]
 	}
 	if len(tsk.Langs) > 1 {
 		tmp, err := ReadStdLangCode(tsk.Langs[1:])
 		if err != nil {
-			tsk.Handler.ZeroLog().Fatal().Err(err).Msg("Language parsing error")
+			return tsk.Handler.LogErr(err, AbortTask, "Language parsing error")
 		}
 		tsk.RefLangs = tmp
 	}
+	return nil
 }
 
 func ReadStdLangCode(arr []string) (langs []Lang, err error) {

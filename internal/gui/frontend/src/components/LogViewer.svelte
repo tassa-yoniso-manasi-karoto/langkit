@@ -103,10 +103,9 @@
     }
 
     const behaviorColors = {
-        'continue': 'text-white/70',
         'abort_task': 'text-red-400',
         'abort_all': 'text-red-600',
-        'warning': 'text-yellow-400'
+        'probe': 'text-yellow-400'
     };
 
     // Helper function to format fields

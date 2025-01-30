@@ -11,6 +11,7 @@ import (
 	"sort"
 	"io/fs"
 	"errors"
+	"context"
 
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -43,28 +44,45 @@ type ProcessedItem struct {
 // ProcessedItemWriter should write an exported item in whatever format is // selected by the user.
 type ProcessedItemWriter func(*os.File, *ProcessedItem)
 
-func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
+// Supervisor manages multiple workers processing subtitle items concurrently
+// It handles both GUI-triggered cancellation and internal processing errors
+func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write ProcessedItemWriter) *ProcessingError {
 	var (
-		subLineChan = make(chan *astisub.Item)
-		// all results are cached and later sorted, hence the chan has a cache
-		itemChan = make(chan ProcessedItem, len(tsk.TargSubs.Items))
-		items []ProcessedItem
-		wg sync.WaitGroup
-		
-		skipped int
-		//toCheckChan   = make(chan string)
-		//isAlreadyChan = make(chan bool)
+		subLineChan = make(chan *astisub.Item)                    // Channel for distributing work to workers
+		itemChan    = make(chan ProcessedItem, len(tsk.TargSubs.Items)) // Buffered channel for processed items
+		errChan     = make(chan *ProcessingError)                 // Channel for worker errors
+		items       []ProcessedItem                               // Slice to store results for sorting
+		wg          sync.WaitGroup                                // WaitGroup to track active workers
+		skipped     int
 	)
+
+	// Create supervisor's own cancellation context as child of parent
+	// This allows cancellation either from parent (GUI) or locally (processing error)
+	supCtx, supCancel := context.WithCancel(ctx)
+	defer supCancel() // Ensure cleanup when Supervisor exits
+
 	tsk.Handler.ZeroLog().Debug().
 		Int("capItemChan", len(tsk.TargSubs.Items)).
 		Int("workersMax", tsk.Meta.WorkersMax).
 		Msg("Supervisor initialized, starting workers")
+
+	// Start worker pool
 	for i := 1; i <= tsk.Meta.WorkersMax; i++ {
 		wg.Add(1)
-		go tsk.worker(i, subLineChan, itemChan, &wg)
+		go tsk.worker(WorkerConfig{
+			ctx:         supCtx,
+			id:          i,
+			subLineChan: subLineChan,
+			itemChan:    itemChan,
+			errChan:     errChan,
+			wg:          &wg,
+		})
 	}
 	//go checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan)
+
+	// Producer goroutine
 	go func() {
+		defer close(subLineChan) // Ensure channel closes when all work is distributed
 		for _, subLine := range tsk.TargSubs.Items {
 			// FIXME: Right now, due to parrallelism, writing is only done when all workers are done
 			// so this kind of check will only work on completed tasks, therefore there is no resuming capability
@@ -77,9 +95,14 @@ func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
 				totalItems -= 1
 				continue
 			}*/
-			subLineChan <- subLine
+			select {
+			case <-supCtx.Done():
+				// Exit if cancelled
+				return
+			case subLineChan <- subLine:
+				// Send work to workers
+			}
 		}
-		close(subLineChan)
 		if skipped != 0 {
 			tsk.Handler.ZeroLog().Info().Msgf("%.1f%% of items were already done and skipped (%d/%d)",
 					float64(skipped)/float64(len(tsk.TargSubs.Items))*100, skipped, len(tsk.TargSubs.Items))
@@ -87,67 +110,125 @@ func (tsk *Task) Supervisor(outStream *os.File, write ProcessedItemWriter) {
 			tsk.Handler.ZeroLog().Debug().Msg("No line previously processed was found")
 		}
 	}()
+
+	// Closer goroutine
 	go func() {
 		tsk.Handler.ZeroLog().Debug().
 			Int("lenItemChan", len(itemChan)).
-			Int("capItemChan", len(tsk.TargSubs.Items)). // FIXME cleanup dbg log
+			Int("capItemChan", len(tsk.TargSubs.Items)).
 			Int("lenSubLineChan", len(subLineChan)).
 			Msg("Waiting for workers to finish.")
 		wg.Wait()
-		tsk.Handler.ZeroLog().Debug().Msg("All workers finished. Closing remaining channels.")
+		// Close channels to signal completion
 		close(itemChan)
+		close(errChan)
 		//close(toCheckChan)
 		//close(isAlreadyChan)
 	}()
-	for item := range itemChan {
-		items = append(items, item)
-		if !item.AlreadyDone {
-			if itembar == nil {
-				itembar = mkItemBar(totalItems, tsk.descrBar())
-			// in case: some encoding was done with incorrect settings,
-			// user deleted .media directory to redo but in the os.Walk order,
-			// there is some already processed media between that deleted dir
-			// and the one that remain to do. Hence need to update bar to count these out.
-			} else if itembar.GetMax() != totalItems {
-				itembar.ChangeMax(totalItems)
+
+	// Main processing loop - handles results and errors
+	for {
+		select {
+		case <-ctx.Done():
+			// Parent (GUI) triggered cancellation
+			return tsk.Handler.Log(Debug, AbortAllTasks, "operation cancelled by user")
+			
+		case item, ok := <-itemChan:
+			if !ok {
+				// itemChan closed = all workers finished
+				goto ProcessResults
 			}
-			itembar.Add(1)
+			// Store result and update progress
+			items = append(items, item)
+			if !item.AlreadyDone {
+				if itembar == nil {
+					itembar = mkItemBar(totalItems, tsk.descrBar())
+					// in case: some encoding was done with incorrect settings,
+					// user deleted .media directory to redo but in the os.Walk order,
+					// there is some already processed media between that deleted dir
+					// and the one that remain to do. Hence need to update bar to count these out.
+				} else if itembar.GetMax() != totalItems {
+					itembar.ChangeMax(totalItems)
+				}
+				itembar.Add(1)
+			}
+
+		case procErr, ok := <-errChan:
+			if !ok {
+				continue
+			}
+			// note: supCancel() was already deferred earlier
+			tsk.Handler.ZeroLog().Error().
+				Err(procErr.Err).
+				Msg("Processing error occurred, cancelling all workers")
+			return procErr
 		}
 	}
+
+ProcessResults:
 	if itembar != nil {
 		itembar.Clear()
 	}
+
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	for _, item := range items {
 		write(outStream, &item)
 	}
+
 	tsk.ConcatWAVstoOGG("CONDENSED") // TODO probably better to put it elsewhere
+	return nil
 }
 
+type WorkerConfig struct {
+	ctx         context.Context
+	id          int
+	subLineChan <-chan *astisub.Item
+	itemChan    chan ProcessedItem
+	errChan     chan *ProcessingError
+	wg          *sync.WaitGroup
+}
 
+func (tsk *Task) worker(cfg WorkerConfig) {
+	defer tsk.Handler.ZeroLog().Trace().
+		Int("workerID", cfg.id).
+		Int("lenSubLineChan", len(cfg.subLineChan)).
+		Msg("Terminating worker")
+	defer cfg.wg.Done()
 
-func (tsk *Task) worker(id int, subLineChan <-chan *astisub.Item, itemChan chan ProcessedItem, wg *sync.WaitGroup) {
-	for subLine := range subLineChan {
-		tsk.Handler.ZeroLog().Trace().Int("workerID", id).Msg("received a subLine")
-		item := tsk.ProcessItem(subLine)
-		/*if err != nil { // FIXME, there is no err return anymore
-			tsk.Handler.ZeroLog().Error().
-				Int("srt row", i).
-				Str("item", foreignItem.String()).
-				Err(err).
-				Msg("can't export item")
-		}*/
-		tsk.Handler.ZeroLog().Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Sending item")
-		itemChan <- item
-		tsk.Handler.ZeroLog().Trace().Int("workerID", id).Int("lenItemChan", len(itemChan)).Msg("Item successfully sent")
+	for {
+		select {
+		case <-cfg.ctx.Done():
+			return
+		case subLine, ok := <-cfg.subLineChan:
+			if !ok {
+				// No more work to do
+				return
+			}
+			item, procErr := tsk.ProcessItem(cfg.ctx, subLine)
+			if procErr != nil {
+				// Try to send error, but don't block if cancelled
+				select {
+				case cfg.errChan <- procErr:
+				case <-cfg.ctx.Done():
+				}
+				return
+			}
+			// Try to send result, but don't block if cancelled
+			select {
+			case <-cfg.ctx.Done():
+				return
+			case cfg.itemChan <- item:
+				tsk.Handler.ZeroLog().Trace().
+					Int("workerID", cfg.id).
+					Int("lenItemChan", len(cfg.itemChan)).
+					Msg("Item successfully sent")
+			}
+		}
 	}
-	tsk.Handler.ZeroLog().Trace().Int("workerID", id).Int("lenSubLineChan", len(subLineChan)).Msg("Terminating worker")
-	wg.Done()
 }
 
 
-
-func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
+func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (item ProcessedItem, procErr *ProcessingError) {
 	item.Source = tsk.outputBase()
 	item.ForeignCurr = joinLines(foreignItem.String())
 
@@ -187,31 +268,24 @@ func (tsk *Task) ProcessItem(foreignItem *astisub.Item) (item ProcessedItem) {
 	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
 	
 	lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
+	dub := ""
 	switch tsk.STT {
 	case "whisper":
-		b, err := voice.Whisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
-		if err != nil {
-			tsk.Handler.ZeroLog().Fatal().Err(err).
-				Str("item", foreignItem.String()).
-				Msg("Whisper error")
-		}
-		item.ForeignCurr = string(b)
+		dub, err = voice.Whisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
 	case "insanely-fast-whisper":
-		b, err := voice.InsanelyFastWhisper(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
-		if err != nil {
-			tsk.Handler.ZeroLog().Fatal().Err(err).
-				Str("item", foreignItem.String()).
-				Msg("InsanelyFastWhisper error")
-		}
-		item.ForeignCurr = string(b)
+		dub, err = voice.InsanelyFastWhisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 	case "universal-1":
-		s, err := voice.Universal1(audiofile, 5, tsk.TimeoutSTT, lang.Part1)
-		if err != nil {
-			tsk.Handler.ZeroLog().Fatal().Err(err).
-				Str("item", foreignItem.String()).
-				Msg("Universal1 error")
+		dub, err = voice.Universal1(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+	}
+	item.ForeignCurr = dub
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return item, tsk.Handler.Log(Debug, AbortAllTasks, "STT: Operation cancelled due to context cancellation.")
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			return item, tsk.Handler.LogErr(err, AbortTask, "STT: Operation timed out.")
 		}
-		item.ForeignCurr = s
+		return item, tsk.Handler.LogErrFields(err, AbortTask, tsk.STT + " error",
+			map[string]interface{}{"item": foreignItem.String()})
 	}
 	/*if i > 0 { // FIXME this has never worked for some reason
 		prevItem := tsk.TargSubs.Items[i-1]

@@ -22,8 +22,8 @@ import (
 )
 
 
-func ElevenlabsIsolator(filePath string, timeout int) ([]byte, error) {
-	client := elevenlabs.NewClient(context.Background(), os.Getenv("ELEVENLABS_API_TOKEN"), time.Duration(timeout)*time.Second)
+func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]byte, error) {
+	client := elevenlabs.NewClient(ctx, os.Getenv("ELEVENLABS_API_TOKEN"), time.Duration(timeout)*time.Second)
 	audio, err := client.VoiceIsolator(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("API query failed: %w", err)
@@ -32,7 +32,7 @@ func ElevenlabsIsolator(filePath string, timeout int) ([]byte, error) {
 }
 
 
-func Universal1(filepath string, maxTry, timeout int, lang string) (string, error) {
+func Universal1(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
 	apiKey := os.Getenv("ASSEMBLYAI_API_KEY")
 	client := aai.NewClient(apiKey)
 
@@ -43,7 +43,7 @@ func Universal1(filepath string, maxTry, timeout int, lang string) (string, erro
 	defer f.Close()
 
 	for try := 0; try < maxTry; try++ {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
 		params := &aai.TranscriptOptionalParams{
 			LanguageCode: aai.TranscriptLanguageCode(lang),
@@ -69,7 +69,7 @@ func Universal1(filepath string, maxTry, timeout int, lang string) (string, erro
 type initRunT = func(input replicate.PredictionInput) replicate.PredictionInput
 type parserT = func(predictionOutput replicate.PredictionOutput) (string, error)
 
-func Whisper(filepath string, maxTry, timeout int, lang, initialPrompt string) ([]byte, error) {
+func Whisper(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
 		input["language"] = lang
 		if initialPrompt != "" {
@@ -77,27 +77,29 @@ func Whisper(filepath string, maxTry, timeout int, lang, initialPrompt string) (
 		}
 		return input
 	}
-	return r8RunWithAudioFile(filepath, maxTry, timeout, "openai", "whisper", initRun, whisperParser)
+	b, err := r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "openai", "whisper", initRun, whisperParser)
+	return string(b), err
 }
 
-func InsanelyFastWhisper(filepath string, maxTry, timeout int, lang string) ([]byte, error) {
+func InsanelyFastWhisper(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
 		input["language"] = lang
 		return input
 	}
 	// model name is outdated on replicate
-	return r8RunWithAudioFile(filepath, maxTry, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
+	b, err := r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
+	return string(b), err
 }
 
-func Spleeter(filepath string, maxTry, timeout int) ([]byte, error) {
+func Spleeter(ctx context.Context, filepath string, maxTry, timeout int) ([]byte, error) {
 	NoMoreInput := func(input replicate.PredictionInput) replicate.PredictionInput {
 		return input
 	}
-	return r8RunWithAudioFile(filepath, maxTry, timeout, "soykertje", "spleeter", NoMoreInput, spleeterDemucsParser)
+	return r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "soykertje", "spleeter", NoMoreInput, spleeterDemucsParser)
 }
 
 
-func Demucs(filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]byte, error) {
+func Demucs(ctx context.Context, filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]byte, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
 		input["output_format"] = ext
 		input["stems"] = "vocals"
@@ -111,11 +113,11 @@ func Demucs(filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]by
 			return input
 		}
 	}
-	return r8RunWithAudioFile(filepath, maxTry, timeout, "ryan5453", "demucs", initRun, spleeterDemucsParser)
+	return r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "ryan5453", "demucs", initRun, spleeterDemucsParser)
 }
 
 
-func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
+func r8RunWithAudioFile(ctx context.Context, filepath string, maxTry, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
 	apiToken := os.Getenv("REPLICATE_API_TOKEN")
 	if apiToken == "" {
 		return nil, fmt.Errorf("Please set the REPLICATE_API_TOKEN environment variable")
@@ -124,7 +126,7 @@ func r8RunWithAudioFile(filepath string, maxTry, timeout int, owner, name string
 	baseDelay := time.Millisecond * 500
 	for try := 0; try < maxTry; try++ {
 		r8, err := replicate.NewClient(replicate.WithToken(apiToken))
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
 		
 		model, err := r8.GetModel(ctx, owner, name)
@@ -265,31 +267,3 @@ func placeholder5() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
 	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }
-
-// const SEP = "𓃰"
-
-// // Compute Character Error Rate (CER)
-// func computeCER(ref, hyp string) float64 {
-// 	refTokens := tokenizeChars(ref)
-// 	hypTokens := tokenizeChars(hyp)
-// 	refStr := strings.Join(refTokens, SEP)
-// 	hypStr := strings.Join(hypTokens, SEP)
-
-// 	dmp := diffmatchpatch.New()
-// 	diffs := dmp.DiffMain(refStr, hypStr, false)
-// 	distance := dmp.DiffLevenshtein(diffs)
-
-// 	cer := float64(distance) / float64(len(refTokens))
-// 	return cer
-// }
-
-
-// // Tokenize the input string into grapheme clusters (characters)
-// func tokenizeChars(s string) []string {
-// 	var chars []string
-// 	gr := uniseg.NewGraphemes(s)
-// 	for gr.Next() {
-// 		chars = append(chars, gr.Str())
-// 	}
-// 	return chars
-// }

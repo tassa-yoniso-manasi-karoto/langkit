@@ -23,9 +23,11 @@ func NewLogger() *zerolog.Logger {
 
 
 type MessageHandler interface {
-	Log(level LogLevel, behavior string, msg string) *ProcessingError
+	IsCLI() bool
+
+	Log(level int8, behavior string, msg string) *ProcessingError
 	LogErr(err error, behavior string, msg string) *ProcessingError
-	LogFields(level LogLevel, behavior string, msg string, fields map[string]interface{}) *ProcessingError
+	LogFields(level int8, behavior string, msg string, fields map[string]interface{}) *ProcessingError
 	LogErrFields(err error, behavior string, msg string, fields map[string]interface{}) *ProcessingError
 	
 	ZeroLog() *zerolog.Logger
@@ -49,9 +51,12 @@ func NewCLIHandler() *CLIHandler {
 }
 
 
+func (h *CLIHandler) IsCLI() bool {
+	return true
+}
 
 
-func (h *CLIHandler) Log(level LogLevel, behavior string, msg string) *ProcessingError {
+func (h *CLIHandler) Log(level int8, behavior string, msg string) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, nil)
 }
 
@@ -59,7 +64,7 @@ func (h *CLIHandler) LogErr(err error, behavior string, msg string) *ProcessingE
 	return log(h, int8(zerolog.ErrorLevel), err, behavior, msg, nil)
 }
 
-func (h *CLIHandler) LogFields(level LogLevel, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
+func (h *CLIHandler) LogFields(level int8, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, fields)
 }
 
@@ -127,21 +132,23 @@ func NewGUIHandler(ctx context.Context) *GUIHandler {
 }
 
 
+func (h *GUIHandler) IsCLI() bool {
+	return false
+}
 
-func (h *GUIHandler) Log(level LogLevel, behavior string, msg string) *ProcessingError {
+func (h *GUIHandler) Log(level int8, behavior string, msg string) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, nil)
 }
-
 func (h *GUIHandler) LogErr(err error, behavior string, msg string) *ProcessingError {
-	return log(h, int8(zerolog.ErrorLevel), err, behavior, msg, nil)
+	return log(h, Error, err, behavior, msg, nil)
 }
 
-func (h *GUIHandler) LogFields(level LogLevel, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
+func (h *GUIHandler) LogFields(level int8, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, fields)
 }
 
 func (h *GUIHandler) LogErrFields(err error, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
-	return log(h, int8(zerolog.ErrorLevel), err, behavior, msg, fields)
+	return log(h, Error, err, behavior, msg, fields)
 }
 
 func log(h MessageHandler, level int8, err error, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
@@ -159,7 +166,6 @@ func log(h MessageHandler, level int8, err error, behavior string, msg string, f
 		return &ProcessingError{
 			Behavior: behavior,
 			Err:      err,
-			//Level:    level,
 			//Message:  msg,
 			//Context:  fields,
 		}

@@ -2,6 +2,7 @@ package gui
 
 import (
 	"time"
+	"context"
 	
 	"fmt"
 	"github.com/k0kubun/pp"
@@ -11,10 +12,11 @@ import (
 )
 
 func (a *App) ProcessFiles(request ProcessRequest) {
-	// Create task with the handler
+
+	processCtx, cancel := context.WithCancel(a.ctx)
+	defer cancel() // TODO assign this cancel in App as procCancel
+    
 	task := core.NewTask(a.handler)
-	
-	// Configure the task
 	a.configureTask(task, request)
 
 	if len(request.Files) != 1 {
@@ -23,7 +25,7 @@ func (a *App) ProcessFiles(request ProcessRequest) {
 		return
 	}
 
-	// Set the source path
+	// Set the source path FIXME replace Files with Path
 	task.MediaSourceFile = request.Files[0]
 	
 	/*/ Log the processing mode
@@ -43,7 +45,7 @@ func (a *App) ProcessFiles(request ProcessRequest) {
 	color.Redln("WIP: Blocking indefinitely...")
 	select {}
 	
-	task.Routing()
+	task.Routing(processCtx)
 }
 
 

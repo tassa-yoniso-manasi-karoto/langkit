@@ -2,6 +2,8 @@ package commands
 
 import (
 	"fmt"
+	"context"
+	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/spf13/cobra"
@@ -13,18 +15,21 @@ var enhanceCmd = &cobra.Command{
 	Short: "Make a new audiotrack with voices louder using this separation API to isolate the voice's audio",
 
 	Args: argFuncs(cobra.MinimumNArgs(1), cobra.MaximumNArgs(1)),
-	Run: func(cmd *cobra.Command, args []string) {
-		tsk := core.NewTask(core.NewCLIHandler())
-		if len(args) == 0 {
-			tsk.Handler.ZeroLog().Fatal().Msg("this command requires at least one argument: the path to the media file to be processed")
-		}
-		tsk.ApplyFlags(cmd)
-		tsk.MediaSourceFile = args[0]
-		
-		tsk.Mode = core.Enhance
-		tsk.Routing()
-	},
+	Run: RunWithExit(enhance),
 }
+
+func enhance(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []string) *core.ProcessingError {
+	if len(args) == 0 {
+		return tsk.Handler.Log(core.Error, "", "this command requires at least one argument: the path to the media file to be processed")
+	}
+	tsk.ApplyFlags(cmd)
+	tsk.MediaSourceFile = args[0]
+	
+	tsk.Mode = core.Enhance
+	
+	return tsk.Routing(ctx)
+}
+
 
 
 func placeholder234567() {

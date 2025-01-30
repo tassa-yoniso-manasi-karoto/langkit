@@ -1,97 +1,21 @@
 ### TODO
 
-
-- Adopt error Handling.Log wherever necessary: with more or less critical ERR that may cause a a particular task to be but not all of them, or cancel the run and display a warning
-
 - then:
+   - Implement native language code input box
    - Add Settings Persistence with viper
-   - Implement cancel capability
-   
+	- Disable Glow effect in settings
+
+   - implement ctx support in translitkit
    - check that Docker Desktop/Engine is available, if jp/indic translit
    - Transliteration STYLE
-   - find a way to provide native, reference language too
-   
+
+
    - Add tests
    - add progress bar
    - Add tooltips (aborted tasks...)
    - Add documentation
- 
-  <hr>
+   - fix newlines in builtin documentation
 
-  
-<table><thead>
-  <tr>
-    <th></th>
-    <th>subs2cards</th>
-    <th>subs2dubs</th>
-    <th>enhance</th>
-    <th>translit</th>
-  </tr></thead>
-<tbody>
-  <tr>
-    <td>Make tokenized subtitle</td>
-    <td>✅</td>
-    <td>🚫</td>
-    <td>✅</td>
-    <td>✅</td>
-  </tr>
-  <tr>
-    <td>Make translit subtitle</td>
-    <td>✅</td>
-    <td>🚫<br></td>
-    <td>✅</td>
-    <td>✅<br></td>
-  </tr>
-  <tr>
-    <td>Make enhanced track</td>
-    <td>✅</td>
-    <td>✅<br></td>
-    <td>✅</td>
-    <td>❌</td>
-  </tr>
-  <tr>
-    <td>Make a merged video</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>❌</td>
-  </tr>
-  <tr>
-    <td>Make tokenized dubtitle</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>🚫</td>
-    <td>🚫<br></td>
-  </tr>
-  <tr>
-    <td>Make translit dubtitle</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>🚫</td>
-    <td>🚫<br></td>
-  </tr>
-  <tr>
-    <td>Make dubtitle</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>❌</td>
-    <td>❌</td>
-  </tr>
-  <tr>
-    <td>Make condensed audio</td>
-    <td>✅</td>
-    <td>❌</td>
-    <td>❌</td>
-    <td>❌<br></td>
-  </tr>
-  <tr>
-    <td>Make Anki notes<br></td>
-    <td>✅</td>
-    <td>❌</td>
-    <td>❌</td>
-    <td>❌</td>
-  </tr>
-</tbody></table>
 
 
 *in progress:*
