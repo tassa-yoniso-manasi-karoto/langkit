@@ -2,6 +2,8 @@ module github.com/tassa-yoniso-manasi-karoto/langkit
 
 go 1.23.2
 
+replace github.com/tassa-yoniso-manasi-karoto/dockerutil => /home/voiduser/go/src/dockerutil
+
 require (
 	github.com/AssemblyAI/assemblyai-go-sdk v1.9.0
 	github.com/adrg/xdg v0.5.3

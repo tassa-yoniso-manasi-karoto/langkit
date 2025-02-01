@@ -86,8 +86,8 @@
         },
         dubtitles: {
             padTiming: "Padding (ms)",
-            stt: "STT",
-            sttTimeout: "STT Timeout (sec)"
+            stt: "Speech-To-Text",
+            sttTimeout: "Speech-To-Text Timeout (sec)"
         },
         voiceEnhancing: {
             sepLib: "Voice separation library to use",

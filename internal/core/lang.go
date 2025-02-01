@@ -58,14 +58,14 @@ func Str(l *iso.Language) string {
 
 func (tsk *Task) PrepareLangs() *ProcessingError {
 	if len(tsk.Langs) > 0 {
-		tmp, err := ReadStdLangCode([]string{tsk.Langs[0]})
+		tmp, err := ParseLanguageTags([]string{tsk.Langs[0]})
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "Language parsing error on index 0")
 		}
 		tsk.Targ = tmp[0]
 	}
 	if len(tsk.Langs) > 1 {
-		tmp, err := ReadStdLangCode(tsk.Langs[1:])
+		tmp, err := ParseLanguageTags(tsk.Langs[1:])
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "Language parsing error")
 		}
@@ -74,7 +74,8 @@ func (tsk *Task) PrepareLangs() *ProcessingError {
 	return nil
 }
 
-func ReadStdLangCode(arr []string) (langs []Lang, err error) {
+// Exemple of input slice: []string{"pt-BR", "yue", "zh-Hant"}
+func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 	for _, tmp := range arr {
 		var lang Lang
 		arr := strings.Split(tmp, "-")

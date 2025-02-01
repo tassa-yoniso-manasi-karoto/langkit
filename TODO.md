@@ -1,16 +1,22 @@
 ### TODO
 
 UI:
+   - dynamic validation of language code in setting panel + OFFER TO INIT recreate
+   - Transliteration: LIST STYLES AVAILABLE
    - check that Docker Desktop/Engine is available, if jp/indic translit
-   - Add hovertips
+   - check that chromium is available for go-rod
 
 TRANSLITKIT:
    - implement ctx support
-   - Transliteration: LIST STYLES AVAILABLE
+   
+translit.go
+   - use SelectiveTranslit directly it 
+   - set Translitkit logwriter to langkit's
 
 
-
+   - print debug at os exit
    - Add tests
+   - Add hovertips
    - Add tooltips (aborted tasks...)
    - add progress bar
    
