@@ -9,8 +9,10 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 
-	iso "github.com/barbashov/iso639-3"
+	//iso "github.com/barbashov/iso639-3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 )
 
 // VideoInfo represents information about a video file
@@ -82,24 +84,54 @@ func (a *App) GetVideosInDirectory(dirPath string) ([]VideoInfo, error) {
 	return videos, nil
 }
 
-
-
 type LanguageCheckResponse struct {
-	StandardCode string `json:"standardCode"`
-	IsValid	 bool   `json:"isValid"`
+	StandardTag string `json:"standardTag"`
+	IsValid      bool   `json:"isValid"`
+	Error        string `json:"error,omitempty"`
 }
 
-func (a *App) CheckLanguageCode(code string) LanguageCheckResponse {
-	lang := iso.FromAnyCode(code)
-	if lang == nil {
-		return LanguageCheckResponse{
-			StandardCode: "",
-			IsValid:	 false,
+
+func (a *App) ValidateLanguageTag(tagsString string, maxOne bool) LanguageCheckResponse {
+	resp := LanguageCheckResponse{
+		IsValid: false,
+	}
+	if tagsString == "" {
+		resp.Error = "provided tagsString is empty"
+		return resp
+	}
+
+	// Split the string on commas and trim spaces
+	tags := strings.Split(tagsString, ",")
+	for i := range tags {
+		tags[i] = strings.TrimSpace(tags[i])
+	}
+	
+	if maxOne && len(tags) > 1 {
+		resp.Error = "more than one tag was provided"
+		return resp
+	}
+
+	// Filter out empty strings
+	var nonEmptyTags []string
+	for _, tag := range tags {
+		if tag != "" {
+			nonEmptyTags = append(nonEmptyTags, strings.TrimSpace(tag))
 		}
 	}
+
+	langs, err := core.ParseLanguageTags(nonEmptyTags)
+	if err != nil {
+		resp.Error = err.Error()
+		return resp
+	}
+	std := langs[0].Part3
+	if langs[0].Subtag != "" {
+		std += "-" + langs[0].Subtag
+	}
+
 	return LanguageCheckResponse{
-		StandardCode: lang.Part3,
-		IsValid:	 true,
+		IsValid: true,
+		StandardTag: std,
 	}
 }
 

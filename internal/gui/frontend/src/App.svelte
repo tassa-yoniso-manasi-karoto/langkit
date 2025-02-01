@@ -2,9 +2,8 @@
     import { fade, slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { onMount } from 'svelte';
+    import { settings } from './lib/stores';
     
-    
-    import { settings } from './lib/stores.ts';
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
     import LogViewer from './components/LogViewer.svelte';
@@ -14,6 +13,19 @@
     import { ProcessFiles } from '../wailsjs/go/gui/App';
     import '@material-design-icons/font';
 
+    // Define interfaces
+    interface VideoInfo {
+        name: string;
+        path: string;
+        size: number;
+    }
+
+    interface FeatureOptions {
+        // Define your feature options structure here
+        [key: string]: any;
+    }
+
+    // Component state
     let selectedFiles: VideoInfo[] = [];
     let selectedFeatures = {
         subs2cards: false,
@@ -21,72 +33,55 @@
         voiceEnhancing: false,
         subtitleRomanization: false
     };
+    let currentFeatureOptions: FeatureOptions | undefined;
     let isProcessing = false;
     let showLogViewer = false;
-    let progress = 0;
     let showSettings = false;
+    let progress = 0;
+    let showGlow = true;
+    let defaultTargetLanguage = '';
+    let featureValid = false;
 
-    interface VideoInfo {
-        name: string;
-        path: string;
-        size: number;
+    function handleValidityChange(event: CustomEvent) {
+        featureValid = event.detail.isValid;
     }
 
-    
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    // Compute overall form validity
+    $: isFormValid = selectedFiles.length > 0 && featureValid;
+
+    // Event handlers
+    function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
+        currentFeatureOptions = event.detail;
+    }
+
+    function toggleLogViewer() {
+        showLogViewer = !showLogViewer;
     }
 
     async function handleProcess() {
+        if (!currentFeatureOptions) return;
+        
         isProcessing = true;
         showLogViewer = true;
         progress = 0;
 
         try {
-            // Create the request object
             const request = {
                 files: selectedFiles.map(f => f.path),
-                selectedFeatures: selectedFeatures,
+                selectedFeatures,
                 options: currentFeatureOptions
             };
 
-            // Call the backend
             await ProcessFiles(request);
         } catch (error) {
             console.error('Processing failed:', error);
-            // Show error in log viewer
         } finally {
             isProcessing = false;
             progress = 0;
         }
     }
 
-    function toggleLogViewer() {
-        showLogViewer = !showLogViewer;
-    }
-    
-    let currentFeatureOptions;
-
-    function handleOptionsChange(event) {
-        currentFeatureOptions = event.detail;
-    }
-    
-    let defaultTargetLanguage = '';
-    
-    let showGlow: boolean = true;
-
-    onMount(() => {
-        // Listen for initial settings load
-        window.runtime.EventsOn("settings-loaded", (loadedSettings) => {
-            settings.set(loadedSettings);
-            showGlow = loadedSettings.enableGlow;
-            defaultTargetLanguage = loadedSettings.targetLanguage;
-        });
-
-        // Also keep the manual loading as fallback
-        loadSettings();
-    });
-
+    // Settings management
     async function loadSettings() {
         try {
             const loadedSettings = await window.go.gui.App.LoadSettings();
@@ -98,7 +93,19 @@
         }
     }
 
-    // Listen for settings updates
+    // Initialization
+    onMount(() => {
+        // Listen for settings updates
+        window.runtime.EventsOn("settings-loaded", (loadedSettings) => {
+            settings.set(loadedSettings);
+            showGlow = loadedSettings.enableGlow;
+            defaultTargetLanguage = loadedSettings.targetLanguage;
+        });
+
+        loadSettings();
+    });
+
+    // Settings update listener
     window.addEventListener('settingsUpdated', ((event: CustomEvent) => {
         settings.set(event.detail);
         showGlow = event.detail.enableGlow;
@@ -130,7 +137,7 @@
                         <FeatureSelector 
                             bind:selectedFeatures 
                             on:optionsChange={handleOptionsChange}
-                            defaultLanguage={defaultTargetLanguage}
+                            on:validityChange={handleValidityChange}
                         />
                     </div>
                 </div>
@@ -144,7 +151,7 @@
                        disabled:opacity-50 disabled:cursor-not-allowed
                        hover:bg-opacity-80 hover:-translate-y-0.5
                        shadow-lg"
-                disabled={selectedFiles.length === 0 || isProcessing || !Object.values(selectedFeatures).some(v => v)} 
+                disabled={!isFormValid || isProcessing} 
                 on:click={handleProcess}
             >
                 {#if isProcessing}
@@ -156,7 +163,7 @@
                     Process Files
                 {/if}
             </button>
-
+            
             <button 
                 class="p-2 rounded-lg transition-all duration-200
                        {showLogViewer ? 'bg-accent text-sky-dark' : 'bg-white/10 text-white'}

@@ -1,11 +1,14 @@
 <script lang="ts">
     export let options: string[];
+    export let defaultOption: string;
     export let value: string;
     export let label: string;
+    
+    defaultOption = options[0]
 </script>
 
 <select
-    bind:value
+    bind:value={defaultOption}
     class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1.5
            focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
            transition-colors duration-200 text-sm font-medium

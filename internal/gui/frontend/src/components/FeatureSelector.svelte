@@ -1,42 +1,67 @@
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
+    import { createEventDispatcher, onMount } from 'svelte';
     import { slide } from 'svelte/transition';
+    import { get } from 'svelte/store';
+    
     import { debounce } from 'lodash';
     
-    import { settings } from '../lib/stores.ts';
+    import { settings } from '../lib/stores';
     import Dropdown from './Dropdown.svelte';
-    
-    import { GetRomanizationStyles } from '../../wailsjs/go/gui/App';
-    import { CheckLanguageCode } from '../../wailsjs/go/gui/App';
-    
+    import { GetRomanizationStyles, ValidateLanguageTag } from '../../wailsjs/go/gui/App';
+
+    // Initialize event dispatcher for parent communication
     const dispatch = createEventDispatcher();
 
-    $: {
-        dispatch('optionsChange', currentFeatureOptions);
-    }
-    
-    export let defaultLanguage = '';
+    // Props
     export let selectedFeatures = {
         subs2cards: false,
         dubtitles: false,
         voiceEnhancing: false,
         subtitleRomanization: false
     };
-    
-    interface OptionLabels {
-        [key: string]: {
-            [key: string]: string;
+
+    // Interfaces
+    interface FeatureOptions {
+        subs2cards: {
+            padTiming: number;
+            screenshotWidth: number;
+            screenshotHeight: number;
+            condensedAudio: boolean;
+        };
+        dubtitles: {
+            padTiming: number;
+            stt: string;
+            sttTimeout: number;
+        };
+        voiceEnhancing: {
+            sepLib: string;
+            voiceBoost: number;
+            originalBoost: number;
+            limiter: number;
+            mergingFormat: string;
+        };
+        subtitleRomanization: {
+            style: string;
+            selectiveTransliteration: number;
         };
     }
 
     interface LanguageCheckResponse {
-        standardCode: string;
         isValid: boolean;
+        standardTag?: string;
+        error?: string;
     }
     
-    let romanizationStyles: string[] = ["n/a"];
-    
-    // Define option choices as a constant
+    // State variables
+    let languageCode = '';
+    let isValidLanguage: boolean | null = null;
+    let isChecking = false;
+    let standardTag = '';
+    let validationError = '';
+    let romanizationStyles: string[] = [];
+    let isRomanizationAvailable = true;
+
+    // Feature options configuration
     const optionChoices = {
         dubtitles: {
             stt: ["whisper", "insanely-fast-whisper", "universal-1"]
@@ -46,8 +71,9 @@
             mergingFormat: ["mp4", "mkv"]
         }
     };
-    
-    let currentFeatureOptions = {
+
+    // Initialize feature options with default values
+    let currentFeatureOptions: FeatureOptions = {
         subs2cards: {
             padTiming: 250,
             screenshotWidth: 1280,
@@ -56,15 +82,15 @@
         },
         dubtitles: {
             padTiming: 250,
-            stt: "whisper",          // Default value
+            stt: "whisper",
             sttTimeout: 90
         },
         voiceEnhancing: {
-            sepLib: "demucs",        // Default value
+            sepLib: "demucs",
             voiceBoost: 13,
             originalBoost: -9,
             limiter: 0.9,
-            mergingFormat: "mp4"     // Default value
+            mergingFormat: "mp4"
         },
         subtitleRomanization: {
             style: "",
@@ -72,17 +98,13 @@
         }
     };
 
-    // When a dropdown selection changes, update the corresponding option
-    function handleDropdownChange(feature: string, option: string, value: string) {
-        currentFeatureOptions[feature][option] = value;
-        dispatch('optionsChange', currentFeatureOptions);
-    }
-
+    // Option labels for UI display
     const optionLabels = {
         subs2cards: {
             padTiming: "Padding (ms)",
             screenshotWidth: "Screenshot Width (px)",
-            screenshotHeight: "Screenshot Height (px)"
+            screenshotHeight: "Screenshot Height (px)",
+            condensedAudio: "Condensed Audio"
         },
         dubtitles: {
             padTiming: "Padding (ms)",
@@ -90,21 +112,18 @@
             sttTimeout: "Speech-To-Text Timeout (sec)"
         },
         voiceEnhancing: {
-            sepLib: "Voice separation library to use",
+            sepLib: "Voice separation library",
             voiceBoost: "Voice Boost (dB)",
             originalBoost: "Original Audio Boost (dB)",
-            limiter: "Limiter (dBFS) (cf. ffmpeg's alimiter)"
+            limiter: "Limiter (dBFS)"
         },
         subtitleRomanization: {
-            selectiveTransliteration: "Retain Kanjis bellow most frequent",
+            style: "Romanization Style",
+            selectiveTransliteration: "Retain Kanjis below most frequent"
         }
     };
-    
-    let languageCode = '';
-    let isValidLanguage: boolean | null = null;
-    let standardCode = '';
-    let isChecking = false;
-    
+
+    // Helper function to format display text
     function formatDisplayText(text: string): string {
         return text
             .replace(/([A-Z])/g, ' $1')
@@ -113,124 +132,132 @@
             .join(' ');
     }
 
-    $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
-    
-    function getTextColorClass(enabled: boolean, anyFeatureSelected: boolean): string {
-        if (enabled) return 'text-white';
-        if (!anyFeatureSelected) return 'text-white';
-        return 'text-white/70';
-    }
-
-    let isDefaultLoaded = false;
-
-    settings.subscribe(value => {
-        if (value.targetLanguage && !isDefaultLoaded) {
-            languageCode = value.targetLanguage;
-            checkLanguageCode(value.targetLanguage);
-            isDefaultLoaded = true;
-        }
-    });
-    const checkLanguageCode = debounce(async (code: string) => {
+    // Language validation with debounce
+    const validateLanguageTag = debounce(async (code: string, maxOne: boolean) => {
+        console.log('Validating language:', code, 'maxOne?:', maxOne); // Debug log
+        
         if (!code) {
             isValidLanguage = null;
             isChecking = false;
-            standardCode = '';
+            standardTag = '';
+            validationError = '';
+            await updateRomanizationStyles('');
             return;
         }
         
         isChecking = true;
         try {
-            const response: LanguageCheckResponse = await CheckLanguageCode(code.toLowerCase());
+            const response = await ValidateLanguageTag(code, maxOne);
+            console.log('Validation response:', response); // Debug log
+            
             isValidLanguage = response.isValid;
-            standardCode = response.standardCode;
-            console.log('Response:', response, 'Input:', code);
+            standardTag = response.standardTag || '';
+            validationError = response.error || '';
+            
+            if (response.isValid) {
+                await updateRomanizationStyles(standardTag);
+            } else {
+                await updateRomanizationStyles('');
+            }
         } catch (error) {
             console.error('Error checking language code:', error);
             isValidLanguage = null;
-            standardCode = '';
+            standardTag = '';
+            validationError = 'Validation failed';
+            await updateRomanizationStyles('');
         }
         isChecking = false;
-    }, 500);
+    }, 300); // Reduced debounce time for better responsiveness
 
-    $: if (languageCode !== undefined) {
-        checkLanguageCode(languageCode);
-    }
-
-    $: isJapanese = standardCode === 'jpn';
-
-    // Update options when Japanese is detected
-    $: if (isJapanese && !currentFeatureOptions.subtitleRomanization.hasOwnProperty('selectiveTransliteration')) {
-        currentFeatureOptions = {
-            ...currentFeatureOptions,
-            subtitleRomanization: {
-                ...currentFeatureOptions.subtitleRomanization,
-                selectiveTransliteration: 100
-            }
-        };
-    } else if (!isJapanese && currentFeatureOptions.subtitleRomanization.hasOwnProperty('selectiveTransliteration')) {
-        const { selectiveTransliteration, ...rest } = currentFeatureOptions.subtitleRomanization;
-        currentFeatureOptions = {
-            ...currentFeatureOptions,
-            subtitleRomanization: rest
-        };
-    }
-    
-    // Add a store for selected values
-    let selectedValues = {};
-
-    // Initialize selected values with first array item for each array option
-    $: {
-        Object.entries(currentFeatureOptions).forEach(([feature, options]) => {
-            Object.entries(options).forEach(([option, value]) => {
-                if (Array.isArray(value) && !selectedValues[`${feature}_${option}`]) {
-                    selectedValues[`${feature}_${option}`] = value[0];
-                }
-            });
-        });
-    }
-    // Update romanization styles when language changes
-    $: if (standardCode) {
-        updateRomanizationStyles(standardCode);
-    }
-    let isRomanizationAvailable = true;
-
-    $: isRomanizationAvailable = Boolean(standardCode && romanizationStyles.length > 0);
-
-    // Watch for changes in standardCode and romanization availability
-    $: {
-        if (!standardCode || !isRomanizationAvailable) {
-            selectedFeatures.subtitleRomanization = false;
-        }
-    }
-    
-    async function updateRomanizationStyles(langCode: string) {
-        if (!langCode) {
+    // Update romanization styles based on language
+    async function updateRomanizationStyles(tag: string) {
+        console.log('Updating romanization styles for:', tag);
+        
+        if (!tag?.trim()) {  // Better empty check
+            console.log('No valid tag provided, disabling romanization');
             romanizationStyles = [];
             isRomanizationAvailable = false;
-            selectedFeatures.subtitleRomanization = false;
+            if (selectedFeatures.subtitleRomanization) {
+                selectedFeatures.subtitleRomanization = false;
+            }
             return;
         }
 
         try {
-            const styles = await GetRomanizationStyles(langCode);
+            const styles = await GetRomanizationStyles(tag);
+            console.log('Received romanization styles:', styles);
             romanizationStyles = styles;
-            isRomanizationAvailable = styles.length > 0;
+            isRomanizationAvailable = styles && styles.length > 0;
             
-            if (!isRomanizationAvailable) {
+            if (!isRomanizationAvailable && selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
-            }
-            
-            if (isRomanizationAvailable && 
-                (!selectedValues['subtitleRomanization_style'] || 
-                !styles.includes(selectedValues['subtitleRomanization_style']))) {
-                selectedValues['subtitleRomanization_style'] = styles[0];
             }
         } catch (error) {
             console.error('Error fetching romanization styles:', error);
             romanizationStyles = [];
             isRomanizationAvailable = false;
+            if (selectedFeatures.subtitleRomanization) {
+                selectedFeatures.subtitleRomanization = false;
+            }
+        }
+    }
+
+    // Handle dropdown changes
+    function handleDropdownChange(feature: string, option: string, value: string) {
+        currentFeatureOptions[feature][option] = value;
+        dispatch('optionsChange', currentFeatureOptions);
+    }
+
+    // Reactive statements
+    $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
+
+    $: if (languageCode !== undefined) {
+        validateLanguageTag(languageCode, true);
+        // Force update of romanization availability
+        if (!languageCode) {
+            isRomanizationAvailable = false;
             selectedFeatures.subtitleRomanization = false;
         }
+    }
+    
+    $: {
+        const hasFeatures = Object.values(selectedFeatures).some(v => v);
+        const isLanguageValid = isValidLanguage === true;
+        
+        // Dispatch an event to notify parent about validity
+        dispatch('validityChange', {
+            isValid: hasFeatures && isLanguageValid
+        });
+    }
+
+    // Settings subscription
+    settings.subscribe(value => {
+        console.log('Settings updated:', value); // Debug log
+        if (value?.targetLanguage && value.targetLanguage !== languageCode) {
+            console.log('Updating language code from settings:', value.targetLanguage);
+            languageCode = value.targetLanguage;
+            validateLanguageTag(value.targetLanguage, true);
+        }
+    });
+
+    onMount(async () => {
+        const currentSettings = get(settings);
+        if (currentSettings?.targetLanguage) {
+            languageCode = currentSettings.targetLanguage;
+            await validateLanguageTag(currentSettings.targetLanguage, true);
+        }
+    });
+
+    // Dispatch options changes
+    $: {
+        dispatch('optionsChange', currentFeatureOptions);
+    }
+
+    // Helper function for text color classes
+    function getTextColorClass(enabled: boolean, anyFeatureSelected: boolean): string {
+        if (enabled) return 'text-white';
+        if (!anyFeatureSelected) return 'text-white';
+        return 'text-white/70';
     }
 </script>
 
@@ -241,34 +268,35 @@
             Select Features
         </h2>
         
-        <div class="relative flex items-center gap-3 px-4">
-            <span class="text-sm text-accent/70 font-medium">Language Code</span>
+        <div class="relative flex items-center gap-3">
+            <span class="text-sm text-accent/70 font-medium">Target Language</span>
             <div class="relative">
                 <input
                     type="text"
                     bind:value={languageCode}
-                    placeholder=""
-                    class="w-12 h-7 bg-white/5 border border-accent/30 rounded px-2
-                         text-sm font-medium text-center
-                         focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
-                         transition-all duration-200
-                         {isValidLanguage === false ? 'border-[#ec5f67] focus:ring-[#ec5f67]/50' : ''}
-                         {isValidLanguage === true ? 'border-[#99c794] focus:ring-[#99c794]/50' : ''}"
+                    maxlength="9"
+                    placeholder="e.g. ja, zh-Hans"
+                    class="w-32 bg-white/5 border border-accent/30 rounded px-3 py-2
+                           text-sm font-medium
+                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                           transition-all duration-200
+                           {isValidLanguage === false ? 'border-red-500' : ''}"
                 />
                 {#if isChecking}
-                    <span class="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2
                                 material-icons animate-spin text-accent/70 text-sm">
                         refresh
                     </span>
                 {:else if isValidLanguage === false}
-                    <span class="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2
-                                material-icons text-[#ec5f67] text-sm">
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2
+                                material-icons text-red-500 text-sm"
+                          title={validationError}>
                         error
                     </span>
                 {:else if isValidLanguage === true}
-                    <span class="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2
-                                material-icons text-[#99c794] text-sm">
-                        check
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2
+                                material-icons text-green-500 text-sm">
+                        check_circle
                     </span>
                 {/if}
             </div>
@@ -287,12 +315,12 @@
                  class:opacity-30={anyFeatureSelected && !enabled}>
                 <div class="p-4 border-b border-white/10">
                     <label class="flex items-center gap-3 cursor-pointer group
-                            {!isRomanizationAvailable && feature === 'subtitleRomanization' ? 'cursor-not-allowed' : ''}">
+                                {!isRomanizationAvailable && feature === 'subtitleRomanization' ? 'cursor-not-allowed' : ''}">
                         <input
                             type="checkbox"
                             class="w-4 h-4 accent-accent"
                             bind:checked={selectedFeatures[feature]}
-                           disabled={!isRomanizationAvailable && feature === 'subtitleRomanization'}
+                            disabled={!isRomanizationAvailable && feature === 'subtitleRomanization'}
                         />
                         <span class="text-lg transition-all duration-300 {getTextColorClass(enabled, anyFeatureSelected)}
                                    group-hover:text-accent/90"
@@ -302,9 +330,13 @@
                     </label>
 
                     {#if feature === 'subtitleRomanization'}
-                        {#if !standardCode}
+                        {#if !languageCode}
                             <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
                                 Please select a language to proceed.
+                            </div>
+                        {:else if !isValidLanguage}
+                            <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
+                                Please enter a valid language code.
                             </div>
                         {:else if !isRomanizationAvailable}
                             <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
@@ -349,12 +381,19 @@
                                     {:else if typeof value === 'number'}
                                         <input 
                                             type="number" 
-                                            step="0.1"
+                                            step={option.includes('Boost') ? '0.1' : '1'}
                                             bind:value={currentFeatureOptions[feature][option]}
                                             class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
                                                    focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
                                                    transition-colors duration-200 text-sm
                                                    font-medium" 
+                                        />
+                                    {:else if feature === 'subtitleRomanization' && option === 'style'}
+                                        <Dropdown
+                                            options={romanizationStyles}
+                                            value={currentFeatureOptions[feature][option]}
+                                            on:change={(e) => handleDropdownChange(feature, option, e.detail)}
+                                            label="Select style"
                                         />
                                     {:else}
                                         <input 

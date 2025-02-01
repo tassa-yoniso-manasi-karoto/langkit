@@ -76,6 +76,10 @@ func (tsk *Task) PrepareLangs() *ProcessingError {
 
 // Exemple of input slice: []string{"pt-BR", "yue", "zh-Hant"}
 func ParseLanguageTags(arr []string) (langs []Lang, err error) {
+	if len(arr) == 0 {
+		return langs, fmt.Errorf("empty slice passed to ParseLanguageTags")
+	}
+	
 	for _, tmp := range arr {
 		var lang Lang
 		arr := strings.Split(tmp, "-")

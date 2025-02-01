@@ -7,7 +7,7 @@ type Settings = {
         elevenLabs: string;
     };
     targetLanguage: string;
-    nativeLanguage: string;
+    nativeLanguages: string;
     enableGlow: boolean;
 };
 
@@ -18,7 +18,7 @@ const defaultSettings: Settings = {
         elevenLabs: ''
     },
     targetLanguage: '',
-    nativeLanguage: '',
+    nativeLanguages: '',
     enableGlow: true
 };
 

@@ -1,10 +1,10 @@
 ### TODO
 
 UI:
-   - dynamic validation of language code in setting panel + OFFER TO INIT recreate
    - Transliteration: LIST STYLES AVAILABLE
-   - check that Docker Desktop/Engine is available, if jp/indic translit
-   - check that chromium is available for go-rod
+   - check that Docker Desktop/Engine is available, if needed
+   	- offer option to InitRecreate
+   - check that chromium is available for go-rod, if needed
 
 TRANSLITKIT:
    - implement ctx support

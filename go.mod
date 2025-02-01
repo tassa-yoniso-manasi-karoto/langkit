@@ -19,7 +19,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250115113620-e447ed80f34b
-	github.com/wailsapp/wails/v2 v2.9.1
+	github.com/wailsapp/wails/v2 v2.9.2
 )
 
 require (
