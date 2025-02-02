@@ -121,7 +121,7 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	}
 	tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
 ResumeEnhance:
-	tsk.Meta.MediaInfo = mediainfo(tsk.MediaSourceFile)
+	tsk.Meta.MediaInfo = Mediainfo(tsk.MediaSourceFile)
 	/* MediaInfo // FIXME use this to cancel susb2dubs if *tsk.Targ == *tsk.OriginalLang
 	for _, track := range tsk.Meta.AudioTracks {
 		if strings.Contains(strings.ToLower(track.Title), "original") {

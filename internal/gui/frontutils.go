@@ -86,6 +86,60 @@ func (a *App) GetVideosInDirectory(dirPath string) ([]VideoInfo, error) {
 
 	return videos, nil
 }
+type AudioTrack struct {
+    Index    int     `json:"index"`
+    Language string `json:"language"`
+}
+
+type MediaLanguageInfo struct {
+    HasLanguageTags bool         `json:"hasLanguageTags"`
+    AudioTracks     []AudioTrack `json:"audioTracks"`
+}
+
+// frontutils.go
+
+func (a *App) CheckMediaLanguageTags(path string) (MediaLanguageInfo, error) {
+    info := MediaLanguageInfo{
+        HasLanguageTags: false,
+        AudioTracks:     []AudioTrack{},
+    }
+
+    // Check if path is a directory
+    fileInfo, err := os.Stat(path)
+    if err != nil {
+        return info, err
+    }
+
+    if fileInfo.IsDir() {
+        // Get the first video file in the directory
+        videos, err := a.GetVideosInDirectory(path)
+        if err != nil {
+            return info, err
+        }
+        if len(videos) == 0 {
+            return info, fmt.Errorf("no video files found in directory")
+        }
+        // Use the first video file for checking
+        path = videos[0].Path
+    }
+
+    // Now check the media info
+    mediaInfo := core.Mediainfo(path)
+    
+    // Check if any audio tracks have language tags
+    for i, track := range mediaInfo.AudioTracks {
+        info.AudioTracks = append(info.AudioTracks, AudioTrack{
+            Index:    i,
+            Language: track.Language.Part3,
+        })
+        if track.Language != nil {
+            info.HasLanguageTags = true
+        }
+    }
+
+    return info, nil
+}
+
 
 type LanguageCheckResponse struct {
 	StandardTag string `json:"standardTag"`

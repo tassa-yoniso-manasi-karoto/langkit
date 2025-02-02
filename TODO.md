@@ -1,7 +1,7 @@
 ### TODO
 
 UI:
-    - display "select audio channel index" input box when no language tag is available in audiotracks
+    - restore broken language checking in featureSelector
     - justify blocked processing button on hover
 
 TRANSLITKIT:
@@ -16,6 +16,7 @@ Backend mapping:
    - Transliteration selected style
    - check that chromium is available for go-rod, if needed
    - option to InitRecreate
+   - "audio channel override"
 
 
    - print debug at os exit
@@ -23,6 +24,8 @@ Backend mapping:
    - Add hovertips
    - Add tooltips (aborted tasks...)
    - add progress bar
+   - fix frontend checkMediaFiles() not reflecting the lack of language tag
+   - fix API key reading from env in code not using pkg config
    
    - Add documentation
    - fix newlines in builtin documentation

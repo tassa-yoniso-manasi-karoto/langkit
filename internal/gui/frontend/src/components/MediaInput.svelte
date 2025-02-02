@@ -3,15 +3,16 @@
 
     export let selectedFiles: VideoInfo[] = [];
     export let selectedPath: string = '';
-    let dragOver = false;
-    let isDirectory = false;
-    const MAX_VISIBLE_FILES = 4;
 
     interface VideoInfo {
         name: string;
         path: string;
     }
-
+    
+    let dragOver = false;
+    let isDirectory = false;
+    const MAX_VISIBLE_FILES = 4;
+    
     async function handleDirectorySelect() {
         try {
             const dirPath = await OpenDirectoryDialog();

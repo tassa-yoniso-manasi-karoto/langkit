@@ -139,8 +139,8 @@ type RawMediaInfo struct {
 	Media           RawMedia           `json:"media"`
 }
 
-// mediainfo() processes each track by dynamically determining the type based on the @type field
-func mediainfo(path string) (media MediaInfo) {
+// Mediainfo() processes each track by dynamically determining the type based on the @type field
+func Mediainfo(path string) (media MediaInfo) {
 	if !isMediainfoInstalled() {
 		fmt.Println("mediainfo is not installed or not available in PATH")
 		os.Exit(1)

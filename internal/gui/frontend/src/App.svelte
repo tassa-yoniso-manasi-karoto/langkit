@@ -26,6 +26,7 @@
 
     // Component state
     let selectedFiles: VideoInfo[] = [];
+    let selectedPath: string = '';
     let selectedFeatures = {
         subs2cards: false,
         dubtitles: false,
@@ -39,7 +40,7 @@
     let showGlow = true;
     let defaultTargetLanguage = '';
     let featureValid = false;
-
+    
     function handleValidityChange(event: CustomEvent) {
         featureValid = event.detail.isValid;
     }
@@ -136,6 +137,8 @@
                             bind:selectedFeatures 
                             on:optionsChange={handleOptionsChange}
                             on:validityChange={handleValidityChange}
+                            {selectedFiles}
+                            selectedPath={selectedPath}
                         />
                     </div>
                 </div>

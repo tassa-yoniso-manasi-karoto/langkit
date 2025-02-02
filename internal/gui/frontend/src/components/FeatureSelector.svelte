@@ -7,7 +7,7 @@
     
     import { settings, showSettings } from '../lib/stores.ts';
     import Dropdown from './Dropdown.svelte';
-    import { GetRomanizationStyles, ValidateLanguageTag } from '../../wailsjs/go/gui/App';
+    import { GetRomanizationStyles, ValidateLanguageTag, CheckMediaLanguageTags } from '../../wailsjs/go/gui/App';
 
     // Initialize event dispatcher for parent communication
     const dispatch = createEventDispatcher();
@@ -71,6 +71,11 @@
     let needsDocker = false;
     let needsScraper = false;
     
+    let showAudioTrackIndex = false;
+    let audioTrackIndex = 0;
+    let hasLanguageTags = true;
+    let availableAudioTracks: number[] = [];
+    
     const providersRequiringTokens = {
         'whisper': 'replicate',
         'insanely-fast-whisper': 'replicate',
@@ -113,7 +118,33 @@
             }
         }
     }
-    
+
+    export let selectedFiles: VideoInfo[] = [];
+    export let selectedPath: string = '';
+
+    interface VideoInfo {
+        name: string;
+        path: string;
+    }
+
+    // Update the checkMediaFiles function
+    async function checkMediaFiles() {
+        if (selectedPath) {
+            try {
+                const info = await CheckMediaLanguageTags(selectedPath);
+                hasLanguageTags = info.hasLanguageTags;
+                availableAudioTracks = info.audioTracks;
+                showAudioTrackIndex = !hasLanguageTags;
+                
+                // Set default audio track to the first available one
+                if (availableAudioTracks.length > 0) {
+                    audioTrackIndex = availableAudioTracks[0].index;
+                }
+            } catch (error) {
+                console.error('Error checking media files:', error);
+            }
+        }
+    }
     
     // Feature options configuration
     const optionChoices = {
@@ -403,48 +434,98 @@
             updateProviderWarnings();
         }
     }
+    
+    $: if (selectedPath) {
+        checkMediaFiles();
+    } else {
+        // Reset audio track related states when no path is selected
+        showAudioTrackIndex = false;
+        hasLanguageTags = true;
+        availableAudioTracks = [];
+        audioTrackIndex = 0;
+    }
 </script>
 
 <div class="space-y-6">
-    <div class="flex items-center justify-between pl-8 pr-4">
-        <h2 class="text-xl font-medium text-accent/90 flex items-center gap-2">
+    <div class="flex items-center justify-between pl-0 pr-0">
+        <h2 class="text-xl font-medium text-accent/90 flex items-center pl-4 gap-2">
             <span class="material-icons text-accent/70">tune</span>
             Select Features
         </h2>
         
-        <div class="relative flex items-center gap-3">
-            <span class="text-sm text-accent/70 font-medium">Target Language</span>
-            <div class="relative">
-                <input
-                    type="text"
-                    bind:value={quickAccessLangTag}
-                    maxlength="9"
-                    placeholder="e.g. ja, zh-Hans"
-                    class="w-32 bg-white/5 border border-accent/30 rounded px-3 py-2
-                           text-sm font-medium
-                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
-                           transition-all duration-200
-                           {isValidLanguage === false ? 'border-red-500' : ''}"
-                />
-                {#if isChecking}
-                    <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                material-icons animate-spin text-accent/70 text-sm">
-                        refresh
-                    </span>
-                {:else if isValidLanguage === false}
-                    <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                material-icons text-red-500 text-sm"
-                          title={validationError}>
-                        error
-                    </span>
-                {:else if isValidLanguage === true}
-                    <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                material-icons text-green-300 text-sm">
-                        check_circle
-                    </span>
-                {/if}
-            </div>
+        <!-- Target Language input -->
+        <div class="flex items-center ml-auto item-right gap-2 pr-3">
+            <span class="text-accent text-xs whitespace-nowrap">
+                Target Language
+            </span>
+            <input
+                type="text"
+                bind:value={quickAccessLangTag}
+                maxlength="9"
+                placeholder="e.g. ja"
+                class="w-20 bg-sky-dark/50 border border-accent/30 rounded px-2 py-2
+                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                       transition-colors duration-200 text-xs font-medium"
+            />
         </div>
+
+        <!-- Audio track selection with slide animation -->
+        <div class="flex">
+          <!-- Disclosure triangle button with connected border and matching background -->
+          <button
+            class="flex items-center justify-center p-4 w-6 h-6
+                   border border-accent/30 
+                   hover:border-accent/60 hover:bg-accent/10 
+                   transition-all duration-500 focus:outline-none
+                   {showAudioTrackIndex 
+                      ? 'bg-accent/5 rounded-tl rounded-bl rounded-tr-none rounded-br-none'
+                      : 'rounded'}"
+            on:click={() => {
+              showAudioTrackIndex = !showAudioTrackIndex;
+              if (!showAudioTrackIndex) {
+                  audioTrackIndex = 0; // Reset to 0 when hiding
+              } else {
+                  audioTrackIndex = 1; // Set to 1 when showing
+              }
+            }}
+            title="Toggle audio track selection"
+          >
+            <span class="transform transition-transform duration-1000 text-accent/70
+                         hover:text-accent leading-none"
+                  class:rotate-180={showAudioTrackIndex}>
+              ◀
+            </span>
+          </button>
+
+          <!-- Audio track input with slide animation -->
+          {#if showAudioTrackIndex || !hasLanguageTags}
+            <!-- Use negative left margin to overlap the shared border -->
+            <div class="-ml-px flex items-center"
+                 transition:slide={{ duration: 200, axis: 'x' }}>
+              <!-- Panel: use matching background and borders; remove left rounding -->
+              <div class="flex items-center bg-accent/5 
+                         border border-accent/30 border-l-0
+                         rounded-r px-3 p-4 h-6">
+                <span class="text-accent text-xs whitespace-nowrap mr-2">
+                  Audio Track Override
+                </span>
+                <!-- The input field: reduced horizontal padding and fixed height -->
+                <input
+                  type="number"
+                  bind:value={audioTrackIndex}
+                  min="1"
+                  max="99"
+                  class="w-12 h-6 bg-sky-dark/50 border border-accent/30 rounded
+                         px-1 text-xs font-medium text-center
+                         focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                         transition-colors duration-200"
+                />
+              </div>
+            </div>
+          {/if}
+        </div>
+
+
     </div>
     
     <div class="space-y-4">
