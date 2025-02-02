@@ -2,7 +2,6 @@
 
 UI:
     - display "select audio channel index" input box when no language tag is available in audiotracks
-    - check that chromium is available for go-rod, if needed
     - check if API key of provider is available and disable processing if not +++ justify blocked processing button on hover
 
 TRANSLITKIT:
@@ -15,6 +14,7 @@ translit.go
 
 Backend mapping:
    - Transliteration selected style
+   - check that chromium is available for go-rod, if needed
    - option to InitRecreate
 
 UI improvement:

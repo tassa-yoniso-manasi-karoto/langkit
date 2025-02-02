@@ -41,8 +41,8 @@
             mergingFormat: string;
         };
         subtitleRomanization: {
-            provider: string;
             style: string;
+            provider: string;
             selectiveTransliteration: number;
             dockerRecreate: boolean;
             browserAccessURL: string;
@@ -80,6 +80,16 @@
             sepLib: ["demucs", "demucs_ft", "spleeter"],
             mergingFormat: ["mp4", "mkv"]
         }
+    };
+
+    const optionOrder = {
+        subtitleRomanization: [
+            'style',
+            'provider',
+            'selectiveTransliteration',
+            'dockerRecreate',
+            'browserAccessURL'
+        ],
     };
 
     // Initialize feature options with default values
@@ -132,11 +142,23 @@
         subtitleRomanization: {
             style: "Romanization Style",
             selectiveTransliteration: "Retain Kanjis below most frequent",
-            dockerRecreate: "Recreate docker container (try this if previous run failed)",
-            browserAccessURL: "Browser access URL 🧟"
+            dockerRecreate: "Recreate Docker containers",
+            browserAccessURL: "Browser access URL"
         }
     };
-
+    
+    const optionHovertips = {
+        subtitleRomanization: {
+            browserAccessURL: "URL to programmatically control a Chromium-based browser through Devtools. Required for providers that need web scraping capabilities.",
+            selectiveTransliteration: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana",
+            dockerRecreate: "Use this if the previous run failed or if you're experiencing issues."
+        }
+    };
+    
+    const providerGithubUrls = {
+        'ichiran': 'https://github.com/tshatrov/ichiran',
+        'aksharamukha': 'https://github.com/virtualvinodh/aksharamukha',
+    };
     // Helper function to format display text
     function formatDisplayText(text: string): string {
         return text
@@ -246,6 +268,8 @@
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
 
     $: if (quickAccessLangTag !== undefined) {
+        needsDocker = false;
+        needsScraper = false;
         validateLanguageTag(quickAccessLangTag, true);
         // Force update of romanization availability
         if (!quickAccessLangTag) {
@@ -282,7 +306,6 @@
         }
     });
 
-    // Dispatch options changes
     $: {
         dispatch('optionsChange', currentFeatureOptions);
     }
@@ -356,13 +379,22 @@
     <div class="space-y-4">
         {#each Object.entries(selectedFeatures) as [feature, enabled]}
             <div class="bg-white/5 rounded-lg
-                       transition-all duration-300 ease-out transform
-                       hover:translate-y-[-2px]
-                       {!isRomanizationAvailable && feature === 'subtitleRomanization' ? 'opacity-50' : ''}"
+                     transition-all duration-300 ease-out transform
+                     {!isRomanizationAvailable && feature === 'subtitleRomanization' 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:translate-y-[-2px]'}"
                  class:shadow-glow-strong={enabled && !anyFeatureSelected}
                  class:shadow-glow={enabled}
-                 class:hover:shadow-glow-hover={!enabled}
-                 class:opacity-30={anyFeatureSelected && !enabled}>
+                 class:hover:shadow-glow-hover={!enabled && isRomanizationAvailable}
+                 class:opacity-30={anyFeatureSelected && !enabled}
+                 on:click={() => {
+                    if (!isRomanizationAvailable && feature === 'subtitleRomanization') {
+                        const element = event.currentTarget;
+                        element.classList.remove('shake-animation');
+                        void element.offsetWidth;
+                        element.classList.add('shake-animation');
+                    }
+                 }}>
                 <div class="p-4 border-b border-white/10">
                     <label class="flex items-center gap-3 cursor-pointer group
                                 {!isRomanizationAvailable && feature === 'subtitleRomanization' ? 'cursor-not-allowed' : ''}">
@@ -380,7 +412,7 @@
                     </label>
 
                     {#if feature === 'subtitleRomanization'}
-                        {#if needsDocker && !dockerUnreachable}
+                        {#if selectedFeatures.subtitleRomanization && needsDocker && !dockerUnreachable}
                             <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
                                 🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
                             </div>
@@ -415,14 +447,29 @@
                 {#if enabled}
                     <div class="p-4" transition:slide={{ duration: 300 }}>
                         <div class="grid grid-cols-[1fr,1.5fr] gap-x-6 gap-y-3 transition-opacity duration-300">
-                            {#each Object.entries(currentFeatureOptions[feature]) as [option, value]}
+                            {#each (optionOrder[feature] || Object.keys(currentFeatureOptions[feature])) as option}
+                                {@const value = currentFeatureOptions[feature][option]}
                                 <div class="flex items-center">
                                     {#if option === 'selectiveTransliteration' && !(standardTag === 'jpn')}
                                     {:else if option === 'dockerRecreate' && !needsDocker}
                                     {:else if option === 'browserAccessURL' && !needsScraper}
+                                    {:else if option === 'provider'}
+                                        <span class="text-gray-300 text-sm text-left">Provider</span>
                                     {:else}
-                                        <span class="text-gray-300 text-sm text-left">
+                                        <span class="text-gray-300 text-sm text-left flex items-center gap-2">
                                             {optionLabels[feature][option] || formatDisplayText(option)}
+                                            {#if optionHovertips[feature]?.[option]}
+                                                <div class="relative group">
+                                                    <span class="material-icons text-accent/70 text-sm cursor-help">help_outline</span>
+                                                    <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2
+                                                               hidden group-hover:block w-64 p-2 bg-gray-800 rounded-lg
+                                                               text-xs text-white shadow-lg z-50">
+                                                        {optionHovertips[feature][option]}
+                                                        <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2
+                                                                  w-2 h-2 bg-gray-800 rotate-45"></div>
+                                                    </div>
+                                                </div>
+                                            {/if}
                                         </span>
                                     {/if}
                                 </div>
@@ -434,10 +481,10 @@
                                                 bind:value={currentFeatureOptions[feature][option]}
                                                 min="1"
                                                 max="3000"
-                                                class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
-                                                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                                                       transition-colors duration-200 text-sm
-                                                       font-medium"
+                                                class="w-full h-[42px] bg-sky-dark/50 border-2 border-accent/30 rounded-md px-3
+                                                       focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
+                                                       hover:border-accent/50
+                                                       transition-all duration-200 text-sm font-medium text-center"
                                                 placeholder="Enter threshold (e.g., 100)"
                                             />
                                          {/if}
@@ -454,7 +501,11 @@
                                         <label class="inline-flex items-center cursor-pointer">
                                             <input 
                                                 type="checkbox" 
-                                                class="w-4 h-4 accent-accent"
+                                                class="w-5 h-5 accent-accent rounded border-2 border-accent/50 
+                                                       checked:bg-accent checked:border-accent
+                                                       focus:ring-2 focus:ring-accent/30
+                                                       transition-all duration-200
+                                                       cursor-pointer"
                                                 bind:checked={currentFeatureOptions[feature][option]}
                                             />
                                         </label>
@@ -464,33 +515,62 @@
                                             type="number" 
                                             step={option.includes('Boost') ? '0.1' : '1'}
                                             bind:value={currentFeatureOptions[feature][option]}
-                                            class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
-                                                   focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                                                   transition-colors duration-200 text-sm
-                                                   font-medium" 
+                                            class="w-full h-[42px] bg-sky-dark/50 border-2 border-accent/30 rounded-md px-3
+                                                   focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
+                                                   hover:border-accent/50
+                                                   transition-all duration-200 text-sm font-medium text-center"
                                         />
                                     {:else if feature === 'subtitleRomanization' && option === 'style'}
-                                            <Dropdown
-                                                options={romanizationSchemes}
-                                                optionKey="name"
-                                                optionLabel="description"
-                                                value={currentFeatureOptions[feature][option]}
-                                                on:change={(e) => handleDropdownChange(feature, option, e.detail)}
-                                                label="Select style"
-                                            />
+                                        <Dropdown
+                                            options={romanizationSchemes}
+                                            optionKey="name"
+                                            optionLabel="description"
+                                            value={currentFeatureOptions[feature][option]}
+                                            on:change={(e) => {
+                                                handleDropdownChange(feature, option, e.detail);
+                                                const selectedScheme = romanizationSchemes.find(s => s.name === e.detail);
+                                                if (selectedScheme) {
+                                                    currentFeatureOptions[feature]['provider'] = selectedScheme.provider;
+                                                }
+                                            }}
+                                            label="Select style"
+                                        />
                                     {:else if feature === 'subtitleRomanization' && option === 'provider'}
-                                            <div>
-                                                {currentFeatureOptions[feature][option]}
-                                            </div>
-                                    {:else if (option === 'browserAccessURL' && !needsScraper)}
+                                        <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
+                                            {#if currentFeatureOptions[feature]['style']}
+                                                {@const provider = romanizationSchemes.find(s => s.name === currentFeatureOptions[feature]['style'])?.provider || ''}
+                                                {provider}
+                                                {#if providerGithubUrls[provider]}
+                                                    <a href={providerGithubUrls[provider]}
+                                                       target="_blank"
+                                                       rel="noopener noreferrer"
+                                                       class="text-accent/70 hover:text-accent transition-colors duration-200"
+                                                       title="View provider repository">
+                                                        <svg viewBox="0 0 16 16" class="w-5 h-5" fill="currentColor">
+                                                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                                                        </svg>
+                                                    </a>
+                                                {/if}
+                                            {/if}
+                                        </div>
+                                    {:else if option === 'browserAccessURL' && !needsScraper}
+                                        <!-- Skip rendering -->
+                                    {:else if option === 'browserAccessURL' && needsScraper}
+                                        <input 
+                                            type="text"
+                                            bind:value={currentFeatureOptions[feature][option]}
+                                            class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
+                                                   focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                                                   transition-colors duration-200 text-sm font-medium"
+                                            placeholder="e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                        />
                                     {:else}
                                         <input 
                                             type="text"
                                             bind:value={currentFeatureOptions[feature][option]}
                                             class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
                                                    focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                                                   transition-colors duration-200 text-sm
-                                                   font-medium" 
+                                                   transition-colors duration-200 text-sm font-medium"
                                         />
                                     {/if}
                                 </div>
@@ -524,5 +604,28 @@
     :global(.shadow-glow-hover) {
         box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.35),
                    4px 4px 16px -2px rgba(159, 110, 247, 0.3);
+    }
+    @keyframes shake {
+        0%, 100% { transform: translateX(0) translateY(0); }
+        25% { transform: translateX(-2px) translateY(0); }
+        75% { transform: translateX(2px) translateY(0); }
+    }
+    
+    .shake-animation {
+        animation: shake 0.4s ease-in-out;
+        position: relative;
+    }
+    .group:hover div[class*="group-hover"] {
+        transition: opacity 150ms ease-in-out;
+        opacity: 1;
+    }
+
+    div[class*="group-hover"] {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .group:hover div[class*="group-hover"] {
+        pointer-events: auto;
     }
 </style>
