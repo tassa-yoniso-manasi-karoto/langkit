@@ -60,6 +60,9 @@
     let validationError = '';
     let romanizationStyles: string[] = [];
     let isRomanizationAvailable = true;
+    let dockerUnreachable = false;
+    let dockerEngine = '';
+    let needsDocker = false;
 
     // Feature options configuration
     const optionChoices = {
@@ -94,7 +97,8 @@
         },
         subtitleRomanization: {
             style: "",
-            selectiveTransliteration: 0
+            selectiveTransliteration: 0,
+            dockerRecreate: false
         }
     };
 
@@ -119,7 +123,8 @@
         },
         subtitleRomanization: {
             style: "Romanization Style",
-            selectiveTransliteration: "Retain Kanjis below most frequent"
+            selectiveTransliteration: "Retain Kanjis below most frequent",
+            dockerRecreate: "Recreate docker container (try this if previous run failed)"
         }
     };
 
@@ -134,7 +139,7 @@
 
     // Language validation with debounce
     const validateLanguageTag = debounce(async (code: string, maxOne: boolean) => {
-        console.log('Validating language:', code, 'maxOne?:', maxOne); // Debug log
+        //console.log('Validating language:', code, 'maxOne?:', maxOne);
         
         if (!code) {
             isValidLanguage = null;
@@ -148,7 +153,7 @@
         isChecking = true;
         try {
             const response = await ValidateLanguageTag(code, maxOne);
-            console.log('Validation response:', response); // Debug log
+            //console.log('Validation response:', response);
             
             isValidLanguage = response.isValid;
             standardTag = response.standardTag || '';
@@ -169,13 +174,20 @@
         isChecking = false;
     }, 300); // Reduced debounce time for better responsiveness
 
-    // Update romanization styles based on language
+   interface RomanizationScheme {
+        name: string;
+        description: string;
+    }
+
+    // Update state variables
+    let romanizationSchemes: RomanizationScheme[] = [];
+    
     async function updateRomanizationStyles(tag: string) {
-        console.log('Updating romanization styles for:', tag);
+        //console.log('Updating romanization styles for:', tag);
         
-        if (!tag?.trim()) {  // Better empty check
-            console.log('No valid tag provided, disabling romanization');
-            romanizationStyles = [];
+        if (!tag?.trim()) {
+            //console.log('No valid tag provided, disabling romanization');
+            romanizationSchemes = [];
             isRomanizationAvailable = false;
             if (selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
@@ -184,17 +196,26 @@
         }
 
         try {
-            const styles = await GetRomanizationStyles(tag);
-            console.log('Received romanization styles:', styles);
-            romanizationStyles = styles;
-            isRomanizationAvailable = styles && styles.length > 0;
+            const response = await GetRomanizationStyles(tag);
+            //console.log('Received romanization response:', response);
+            
+            romanizationSchemes = response.schemes || [];
+            isRomanizationAvailable = romanizationSchemes.length > 0;
+            dockerUnreachable = response.dockerUnreachable || false;
+            needsDocker = response.needsDocker || false;
+            dockerEngine = response.dockerEngine || 'Docker Desktop';
+            
+            // Automatically set the first scheme if only one is available
+            if (romanizationSchemes.length === 1) {
+                currentFeatureOptions.subtitleRomanization.style = romanizationSchemes[0].name;
+            }
             
             if (!isRomanizationAvailable && selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
             }
         } catch (error) {
             console.error('Error fetching romanization styles:', error);
-            romanizationStyles = [];
+            romanizationSchemes = [];
             isRomanizationAvailable = false;
             if (selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
@@ -232,7 +253,7 @@
 
     // Settings subscription
     settings.subscribe(value => {
-        console.log('Settings updated:', value); // Debug log
+        console.log('Settings updated:', value);
         if (value?.targetLanguage && value.targetLanguage !== languageCode) {
             console.log('Updating language code from settings:', value.targetLanguage);
             languageCode = value.targetLanguage;
@@ -258,6 +279,22 @@
         if (enabled) return 'text-white';
         if (!anyFeatureSelected) return 'text-white';
         return 'text-white/70';
+    }
+    // Add the Japanese-specific option to the feature options when applicable
+    $: if (standardTag === 'jpn' && !currentFeatureOptions.subtitleRomanization.hasOwnProperty('selectiveTransliteration')) {
+        currentFeatureOptions = {
+            ...currentFeatureOptions,
+            subtitleRomanization: {
+                ...currentFeatureOptions.subtitleRomanization,
+                selectiveTransliteration: 100
+            }
+        };
+    } else if (standardTag != 'jpn' && currentFeatureOptions.subtitleRomanization.hasOwnProperty('selectiveTransliteration')) {
+        const { selectiveTransliteration, ...rest } = currentFeatureOptions.subtitleRomanization;
+        currentFeatureOptions = {
+            ...currentFeatureOptions,
+            subtitleRomanization: rest
+        };
     }
 </script>
 
@@ -295,7 +332,7 @@
                     </span>
                 {:else if isValidLanguage === true}
                     <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                material-icons text-green-500 text-sm">
+                                material-icons text-green-300 text-sm">
                         check_circle
                     </span>
                 {/if}
@@ -330,7 +367,16 @@
                     </label>
 
                     {#if feature === 'subtitleRomanization'}
-                        {#if !languageCode}
+                        {#if needsDocker && !dockerUnreachable}
+                            <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
+                                🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
+                            </div>
+                        {/if}
+                        {#if needsDocker && dockerUnreachable}
+                            <div class="mt-2 flex items-left text-xs font-bold text-red-500 pl-7">
+                                🔴 {dockerEngine} is required but not reachable. Please make sure it is installed and running.
+                            </div>
+                        {:else if !languageCode}
                             <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
                                 Please select a language to proceed.
                             </div>
@@ -358,12 +404,30 @@
                         <div class="grid grid-cols-[1fr,1.5fr] gap-x-6 gap-y-3 transition-opacity duration-300">
                             {#each Object.entries(currentFeatureOptions[feature]) as [option, value]}
                                 <div class="flex items-center">
-                                    <span class="text-gray-300 text-sm">
-                                        {optionLabels[feature][option] || formatDisplayText(option)}
-                                    </span>
+                                    {#if option === 'selectiveTransliteration' && !(standardTag === 'jpn')}
+                                    {:else if option === 'dockerRecreate' && !needsDocker}
+                                    {:else}
+                                        <span class="text-gray-300 text-sm text-left">
+                                            {optionLabels[feature][option] || formatDisplayText(option)}
+                                        </span>
+                                    {/if}
                                 </div>
                                 <div>
-                                    {#if optionChoices[feature]?.[option]}
+                                    {#if (option === 'selectiveTransliteration')}
+                                        {#if (standardTag === 'jpn')}
+                                            <input 
+                                                type="number" 
+                                                bind:value={currentFeatureOptions[feature][option]}
+                                                min="1"
+                                                max="3000"
+                                                class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
+                                                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                                                       transition-colors duration-200 text-sm
+                                                       font-medium"
+                                                placeholder="Enter threshold (e.g., 100)"
+                                            />
+                                         {/if}
+                                    {:else if optionChoices[feature]?.[option]}
                                         <Dropdown
                                             options={optionChoices[feature][option]}
                                             value={currentFeatureOptions[feature][option]}
@@ -371,6 +435,8 @@
                                             label={optionLabels[feature][option] || formatDisplayText(option)}
                                         />
                                     {:else if typeof value === 'boolean'}
+                                        {#if option === 'dockerRecreate' && !needsDocker}
+                                        {:else}
                                         <label class="inline-flex items-center cursor-pointer">
                                             <input 
                                                 type="checkbox" 
@@ -378,6 +444,7 @@
                                                 bind:checked={currentFeatureOptions[feature][option]}
                                             />
                                         </label>
+                                        {/if}
                                     {:else if typeof value === 'number'}
                                         <input 
                                             type="number" 
@@ -389,12 +456,14 @@
                                                    font-medium" 
                                         />
                                     {:else if feature === 'subtitleRomanization' && option === 'style'}
-                                        <Dropdown
-                                            options={romanizationStyles}
-                                            value={currentFeatureOptions[feature][option]}
-                                            on:change={(e) => handleDropdownChange(feature, option, e.detail)}
-                                            label="Select style"
-                                        />
+                                    <Dropdown
+                                        options={romanizationSchemes}
+                                        optionKey="name"
+                                        optionLabel="description"
+                                        value={currentFeatureOptions[feature][option]}
+                                        on:change={(e) => handleDropdownChange(feature, option, e.detail)}
+                                        label="Select style"
+                                    />
                                     {:else}
                                         <input 
                                             type="text"
@@ -412,6 +481,7 @@
                 {/if}
             </div>
         {/each}
+        <br>
     </div>
 </div>
 

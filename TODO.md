@@ -1,10 +1,8 @@
 ### TODO
 
 UI:
-   - Transliteration: LIST STYLES AVAILABLE
-   - check that Docker Desktop/Engine is available, if needed
-   	- offer option to InitRecreate
-   - check that chromium is available for go-rod, if needed
+    - check that chromium is available for go-rod, if needed
+    - check if API key of provider is available and disable processing if not
 
 TRANSLITKIT:
    - implement ctx support
@@ -13,6 +11,15 @@ translit.go
    - use SelectiveTranslit directly it 
    - set Translitkit logwriter to langkit's
 
+
+Backend connections:
+   - Transliteration: LIST STYLES AVAILABLE
+   - check that Docker Desktop/Engine is available, if needed
+   - offer option to InitRecreate
+
+UI improvement:
+    - justify blocked processing button on hover
+    - hover effect for input box of number option
 
    - print debug at os exit
    - Add tests

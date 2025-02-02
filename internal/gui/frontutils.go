@@ -2,17 +2,20 @@ package gui
 
 import (
 	"os"
-	"strings"
 	"path/filepath"
-	
+	"strings"
+
 	"fmt"
-	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
 
 	//iso "github.com/barbashov/iso639-3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	
+
+	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
+	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 )
 
 // VideoInfo represents information about a video file
@@ -33,7 +36,7 @@ func (a *App) OpenVideoDialog() (string, error) {
 		Filters: []runtime.FileFilter{
 			{
 				DisplayName: "Video Files",
-				Pattern:	 "*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.m4v",
+				Pattern:     "*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.m4v",
 			},
 		},
 	})
@@ -86,10 +89,9 @@ func (a *App) GetVideosInDirectory(dirPath string) ([]VideoInfo, error) {
 
 type LanguageCheckResponse struct {
 	StandardTag string `json:"standardTag"`
-	IsValid      bool   `json:"isValid"`
-	Error        string `json:"error,omitempty"`
+	IsValid     bool   `json:"isValid"`
+	Error       string `json:"error,omitempty"`
 }
-
 
 func (a *App) ValidateLanguageTag(tagsString string, maxOne bool) LanguageCheckResponse {
 	resp := LanguageCheckResponse{
@@ -105,7 +107,7 @@ func (a *App) ValidateLanguageTag(tagsString string, maxOne bool) LanguageCheckR
 	for i := range tags {
 		tags[i] = strings.TrimSpace(tags[i])
 	}
-	
+
 	if maxOne && len(tags) > 1 {
 		resp.Error = "more than one tag was provided"
 		return resp
@@ -130,35 +132,67 @@ func (a *App) ValidateLanguageTag(tagsString string, maxOne bool) LanguageCheckR
 	}
 
 	return LanguageCheckResponse{
-		IsValid: true,
+		IsValid:     true,
 		StandardTag: std,
 	}
 }
 
-
-// GetRomanizationStyles returns available romanization styles for a given language
-func (a *App) GetRomanizationStyles(langCode string) []string {
-	// This is where you'll implement the actual logic
-	// For now, returning dummy data based on language
-	switch langCode {
-	case "jpn":
-		return []string{"Hepburn", "Kunrei-shiki", "Nihon-shiki"}
-	case "kor":
-		return []string{"Revised Romanization", "McCune-Reischauer"}
-	case "chi":
-		return []string{"Pinyin", "Wade-Giles"}
-	default:
-		return []string{}
-	}
+type RomanizationScheme struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
+type RomanizationStylesResponse struct {
+	Schemes           []RomanizationScheme `json:"schemes"`
+	DockerUnreachable bool                 `json:"dockerUnreachable"`
+	DockerEngine      string               `json:"dockerEngine"`
+	NeedsDocker       bool                 `json:"needsDocker"`
+}
 
+func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResponse, error) {
+	resp := RomanizationStylesResponse{DockerEngine: dockerutil.DockerBackendName()}
+
+	// Get available schemes for the language
+	schemes, err := common.GetSchemes(languageCode)
+	if err != nil {
+		a.handler.ZeroLog().Error().
+			Err(err).
+			Str("lang", languageCode).
+			Msg("Failed to get romanization schemes")
+		return resp, err
+	}
+	// Check if any scheme needs Docker
+	for _, scheme := range schemes {
+		if scheme.NeedsDocker {
+			resp.NeedsDocker = true
+			break
+		}
+	}
+
+	if resp.NeedsDocker {
+		if err := dockerutil.EngineIsReachable(); err != nil {
+			a.handler.ZeroLog().Warn().
+				Err(err).
+				Str("lang", languageCode).
+				Msg("Docker is required but not available")
+
+			resp.DockerUnreachable = true
+		}
+	}
+
+	// Convert schemes to resp format
+	resp.Schemes = make([]RomanizationScheme, len(schemes))
+	for i, scheme := range schemes {
+		resp.Schemes[i] = RomanizationScheme{
+			Name:        scheme.Name,
+			Description: scheme.Description,
+		}
+	}
+	return resp, nil
+}
 
 func placeholder323453367() {
 	fmt.Print("")
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
 	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }
-
-
-

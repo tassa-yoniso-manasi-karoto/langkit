@@ -161,7 +161,7 @@
                                     />
                                     {#if targetLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                   material-icons text-green-500 text-sm">
+                                                   material-icons text-green-300 text-sm">
                                             check_circle
                                         </span>
                                     {:else if targetLangError}
@@ -190,7 +190,7 @@
                                     />
                                     {#if nativeLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                   material-icons text-green-500 text-sm">
+                                                   material-icons text-green-300 text-sm">
                                             check_circle
                                         </span>
                                     {:else if nativeLangError}
