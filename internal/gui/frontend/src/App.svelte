@@ -21,7 +21,6 @@
     }
 
     interface FeatureOptions {
-        // Define your feature options structure here
         [key: string]: any;
     }
 

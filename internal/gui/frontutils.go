@@ -140,6 +140,7 @@ func (a *App) ValidateLanguageTag(tagsString string, maxOne bool) LanguageCheckR
 type RomanizationScheme struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Provider    string `json:"provider"`
 }
 
 type RomanizationStylesResponse struct {
@@ -147,6 +148,7 @@ type RomanizationStylesResponse struct {
 	DockerUnreachable bool                 `json:"dockerUnreachable"`
 	DockerEngine      string               `json:"dockerEngine"`
 	NeedsDocker       bool                 `json:"needsDocker"`
+	NeedsScraper      bool                 `json:"needsScraper"`
 }
 
 func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResponse, error) {
@@ -161,10 +163,15 @@ func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResp
 			Msg("Failed to get romanization schemes")
 		return resp, err
 	}
-	// Check if any scheme needs Docker
 	for _, scheme := range schemes {
 		if scheme.NeedsDocker {
 			resp.NeedsDocker = true
+			break
+		}
+	}
+	for _, scheme := range schemes {
+		if scheme.NeedsScraper {
+			resp.NeedsScraper = true
 			break
 		}
 	}
@@ -186,6 +193,7 @@ func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResp
 		resp.Schemes[i] = RomanizationScheme{
 			Name:        scheme.Name,
 			Description: scheme.Description,
+			Provider:    scheme.Provider,
 		}
 	}
 	return resp, nil

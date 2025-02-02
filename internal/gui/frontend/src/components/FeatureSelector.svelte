@@ -41,8 +41,11 @@
             mergingFormat: string;
         };
         subtitleRomanization: {
+            provider: string;
             style: string;
             selectiveTransliteration: number;
+            dockerRecreate: boolean;
+            browserAccessURL: string;
         };
     }
 
@@ -53,16 +56,20 @@
     }
     
     // State variables
-    let languageCode = '';
+    let quickAccessLangTag = '';
     let isValidLanguage: boolean | null = null;
     let isChecking = false;
     let standardTag = '';
     let validationError = '';
+    
     let romanizationStyles: string[] = [];
     let isRomanizationAvailable = true;
+    
     let dockerUnreachable = false;
     let dockerEngine = '';
     let needsDocker = false;
+    
+    let needsScraper = false;
 
     // Feature options configuration
     const optionChoices = {
@@ -98,7 +105,8 @@
         subtitleRomanization: {
             style: "",
             selectiveTransliteration: 0,
-            dockerRecreate: false
+            dockerRecreate: false,
+            browserAccessURL: ""
         }
     };
 
@@ -124,7 +132,8 @@
         subtitleRomanization: {
             style: "Romanization Style",
             selectiveTransliteration: "Retain Kanjis below most frequent",
-            dockerRecreate: "Recreate docker container (try this if previous run failed)"
+            dockerRecreate: "Recreate docker container (try this if previous run failed)",
+            browserAccessURL: "Browser access URL 🧟"
         }
     };
 
@@ -177,6 +186,7 @@
    interface RomanizationScheme {
         name: string;
         description: string;
+        provider: string;
     }
 
     // Update state variables
@@ -189,6 +199,8 @@
             //console.log('No valid tag provided, disabling romanization');
             romanizationSchemes = [];
             isRomanizationAvailable = false;
+            needsDocker = false;
+            needsScraper = false;
             if (selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
             }
@@ -201,6 +213,7 @@
             
             romanizationSchemes = response.schemes || [];
             isRomanizationAvailable = romanizationSchemes.length > 0;
+            needsScraper = response.needsScraper || false;
             dockerUnreachable = response.dockerUnreachable || false;
             needsDocker = response.needsDocker || false;
             dockerEngine = response.dockerEngine || 'Docker Desktop';
@@ -232,10 +245,10 @@
     // Reactive statements
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
 
-    $: if (languageCode !== undefined) {
-        validateLanguageTag(languageCode, true);
+    $: if (quickAccessLangTag !== undefined) {
+        validateLanguageTag(quickAccessLangTag, true);
         // Force update of romanization availability
-        if (!languageCode) {
+        if (!quickAccessLangTag) {
             isRomanizationAvailable = false;
             selectedFeatures.subtitleRomanization = false;
         }
@@ -254,9 +267,9 @@
     // Settings subscription
     settings.subscribe(value => {
         console.log('Settings updated:', value);
-        if (value?.targetLanguage && value.targetLanguage !== languageCode) {
+        if (value?.targetLanguage && value.targetLanguage !== quickAccessLangTag) {
             console.log('Updating language code from settings:', value.targetLanguage);
-            languageCode = value.targetLanguage;
+            quickAccessLangTag = value.targetLanguage;
             validateLanguageTag(value.targetLanguage, true);
         }
     });
@@ -264,7 +277,7 @@
     onMount(async () => {
         const currentSettings = get(settings);
         if (currentSettings?.targetLanguage) {
-            languageCode = currentSettings.targetLanguage;
+            quickAccessLangTag = currentSettings.targetLanguage;
             await validateLanguageTag(currentSettings.targetLanguage, true);
         }
     });
@@ -310,7 +323,7 @@
             <div class="relative">
                 <input
                     type="text"
-                    bind:value={languageCode}
+                    bind:value={quickAccessLangTag}
                     maxlength="9"
                     placeholder="e.g. ja, zh-Hans"
                     class="w-32 bg-white/5 border border-accent/30 rounded px-3 py-2
@@ -376,7 +389,7 @@
                             <div class="mt-2 flex items-left text-xs font-bold text-red-500 pl-7">
                                 🔴 {dockerEngine} is required but not reachable. Please make sure it is installed and running.
                             </div>
-                        {:else if !languageCode}
+                        {:else if !quickAccessLangTag}
                             <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
                                 Please select a language to proceed.
                             </div>
@@ -406,6 +419,7 @@
                                 <div class="flex items-center">
                                     {#if option === 'selectiveTransliteration' && !(standardTag === 'jpn')}
                                     {:else if option === 'dockerRecreate' && !needsDocker}
+                                    {:else if option === 'browserAccessURL' && !needsScraper}
                                     {:else}
                                         <span class="text-gray-300 text-sm text-left">
                                             {optionLabels[feature][option] || formatDisplayText(option)}
@@ -456,14 +470,19 @@
                                                    font-medium" 
                                         />
                                     {:else if feature === 'subtitleRomanization' && option === 'style'}
-                                    <Dropdown
-                                        options={romanizationSchemes}
-                                        optionKey="name"
-                                        optionLabel="description"
-                                        value={currentFeatureOptions[feature][option]}
-                                        on:change={(e) => handleDropdownChange(feature, option, e.detail)}
-                                        label="Select style"
-                                    />
+                                            <Dropdown
+                                                options={romanizationSchemes}
+                                                optionKey="name"
+                                                optionLabel="description"
+                                                value={currentFeatureOptions[feature][option]}
+                                                on:change={(e) => handleDropdownChange(feature, option, e.detail)}
+                                                label="Select style"
+                                            />
+                                    {:else if feature === 'subtitleRomanization' && option === 'provider'}
+                                            <div>
+                                                {currentFeatureOptions[feature][option]}
+                                            </div>
+                                    {:else if (option === 'browserAccessURL' && !needsScraper)}
                                     {:else}
                                         <input 
                                             type="text"
