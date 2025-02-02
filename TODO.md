@@ -1,24 +1,23 @@
 ### TODO
 
 UI:
+    - display "select audio channel index" input box when no language tag is available in audiotracks
     - check that chromium is available for go-rod, if needed
-    - check if API key of provider is available and disable processing if not
+    - check if API key of provider is available and disable processing if not +++ justify blocked processing button on hover
 
 TRANSLITKIT:
    - implement ctx support
    
 translit.go
-   - use SelectiveTranslit directly it 
+   - use SelectiveTranslit directly for Kana translit
    - set Translitkit logwriter to langkit's
 
 
-Backend connections:
-   - Transliteration: LIST STYLES AVAILABLE
-   - check that Docker Desktop/Engine is available, if needed
-   - offer option to InitRecreate
+Backend mapping:
+   - Transliteration selected style
+   - option to InitRecreate
 
 UI improvement:
-    - justify blocked processing button on hover
     - hover effect for input box of number option
 
    - print debug at os exit
