@@ -5,7 +5,7 @@
     
     import { debounce } from 'lodash';
     
-    import { settings } from '../lib/stores';
+    import { settings, showSettings } from '../lib/stores.ts';
     import Dropdown from './Dropdown.svelte';
     import { GetRomanizationStyles, ValidateLanguageTag } from '../../wailsjs/go/gui/App';
 
@@ -61,6 +61,7 @@
     let isChecking = false;
     let standardTag = '';
     let validationError = '';
+    let providerWarnings: {[key: string]: string} = {};
     
     let romanizationStyles: string[] = [];
     let isRomanizationAvailable = true;
@@ -68,9 +69,52 @@
     let dockerUnreachable = false;
     let dockerEngine = '';
     let needsDocker = false;
-    
     let needsScraper = false;
+    
+    const providersRequiringTokens = {
+        'whisper': 'replicate',
+        'insanely-fast-whisper': 'replicate',
+        'demucs': 'replicate',
+        'spleeter': 'replicate',
+        'universal-1': 'assemblyAI'
+    };
 
+    function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
+        const tokenType = providersRequiringTokens[provider];
+        if (!tokenType) return { isValid: true, tokenType: null };
+        
+        const currentSettings = get(settings);
+        const hasToken = currentSettings?.apiKeys?.[tokenType]?.trim().length > 0;
+        
+        return { 
+            isValid: hasToken,
+            tokenType: tokenType
+        };
+    }
+    
+    function updateProviderWarnings() {
+        providerWarnings = {};
+        
+        // Check dubtitles STT provider
+        if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
+            const sttProvider = currentFeatureOptions.dubtitles.stt;
+            const { isValid, tokenType } = checkProviderApiToken(sttProvider);
+            if (!isValid) {
+                providerWarnings['dubtitles'] = `${tokenType} API token is required for ${sttProvider}`;
+            }
+        }
+        
+        // Check voice enhancement provider
+        if (selectedFeatures.voiceEnhancing && currentFeatureOptions.voiceEnhancing) {
+            const sepLib = currentFeatureOptions.voiceEnhancing.sepLib;
+            const { isValid, tokenType } = checkProviderApiToken(sepLib);
+            if (!isValid) {
+                providerWarnings['voiceEnhancing'] = `${tokenType} API token is required for ${sepLib}`;
+            }
+        }
+    }
+    
+    
     // Feature options configuration
     const optionChoices = {
         dubtitles: {
@@ -263,6 +307,13 @@
         currentFeatureOptions[feature][option] = value;
         dispatch('optionsChange', currentFeatureOptions);
     }
+    
+    // Helper function for text color classes
+    function getTextColorClass(enabled: boolean, anyFeatureSelected: boolean): string {
+        if (enabled) return 'text-white';
+        if (!anyFeatureSelected) return 'text-white';
+        return 'text-white/70';
+    }
 
     // Reactive statements
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
@@ -278,13 +329,15 @@
         }
     }
     
+    // Validity reactive statement
     $: {
         const hasFeatures = Object.values(selectedFeatures).some(v => v);
         const isLanguageValid = isValidLanguage === true;
+        const hasValidProviders = Object.keys(providerWarnings).length === 0;
         
         // Dispatch an event to notify parent about validity
         dispatch('validityChange', {
-            isValid: hasFeatures && isLanguageValid
+            isValid: hasFeatures && isLanguageValid && hasValidProviders
         });
     }
 
@@ -297,6 +350,23 @@
             validateLanguageTag(value.targetLanguage, true);
         }
     });
+    settings.subscribe(value => {
+        if (value) {
+            updateProviderWarnings();
+        }
+    });
+    
+    $: {
+        if (selectedFeatures) {
+            updateProviderWarnings();
+        }
+    }
+
+    $: {
+        if (currentFeatureOptions) {
+            updateProviderWarnings();
+        }
+    }
 
     onMount(async () => {
         const currentSettings = get(settings);
@@ -304,18 +374,13 @@
             quickAccessLangTag = currentSettings.targetLanguage;
             await validateLanguageTag(currentSettings.targetLanguage, true);
         }
+         updateProviderWarnings();
     });
 
     $: {
         dispatch('optionsChange', currentFeatureOptions);
     }
-
-    // Helper function for text color classes
-    function getTextColorClass(enabled: boolean, anyFeatureSelected: boolean): string {
-        if (enabled) return 'text-white';
-        if (!anyFeatureSelected) return 'text-white';
-        return 'text-white/70';
-    }
+    
     // Add the Japanese-specific option to the feature options when applicable
     $: if (standardTag === 'jpn' && !currentFeatureOptions.subtitleRomanization.hasOwnProperty('selectiveTransliteration')) {
         currentFeatureOptions = {
@@ -331,6 +396,12 @@
             ...currentFeatureOptions,
             subtitleRomanization: rest
         };
+    }
+    // Update warnings when options or features change
+    $: {
+        if (currentFeatureOptions) {
+            updateProviderWarnings();
+        }
     }
 </script>
 
@@ -410,7 +481,21 @@
                             {formatDisplayText(feature)}
                         </span>
                     </label>
-
+                    {#if enabled && providerWarnings[feature]}
+                        <div class="mt-2 flex items-center gap-2 text-red-400 text-xs pl-7">
+                            <span class="material-icons text-[14px]">warning</span>
+                            <span>
+                                {providerWarnings[feature]}
+                                <button 
+                                    class="ml-1 text-accent hover:text-accent/80 transition-colors"
+                                    on:click={() => $showSettings = true}
+                                >
+                                    Configure API Keys
+                                </button>
+                            </span>
+                        </div>
+                    {/if}
+                    
                     {#if feature === 'subtitleRomanization'}
                         {#if selectedFeatures.subtitleRomanization && needsDocker && !dockerUnreachable}
                             <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">

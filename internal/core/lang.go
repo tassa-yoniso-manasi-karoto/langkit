@@ -11,6 +11,9 @@ import (
 	iso "github.com/barbashov/iso639-3"
 )
 
+// TODO May make sense to move some functions to translitkit/pkg
+
+
 const (
 	StrippedSDH = iota
 	Sub

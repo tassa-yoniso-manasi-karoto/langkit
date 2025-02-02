@@ -2,7 +2,7 @@
     import { fade, slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { onMount } from 'svelte';
-    import { settings } from './lib/stores';
+    import { settings, showSettings } from './lib/stores.ts';
     
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -35,7 +35,6 @@
     let currentFeatureOptions: FeatureOptions | undefined;
     let isProcessing = false;
     let showLogViewer = false;
-    let showSettings = false;
     let progress = 0;
     let showGlow = true;
     let defaultTargetLanguage = '';
@@ -121,7 +120,7 @@
                 class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
                        transition-all duration-200 hover:bg-white/15 hover:text-white
                        hover:-translate-y-0.5"
-                on:click={() => showSettings = true}
+                on:click={() => $showSettings = true}
             >
                 <span class="material-icons text-[20px]">settings</span>
             </button>
@@ -191,8 +190,7 @@
     </div>
 </div>
 <Settings 
-    isOpen={showSettings}
-    onClose={() => showSettings = false}
+    onClose={() => $showSettings = false}
 />
 
 <style>

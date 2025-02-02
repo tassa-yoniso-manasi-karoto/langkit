@@ -1,10 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { slide, fade } from 'svelte/transition';
-    import { settings } from '../lib/stores.ts';
+    import { settings, showSettings } from '../lib/stores.ts';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
 
-    export let isOpen = false;
     export let onClose: () => void;
 
     interface LanguageCheckResponse {
@@ -107,7 +106,7 @@
 </script>
 
 
-{#if isOpen}
+{#if $showSettings}
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto"
          transition:fade={{ duration: 200 }}
     >

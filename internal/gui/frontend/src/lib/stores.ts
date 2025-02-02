@@ -22,4 +22,7 @@ const defaultSettings: Settings = {
     enableGlow: true
 };
 
+type showSettings = boolean;
+
 export const settings = writable<Settings>(defaultSettings);
+export const showSettings = writable(false);
