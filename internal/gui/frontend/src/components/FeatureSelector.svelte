@@ -223,8 +223,9 @@
     };
     
     const optionHovertips = {
+        trackOverride: "In case the audiotracks of your media files don't have proper languages tags, set the number/index of the audio track to use as basis for processing here. It is still a good idea to set the language tag for STT, romanization... etc.",
         subtitleRomanization: {
-            browserAccessURL: "URL to programmatically control a Chromium-based browser through Devtools. Required for providers that need web scraping capabilities.",
+            browserAccessURL: "URL to programmatically control a Chromium-based browser through Devtools. Required for providers that need web scraping capabilities",
             selectiveTransliteration: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana",
             dockerRecreate: "Use this if the previous run failed or if you're experiencing issues."
         }
@@ -455,18 +456,35 @@
         
         <!-- Target Language input -->
         <div class="flex items-center ml-auto item-right gap-2 pr-3">
-            <span class="text-accent text-xs whitespace-nowrap">
+            <span class="text-accent text-sm whitespace-nowrap">
                 Target Language
             </span>
             <input
                 type="text"
                 bind:value={quickAccessLangTag}
                 maxlength="9"
-                placeholder="e.g. ja"
-                class="w-20 bg-sky-dark/50 border border-accent/30 rounded px-2 py-2
+                placeholder="e.g. ja, zh-Hans"
+                class="w-24 bg-sky-dark/50 border border-accent/30 rounded px-2 py-2
                        focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
                        transition-colors duration-200 text-xs font-medium"
             />
+            {#if isChecking}
+                <span class="absolute right-4 top-1/2 -translate-y-1/2
+                            material-icons animate-spin text-accent/70 text-sm">
+                    refresh
+                </span>
+            {:else if isValidLanguage === false}
+                <span class="absolute right-4 top-1/2 -translate-y-1/2
+                            material-icons text-red-500 text-sm"
+                      title={validationError}>
+                    error
+                </span>
+            {:else if isValidLanguage === true}
+                <span class="absolute right-4 top-1/2 -translate-y-1/2
+                            material-icons text-green-300 text-sm">
+                    check_circle
+                </span>
+            {/if}
         </div>
 
         <!-- Audio track selection with slide animation -->
@@ -485,13 +503,13 @@
               if (!showAudioTrackIndex) {
                   audioTrackIndex = 0; // Reset to 0 when hiding
               } else {
-                  audioTrackIndex = 1; // Set to 1 when showing
+                  audioTrackIndex = audioTrackIndex === 0 ? 1 : audioTrackIndex;
               }
             }}
             title="Toggle audio track selection"
           >
             <span class="transform transition-transform duration-1000 text-accent/70
-                         hover:text-accent leading-none"
+                         hover:text-accent text-2xl leading-none"
                   class:rotate-180={showAudioTrackIndex}>
               ◀
             </span>
@@ -505,17 +523,27 @@
               <!-- Panel: use matching background and borders; remove left rounding -->
               <div class="flex items-center bg-accent/5 
                          border border-accent/30 border-l-0
-                         rounded-r px-3 p-4 h-6">
-                <span class="text-accent text-xs whitespace-nowrap mr-2">
-                  Audio Track Override
+                         rounded-r px-2 p-4 h-6">
+                <span class="text-accent text-sm whitespace-nowrap">
+                  Track Override
                 </span>
+                <div class="relative group flex items-center pl-1 pr-1">
+                    <span class="material-icons text-accent/70 cursor-help leading-none">help_outline</span>
+                    <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2
+                               hidden group-hover:block w-64 bg-gray-800 rounded-lg
+                               text-xs text-white shadow-lg z-50">
+                        {optionHovertips.trackOverride}
+                        <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2
+                                  w-2 h-2 bg-gray-800 rotate-45"></div>
+                    </div>
+                </div>
                 <!-- The input field: reduced horizontal padding and fixed height -->
                 <input
                   type="number"
                   bind:value={audioTrackIndex}
                   min="1"
                   max="99"
-                  class="w-12 h-6 bg-sky-dark/50 border border-accent/30 rounded
+                  class="w-10 h-6 bg-sky-dark/50 border border-accent/30 rounded
                          px-1 text-xs font-medium text-center
                          focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
                          transition-colors duration-200"

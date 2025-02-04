@@ -2,30 +2,45 @@
 
 UI:
     - restore broken language checking in featureSelector
-    - justify blocked processing button on hover
 
-TRANSLITKIT:
-   - implement ctx support
    
-translit.go
-   - use SelectiveTranslit directly for Kana translit
-   - set Translitkit logwriter to langkit's
 
 
-Backend mapping:
+BACKEND MAPPING:
    - Transliteration selected style
    - check that chromium is available for go-rod, if needed
    - option to InitRecreate
    - "audio channel override"
+   - fix API key reading from env in code not using pkg config
 
 
    - print debug at os exit
+   - justify blocked processing button on hover
    - Add tests
-   - Add hovertips
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+translit.go
+   - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
+   - set Translitkit logwriter to langkit's
+   - fix IsToken situation
+   
+   
+   
+TRANSLITKIT:
+   - implement ctx support
+   
+   
    - Add tooltips (aborted tasks...)
    - add progress bar
    - fix frontend checkMediaFiles() not reflecting the lack of language tag
-   - fix API key reading from env in code not using pkg config
    
    - Add documentation
    - fix newlines in builtin documentation
