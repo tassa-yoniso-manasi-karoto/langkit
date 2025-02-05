@@ -2,8 +2,6 @@ module github.com/tassa-yoniso-manasi-karoto/langkit
 
 go 1.23.4
 
-replace github.com/tassa-yoniso-manasi-karoto/dockerutil => /home/voiduser/go/src/dockerutil
-
 require (
 	github.com/AssemblyAI/assemblyai-go-sdk v1.9.0
 	github.com/adrg/xdg v0.5.3
@@ -17,7 +15,6 @@ require (
 	github.com/schollz/progressbar/v3 v3.17.1
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
-	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250202013912-e5759473cdc2
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250202003613-d6c9239c4654
 	github.com/wailsapp/wails/v2 v2.9.2
@@ -194,8 +191,9 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250131120935-4795b105558c // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250131120752-20b68b859600 // indirect
+	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250203172421-ac8cd3a8c69c // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250204101114-3d4a0e47c5f0 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250204101035-b6dc8efd49b0 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect

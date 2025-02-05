@@ -14,8 +14,8 @@ import (
 	//"github.com/schollz/progressbar/v3"
 	"github.com/gookit/color"
 	
-	"github.com/tassa-yoniso-manasi-karoto/translitkit"
-	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
+	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
+	translitkit "github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 )
 
 var (
@@ -25,18 +25,23 @@ var (
 )
 
 func (tsk *Task) Translit(subsFilepath string) *ProcessingError {
-	common.BrowserAccessURL = tsk.BrowserAccessURL
-	m, err := translitkit.DefaultModule(tsk.Targ.Language.Part3)
+	translitkit.BrowserAccessURL = tsk.BrowserAccessURL
+	m, err := translitkit.GetSchemeModule(tsk.Targ.Language.Part3, tsk.RomanizationStyle)
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: couldn't get default provider for language %s", tsk.Targ.Language.Part3))
+			fmt.Sprintf("translit: couldn't get default provider for language %s-%s", tsk.Targ.Language.Part3, tsk.RomanizationStyle))
 	}
 	tsk.Handler.ZeroLog().Trace().Msg("translit: successfully retrived default module for lang: " + m.Lang)
-	if err := m.Init(); err != nil {
+	if !tsk.DockerRecreate {
+		err = m.Init()
+	} else {
+		err = m.InitRecreate(true)
+	}
+	if err != nil {
 		return tsk.Handler.LogErr(err, AbortAllTasks,
 			fmt.Sprintf("translit: failed to init default provider for language %s", tsk.Targ.Language.Part3))
 	}
-	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s-%s successfully initialized", m.Lang, m.ProviderNames())
+	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s-%s-%s successfully initialized", m.Lang, m.ProviderNames(), tsk.RomanizationStyle)
 	
 	SubTranslit, _ := astisub.OpenFile(subsFilepath)
 	SubTokenized, _ := astisub.OpenFile(subsFilepath)
@@ -105,6 +110,9 @@ func (tsk *Task) Translit(subsFilepath string) *ProcessingError {
 }
 
 
+// pretty much the same code as above as I haven't found a simple way to add 
+//  a custom routing for a specific language inside the general purpose func.
+// func (tsk *Task) TranslitJPN(subsFilepath string) *ProcessingError {
 
 func Subs2StringBlock(subs *astisub.Subtitles) (mergedSubsStr string, subSlice []string) {
 	for _, Item := range (*subs).Items {

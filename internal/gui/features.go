@@ -9,41 +9,24 @@ import (
 	"github.com/gookit/color"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 )
 
 func (a *App) ProcessFiles(request ProcessRequest) {
-
 	processCtx, cancel := context.WithCancel(a.ctx)
 	defer cancel() // TODO assign this cancel in App as procCancel
-    
+
 	task := core.NewTask(a.handler)
 	a.configureTask(task, request)
-
-	if len(request.Files) != 1 {
-		task.Handler.ZeroLog().Error().
-			Msg("exactly one file or directory must be selected")
-		return
-	}
-
-	// Set the source path FIXME replace Files with Path
-	task.MediaSourceFile = request.Files[0]
 	
-	/*/ Log the processing mode
-	stat, err := os.Stat(task.MediaSourceFile)
-	if err != nil {
-		task.Handler.ZeroLog().Error().Err(err).Msg("Failed to access source path")
-		return err
-	}
-
-	task.IsBulkProcess = stat.IsDir()
+	task.MediaSourceFile = request.Path
+	
 	task.Handler.ZeroLog().Info().
-		Str("path", task.MediaSourceFile).
-		Bool("is_directory", task.IsBulkProcess).
-		Msg("Processing mode determined")*/
+		Str("file", task.MediaSourceFile).
+		Str("mode", string(task.Mode)).
+		Msg("Starting processing")
 
 	pp.Println(request)
-	color.Redln("WIP: Blocking indefinitely...")
-	select {}
 	
 	task.Routing(processCtx)
 }
@@ -51,26 +34,27 @@ func (a *App) ProcessFiles(request ProcessRequest) {
 
 // ProcessRequest represents the incoming request from the frontend
 type ProcessRequest struct {
-	Files            []string          `json:"files"`
-	SelectedFeatures map[string]bool   `json:"selectedFeatures"`
-	Options          FeatureOptions    `json:"options"`
-	LanguageCode     string           `json:"languageCode"`
+	Path             string          `json:"path"`
+	SelectedFeatures map[string]bool `json:"selectedFeatures"`
+	Options          FeatureOptions  `json:"options"`
+	LanguageCode     string          `json:"languageCode"`
+	AudioTrackIndex  int             `json:"audioTrackIndex,omitempty"`
 }
 
 type FeatureOptions struct {
 	Subs2Cards struct {
-		PadTiming       int  `json:"padTiming"`
-		ScreenshotWidth int  `json:"screenshotWidth"`
-		ScreenshotHeight int `json:"screenshotHeight"`
-		CondensedAudio  bool `json:"condensedAudio"`
+		PadTiming        int  `json:"padTiming"`
+		ScreenshotWidth  int  `json:"screenshotWidth"`
+		ScreenshotHeight int  `json:"screenshotHeight"`
+		CondensedAudio   bool `json:"condensedAudio"`
 	} `json:"subs2cards"`
-	
+
 	Dubtitles struct {
-		PadTiming   int    `json:"padTiming"`
-		STT         string `json:"stt"`
-		STTtimeout  int    `json:"sttTimeout"`
+		PadTiming  int    `json:"padTiming"`
+		STT        string `json:"stt"`
+		STTtimeout int    `json:"sttTimeout"`
 	} `json:"dubtitles"`
-	
+
 	VoiceEnhancing struct {
 		SepLib        string  `json:"sepLib"`
 		VoiceBoost    float64 `json:"voiceBoost"`
@@ -78,78 +62,110 @@ type FeatureOptions struct {
 		Limiter       float64 `json:"limiter"`
 		MergingFormat string  `json:"mergingFormat"`
 	} `json:"voiceEnhancing"`
-	
+
 	SubtitleRomanization struct {
-		Style                   string `json:"style"`
+		Style                    string `json:"style"`
 		SelectiveTransliteration int    `json:"selectiveTransliteration,omitempty"`
+		DockerRecreate           bool   `json:"dockerRecreate"`
+		BrowserAccessURL         string `json:"browserAccessURL"`
 	} `json:"subtitleRomanization"`
 }
 
 
+
 func (a *App) configureTask(task *core.Task, request ProcessRequest) {
-	if request.LanguageCode != "" {
-		task.Langs = []string{request.LanguageCode}
+	settings, err := config.LoadSettings()
+	if err != nil {
+		// TODO return tsk.Handler.LogErr(err, AbortAllTasks, "failed to load settings")
 	}
 
+	if request.LanguageCode != "" {
+		task.Langs = []string{request.LanguageCode}
+		if settings.NativeLanguages != "" {
+			task.Langs = append(task.Langs, core.TagsStr2TagsArr(settings.NativeLanguages)...)
+		} else {
+			// TODO return ERR
+		}
+	}
+	
+	if procErr := task.PrepareLangs(); procErr != nil {
+		task.Handler.ZeroLog().Error().Err(procErr.Err).
+			Msg("PrepareLangs failed")
+	}
 	// Configure based on selected features starting from the most specific,
 	// restricted processing mode to the most general, multipurpose in order to
 	// have the correct task.Mode at the end to pass on downstream.
-	
+
+	// Set audio track if specified
+	if request.AudioTrackIndex > 0 {
+		task.UseAudiotrack = request.AudioTrackIndex // TODO check if UseAudiotrack start from 0 or not
+		task.Handler.ZeroLog().Debug().
+			Int("track_index", request.AudioTrackIndex).
+			Msg("Set audio track index")
+	}
+
 	if request.SelectedFeatures["subtitleRomanization"] {
 		opts := request.Options.SubtitleRomanization
-		task.Mode             = core.Translit
-		task.WantTranslit     = true
-		task.RomanizationStyle= opts.Style
-		
+		task.Mode = core.Translit
+		task.WantTranslit = true
+		task.RomanizationStyle = opts.Style
+
 		if opts.SelectiveTransliteration > 0 {
 			task.KanjiThreshold = opts.SelectiveTransliteration
 		}
-		
+
+		// New options
+		task.DockerRecreate = opts.DockerRecreate
+		task.BrowserAccessURL = opts.BrowserAccessURL
+
 		task.Handler.ZeroLog().Debug().
 			Interface("romanization_options", opts).
+			Bool("docker_recreate", opts.DockerRecreate).
+			Str("browser_url", opts.BrowserAccessURL).
 			Msg("Configured Subtitle Romanization")
 	}
-	
+
 	if request.SelectedFeatures["voiceEnhancing"] {
 		opts := request.Options.VoiceEnhancing
-		task.Mode          = core.Enhance
+		task.Mode = core.Enhance
 		task.SeparationLib = opts.SepLib
-		task.VoiceBoost    = opts.VoiceBoost
+		task.VoiceBoost = opts.VoiceBoost
 		task.OriginalBoost = opts.OriginalBoost
-		task.Limiter       = opts.Limiter
+		task.Limiter = opts.Limiter
 		task.MergingFormat = opts.MergingFormat
-		
+
 		task.Handler.ZeroLog().Debug().
 			Interface("voice_enhancing_options", opts).
 			Msg("Configured Voice Enhancing")
 	}
-	
+
 	if request.SelectedFeatures["dubtitles"] {
 		opts := request.Options.Dubtitles
-		task.Mode       = core.Subs2Dubs
-		task.Offset     = time.Duration(opts.PadTiming) * time.Millisecond
-		task.STT        = opts.STT
+		task.Mode = core.Subs2Dubs
+		task.Offset = time.Duration(opts.PadTiming) * time.Millisecond
+		task.STT = opts.STT
 		task.TimeoutSTT = opts.STTtimeout
-		
+
 		task.Handler.ZeroLog().Debug().
 			Interface("dubtitles_options", opts).
 			Msg("Configured Dubtitles")
 	}
-	
+
 	if request.SelectedFeatures["subs2cards"] {
 		opts := request.Options.Subs2Cards
-		task.Mode            = core.Subs2Cards
-		task.Offset          = time.Duration(opts.PadTiming) * time.Millisecond
+		task.Mode = core.Subs2Cards
+		task.Offset = time.Duration(opts.PadTiming) * time.Millisecond
 		task.ScreenshotWidth = opts.ScreenshotWidth
-		task.ScreenshotHeight= opts.ScreenshotHeight
-		task.CondensedAudio  = opts.CondensedAudio
-		
+		task.ScreenshotHeight = opts.ScreenshotHeight
+		task.CondensedAudio = opts.CondensedAudio
+
 		task.Handler.ZeroLog().Debug().
 			Interface("subs2cards_options", opts).
 			Msg("Configured Subs2Cards")
 	}
 	return
 }
+
 
 
 /*func (a *App) updateProgress(update ProgressUpdate) {

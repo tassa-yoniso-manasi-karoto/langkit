@@ -54,7 +54,7 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 			"Neither languages and nor subtitle files were specified.")
 	}
 	if tsk.TargSubFile == "" {
-		if procErr:= tsk.Autosub(); procErr.Err != nil {
+		if procErr:= tsk.Autosub(); procErr != nil {
 			return procErr
 		}
 	} else {
@@ -197,12 +197,14 @@ ResumeTranslit:
 		tsk.Translit(subs)
 	}
 	if tsk.SeparationLib != "" {
-		if procErr:= tsk.enhance(ctx); procErr.Err != nil {
+		if procErr:= tsk.enhance(ctx); procErr != nil {
 			return procErr
 		}
 	} else if tsk.Mode == Enhance {
 		tsk.Handler.ZeroLog().Error().Msg("No separation API to isolate the voice's audio was specified.")
 	}
+	
+	tsk.Handler.ZeroLog().Info().Msg("Processing completed")
 	return nil
 }
 
@@ -229,7 +231,7 @@ func (tsk *Task) Autosub() *ProcessingError {
 			tsk.Handler.ZeroLog().Debug().Err(err).Msg("error guessing lang")
 			continue
 		}
-		//fmt.Printf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
+		color.Greenf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
 		
 		// Check if subtitle name matches our target language
 		SetPrefered([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile, &tsk.Targ)
