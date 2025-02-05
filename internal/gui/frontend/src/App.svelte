@@ -2,7 +2,10 @@
     import { fade, slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { onMount } from 'svelte';
+    import '@material-design-icons/font';
+    
     import { settings, showSettings } from './lib/stores.ts';
+    import { logStore } from './lib/logStore';
     
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -11,7 +14,7 @@
     import Settings from './components/Settings.svelte';
     
     import { ProcessFiles } from '../wailsjs/go/gui/App';
-    import '@material-design-icons/font';
+    import { EventsOn } from '../wailsjs/runtime/runtime';
 
     // Define interfaces
     interface VideoInfo {
@@ -94,6 +97,11 @@
 
     // Initialization
     onMount(() => {
+        // Initialize log listener regardless of log viewer visibility
+        EventsOn("log", (rawLog: any) => {
+            logStore.addLog(rawLog);
+        });
+        
         // Listen for settings updates
         window.runtime.EventsOn("settings-loaded", (loadedSettings) => {
             settings.set(loadedSettings);

@@ -1,22 +1,9 @@
 <script lang="ts">
-
-    import { onMount, onDestroy } from 'svelte';
-    import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
-    import ProgressBar from './ProgressBar.svelte';
-    
+    import { onMount } from 'svelte';
     import { settings } from '../lib/stores';
+    import { logStore, type LogMessage } from '../lib/logStore';
+    import ProgressBar from './ProgressBar.svelte';
 
-    interface LogMessage {
-        level: string;
-        message: string;
-        time: string;
-        behavior?: string;
-        // Allow any additional fields for structured logging
-        [key: string]: any;
-    }
-
-
-    let logs: LogMessage[] = [];
     export let downloadProgress: any = null;
     
     let scrollContainer: HTMLElement;
@@ -38,6 +25,12 @@
         'panic': 6
     };
 
+    const behaviorColors = {
+        'abort_task': 'text-red-400',
+        'abort_all': 'text-red-600',
+        'probe': 'text-yellow-400'
+    };
+
     // Update getLevelClass to handle case standardization
     const getLevelClass = (level: string) => ({
         'DEBUG': 'debug',
@@ -49,34 +42,34 @@
         'TRACE': 'trace'
     }[level.toUpperCase()] || 'info');
 
-    // Update filtered logs to use standardized case
-    $: filteredLogs = logs.filter(log => 
+    // Helper function to format fields
+    function formatFields(fields: Record<string, any> | undefined): string {
+        if (!fields) return '';
+        return Object.entries(fields)
+            .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+            .join(' ');
+    }
+
+    // Helper function to format structured fields
+    function formatStructuredFields(log: LogMessage): string {
+        const excludedKeys = ['level', 'message', 'time', 'behavior'];
+        const fields = Object.entries(log)
+            .filter(([key]) => !excludedKeys.includes(key))
+            .map(([key, value]) => {
+                if (typeof value === 'object') {
+                    return `${key}=${JSON.stringify(value)}`;
+                }
+                return `${key}=${value}`;
+            })
+            .join(' ');
+        return fields;
+    }
+
+    // Filter logs based on level
+    $: filteredLogs = $logStore.filter(log => 
         logLevelPriority[log.level.toLowerCase()] >= logLevelPriority[selectedLogLevel.toLowerCase()]
     );
 
-    // Add debug logging
-    $: {
-        console.log("Filtered logs:", filteredLogs);
-        console.log("Selected level:", selectedLogLevel);
-        console.log("Filtering active:", logs.length !== filteredLogs.length);
-    }
-    
-    
-    function addLog(logData: LogMessage) {
-        // If we've reached the maximum, remove the oldest entries
-        if (logs.length >= $settings.maxLogEntries) {
-            // Remove oldest entries to make room for the new one
-            logs = logs.slice(-($settings.maxLogEntries - 1));
-        }
-        
-        // Add the new log entry
-        logs = [...logs, logData];
-        
-        if (autoScroll) {
-            scrollToBottom();
-        }
-    }
-    
     function handleScroll(e: Event) {
         if (isScrolling) return;
         
@@ -115,84 +108,6 @@
         }
     }
 
-    function clearLogs() {
-        logs = [];
-        downloadProgress = null;
-    }
-
-    const behaviorColors = {
-        'abort_task': 'text-red-400',
-        'abort_all': 'text-red-600',
-        'probe': 'text-yellow-400'
-    };
-
-    // Helper function to format fields
-    function formatFields(fields: Record<string, any> | undefined): string {
-        if (!fields) return '';
-        return Object.entries(fields)
-            .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-            .join(' ');
-    }
-
-    // Helper function to format structured fields
-    function formatStructuredFields(log: LogMessage): string {
-        const excludedKeys = ['level', 'message', 'time', 'behavior'];
-        const fields = Object.entries(log)
-            .filter(([key]) => !excludedKeys.includes(key))
-            .map(([key, value]) => {
-                if (typeof value === 'object') {
-                    return `${key}=${JSON.stringify(value)}`;
-                }
-                return `${key}=${value}`;
-            })
-            .join(' ');
-        return fields;
-    }
-
-    // Update the mount event handler
-    let mounted = false; // Add this flag
-
-    // Add a reactive statement to monitor logs array
-    $: {
-        console.log("Logs array changed, new length:", logs.length);
-        console.log("Current logs:", logs);
-    }
-    
-    onMount(() => {
-        mounted = true;
-        
-        EventsOn("log", (rawLog: any) => {
-            try {
-                const logData: LogMessage = typeof rawLog === 'string' ? JSON.parse(rawLog) : rawLog;
-                
-                const timeStr = new Date(logData.time).toLocaleTimeString('en-US', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
-                logData.time = timeStr;
-                
-                addLog(logData);
-                
-            } catch (error) {
-                console.error("Error processing log:", error);
-                console.error("Raw log data:", rawLog);
-            }
-        });
-
-        EventsOn("progress", (progress) => {
-            downloadProgress = progress;
-            if (autoScroll) {
-                scrollToBottom();
-            }
-        });
-
-        EventsOn("status", (status: string) => {
-            // Handle status updates if needed
-        });
-    });
-
     function handleLogBehavior(log: LogMessage) {
         switch (log.behavior) {
             case 'abort_all':
@@ -207,15 +122,16 @@
         }
     }
 
-    onDestroy(() => {
-        EventsOff("log");
-        EventsOff("download-progress");
-        clearTimeout(scrollTimeout);
-    });
-
-    $: if (logs.length && autoScroll) {
+    // Watch for changes in filtered logs and scroll if needed
+    $: if (filteredLogs.length && autoScroll) {
         scrollToBottom();
     }
+
+    onMount(() => {
+        if (autoScroll) {
+            scrollToBottom();
+        }
+    });
 </script>
 
 <div class="log-viewer font-dm-mono">
@@ -256,7 +172,7 @@
             
             <!-- Clear button -->
             <button 
-                on:click={clearLogs}
+                on:click={() => logStore.clearLogs()}
                 class="text-xs uppercase tracking-wider font-medium
                        text-gray-400 hover:text-white transition-colors"
             >
@@ -278,7 +194,7 @@
             {:else}
                 {#each filteredLogs as log}
                     <div class="log-entry {log.behavior ? behaviorColors[log.behavior] : ''}" 
-                         transition:fade={{ duration: 150 }}>
+                         on:click={() => handleLogBehavior(log)}>
                         <span class="time">{log.time}</span>
                         <span class="level {getLevelClass(log.level)}">{log.level}</span>
                         <span class="message">
@@ -304,6 +220,7 @@
         {/if}
     </div>
 </div>
+
 <!--{#if import.meta.env.DEV}
     <div class="debug-overlay">
         Total logs: {logs.length}<br>
