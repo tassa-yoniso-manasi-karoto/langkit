@@ -12,7 +12,8 @@
   "dependencies": {
     "@material-design-icons/font": "^0.14.13",
     "flowbite-svelte": "^0.47.4",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "svelte-portal": "^2.2.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.4",

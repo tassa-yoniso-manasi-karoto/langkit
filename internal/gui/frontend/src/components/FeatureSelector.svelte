@@ -7,6 +7,7 @@
     
     import { settings, showSettings } from '../lib/stores.ts';
     import Dropdown from './Dropdown.svelte';
+    import Hovertip from './Hovertip.svelte';
     import { GetRomanizationStyles, ValidateLanguageTag, CheckMediaLanguageTags } from '../../wailsjs/go/gui/App';
 
     // Initialize event dispatcher for parent communication
@@ -527,16 +528,12 @@
                 <span class="text-accent text-sm whitespace-nowrap">
                   Track Override
                 </span>
-                <div class="relative group flex items-center pl-1 pr-1">
-                    <span class="material-icons text-accent/70 cursor-help leading-none">help_outline</span>
-                    <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2
-                               hidden group-hover:block w-64 bg-gray-800 rounded-lg
-                               text-xs text-white shadow-lg z-50">
-                        {optionHovertips.trackOverride}
-                        <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2
-                                  w-2 h-2 bg-gray-800 rotate-45"></div>
-                    </div>
-                </div>
+	            <Hovertip message="{optionHovertips.trackOverride}">
+		            <!-- The trigger slot: the element that activates the hovertip -->
+		            <span slot="trigger" class="material-icons text-accent/70 cursor-help pr-1 leading-none material-icon-adjust">
+			            help_outline
+		            </span>
+	            </Hovertip>
                 <!-- The input field: reduced horizontal padding and fixed height -->
                 <input
                   type="number"
@@ -653,16 +650,12 @@
                                         <span class="text-gray-300 text-sm text-left flex items-center gap-2">
                                             {optionLabels[feature][option] || formatDisplayText(option)}
                                             {#if optionHovertips[feature]?.[option]}
-                                                <div class="relative group">
-                                                    <span class="material-icons text-accent/70 text-sm cursor-help">help_outline</span>
-                                                    <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2
-                                                               hidden group-hover:block w-64 p-2 bg-gray-800 rounded-lg
-                                                               text-xs text-white shadow-lg z-50">
-                                                        {optionHovertips[feature][option]}
-                                                        <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2
-                                                                  w-2 h-2 bg-gray-800 rotate-45"></div>
-                                                    </div>
-                                                </div>
+	                                            <Hovertip message="{optionHovertips[feature][option]}">
+		                                            <!-- The trigger slot: the element that activates the hovertip -->
+		                                            <span slot="trigger" class="material-icons text-accent/70 cursor-help pr-1 leading-none material-icon-adjust">
+			                                            help_outline
+		                                            </span>
+	                                            </Hovertip>
                                             {/if}
                                         </span>
                                     {/if}
@@ -821,5 +814,9 @@
 
     .group:hover div[class*="group-hover"] {
         pointer-events: auto;
+    }
+    .material-icon-adjust {
+	    position: relative;
+	    top: 5px; /* Adjust this value as needed */
     }
 </style>

@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import path from 'path';
 
 export default defineConfig({
   plugins: [svelte()],
+  resolve: {
+    alias: {
+      'svelte-portal/src/Portal.svelte': path.resolve(__dirname, 'node_modules/svelte-portal/src/Portal.svelte')
+    }
+  },
   server: {
     watch: {
       usePolling: true,
