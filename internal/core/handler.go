@@ -155,7 +155,7 @@ func log(h MessageHandler, level int8, err error, behavior string, msg string, f
 	event := h.ZeroLog().WithLevel(zerolog.Level(level))
 	if err != nil {
 		//event.Err(err)
-		msg = fmt.Sprint("%s: %v", msg, err)
+		msg = fmt.Sprintf("%s: %v", msg, err)
 	}
 	if fields != nil {
 		event = event.Fields(fields)
