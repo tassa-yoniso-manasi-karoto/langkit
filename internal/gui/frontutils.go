@@ -86,22 +86,22 @@ func (a *App) GetVideosInDirectory(dirPath string) ([]VideoInfo, error) {
 
 	return videos, nil
 }
-type AudioTrack struct {
-    Index    int     `json:"index"`
-    Language string `json:"language"`
-}
+
+
+// type AudioTrack struct {
+//     Index    int     `json:"index"`
+//     Language string `json:"language"`
+// }
 
 type MediaLanguageInfo struct {
     HasLanguageTags bool         `json:"hasLanguageTags"`
-    AudioTracks     []AudioTrack `json:"audioTracks"`
+//     AudioTracks     []AudioTrack `json:"audioTracks"`
 }
-
-// frontutils.go
 
 func (a *App) CheckMediaLanguageTags(path string) (MediaLanguageInfo, error) {
     info := MediaLanguageInfo{
         HasLanguageTags: false,
-        AudioTracks:     []AudioTrack{},
+        // AudioTracks:     []AudioTrack{},
     }
 
     // Check if path is a directory
@@ -127,11 +127,11 @@ func (a *App) CheckMediaLanguageTags(path string) (MediaLanguageInfo, error) {
     mediaInfo := core.Mediainfo(path)
     
     // Check if any audio tracks have language tags
-    for i, track := range mediaInfo.AudioTracks {
-        info.AudioTracks = append(info.AudioTracks, AudioTrack{
-            Index:    i,
-            Language: track.Language.Part3,
-        })
+    for _, track := range mediaInfo.AudioTracks {
+        // info.AudioTracks = append(info.AudioTracks, AudioTrack{
+        //     Index:    i,
+        //     Language: track.Language.Part3,
+        // })
         if track.Language != nil {
             info.HasLanguageTags = true
         }
