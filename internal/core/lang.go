@@ -59,6 +59,15 @@ func Str(l *iso.Language) string {
 }
 
 
+func TagsStr2TagsArr(tagsString string) []string {
+	tags := strings.Split(tagsString, ",")
+	for i := range tags {
+		tags[i] = strings.TrimSpace(tags[i])
+	}
+	return tags
+}
+
+
 func (tsk *Task) PrepareLangs() *ProcessingError {
 	if len(tsk.Langs) > 0 {
 		tmp, err := ParseLanguageTags([]string{tsk.Langs[0]})

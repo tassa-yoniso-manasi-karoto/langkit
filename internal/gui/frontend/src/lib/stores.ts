@@ -9,6 +9,8 @@ type Settings = {
     targetLanguage: string;
     nativeLanguages: string;
     enableGlow: boolean;
+    showLogViewerByDefault: boolean;
+    maxLogEntries: number;
 };
 
 const defaultSettings: Settings = {
@@ -18,8 +20,10 @@ const defaultSettings: Settings = {
         elevenLabs: ''
     },
     targetLanguage: '',
-    nativeLanguages: '',
-    enableGlow: true
+    nativeLanguages: 'en, en-US',
+    enableGlow: true,
+    showLogViewerByDefault: false,
+    maxLogEntries: 10000
 };
 
 type showSettings = boolean;

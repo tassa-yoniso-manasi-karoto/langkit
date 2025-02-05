@@ -118,6 +118,7 @@ type Task struct {
 	RomanizationStyle    string
 	KanjiThreshold       int
 	BrowserAccessURL     string
+	DockerRecreate       bool
 }
 
 func NewTask(handler MessageHandler) (tsk *Task) {
@@ -177,10 +178,9 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 
 	// Set defaults from config
 	if !cmd.Flags().Changed("langs") && settings.TargetLanguage != "" {
-		if settings.NativeLanguage != "" {
-			tsk.Langs = []string{settings.TargetLanguage, settings.NativeLanguage}
-		} else {
-			tsk.Langs = []string{settings.TargetLanguage}
+		tsk.Langs = []string{settings.TargetLanguage}
+		if settings.NativeLanguages != "" {
+			tsk.Langs = append(tsk.Langs, TagsStr2TagsArr(settings.NativeLanguages)...)
 		}
 	} else {
 		// Get from flags if specified
@@ -261,7 +261,6 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 		tsk.WantTranslit = value
 	}
 	
-	tsk.Langs, _ = cmd.Flags().GetStringSlice("langs")
 	if procErr := tsk.PrepareLangs(); procErr.Err != nil {
 		return procErr
 	}

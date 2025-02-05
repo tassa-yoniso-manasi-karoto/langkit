@@ -99,10 +99,15 @@
             settings.set(loadedSettings);
             showGlow = loadedSettings.enableGlow;
             defaultTargetLanguage = loadedSettings.targetLanguage;
+            showLogViewer = loadedSettings.showLogViewerByDefault;
         });
 
         loadSettings();
     });
+
+    $: if ($settings) {
+        showLogViewer = $settings.showLogViewerByDefault;
+    }
 
     // Settings update listener
     window.addEventListener('settingsUpdated', ((event: CustomEvent) => {

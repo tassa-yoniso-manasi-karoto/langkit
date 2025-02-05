@@ -156,11 +156,7 @@ func (a *App) ValidateLanguageTag(tagsString string, maxOne bool) LanguageCheckR
 		return resp
 	}
 
-	// Split the string on commas and trim spaces
-	tags := strings.Split(tagsString, ",")
-	for i := range tags {
-		tags[i] = strings.TrimSpace(tags[i])
-	}
+	tags := core.TagsStr2TagsArr(tagsString)
 
 	if maxOne && len(tags) > 1 {
 		resp.Error = "more than one tag was provided"

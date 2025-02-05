@@ -273,6 +273,31 @@
                                     Enable glow effects (disable if you experience performance issues)
                                 </span>
                             </label>
+                            
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    bind:checked={currentSettings.showLogViewerByDefault}
+                                    class="w-4 h-4 accent-accent rounded"
+                                />
+                                <span class="text-sm text-gray-300 group-hover:text-white transition-colors">
+                                    Show log viewer by default
+                                </span>
+                            </label>
+
+                            <div class="space-y-2">
+                                <label class="text-sm text-left block text-gray-300">Maximum log entries:</label>
+                                <input
+                                    type="number"
+                                    bind:value={currentSettings.maxLogEntries}
+                                    min="100"
+                                    max="10000"
+                                    step="100"
+                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2
+                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                           transition-all duration-200"
+                                />
+                            </div>
                         </div>
                     </section>
                 </div>

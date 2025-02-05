@@ -3,6 +3,8 @@
     import { onMount, onDestroy } from 'svelte';
     import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
     import ProgressBar from './ProgressBar.svelte';
+    
+    import { settings } from '../lib/stores';
 
     interface LogMessage {
         level: string;
@@ -57,6 +59,22 @@
         console.log("Filtered logs:", filteredLogs);
         console.log("Selected level:", selectedLogLevel);
         console.log("Filtering active:", logs.length !== filteredLogs.length);
+    }
+    
+    
+    function addLog(logData: LogMessage) {
+        // If we've reached the maximum, remove the oldest entries
+        if (logs.length >= $settings.maxLogEntries) {
+            // Remove oldest entries to make room for the new one
+            logs = logs.slice(-($settings.maxLogEntries - 1));
+        }
+        
+        // Add the new log entry
+        logs = [...logs, logData];
+        
+        if (autoScroll) {
+            scrollToBottom();
+        }
     }
     
     function handleScroll(e: Event) {
@@ -142,17 +160,11 @@
     
     onMount(() => {
         mounted = true;
-        console.log("LogViewer mounted");
-
+        
         EventsOn("log", (rawLog: any) => {
-            console.log("Log event received, mounted status:", mounted);
-            console.log("Frontend received:", rawLog);
-            
             try {
                 const logData: LogMessage = typeof rawLog === 'string' ? JSON.parse(rawLog) : rawLog;
-                console.log("Parsed log:", logData);
                 
-                // Format the time string
                 const timeStr = new Date(logData.time).toLocaleTimeString('en-US', {
                     hour12: false,
                     hour: '2-digit',
@@ -161,13 +173,8 @@
                 });
                 logData.time = timeStr;
                 
-                console.log("Adding log to array, current length:", logs.length);
-                logs = [...logs, logData];
-                console.log("New logs length:", logs.length);
+                addLog(logData);
                 
-                if (autoScroll) {
-                    scrollToBottom();
-                }
             } catch (error) {
                 console.error("Error processing log:", error);
                 console.error("Raw log data:", rawLog);
