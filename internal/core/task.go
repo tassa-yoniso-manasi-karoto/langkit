@@ -114,7 +114,6 @@ type Task struct {
 	
 	// Romanization options
 	WantTranslit         bool
-	TimeoutTranslit      int
 	RomanizationStyle    string
 	KanjiThreshold       int
 	BrowserAccessURL     string
@@ -246,9 +245,6 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 	if exists, value := IsFlagIntSet(cmd, "stt-to"); exists {
 		tsk.TimeoutSTT = value
 	}
-	if exists, value := IsFlagIntSet(cmd, "translit-to"); exists {
-		tsk.TimeoutTranslit = value
-	}
 	if exists, value := IsFlagIntSet(cmd, "offset"); exists {
 		tsk.Offset = time.Duration(value)*time.Millisecond
 	}
@@ -302,7 +298,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		// and to the GUI (if applicable). The only difference is that
 		// Log[Err][Fields]() returns a ProcessingError that can be used
 		// to define an error handling strategy. Also, it can be a bit more concise.
-		tsk.Handler.LogErr(err, AbortAllTasks, "can't access passed media file/directory")
+		return tsk.Handler.LogErr(err, AbortAllTasks, "can't access passed media file/directory")
 		//tsk.Handler.ZeroLog().Error().
 		//	Err(err).Str("behavior", AbortAllTasks).
 		//	Msg("can't access passed media file/directory")
