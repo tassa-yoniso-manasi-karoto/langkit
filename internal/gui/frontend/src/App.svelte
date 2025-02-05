@@ -26,9 +26,15 @@
     interface FeatureOptions {
         [key: string]: any;
     }
+    interface MediaSource {
+        name: string;
+        path: string;
+        size?: number;
+    }
 
-    // Component state
-    let selectedFiles: VideoInfo[] = [];
+    let mediaSource: MediaSource | null = null;  // Replace selectedFiles
+    let previewFiles: MediaSource[] = [];        // For directory preview only
+    
     let selectedPath: string = '';
     let selectedFeatures = {
         subs2cards: false,
@@ -49,7 +55,7 @@
     }
 
     // Compute overall form validity
-    $: isFormValid = selectedFiles.length > 0 && featureValid;
+    $: isFormValid = mediaSource !== null && featureValid;
 
     // Event handlers
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
@@ -61,7 +67,7 @@
     }
 
     async function handleProcess() {
-        if (!currentFeatureOptions) return;
+        if (!currentFeatureOptions || !mediaSource) return;
         
         isProcessing = true;
         showLogViewer = true;
@@ -69,11 +75,14 @@
 
         try {
             const request = {
-                files: selectedFiles.map(f => f.path),
+                path: mediaSource.path,
                 selectedFeatures,
-                options: currentFeatureOptions
+                options: currentFeatureOptions,
+                languageCode: defaultTargetLanguage,
+                audioTrackIndex: mediaSource?.audioTrackIndex || 0
             };
 
+            console.log('Sending processing request:', request);
             await ProcessFiles(request);
         } catch (error) {
             console.error('Processing failed:', error);
@@ -145,13 +154,15 @@
                 <!-- Scrollable content -->
                 <div class="flex-1 overflow-y-auto pr-4 mask-fade">
                     <div class="max-w-2xl mx-auto space-y-6">
-                        <MediaInput bind:selectedFiles />
+                        <MediaInput 
+                            bind:mediaSource
+                            bind:previewFiles
+                        />
                         <FeatureSelector 
                             bind:selectedFeatures 
                             on:optionsChange={handleOptionsChange}
                             on:validityChange={handleValidityChange}
-                            {selectedFiles}
-                            selectedPath={selectedPath}
+                            {mediaSource}
                         />
                     </div>
                 </div>

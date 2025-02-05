@@ -1,8 +1,8 @@
 <script lang="ts">
     import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../../wailsjs/go/gui/App';
 
-    export let selectedFiles: VideoInfo[] = [];
-    export let selectedPath: string = '';
+    export let mediaSource: MediaSource | null = null;  // Single selected video/directory
+    export let previewFiles: MediaSource[] = [];        // Preview only for directories
 
     interface VideoInfo {
         name: string;
@@ -12,15 +12,19 @@
     let dragOver = false;
     let isDirectory = false;
     const MAX_VISIBLE_FILES = 4;
-    
+
     async function handleDirectorySelect() {
         try {
             const dirPath = await OpenDirectoryDialog();
             if (dirPath) {
                 isDirectory = true;
-                selectedPath = dirPath;
-                const files = await GetVideosInDirectory(dirPath);
-                selectedFiles = Array.isArray(files) ? files : [];
+                mediaSource = {
+                    name: dirPath.split('/').pop() || dirPath,
+                    path: dirPath,
+                };
+                // Get preview of videos in directory
+                previewFiles = await GetVideosInDirectory(dirPath);
+                console.error('previewFiles are:', previewFiles);
             }
         } catch (error) {
             console.error('Error selecting directory:', error);
@@ -32,11 +36,11 @@
             const filePath = await OpenVideoDialog();
             if (filePath) {
                 isDirectory = false;
-                selectedPath = filePath;
-                selectedFiles = [{
+                mediaSource = {
                     name: filePath.split('/').pop() || filePath,
                     path: filePath
-                }];
+                };
+                previewFiles = []; // Clear preview as it's not a directory
             }
         } catch (error) {
             console.error('Error selecting video:', error);
@@ -53,20 +57,24 @@
         const file = files[0];
         if (file.type.startsWith('video/')) {
             isDirectory = false;
-            selectedPath = file.path;
-            selectedFiles = [{
+            mediaSource = {
                 name: file.name,
                 path: file.path
-            }];
+            };
+            previewFiles = [];
         } else {
-            // Assuming it might be a directory
             try {
-                const files = await GetVideosInDirectory(file.path);
-                if (Array.isArray(files) && files.length > 0) {
-                    isDirectory = true;
-                    selectedPath = file.path;
-                    selectedFiles = files;
-                }
+                isDirectory = true;
+                mediaSource = {
+                    name: file.name,
+                    path: file.path
+                };
+                const videos = await GetVideosInDirectory(file.path);
+                previewFiles = videos.map(v => ({
+                    name: v.name,
+                    path: v.path,
+                    size: v.size
+                }));
             } catch (error) {
                 console.error('Error handling directory drop:', error);
             }
@@ -74,8 +82,7 @@
     }
 
     function resetSelection() {
-        selectedFiles = [];
-        selectedPath = '';
+        mediaSource = null;
         isDirectory = false;
     }
 
@@ -100,8 +107,8 @@
         }
     }
 
-    $: visibleFiles = selectedFiles.slice(0, MAX_VISIBLE_FILES);
-    $: remainingFiles = selectedFiles.length - MAX_VISIBLE_FILES;
+    $: visibleFiles = previewFiles.slice(0, MAX_VISIBLE_FILES);
+    $: remainingFiles = previewFiles.length - MAX_VISIBLE_FILES;
 </script>
 
 
@@ -112,13 +119,13 @@
                transition-all duration-200 ease-out bg-white/5
                hover:border-accent/50 hover:bg-white/10
                {dragOver ? 'border-accent bg-accent/10' : ''}
-               {selectedPath ? 'opacity-90' : ''}"
+               {mediaSource ? 'opacity-90' : ''}"
         on:dragenter={handleDragEnter}
         on:dragleave={handleDragLeave}
         on:dragover={preventDefaults}
         on:drop={handleDrop}
     >
-        {#if !selectedPath}
+        {#if !mediaSource}
             <div class="text-accent/70">
                 <span class="material-icons text-2xl mb-1">upload_file</span>
                 <p class="text-sm leading-none">
@@ -146,7 +153,7 @@
                         <div class="flex items-center justify-between gap-1 p-1.5 bg-accent/10 rounded text-sm">
                             <div class="flex items-center gap-1 min-w-0">
                                 <span class="material-icons text-accent text-sm flex-shrink-0">folder</span>
-                                <span class="truncate">{selectedPath}</span>
+                                <span class="truncate">{mediaSource.path}</span>
                             </div>
                             <button 
                                 class="flex-shrink-0 flex-grow-0 text-red-400/70 hover:text-red-400 
@@ -200,7 +207,7 @@
                         <div class="flex items-center justify-between gap-1 p-1.5 bg-accent/10 rounded text-sm">
                             <div class="flex items-center gap-1 min-w-0">
                                 <span class="material-icons text-accent text-sm flex-shrink-0">movie</span>
-                                <span class="truncate">{selectedPath}</span>
+                                <span class="truncate">{mediaSource.path}</span>
                             </div>
                             <button 
                                 class="flex-shrink-0 flex-grow-0 text-red-400/70 hover:text-red-400 

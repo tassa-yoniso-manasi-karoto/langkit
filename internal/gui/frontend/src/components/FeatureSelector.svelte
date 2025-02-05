@@ -75,7 +75,6 @@
     let showAudioTrackIndex = false;
     let audioTrackIndex = 0;
     let hasLanguageTags = true;
-    let availableAudioTracks: number[] = [];
     
     const providersRequiringTokens = {
         'whisper': 'replicate',
@@ -119,28 +118,15 @@
             }
         }
     }
-
-    export let selectedFiles: VideoInfo[] = [];
-    export let selectedPath: string = '';
-
-    interface VideoInfo {
-        name: string;
-        path: string;
-    }
+    export let mediaSource: MediaSource | null = null;
 
     // Update the checkMediaFiles function
     async function checkMediaFiles() {
-        if (selectedPath) {
+        if (mediaSource) {
             try {
-                const info = await CheckMediaLanguageTags(selectedPath);
+                const info = await CheckMediaLanguageTags(mediaSource.path);
                 hasLanguageTags = info.hasLanguageTags;
-                availableAudioTracks = info.audioTracks;
                 showAudioTrackIndex = !hasLanguageTags;
-                
-                // Set default audio track to the first available one
-                if (availableAudioTracks.length > 0) {
-                    audioTrackIndex = availableAudioTracks[0].index;
-                }
             } catch (error) {
                 console.error('Error checking media files:', error);
             }
@@ -235,6 +221,7 @@
     const providerGithubUrls = {
         'ichiran': 'https://github.com/tshatrov/ichiran',
         'aksharamukha': 'https://github.com/virtualvinodh/aksharamukha',
+        'iuliia': 'https://github.com/mehanizm/iuliia-go',
     };
     // Helper function to format display text
     function formatDisplayText(text: string): string {
@@ -437,13 +424,12 @@
         }
     }
     
-    $: if (selectedPath) {
+    $: if (mediaSource) {
         checkMediaFiles();
     } else {
         // Reset audio track related states when no path is selected
         showAudioTrackIndex = false;
         hasLanguageTags = true;
-        availableAudioTracks = [];
         audioTrackIndex = 0;
     }
 </script>
