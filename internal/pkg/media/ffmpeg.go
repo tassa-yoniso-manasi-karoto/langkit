@@ -14,7 +14,11 @@ import (
 	"github.com/gookit/color"
 )
 
-var FFmpegPath = "ffmpeg"
+var (
+	FFmpegPath = "ffmpeg"
+	MaxWidth = 1000
+	MaxHeight = 562
+)
 
 func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFile, outFile string, outArgs []string) error {
 	if exists(outFile) {
@@ -56,14 +60,9 @@ func ffmpegExtractImage(startAt, endAt time.Duration, inFile string, outFile str
 		"-i", inFile,
 	}
 
-
-	// https://old.reddit.com/r/AV1/comments/lfheh9/encoder_tuning_part_2_making_aomencav1libaomav1/
-	// https://old.reddit.com/r/AV1/comments/t59j32/encoder_tuning_part_4_a_2nd_generation_guide_to/
-	outArgs := []string{ // -45% in size but x2,3 processing time (pentium 4core)
-		"-vf", "scale=1000:562",
+	outArgs := []string{
+		"-vf", fmt.Sprintf("scale=%d:%d", MaxWidth, MaxHeight),
 		"-c:v", "libaom-av1",
-		//"-cpu-used", "6",
-		//"-aom-params", "aq-mode=1:enable-chroma-deltaq=1",
 		"-frames", "1",
 		outFile,
 	}

@@ -64,6 +64,9 @@ func init() {
 	RootCmd.PersistentFlags().StringP("sep", "s", "", "separation API to use for voice isolation")
 	RootCmd.PersistentFlags().Int("sep-to", 15*60, "timeout in seconds for the voice separation request")
 	
+	subs2cardsCmd.PersistentFlags().Int("w", 1000, "maximum width of screenshot")
+	subs2cardsCmd.PersistentFlags().Int("h", 562, "maximum height of screenshot")
+	
 	addSharedSTTflags(subs2cardsCmd)
 	addSharedSTTflags(subs2dubsCmd)
 

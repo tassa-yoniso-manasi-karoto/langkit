@@ -1,12 +1,7 @@
 ### TODO
 
 BACKEND MAPPING:
-   - Transliteration selected style
-   - check that chromium is available for go-rod, if needed
-   - option to InitRecreate
-   - "audio channel override"
    - fix API key reading from env in code not using pkg config
-
 
    - print debug at os exit
    - justify blocked processing button on hover
@@ -28,10 +23,8 @@ translit.go
    
    
    
-TRANSLITKIT:
    - implement ctx support
-   
-   - log even if logviewer is hidden
+   - cancel button
    - Add tooltips (aborted tasks...)
    - add progress bar
    - fix frontend checkMediaFiles() not reflecting the lack of language tag

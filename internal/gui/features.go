@@ -10,6 +10,7 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
 func (a *App) ProcessFiles(request ProcessRequest) {
@@ -155,8 +156,8 @@ func (a *App) configureTask(task *core.Task, request ProcessRequest) {
 		opts := request.Options.Subs2Cards
 		task.Mode = core.Subs2Cards
 		task.Offset = time.Duration(opts.PadTiming) * time.Millisecond
-		task.ScreenshotWidth = opts.ScreenshotWidth
-		task.ScreenshotHeight = opts.ScreenshotHeight
+		media.MaxWidth = opts.ScreenshotWidth
+		media.MaxHeight = opts.ScreenshotHeight
 		task.CondensedAudio = opts.CondensedAudio
 
 		task.Handler.ZeroLog().Debug().

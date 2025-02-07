@@ -244,6 +244,12 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 	if exists, value := IsFlagIntSet(cmd, "offset"); exists {
 		tsk.Offset = time.Duration(value)*time.Millisecond
 	}
+	if exists, value := IsFlagIntSet(cmd, "w"); exists {
+		media.MaxWidth = value
+	}
+	if exists, value := IsFlagIntSet(cmd, "h"); exists {
+		media.MaxHeight = value
+	}
 	
 	
 	if exists, value := IsFlagBoolSet(cmd, "stt-dub"); exists {
