@@ -93,7 +93,7 @@ type Task struct {
 	CondensedAudio       bool
 	
 	// Audio track options
-	TargetChan           int
+	TargetChan           int // TODO rename TargetChanNum
 	UseAudiotrack        int
 	
 	// Voice enhancement options
@@ -162,6 +162,8 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		}
 	}
 	tsk.Meta.WorkersMax = runtime.NumCPU()-1
+	tsk.UseAudiotrack = -1
+	tsk.TargetChan = 2
 	return tsk
 }
 

@@ -96,12 +96,15 @@ func (a *App) configureTask(task *core.Task, request ProcessRequest) {
 	// Configure based on selected features starting from the most specific,
 	// restricted processing mode to the most general, multipurpose in order to
 	// have the correct task.Mode at the end to pass on downstream.
-
+	
+	// internally tsk.UseAudiotrack refers to first track as track index 0
+	request.AudioTrackIndex -= 1
+	
 	// Set audio track if specified
-	if request.AudioTrackIndex > 0 {
-		task.UseAudiotrack = request.AudioTrackIndex // TODO check if UseAudiotrack start from 0 or not
+	if request.AudioTrackIndex >= 0 {
+		task.UseAudiotrack = request.AudioTrackIndex
 		task.Handler.ZeroLog().Debug().
-			Int("track_index", request.AudioTrackIndex).
+			Int("UseAudiotrack", task.UseAudiotrack).
 			Msg("Set audio track index")
 	}
 

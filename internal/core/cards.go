@@ -131,26 +131,18 @@ ResumeEnhance:
 	if tsk.OriginalLang != "" {
 		tsk.Handler.ZeroLog().Info().Msg("Detected original lang:"+ tsk.OriginalLang)
 	}*/
-	// FIXME range over func instead of calling it 3 times
-	tsk.ChooseAudio(func(i int, track AudioTrack) {
-		num, _ := strconv.Atoi(track.Channels)
-		if *track.Language == *tsk.Targ.Language && num == tsk.TargetChan &&
-			(track.Title == "" || track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")) {
-				tsk.UseAudiotrack = i
+
+	for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
+		if err := tsk.ChooseAudio(fn); err != nil {
+			return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
 		}
-	})
-	tsk.ChooseAudio(func(i int, track AudioTrack) {
-		if *track.Language == *tsk.Targ.Language {
-			tsk.UseAudiotrack = i
-		}
-	})
-	if tsk.UseAudiotrack < 0 {
-		tsk.UseAudiotrack = 0
 	}
+
 	tsk.Handler.ZeroLog().Debug().
 		Int("UseAudiotrack", tsk.UseAudiotrack).
 		Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
 		Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
+
 	if tsk.Mode != Enhance {
 		if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
 			tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
@@ -181,7 +173,7 @@ ResumeTranslit:
 		// Subs2Dubs uses the TSV file to transform the subtitles into dubtitles in place
 		err = tsk.TargSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
 		if err != nil {
-			return tsk.Handler.LogErr(err, AbortTask, "error making dubtitles")
+			return tsk.Handler.LogErr(err, AbortTask, "making dubtitles")
 		}
 		subs = strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
 		subs = strings.TrimSuffix(subs, ".tsv")
@@ -189,7 +181,7 @@ ResumeTranslit:
 		subs = path.Join(subs + "." + strings.ToUpper(tsk.STT) + filepath.Ext(tsk.TargSubFile))
 		
 		if err = tsk.TargSubs.Write(subs); err != nil {
-			return tsk.Handler.LogErr(err, AbortTask, "error writing dubtitle file")
+			return tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
 		}
 	}
 	if tsk.WantTranslit {
@@ -228,7 +220,7 @@ func (tsk *Task) Autosub() *ProcessingError {
 		}
 		l, err := GuessLangFromFilename(file.Name())
 		if err != nil {
-			tsk.Handler.ZeroLog().Debug().Err(err).Msg("error guessing lang")
+			tsk.Handler.ZeroLog().Debug().Err(err).Msg("guessing lang")
 			continue
 		}
 		color.Greenf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
@@ -274,12 +266,59 @@ func write(outStream *os.File, item *ProcessedItem) {
 }
 
 
-func (tsk *Task) ChooseAudio(f func(i int, track AudioTrack)) {
+func (tsk *Task) ChooseAudio(helper func(tsk *Task, i int, track AudioTrack) error) (err error) {
 	if tsk.UseAudiotrack < 0 {
 		for i, track := range tsk.Meta.MediaInfo.AudioTracks {
-			f(i, track)
+			if err = helper(tsk, i, track); err != nil {
+				return
+			}
 		}
 	}
+	return
+}
+
+
+type SelectionHelper func(*Task, int, AudioTrack) error
+
+func getIdealTrack(tsk *Task, i int, track AudioTrack) error {
+	num, _ := strconv.Atoi(track.Channels)
+	tsk.Handler.ZeroLog().Trace().
+		Bool("isTargLang?", *track.Language == *tsk.Targ.Language).
+		Bool("isTargetChanNum?", num == tsk.TargetChan).
+		Bool("track.Title empty?", track.Title == "").
+		Bool("track.Title notEmpty + not audiodescr", track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")).
+		Msg("getIdealTrack")
+	if *track.Language == *tsk.Targ.Language && num == tsk.TargetChan &&
+		(track.Title == "" || track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")) {
+			tsk.UseAudiotrack = i
+			tsk.Handler.ZeroLog().Debug().Msg("getIdealTrack: UseAudiotrack selected")
+	}
+	return nil
+}
+
+func getAnyTargLangMatch(tsk *Task, i int, track AudioTrack) error {
+	tsk.Handler.ZeroLog().Trace().
+		Bool("isTargLang?", *track.Language == *tsk.Targ.Language).Msg("getAnyTargLangMatch")
+	if *track.Language == *tsk.Targ.Language {
+		tsk.UseAudiotrack = i
+		tsk.Handler.ZeroLog().Debug().Msg("getAnyTargLangMatch: UseAudiotrack selected")
+	}
+	return nil
+}
+
+func getFirstTrack(tsk *Task, i int, track AudioTrack) error {
+	tsk.Handler.ZeroLog().Trace().
+		Bool("hasLang", track.Language != nil).
+		Bool("lang isn't target", *track.Language != *tsk.Targ.Language).Msg("getFirstTrack")
+	if track.Language != nil && *track.Language != *tsk.Targ.Language {
+		return fmt.Errorf("No audiotrack tagged with the requested target language exists. " +
+			"If it isn't a misinput please use the audiotrack override to set a track number manually.")
+	}
+	// Having found no audiotrack tagged with target language, we can
+	// assume first audiotrack is the target if it doesn't have a language tag
+	tsk.UseAudiotrack = i
+	tsk.Handler.ZeroLog().Debug().Msg("getFirstTrack: UseAudiotrack selected")
+	return nil
 }
 
 

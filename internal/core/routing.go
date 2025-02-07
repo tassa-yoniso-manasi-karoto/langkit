@@ -24,7 +24,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	tsk.Handler.ZeroLog().Info().
 		Str("path", userProvided).
 		Str("mode", tsk.Mode.String()).
-		Msg("Starting processing")
+		Msg("Starting routing")
 	
 	stat, err := os.Stat(userProvided)
 	if err != nil {
