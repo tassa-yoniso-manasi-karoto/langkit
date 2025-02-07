@@ -1,27 +1,20 @@
 ### TODO
 
-BACKEND MAPPING:
-   - print debug at os exit
-   - justify blocked processing button on hover
+
+   - UI: justify blocked processing button on hover
+   - add to crash report: stack trace, log history, runtime info, settings with API keys sanitized, network status
    - Add tests
    
    
-   
-   
-   
-   
-   
-   
-   
-   
 translit.go
+
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
    - set Translitkit logwriter to langkit's
    - fix IsToken situation
-   
-   
-   
    - implement ctx support
+   
+   
+   
    - cancel button
    - Add tooltips (aborted tasks...)
    - add progress bar

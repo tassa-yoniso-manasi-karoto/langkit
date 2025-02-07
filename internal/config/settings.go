@@ -21,9 +21,18 @@ type Settings struct {
 	MaxLogEntries        int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
 }
 
-func getConfigPath() (string, error) {
+
+func GetConfigDir() (string, error) {
 	configDir := filepath.Join(xdg.ConfigHome, "langkit")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return "", err
+	}
+	return configDir, nil
+}
+
+func getConfigPath() (string, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
 		return "", err
 	}
 	return filepath.Join(configDir, "config.yaml"), nil

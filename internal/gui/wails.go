@@ -2,6 +2,9 @@ package gui
 
 import (
 	"embed"
+	"fmt"
+	"path/filepath"
+	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -9,6 +12,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 )
 
 
@@ -19,6 +24,11 @@ var assets embed.FS
 var icon []byte
 
 func Run() {
+	defer func() {
+		if r := recover(); r != nil {
+			exitOnError(fmt.Errorf("panic: %v", r))
+		}
+	}()
 	// Create an instance of the app structure
 	app := NewApp()
 
@@ -80,9 +90,28 @@ func Run() {
 			},
 		},
 	})
-
+	
 	if err != nil {
-		app.handler.ZeroLog().Fatal().Err(err).Msg("Wails failed to run")
+		exitOnError(err)
 	}
+}
+
+func exitOnError(err error) {
+	// Instead of logging the error (which might not be visible to a GUI user),
+	// we create a crash dump and then display an error message dialog.
+	
+	configDir, _ := config.GetConfigDir()
+	
+	// Create a unique filename using a timestamp.
+	timestamp := time.Now().Format("20060102_150405")
+	logFileName := fmt.Sprintf("crash_%s.log", timestamp)
+	logFilePath := filepath.Join(configDir, logFileName)
+
+	// Write the error details to the log file.
+	if dumpErr := writeCrashLog(err, logFilePath); dumpErr != nil {
+		fmt.Printf("Error dumping log file: %v\n", dumpErr)
+	}
+	
+	ShowErrorDialog(logFilePath, err)
 }
 
