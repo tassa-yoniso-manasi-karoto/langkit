@@ -21,9 +21,17 @@ import (
 	aai "github.com/AssemblyAI/assemblyai-go-sdk"
 )
 
+var (
+	APIKeys = make(map[string]string, 3)
+)
+
 
 func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]byte, error) {
-	client := elevenlabs.NewClient(ctx, os.Getenv("ELEVENLABS_API_TOKEN"), time.Duration(timeout)*time.Second)
+	APIKey, found := APIKeys["elevenlabs"]
+	if !found {
+		return nil, fmt.Errorf("No Elevenlabs API key was provided")
+	}
+	client := elevenlabs.NewClient(ctx, APIKey, time.Duration(timeout)*time.Second)
 	audio, err := client.VoiceIsolator(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("API query failed: %w", err)
@@ -33,8 +41,11 @@ func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]by
 
 
 func Universal1(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
-	apiKey := os.Getenv("ASSEMBLYAI_API_KEY")
-	client := aai.NewClient(apiKey)
+	APIKey, found := APIKeys["assemblyai"]
+	if !found {
+		return "", fmt.Errorf("No AssemblyAI API key was provided")
+	}
+	client := aai.NewClient(APIKey)
 
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -118,14 +129,14 @@ func Demucs(ctx context.Context, filepath, ext string, maxTry, timeout int, want
 
 
 func r8RunWithAudioFile(ctx context.Context, filepath string, maxTry, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
-	apiToken := os.Getenv("REPLICATE_API_TOKEN")
-	if apiToken == "" {
-		return nil, fmt.Errorf("Please set the REPLICATE_API_TOKEN environment variable")
+	APIKey, found := APIKeys["replicate"]
+	if !found {
+		return nil, fmt.Errorf("No Replicate API key was provided")
 	}
 	var predictionOutput replicate.PredictionOutput
 	baseDelay := time.Millisecond * 500
 	for try := 0; try < maxTry; try++ {
-		r8, err := replicate.NewClient(replicate.WithToken(apiToken))
+		r8, err := replicate.NewClient(replicate.WithToken(APIKey))
 		ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
 		

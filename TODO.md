@@ -1,8 +1,6 @@
 ### TODO
 
 BACKEND MAPPING:
-   - fix API key reading from env in code not using pkg config
-
    - print debug at os exit
    - justify blocked processing button on hover
    - Add tests
@@ -27,7 +25,6 @@ translit.go
    - cancel button
    - Add tooltips (aborted tasks...)
    - add progress bar
-   - fix frontend checkMediaFiles() not reflecting the lack of language tag
    
    - Add documentation
    - fix newlines in builtin documentation

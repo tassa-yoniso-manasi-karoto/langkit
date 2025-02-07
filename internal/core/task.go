@@ -21,6 +21,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 
@@ -182,17 +183,29 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 		tsk.Langs, _ = cmd.Flags().GetStringSlice("langs")
 	}
 
-	// Apply API keys from config if not in environment
-	if settings.APIKeys.Replicate != "" && os.Getenv("REPLICATE_API_KEY") == "" {
-		os.Setenv("REPLICATE_API_KEY", settings.APIKeys.Replicate)
+	// Apply API keys from config or environment
+	for _, name := range []string{"replicate", "assemblyai", "elevenlabs"} {
+		var key string
+		switch name {
+		case "replicate":
+			key = settings.APIKeys.Replicate
+			if s := os.Getenv("REPLICATE_API_KEY"); s != "" {
+				key = s
+			}
+		case "assemblyai":
+			key = settings.APIKeys.AssemblyAI
+			if s := os.Getenv("ASSEMBLYAI_API_KEY"); s != "" {
+				key = s
+			}
+		case "elevenlabs":
+			key = settings.APIKeys.ElevenLabs
+			if s := os.Getenv("ELEVENLABS_API_KEY"); s != "" {
+				key = s
+			}
+		}
+		voice.APIKeys[name] = key
 	}
-	if settings.APIKeys.AssemblyAI != "" && os.Getenv("ASSEMBLYAI_API_KEY") == "" {
-		os.Setenv("ASSEMBLYAI_API_KEY", settings.APIKeys.AssemblyAI)
-	}
-	if settings.APIKeys.ElevenLabs != "" && os.Getenv("ELEVENLABS_API_KEY") == "" {
-		os.Setenv("ELEVENLABS_API_KEY", settings.APIKeys.ElevenLabs)
-	}
-
+	
 	for _, name := range []string{"ffmpeg", "mediainfo"} {
 		dest := ""
 		bin := name
