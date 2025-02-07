@@ -46,16 +46,10 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("api_keys.assemblyai", "")
 	viper.SetDefault("api_keys.elevenlabs", "")
 	viper.SetDefault("target_language", "")
-	viper.SetDefault("native_languages", "")
-	viper.SetDefault("enable_glow", true)
-	viper.SetDefault("api_keys.replicate", "")
-	viper.SetDefault("api_keys.assemblyai", "")
-	viper.SetDefault("api_keys.elevenlabs", "")
-	viper.SetDefault("target_language", "")
-	viper.SetDefault("native_languages", "")
+	viper.SetDefault("native_languages", "en,en-US")
 	viper.SetDefault("enable_glow", true)
 	viper.SetDefault("show_log_viewer_default", false)
-	viper.SetDefault("max_log_entries", 1000)
+	viper.SetDefault("max_log_entries", 10000)
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -74,12 +68,6 @@ func InitConfig(customPath string) error {
 
 func SaveSettings(settings Settings) error {
 	// Update Viper config
-	viper.Set("api_keys.replicate", settings.APIKeys.Replicate)
-	viper.Set("api_keys.assemblyai", settings.APIKeys.AssemblyAI)
-	viper.Set("api_keys.elevenlabs", settings.APIKeys.ElevenLabs)
-	viper.Set("target_language", settings.TargetLanguage)
-	viper.Set("native_languages", settings.NativeLanguages)
-	viper.Set("enable_glow", settings.EnableGlow)
 	viper.Set("api_keys.replicate", settings.APIKeys.Replicate)
 	viper.Set("api_keys.assemblyai", settings.APIKeys.AssemblyAI)
 	viper.Set("api_keys.elevenlabs", settings.APIKeys.ElevenLabs)
