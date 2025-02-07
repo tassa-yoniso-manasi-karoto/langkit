@@ -21,7 +21,6 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 
@@ -183,29 +182,6 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 	} else {
 		// Get from flags if specified
 		tsk.Langs, _ = cmd.Flags().GetStringSlice("langs")
-	}
-
-	// Apply API keys from config or environment
-	for _, name := range []string{"replicate", "assemblyai", "elevenlabs"} {
-		var key string
-		switch name {
-		case "replicate":
-			key = settings.APIKeys.Replicate
-			if s := os.Getenv("REPLICATE_API_KEY"); s != "" {
-				key = s
-			}
-		case "assemblyai":
-			key = settings.APIKeys.AssemblyAI
-			if s := os.Getenv("ASSEMBLYAI_API_KEY"); s != "" {
-				key = s
-			}
-		case "elevenlabs":
-			key = settings.APIKeys.ElevenLabs
-			if s := os.Getenv("ELEVENLABS_API_KEY"); s != "" {
-				key = s
-			}
-		}
-		voice.APIKeys[name] = key
 	}
 	
 	for _, name := range []string{"ffmpeg", "mediainfo"} {

@@ -2,24 +2,28 @@ package config
 
 import (
 	"os"
+	"strings"
 	"path/filepath"
 	
 	"github.com/spf13/viper"
 	"github.com/adrg/xdg"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 type Settings struct {
 	APIKeys struct {
-		Replicate   string `json:"replicate" mapstructure:"replicate"`
-		AssemblyAI  string `json:"assemblyAI" mapstructure:"assemblyai"`
-		ElevenLabs  string `json:"elevenLabs" mapstructure:"elevenlabs"`
+		Replicate  string `json:"replicate" mapstructure:"replicate"`
+		AssemblyAI string `json:"assemblyAI" mapstructure:"assemblyai"`
+		ElevenLabs string `json:"elevenLabs" mapstructure:"elevenlabs"`
 	} `json:"apiKeys" mapstructure:"api_keys"`
-	TargetLanguage        string `json:"targetLanguage" mapstructure:"target_language"`
-	NativeLanguages      string `json:"nativeLanguages" mapstructure:"native_languages"`
-	EnableGlow           bool   `json:"enableGlow" mapstructure:"enable_glow"`
-	ShowLogViewerByDefault bool `json:"showLogViewerByDefault" mapstructure:"show_log_viewer_default"`
-	MaxLogEntries        int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
+	TargetLanguage         string `json:"targetLanguage" mapstructure:"target_language"`
+	NativeLanguages        string `json:"nativeLanguages" mapstructure:"native_languages"`
+	EnableGlow             bool   `json:"enableGlow" mapstructure:"enable_glow"`
+	ShowLogViewerByDefault bool   `json:"showLogViewerByDefault" mapstructure:"show_log_viewer_default"`
+	MaxLogEntries          int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
 }
+
 
 
 func GetConfigDir() (string, error) {
@@ -102,5 +106,30 @@ func LoadSettings() (Settings, error) {
 	if err := viper.Unmarshal(&settings); err != nil {
 		return Settings{}, err
 	}
+	settings.LoadKeys()
 	return settings, nil
 }
+
+
+
+// Apply API keys from config or environment
+func (settings Settings) LoadKeys() {
+	providers := []string{"replicate", "assemblyai", "elevenlabs"}
+	
+	for idx, name := range providers {
+		var key string
+		switch idx {
+		case 0:
+			key = settings.APIKeys.Replicate
+		case 1:
+			key = settings.APIKeys.AssemblyAI
+		case 2:
+			key = settings.APIKeys.ElevenLabs
+		}
+		if s := os.Getenv(strings.ToUpper(name) + "_API_KEY"); s != "" {
+			key = s
+		}
+		voice.APIKeys[name] = key
+	}
+}
+
