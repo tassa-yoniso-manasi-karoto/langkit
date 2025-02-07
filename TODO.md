@@ -2,7 +2,9 @@
 
 
    - UI: justify blocked processing button on hover
-   - add to crash report: stack trace, log history, runtime info, settings with API keys sanitized, network status
+   - add to crash report: stack trace, log history, runtime info, settings with API keys sanitized, network status, langkit version
+   - subs2dubs makes AVIF when it shouldn't
+   - Supervisor: reimplement resuming capability through goroutine that checks the ID of items, sort and write them on-the-fly in order → important when making dubtitles: we don't want to pay over and over failed runs
    - Add tests
    
    

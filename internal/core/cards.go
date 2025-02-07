@@ -27,7 +27,7 @@ func (tsk *Task) outputBase() string {
 }
 
 func (tsk *Task) outputFile() string {
-	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase()+"."+tsk.OutputFileExtension)
+	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase() + tsk.OutputFileExtension)
 }
 
 func (tsk *Task) mediaOutputDir() string {

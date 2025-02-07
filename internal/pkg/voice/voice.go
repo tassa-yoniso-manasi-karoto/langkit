@@ -88,8 +88,17 @@ func Whisper(ctx context.Context, filepath string, maxTry, timeout int, lang, in
 		}
 		return input
 	}
-	b, err := r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "openai", "whisper", initRun, whisperParser)
-	return string(b), err
+	params := r8RunParams{
+		Ctx:      ctx,
+		Filepath: filepath,
+		MaxTry:   maxTry,
+		Timeout:  timeout,
+		Owner:    "openai",
+		Name:     "whisper",
+		InitRun:  initRun,
+		Parser:   whisperParser,
+	}
+	return r8RunWithAudioFile(params)
 }
 
 func InsanelyFastWhisper(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
@@ -97,16 +106,35 @@ func InsanelyFastWhisper(ctx context.Context, filepath string, maxTry, timeout i
 		input["language"] = lang
 		return input
 	}
-	// model name is outdated on replicate
-	b, err := r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "vaibhavs10", "incredibly-fast-whisper", initRun, whisperParser)
-	return string(b), err
+	
+	params := r8RunParams{
+		Ctx:      ctx,
+		Filepath: filepath,
+		MaxTry:   maxTry,
+		Timeout:  timeout,
+		Owner:    "vaibhavs10",
+		Name:     "incredibly-fast-whisper", // model name is outdated on replicate
+		InitRun:  initRun,
+		Parser:   whisperParser,
+	}
+	return r8RunWithAudioFile(params)
 }
 
 func Spleeter(ctx context.Context, filepath string, maxTry, timeout int) ([]byte, error) {
 	NoMoreInput := func(input replicate.PredictionInput) replicate.PredictionInput {
 		return input
 	}
-	return r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "soykertje", "spleeter", NoMoreInput, spleeterDemucsParser)
+	params := r8RunParams{
+		Ctx:      ctx,
+		Filepath: filepath,
+		MaxTry:   maxTry,
+		Timeout:  timeout,
+		Owner:    "soykertje",
+		Name:     "spleeter",
+		InitRun:  NoMoreInput,
+		Parser:   spleeterDemucsParser,
+	}
+	return r8RunWithAudioFileAndGET(params)
 }
 
 
@@ -124,36 +152,57 @@ func Demucs(ctx context.Context, filepath, ext string, maxTry, timeout int, want
 			return input
 		}
 	}
-	return r8RunWithAudioFile(ctx, filepath, maxTry, timeout, "ryan5453", "demucs", initRun, spleeterDemucsParser)
+	params := r8RunParams{
+		Ctx:      ctx,
+		Filepath: filepath,
+		MaxTry:   maxTry,
+		Timeout:  timeout,
+		Owner:    "ryan5453",
+		Name:     "demucs",
+		InitRun:  initRun,
+		Parser:   spleeterDemucsParser,
+	}
+	return r8RunWithAudioFileAndGET(params)
 }
 
 
-func r8RunWithAudioFile(ctx context.Context, filepath string, maxTry, timeout int, owner, name string, initRun initRunT, parser parserT) ([]byte, error) {
+type r8RunParams struct {
+	Ctx      context.Context
+	Filepath string
+	MaxTry   int
+	Timeout  int
+	Owner    string
+	Name     string
+	InitRun  initRunT
+	Parser   parserT
+}
+
+func r8RunWithAudioFile(params r8RunParams) (string, error) {
 	APIKey, found := APIKeys["replicate"]
 	if !found {
-		return nil, fmt.Errorf("No Replicate API key was provided")
+		return "", fmt.Errorf("No Replicate API key was provided")
 	}
 	var predictionOutput replicate.PredictionOutput
 	baseDelay := time.Millisecond * 500
-	for try := 0; try < maxTry; try++ {
+	for try := 0; try < params.MaxTry; try++ {
 		r8, err := replicate.NewClient(replicate.WithToken(APIKey))
-		ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		ctx, cancel := context.WithTimeout(params.Ctx, time.Duration(params.Timeout)*time.Second)
 		defer cancel()
 		
-		model, err := r8.GetModel(ctx, owner, name)
+		model, err := r8.GetModel(ctx, params.Owner, params.Name)
 		if err != nil {
 			pp.Println(err)
-			return nil, fmt.Errorf("Failed retrieving %s's information: %w", name, err)
+			return "", fmt.Errorf("Failed retrieving %s's information: %w", params.Name, err)
 		}
-		file, err := r8.CreateFileFromPath(ctx, filepath, nil)
+		file, err := r8.CreateFileFromPath(ctx, params.Filepath, nil)
 		if err != nil {
-			return nil, fmt.Errorf("CreateFileFromPath failed when passed with \"%s\": %w", filepath, err)
+			return "", fmt.Errorf("CreateFileFromPath failed when passed with \"%s\": %w", params.Filepath, err)
 		}
 		input := replicate.PredictionInput{
 			"audio": file,
 		}
-		input = initRun(input)
-		predictionOutput, err = r8.Run(ctx, owner+"/"+name+":"+model.LatestVersion.ID, input, nil)
+		input = params.InitRun(input)
+		predictionOutput, err = r8.Run(ctx, params.Owner+"/"+params.Name+":"+model.LatestVersion.ID, input, nil)
 		// these two are broken as far as I am concerned (err 422, 502):
 		// 	→ prediction, err := r8.CreatePrediction(ctx, version, input, nil, false)
 		// 	→ prediction, err := r8.CreatePredictionWithModel(ctx, "openai", "whisper", input, nil, false)
@@ -161,14 +210,17 @@ func r8RunWithAudioFile(ctx context.Context, filepath string, maxTry, timeout in
 		if err == nil {
 			break
 		} else if err == context.DeadlineExceeded {
-			fmt.Fprintf(os.Stderr, "WARN: Timed out %s prediction (%d/%d)...\n", name, try, maxTry)
-			if try+1 != maxTry {
+			fmt.Fprintf(os.Stderr, "WARN: Timed out %s prediction (%d/%d)...\n", params.Name, try, params.MaxTry)
+			if try+1 != params.MaxTry {
 				delay := calcExponentialBackoff(try, baseDelay)
 				time.Sleep(delay)
 				continue
 			}
-			return nil, fmt.Errorf("Timed out %s prediction after %d attempts: %w", name, maxTry, err)
+			return "", fmt.Errorf("Timed out %s prediction after %d attempts: %w", params.Name, params.MaxTry, err)
+		} else if err == context.Canceled {
+			return "", fmt.Errorf("Abort %s prediction: context cancelled: %v", params.Name, err)
 		} else {
+			pp.Println("RawPredictionErr", err)
 			err, ok := err.(*replicate.ModelError)
 			logs := ""
 			if ok {
@@ -182,19 +234,27 @@ func r8RunWithAudioFile(ctx context.Context, filepath string, maxTry, timeout in
 			}
 			pp.Println(err)
 			color.Redln(strings.ReplaceAll(logs, "\n", "\n\t"))
-			return nil, fmt.Errorf("Failed %s prediction: %w", name, err)
+			return "", fmt.Errorf("Failed %s prediction: %v", params.Name, err)
 		}
 	}
-	pp.Println(predictionOutput)
-	URL, err := parser(predictionOutput)
+	pp.Println("predictionOutput:", predictionOutput)
+	str, err := params.Parser(predictionOutput)
 	if err != nil {
 		pp.Println(err)
-		return nil, fmt.Errorf("Parser failed: %w", err)
+		return "", fmt.Errorf("Parser failed: %w", err)
 	}
-	// Download file made by API located at URL
-	resp, err := makeRequestWithRetry(URL, maxTry)
+	return str, nil
+}
+
+func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
+	URL, err := r8RunWithAudioFile(params)
 	if err != nil {
-		return nil, fmt.Errorf("Failed request on prediction output after %d attempts: %v", maxTry, err)
+		return nil, err
+	}
+	
+	resp, err := makeRequestWithRetry(URL, params.MaxTry)
+	if err != nil {
+		return nil, fmt.Errorf("Failed request on prediction output after %d attempts: %v", params.MaxTry, err)
 	}
 	defer resp.Body.Close()
 
@@ -211,6 +271,7 @@ func r8RunWithAudioFile(ctx context.Context, filepath string, maxTry, timeout in
 	fmt.Print("\n")
 	return body, nil
 }
+
 
 
 
