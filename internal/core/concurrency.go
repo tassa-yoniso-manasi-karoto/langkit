@@ -4,6 +4,7 @@ import (
 	"os"
 	"sync"
 	"context"
+	"strings"
 
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -216,8 +217,9 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 	if ctx.Err() != nil {
 		return tsk.Handler.Log(Debug, AbortAllTasks, "operation cancelled by user")
 	}
-
-	tsk.ConcatWAVstoOGG("CONDENSED") // TODO probably better to put it elsewhere
+	if tsk.WantCondensedAudio {
+		tsk.ConcatWAVstoOGG("CONDENSED") // TODO probably better to put it elsewhere
+	}
 	return nil
 }
 

@@ -3,7 +3,6 @@
 
    - UI: justify blocked processing button on hover
    - add to crash report: stack trace, log history, runtime info, settings with API keys sanitized, network status, langkit version
-   - subs2dubs makes AVIF when it shouldn't
    - Add tests
    
    

@@ -50,7 +50,7 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 	if err != nil && !errors.Is(err, fs.ErrExist) {
 		tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract ogg audio")
 	}
-	if !tsk.DubsOnly {
+	if tsk.WantCondensedAudio {
 		_, err = media.ExtractAudio("wav", tsk.UseAudiotrack,
 			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
 				tsk.MediaSourceFile, tsk.MediaPrefix, false)
@@ -58,10 +58,12 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract wav audio")
 		}
 	}
+	dryRun := tsk.Mode != Subs2Cards
 	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt,
-		tsk.MediaSourceFile, tsk.MediaPrefix, tsk.DubsOnly)
+		tsk.MediaSourceFile, tsk.MediaPrefix, dryRun)
 	if err != nil {
-		// check done on the AVIF because it is the most computing intensive
+		// determining AlreadyDone is done on the AVIF because it is the most
+		// computing intensive part of each item's processing
 		if errors.Is(err, fs.ErrExist) {
 			item.AlreadyDone = true
 			totalItems -= 1
@@ -73,25 +75,27 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 	item.Image = fmt.Sprintf("<img src=\"%s\">", path.Base(imageFile))
 	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
 	
-	lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
-	dub := ""
-	switch tsk.STT {
-	case "whisper":
-		dub, err = voice.Whisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
-	case "insanely-fast-whisper":
-		dub, err = voice.InsanelyFastWhisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
-	case "universal-1":
-		dub, err = voice.Universal1(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
-	}
-	item.ForeignCurr = dub
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return item, tsk.Handler.Log(Debug, AbortAllTasks, "STT: Operation cancelled due to context cancellation.")
-		} else if errors.Is(err, context.DeadlineExceeded) {
-			return item, tsk.Handler.LogErr(err, AbortTask, "STT: Operation timed out.")
+	if tsk.STT != "" {
+		lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
+		dub := ""
+		switch tsk.STT {
+		case "whisper":
+			dub, err = voice.Whisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
+		case "insanely-fast-whisper":
+			dub, err = voice.InsanelyFastWhisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+		case "universal-1":
+			dub, err = voice.Universal1(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 		}
-		return item, tsk.Handler.LogErrFields(err, AbortTask, tsk.STT + " error",
-			map[string]interface{}{"item": foreignItem.String()})
+		item.ForeignCurr = dub
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return item, tsk.Handler.Log(Debug, AbortAllTasks, "STT: Operation cancelled due to context cancellation.")
+			} else if errors.Is(err, context.DeadlineExceeded) {
+				return item, tsk.Handler.LogErr(err, AbortTask, "STT: Operation timed out.")
+			}
+			return item, tsk.Handler.LogErrFields(err, AbortTask, tsk.STT + " error",
+				map[string]interface{}{"item": foreignItem.String()})
+		}
 	}
 	/*if i > 0 { // FIXME this has never worked for some reason
 		prevItem := tsk.TargSubs.Items[i-1]
