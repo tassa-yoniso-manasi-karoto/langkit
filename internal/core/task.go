@@ -2,7 +2,6 @@ package core
 
 import (
 	"os"
-	"strings"
 	"path"
 	"path/filepath"
 	"time"
@@ -49,7 +48,6 @@ func (m Mode) String() string{
 type Meta struct {
 	FFmpeg string
 	MediaInfo MediaInfo
-	Runtime string
 	WorkersMax int
 }
 
@@ -89,7 +87,7 @@ type Task struct {
 	Offset               time.Duration
 	
 	// Subs2cards options
-	CondensedAudio       bool
+	WantCondensedAudio   bool
 	
 	// Audio track options
 	TargetChan           int // TODO rename TargetChanNum
@@ -207,8 +205,6 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to access FFmpeg binary")
 	}
 	tsk.Meta.FFmpeg = tmp
-	tsk.Meta.Runtime = getRuntimeInfo()
-	
 	tsk.TargetChan, _ = cmd.Flags().GetInt("chan")
 	audiotrack, _ := cmd.Flags().GetInt("a")
 	tsk.UseAudiotrack = audiotrack-1
@@ -336,60 +332,6 @@ func IsFlagBoolSet(cmd *cobra.Command, flagName string) (bool, bool) {
 	}
 	return false, false
 }
-
-
-
-func getRuntimeInfo() string {
-	var sb strings.Builder
-
-	// Store Go version
-	sb.WriteString(fmt.Sprintf("\nGo version: %s\n", runtime.Version()))
-
-	// Store OS and architecture information
-	sb.WriteString(fmt.Sprintf("OS: %s\nArchitecture: %s\n", runtime.GOOS, runtime.GOARCH))
-
-	// Store number of CPUs
-	sb.WriteString(fmt.Sprintf("Number of CPUs: %d\n", runtime.NumCPU()))
-
-	// Store number of Goroutines
-	sb.WriteString(fmt.Sprintf("Number of Goroutines: %d\n", runtime.NumGoroutine()))
-
-	// Store memory statistics
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	sb.WriteString(fmt.Sprintf("Memory Allocated: %d bytes\n", memStats.Alloc))
-	sb.WriteString(fmt.Sprintf("Memory Total Allocated: %d bytes\n", memStats.TotalAlloc))
-	sb.WriteString(fmt.Sprintf("Memory System: %d bytes\n", memStats.Sys))
-	/*sb.WriteString(fmt.Sprintf("Garbage Collection Cycles: %d\n", memStats.NumGC))
-
-	// Store time since program started
-	startTime := time.Now()
-	sb.WriteString(fmt.Sprintf("Current time: %s\n", startTime.Format(time.RFC1123)))
-
-	// Store process information
-	pid := os.Getpid()
-	sb.WriteString(fmt.Sprintf("Process ID: %d\n", pid))
-	sb.WriteString(fmt.Sprintf("Parent Process ID: %d\n", os.Getppid()))
-
-	// Store host information
-	hostname, err := os.Hostname()
-	if err != nil {
-		sb.WriteString(fmt.Sprintf("Error retrieving hostname: %s\n", err))
-	} else {
-		sb.WriteString(fmt.Sprintf("Hostname: %s\n", hostname))
-	}
-
-	// Store environment variables (can filter sensitive variables if necessary)
-	envVars := os.Environ()
-	sb.WriteString("Environment Variables:\n")
-	for _, env := range envVars {
-		sb.WriteString(fmt.Sprintf("%s\n", env))
-	}*/
-	return sb.String()
-}
-
-
-
 
 
 func placeholder2345634567() {

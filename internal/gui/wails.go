@@ -3,8 +3,6 @@ package gui
 import (
 	"embed"
 	"fmt"
-	"path/filepath"
-	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -12,8 +10,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
-	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 )
 
 
@@ -25,6 +21,7 @@ var icon []byte
 
 func Run() {
 	defer func() {
+		// TODO maybe use panicwrap because this doesn't seem to recover panic from go code called from frontend
 		if r := recover(); r != nil {
 			exitOnError(fmt.Errorf("panic: %v", r))
 		}
@@ -91,7 +88,8 @@ func Run() {
 		},
 	})
 	
-	if err != nil {
+	// handler != nil is to support Wails' double start that wails dev performs
+	if err != nil && handler != nil {
 		exitOnError(err)
 	}
 }
@@ -99,19 +97,10 @@ func Run() {
 func exitOnError(err error) {
 	// Instead of logging the error (which might not be visible to a GUI user),
 	// we create a crash dump and then display an error message dialog.
-	
-	configDir, _ := config.GetConfigDir()
-	
-	// Create a unique filename using a timestamp.
-	timestamp := time.Now().Format("20060102_150405")
-	logFileName := fmt.Sprintf("crash_%s.log", timestamp)
-	logFilePath := filepath.Join(configDir, logFileName)
+	go ShowErrorDialog(err)
 
-	// Write the error details to the log file.
-	if dumpErr := writeCrashLog(err, logFilePath); dumpErr != nil {
+	if dumpErr := writeCrashLog(err); dumpErr != nil {
 		fmt.Printf("Error dumping log file: %v\n", dumpErr)
 	}
-	
-	ShowErrorDialog(logFilePath, err)
 }
 

@@ -41,6 +41,9 @@ func (tsk *Task) audioBase() string {
 
 func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	var err error // compiler shenanigans FIXME rm later
+	
+	tsk.Handler.SaveSnapshot("Starting execution", tsk)
+	
 	// "'" in filename will break the format that ffmpeg's concat filter requires.
 	// in their file format, no escaping is supported → must be trimmed from mediaPrefix.
 	if strings.Contains(filepath.Dir(tsk.TargSubFile), "'") {

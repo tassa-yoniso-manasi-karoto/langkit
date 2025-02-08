@@ -2,9 +2,14 @@
 
 
    - UI: justify blocked processing button on hover
-   - add to crash report: stack trace, log history, runtime info, settings with API keys sanitized, network status, langkit version
+   - cancel button
+   - add to crash report: langkit version, pp.Sprint of MediaInfo struct!!!!, ffmpeg version, tsk struct
    - Add tests
-   
+   - crash reports:
+   	- add snapshots of tsk throughout code
+   	- add mediainfo results
+   	- add meta about ffmpeg / mediainfo
+   	- bind it to CLI runs too
    
 translit.go
 
@@ -13,16 +18,16 @@ translit.go
    - fix IsToken situation
    - implement ctx support
    
-   
-   - user-defined retry max
-   - cancel button
-   - Add tooltips (aborted tasks...)
+   - whisper initial_prompt
+   - user-defined API retry max
+   - gain & limiter parameters for merging
    - add progress bar
+   
    
    - Add documentation
    - fix newlines in builtin documentation
 
-
+   - use lower bitrate opus with DRED & LBRR that were just standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
 
 *in progress:*
 - add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
@@ -48,18 +53,11 @@ https://go.libhunt.com/
 *later:*
 
 
-- Make autosub local-independent: en match if en-US, no match if en-US and en-IN. Add a --strict
-- integrate with viper and yaml config file:
-    - whisper initial_prompt
-    - tokens
-    - gain & limiter parameters for merging
-- more debug info (FFmpeg version, mediainfo, platform...)
+- Make autosub local-independent: en match if en-US, no match if en-US and en-IN. Add a --stric
 - with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 
 *might:*
 
-- speechmatics (NO GO LIB) https://docs.speechmatics.com/introduction/batch-guide	 https://docs.speechmatics.com/jobsapi#tag/RetrieveTranscriptResponse
 - use Enhanced voice audiotrack as basis for audio clips
-- use lower bitrate opus with DRED & LBRR when standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
 - lossless AVIF extraction from AV1 (HQ but worst than JPEG in size)
 

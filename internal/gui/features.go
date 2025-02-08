@@ -18,6 +18,7 @@ func (a *App) ProcessFiles(request ProcessRequest) {
 	defer cancel() // TODO assign this cancel in App as procCancel
 
 	task := core.NewTask(a.handler)
+	
 	a.configureTask(task, request)
 	
 	task.MediaSourceFile = request.Path
@@ -161,7 +162,7 @@ func (a *App) configureTask(task *core.Task, request ProcessRequest) {
 		task.Offset = time.Duration(opts.PadTiming) * time.Millisecond
 		media.MaxWidth = opts.ScreenshotWidth
 		media.MaxHeight = opts.ScreenshotHeight
-		task.CondensedAudio = opts.CondensedAudio
+		task.WantCondensedAudio = opts.CondensedAudio
 
 		task.Handler.ZeroLog().Debug().
 			Interface("subs2cards_options", opts).
