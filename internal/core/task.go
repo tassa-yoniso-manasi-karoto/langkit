@@ -6,10 +6,8 @@ import (
 	"path/filepath"
 	"time"
 	"runtime"
-	"bytes"
 	"fmt"
 	"os/exec"
-	"regexp"
 	
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -200,11 +198,6 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 			MediainfoPath = dest
 		}
 	}
-	tmp, err := getFFmpegVersion(media.FFmpegPath)
-	if err != nil {
-		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to access FFmpeg binary")
-	}
-	tsk.Meta.FFmpeg = tmp
 	tsk.TargetChan, _ = cmd.Flags().GetInt("chan")
 	audiotrack, _ := cmd.Flags().GetInt("a")
 	tsk.UseAudiotrack = audiotrack-1
@@ -272,33 +265,6 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 }
 
 
-
-func getFFmpegVersion(FFmpegPath string) (string, error) {
-	cmd := exec.Command(FFmpegPath, "-version")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("failed to run ffmpeg: %v", err)
-	}
-
-	// Convert output to a string
-	output := out.String()
-
-	// Define a regular expression to extract the version and commit hash
-	// Example output: "ffmpeg version 4.3.2 Copyright (c) 2000-2021 the FFmpeg developers"
-	re := regexp.MustCompile(`ffmpeg version (\S+)`)
-	match := re.FindStringSubmatch(output)
-
-	if len(match) < 2 {
-		return "", fmt.Errorf("failed to extract ffmpeg version from output")
-	}
-
-	// Return the version found in the output
-	return match[1], nil
-}
-
-
 func IsFlagStrSet(cmd *cobra.Command, flagName string) (bool, string) {
 	if flag := cmd.Flags().Lookup(flagName); flag != nil {
 	    if cmd.Flags().Changed(flagName) {
@@ -335,6 +301,7 @@ func IsFlagBoolSet(cmd *cobra.Command, flagName string) (bool, bool) {
 
 
 func placeholder2345634567() {
+	fmt.Print("")
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
 	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }

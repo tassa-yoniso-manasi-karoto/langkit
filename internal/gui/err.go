@@ -3,6 +3,7 @@ package gui
 import (
 	"fmt"
 	"os"
+	"bytes"
 	
 	"github.com/ncruces/zenity"
 	
@@ -22,8 +23,7 @@ func ShowErrorDialog(err error) {
 	os.Exit(1)
 }
 
-
-func writeCrashLog(mainErr error) error {
+func writeCrashLog(mainErr error) (string, error) {
 	settings, err := config.LoadSettings()
 	if err != nil {
 		// Continue with empty settings if loading fails
@@ -31,19 +31,21 @@ func writeCrashLog(mainErr error) error {
 	}
 
 	runtimeInfo := crash.NewRuntimeInfo().String()
-	logBuffer := handler.GetLogBuffer()
-	snapshotsStr := handler.GetSnapshotsString()
 
-	_, err = crash.WriteReport(
+	var logBuffer bytes.Buffer
+	if handler != nil {
+		logBuffer = handler.GetLogBuffer()
+	}
+
+	crashPath, err := crash.WriteReport(
 		mainErr,
 		runtimeInfo,
 		settings,
 		&logBuffer,
-		snapshotsStr,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to write crash report: %w", err)
+		return "", fmt.Errorf("failed to write crash report: %w", err)
 	}
 
-	return nil
+	return crashPath, nil
 }

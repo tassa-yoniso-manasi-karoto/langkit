@@ -8,7 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
-
+	
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -18,7 +18,6 @@ import (
 )
 
 // RuntimeInfo holds the runtime information and collection utilities.
-// Use NewRuntimeInfo() to create a new instance.
 type RuntimeInfo struct {
 	StartTime time.Time
 	builder   strings.Builder
@@ -31,14 +30,11 @@ func NewRuntimeInfo() *RuntimeInfo {
 	}
 }
 
-
-
-
 // String generates the complete runtime information report.
 func (ri *RuntimeInfo) String() string {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-
+	
 	// Host Information
 	hostInfo, err := host.Info()
 	if err == nil {
@@ -50,7 +46,6 @@ func (ri *RuntimeInfo) String() string {
 		ri.builder.WriteString(fmt.Sprintf("Platform Family:\t%s\n", hostInfo.PlatformFamily))
 		ri.builder.WriteString(fmt.Sprintf("Platform Version:\t%s\n", hostInfo.PlatformVersion))
 		ri.builder.WriteString(fmt.Sprintf("Kernel Version:\t%s\n", hostInfo.KernelVersion))
-		ri.builder.WriteString(fmt.Sprintf("Host ID:\t%s\n", hostInfo.HostID))
 		ri.builder.WriteString(fmt.Sprintf("System Uptime:\t%s\n", time.Duration(hostInfo.Uptime)*time.Second))
 		ri.builder.WriteString("\n")
 	}
@@ -159,7 +154,9 @@ func (ri *RuntimeInfo) String() string {
 	ri.builder.WriteString(fmt.Sprintf("Garbage Collector\n"))
 	ri.builder.WriteString(fmt.Sprintf("–––––––––––––––––\n"))
 	ri.builder.WriteString(fmt.Sprintf("GC Cycles:\t%d\n", memStats.NumGC))
-	ri.builder.WriteString(fmt.Sprintf("Last GC:\t%s ago\n", humanize.Time(time.Unix(0, int64(memStats.LastGC)))))
+	if memStats.LastGC > 0 {
+		ri.builder.WriteString(fmt.Sprintf("Last GC:\t%s ago\n", humanize.Time(time.Unix(0, int64(memStats.LastGC)))))
+	}
 	ri.builder.WriteString(fmt.Sprintf("GC CPU Fraction:\t%.2f%%\n", memStats.GCCPUFraction*100))
 	ri.builder.WriteString(fmt.Sprintf("Next GC Target:\t%s\n", humanize.Bytes(memStats.NextGC)))
 

@@ -12,6 +12,7 @@ require (
 	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/klauspost/compress v1.17.11
 	github.com/ncruces/zenity v0.10.14
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/replicate/replicate-go v0.26.0
 	github.com/rs/zerolog v1.33.0
 	github.com/schollz/progressbar/v3 v3.17.1

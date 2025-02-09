@@ -3,25 +3,26 @@ package crash
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"time"
 	"sort"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/k0kubun/pp"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
+
+// TODO use FormatDirectoryListing on dir of current media file
 
 func WriteReport(
 	mainErr error,
 	runtimeInfo string,
 	settings config.Settings,
 	logBuffer io.Reader,
-	snapshots string,
 ) (string, error) {
 	startTime := time.Now()
 	dir := GetCrashDir()
@@ -39,7 +40,7 @@ func WriteReport(
 		os.Remove(tempPath)
 	}()
 
-	if err := writeReport(crashFile, mainErr, runtimeInfo, settings, logBuffer, snapshots); err != nil {
+	if err := writeReport(crashFile, mainErr, runtimeInfo, settings, logBuffer); err != nil {
 		return "", fmt.Errorf("failed to write crash report: %w", err)
 	}
 
@@ -56,25 +57,25 @@ func WriteReport(
 	return finalPath, nil
 }
 
-
-// writeReport writes all sections of the crash report to the given writer
 func writeReport(
 	w io.Writer,
 	mainErr error,
 	runtimeInfo string,
 	settings config.Settings,
 	logBuffer io.Reader,
-	snapshots string,
 ) error {
 	// Write header
-	fmt.Fprintf(w, "LANGKIT CRASH REPORT\n")
-	fmt.Fprintf(w, "==================\n")
+	fmt.Fprintln(w, "LANGKIT CRASH REPORT")
+	fmt.Fprintln(w, "==================")
 	fmt.Fprintf(w, "This file has syntax highlighting through ANSI escape codes and is best viewed in a terminal using 'cat'.\n")
 	fmt.Fprintf(w, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
 
-	// Write error information with unwrapping
-	fmt.Fprintf(w, "ERROR DETAILS\n")
-	fmt.Fprintf(w, "============\n")
+	fmt.Fprintln(w, "Langkit:")
+	fmt.Fprintln(w, version.GetVersionInfo())
+	fmt.Fprint(w, "\n")
+
+	fmt.Fprintln(w, "ERROR DETAILS")
+	fmt.Fprintln(w, "============")
 	fmt.Fprintf(w, "Error: %v\n", mainErr)
 	if err, ok := mainErr.(interface{ Unwrap() error }); ok {
 		fmt.Fprintf(w, "Unwrapped Error Chain:\n")
@@ -88,66 +89,77 @@ func writeReport(
 			}
 		}
 	}
-	fmt.Fprintf(w, "\n")
+	fmt.Fprint(w, "\n")
 
-	fmt.Fprintf(w, "STACK TRACE\n")
-	fmt.Fprintf(w, "===========\n")
+	fmt.Fprintln(w, "STACK TRACE")
+	fmt.Fprintln(w, "===========")
 	fmt.Fprintf(w, "%s\n\n", string(debug.Stack()))
 
-	fmt.Fprintf(w, "RUNTIME INFORMATION\n")
-	fmt.Fprintf(w, "==================\n")
-	fmt.Fprintf(w, "%s\n\n", runtimeInfo)
+	// Write execution context from reporter
+	if Reporter != nil {
+		globalScope, execScope := Reporter.GetScopes()
+		
+		fmt.Fprintln(w, "GLOBAL SCOPE")
+		fmt.Fprintln(w, "============")
+		fmt.Fprintf(w, "Program Start Time: %s\n", globalScope.StartTime.Format(time.RFC3339))
+		fmt.Fprintf(w, "FFmpeg Path: %s\n", globalScope.FFmpegPath)
+		fmt.Fprintf(w, "FFmpeg Version: %s\n", globalScope.FFmpegVersion)
+		fmt.Fprintf(w, "MediaInfo Version: %s\n\n", globalScope.MediaInfoVer)
 
-	fmt.Fprintf(w, "ENVIRONMENT\n")
-	fmt.Fprintf(w, "===========\n")
-	for _, env := range os.Environ() {
-		if !containsSensitiveInfo(env) {
-			fmt.Fprintf(w, "%s\n", env)
+		if execScope.MediaInfoDump != "" {
+			fmt.Fprintln(w, "MEDIA INFORMATION")
+			fmt.Fprintln(w, "=================")
+			fmt.Fprintf(w, "Processing Start Time: %s\n", execScope.StartTime.Format(time.RFC3339))
+			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n\n", execScope.MediaInfoDump)
 		}
-	}
-	fmt.Fprintf(w, "\n")
-	
-	if snapshots != "" {
-		fmt.Fprintf(w, "PROCESSING SNAPSHOTS\n")
-		fmt.Fprintf(w, "===================\n")
-		fmt.Fprintf(w, "%s\n", snapshots)
-		fmt.Fprintf(w, "\n")
+
+		// Write execution snapshots
+		fmt.Fprintf(w, "%s\n", Reporter.GetSnapshotsString())
 	}
 
-	fmt.Fprintf(w, "SETTINGS\n")
-	fmt.Fprintf(w, "========\n")
+	fmt.Fprintln(w, "RUNTIME INFORMATION")
+	fmt.Fprint(w, "==================\n\n")
+	fmt.Fprint(w, runtimeInfo + "\n\n")
+
+	fmt.Fprintln(w, "ENVIRONMENT")
+	fmt.Fprintln(w, "===========")
+	printEnvironment(w)
+	fmt.Fprint(w, "\n")
+
+	fmt.Fprintln(w, "SETTINGS")
+	fmt.Fprintln(w, "========")
 	sanitizedSettings := settings
 	sanitizedSettings.APIKeys.Replicate = MaskAPIKey(settings.APIKeys.Replicate)
 	sanitizedSettings.APIKeys.AssemblyAI = MaskAPIKey(settings.APIKeys.AssemblyAI)
 	sanitizedSettings.APIKeys.ElevenLabs = MaskAPIKey(settings.APIKeys.ElevenLabs)
-	fmt.Fprintf(w, pp.Sprint(sanitizedSettings))
-	fmt.Fprintf(w, "\n\n")
+	fmt.Fprintln(w, pp.Sprint(sanitizedSettings), "\n")
 
-	// Write log history
-	fmt.Fprintf(w, "LOG HISTORY\n")
-	fmt.Fprintf(w, "===========\n")
+	fmt.Fprintln(w, "LOG HISTORY")
+	fmt.Fprintln(w, "===========")
 	if logBuffer != nil {
 		if _, err := io.Copy(w, logBuffer); err != nil {
 			return fmt.Errorf("failed to write log history: %w", err)
 		}
 	} else {
-		fmt.Fprintf(w, "No log history available")
+		fmt.Fprintln(w, "No log history available")
 	}
-	fmt.Fprintf(w, "\n\n")
+	fmt.Fprint(w, "\n")
 
 	// Takes the longest, keep it last
-	fmt.Fprintf(w, "CONNECTIVITY STATUS\n")
-	fmt.Fprintf(w, "==================\n")
+	fmt.Fprintln(w, "CONNECTIVITY STATUS")
+	fmt.Fprintln(w, "==================")
+	// Not sure if some AI API services have georestrictions but when in doubt
+	if country, err := GetUserCountry(); err == nil {
+		fmt.Fprintln(w, "Requests originate from:", country)
+	}
 	checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
 	checkEndpointConnectivity(w, "https://www.assemblyai.com/", "AssemblyAI")
 	checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
-	fmt.Fprintf(w, "\n")
+	fmt.Fprint(w, "\n")
 	
 	return nil
 }
 
-
-// compressReport compresses the crash report using zstd
 func compressReport(sourcePath, destPath string) error {
 	source, err := os.Open(sourcePath)
 	if err != nil {
@@ -174,47 +186,13 @@ func compressReport(sourcePath, destPath string) error {
 	return nil
 }
 
-
-// checkEndpointConnectivity tests connectivity to a given endpoint
-func checkEndpointConnectivity(w io.Writer, url, name string) {
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-		Transport: &http.Transport{
-			DisableKeepAlives: true,
-		},
-	}
-
-	start := time.Now()
-	req, err := http.NewRequest("HEAD", url, nil)
-	if err != nil {
-		fmt.Fprintf(w, "%s: Failed to create request - %v\n", name, err)
-		return
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Fprintf(w, "%s: Failed to connect - %v\n", name, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	latency := time.Since(start)
-	
-	fmt.Fprintf(w, "%s: Status %s (latency: %s)\n",
-		name,
-		resp.Status,
-		formatDuration(latency),
-	)
-}
-
-
 func CleanUpReportsOnDisk(crashDir string) {
 	pattern := filepath.Join(crashDir, "crash_*.zst")
 	
 	matches, _ := filepath.Glob(pattern)
 	
-	// Only keep last 5 crash reports
-	if len(matches) >= 5 {
+	// Only keep last 10 crash reports
+	if len(matches) >= 10 {
 		// Sort by modification time
 		sort.Slice(matches, func(i, j int) bool {
 			iInfo, _ := os.Stat(matches[i])
@@ -227,12 +205,4 @@ func CleanUpReportsOnDisk(crashDir string) {
 			os.Remove(path)
 		}
 	}
-}
-
-
-func GetCrashDir() string  {
-	dir, _ := config.GetConfigDir()
-	dir = filepath.Join(dir, "crashes")
-	os.MkdirAll(dir, 0755)
-	return dir
 }

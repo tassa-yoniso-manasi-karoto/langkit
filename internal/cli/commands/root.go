@@ -28,8 +28,9 @@ type RunFunc func(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args 
 
 func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, args []string) {
-		tsk := core.NewTask(core.NewCLIHandler())
-		if err := fn(tsk, context.Background(), cmd, args); err != nil {
+		ctx := context.Background()
+		tsk := core.NewTask(core.NewCLIHandler(ctx))
+		if err := fn(tsk, ctx, cmd, args); err != nil {
 			os.Exit(1)
 		}
 	}

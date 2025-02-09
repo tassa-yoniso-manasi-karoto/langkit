@@ -134,6 +134,27 @@ func FFmpeg(arg ...string) error {
 }
 
 
+func GetFFmpegVersion() (string, error) {
+	cmd := exec.Command(FFmpegPath, "-version")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("failed to run ffmpeg: %v", err)
+	}
+
+	output := out.String()
+	re := regexp.MustCompile(`ffmpeg version (\S+)`)
+	match := re.FindStringSubmatch(output)
+
+	if len(match) < 2 {
+		return "", fmt.Errorf("failed to extract ffmpeg version from output")
+	}
+
+	return match[1], nil
+}
+
+
 func CheckValidData(filepath string) (bool, error) {
 	cmd := exec.Command(FFmpegPath,
 		"-loglevel", "error",

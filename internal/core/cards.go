@@ -16,7 +16,7 @@ import (
 	//"github.com/rs/zerolog"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
-	//"github.com/schollz/progressbar/v3"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 var AstisubSupportedExt = []string{".srt", ".ass", ".ssa", "vtt", ".stl", ".ttml"}
@@ -42,7 +42,10 @@ func (tsk *Task) audioBase() string {
 func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	var err error // compiler shenanigans FIXME rm later
 	
-	tsk.Handler.SaveSnapshot("Starting execution", tsk)
+	reporter := crash.Reporter
+	reporter.ClearExecutionRecords()
+	
+	reporter.SaveSnapshot("Starting execution", pp.Sprintln(tsk))
 	
 	// "'" in filename will break the format that ffmpeg's concat filter requires.
 	// in their file format, no escaping is supported → must be trimmed from mediaPrefix.
@@ -57,7 +60,9 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 			"Neither languages and nor subtitle files were specified.")
 	}
 	if tsk.TargSubFile == "" {
+		reporter.SaveSnapshot("Running Autosub", pp.Sprintln(tsk))
 		if procErr:= tsk.Autosub(); procErr != nil {
+			reporter.SaveSnapshot("Autosub failed", pp.Sprintln(tsk))
 			return procErr
 		}
 	} else {

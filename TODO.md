@@ -3,13 +3,14 @@
 
    - UI: justify blocked processing button on hover
    - cancel button
-   - add to crash report: langkit version, pp.Sprint of MediaInfo struct!!!!, ffmpeg version, tsk struct
    - Add tests
+
    - crash reports:
-   	- add snapshots of tsk throughout code
-   	- add mediainfo results
-   	- add meta about ffmpeg / mediainfo
-   	- bind it to CLI runs too
+     - ADD DOCKER LOGS
+     - prefer zip over zstd because github issues don't support uplodad zstd
+     - add snapshots of tsk throughout code
+     - ls inside directory of media
+     - bind it to CLI runs too
    
 translit.go
 
@@ -18,6 +19,7 @@ translit.go
    - fix IsToken situation
    - implement ctx support
    
+   - more logging on langs detected
    - whisper initial_prompt
    - user-defined API retry max
    - gain & limiter parameters for merging

@@ -7,13 +7,14 @@ import (
 	"time"
 	"context"
 	"bytes"
-	"strings"
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	
 	"github.com/rs/zerolog"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 
@@ -29,13 +30,6 @@ type MessageHandler interface {
 	GetLogBuffer() bytes.Buffer
 	HandleProgress(current, total int, description string) //TODO
 	HandleStatus(status string) //TODO
-	SaveSnapshot(state string, task *Task)
-}
-
-type ProcessingSnapshot struct {
-	Timestamp time.Time
-	State     string
-	TaskDump  string
 }
 
 // #############################################################################
@@ -45,13 +39,15 @@ type ProcessingSnapshot struct {
 
 // CLI implementation
 type CLIHandler struct {
+	ctx	context.Context
 	logger *zerolog.Logger
 	buffer bytes.Buffer
-	snapshots []ProcessingSnapshot
 }
 
-func NewCLIHandler() *CLIHandler {
-	h := &CLIHandler{}
+func NewCLIHandler(ctx context.Context) *CLIHandler {
+	h := &CLIHandler{ ctx: ctx }
+	crash.InitReporter(ctx)
+	
 	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
 	
 	writer := zerolog.New(zerolog.ConsoleWriter{
@@ -103,30 +99,6 @@ func (h *CLIHandler) HandleStatus(status string) {
 	h.logger.Info().Msg(status)
 }
 
-func (h *CLIHandler) SaveSnapshot(state string, task *Task) {
-	h.snapshots = append(h.snapshots, ProcessingSnapshot{
-		Timestamp: time.Now(),
-		State:     state,
-		TaskDump:  pp.Sprint(task),
-	})
-}
-
-func (h *CLIHandler) GetSnapshotsString() string {
-	return getSnapshotsString(h.snapshots)
-}
-
-
-func getSnapshotsString(snapshots []ProcessingSnapshot) string {
-	var b strings.Builder
-	for i, snapshot := range snapshots {
-		fmt.Fprintf(&b, "Snapshot #%d - %s\n", i+1, snapshot.Timestamp.Format(time.RFC3339))
-		fmt.Fprintf(&b, "State: %s\n", snapshot.State)
-		fmt.Fprintf(&b, "Task Dump:\n%s\n", snapshot.TaskDump)
-		fmt.Fprintf(&b, "-------------------\n")
-	}
-	return b.String()
-}
-
 
 
 // #############################################################################
@@ -140,7 +112,6 @@ type GUIHandler struct {
 	ctx	context.Context
 	logger  *zerolog.Logger
 	buffer  bytes.Buffer
-	snapshots []ProcessingSnapshot
 }
 
 // LogWriter must implement io.Writer for zerolog.MultiLevelWriter
@@ -157,6 +128,7 @@ func (w *LogWriter) Write(p []byte) (n int, err error) {
 
 func NewGUIHandler(ctx context.Context) *GUIHandler {
 	h := &GUIHandler{ ctx: ctx }
+	crash.InitReporter(ctx)
 	
 	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
 	
@@ -237,17 +209,6 @@ func (h *GUIHandler) HandleStatus(status string) {
 	runtime.EventsEmit(h.ctx, "status", status)
 }
 
-func (h *GUIHandler) SaveSnapshot(state string, task *Task) {
-	h.snapshots = append(h.snapshots, ProcessingSnapshot{
-		Timestamp: time.Now(),
-		State:     state,
-		TaskDump:  pp.Sprint(task),
-	})
-}
-
-func (h *GUIHandler) GetSnapshotsString() string {
-	return getSnapshotsString(h.snapshots)
-}
 
 func placeholder3456() {
 	fmt.Println("")

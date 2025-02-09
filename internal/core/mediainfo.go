@@ -10,6 +10,8 @@ import (
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 	iso "github.com/barbashov/iso639-3"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 var MediainfoPath = "mediainfo"
@@ -159,6 +161,12 @@ func Mediainfo(path string) (media MediaInfo) {
 		fmt.Printf("Error parsing mediainfo JSON: %v\n", err)
 		os.Exit(1)
 	}
+	
+	crash.Reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		gs.MediaInfoVer = RawMediaInfo.CreatingLibrary.Version
+		es.MediaInfoDump = pp.Sprint(RawMediaInfo.Media)
+	})
+	
 	media.CreatingLibrary = RawMediaInfo.CreatingLibrary
 	// Iterate through the tracks and dynamically unmarshal based on the @type field
 	for _, rawTrack := range RawMediaInfo.Media.Track {

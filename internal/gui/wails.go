@@ -99,7 +99,7 @@ func exitOnError(err error) {
 	// we create a crash dump and then display an error message dialog.
 	go ShowErrorDialog(err)
 
-	if dumpErr := writeCrashLog(err); dumpErr != nil {
+	if _, dumpErr := writeCrashLog(err); dumpErr != nil {
 		fmt.Printf("Error dumping log file: %v\n", dumpErr)
 	}
 }

@@ -14,10 +14,20 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 
 func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
+	version, err := media.GetFFmpegVersion()
+	if err != nil {
+		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to access FFmpeg binary")
+	}
+	crash.Reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		gs.FFmpegPath = media.FFmpegPath
+		gs.FFmpegVersion = version
+	})
+	
 	// reassign to have root dir if IsBulkProcess
 	userProvided := tsk.MediaSourceFile
 	
