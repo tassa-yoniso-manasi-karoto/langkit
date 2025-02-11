@@ -1,19 +1,21 @@
 <script lang="ts">
     import { fade, slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import '@material-design-icons/font';
     
-    import { settings, showSettings } from './lib/stores.ts';
+    import { settings, showSettings } from './lib/stores';
     import { logStore } from './lib/logStore';
+    import { errorStore } from './lib/errorStore';
     
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
     import LogViewer from './components/LogViewer.svelte';
     import GlowEffect from './components/GlowEffect.svelte';
     import Settings from './components/Settings.svelte';
+    import ProcessButton from './components/ProcessButton.svelte';
     
-    import { ProcessFiles } from '../wailsjs/go/gui/App';
+    import { ProcessFiles, CancelProcessing } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
 
     // Define interfaces
@@ -26,16 +28,17 @@
     interface FeatureOptions {
         [key: string]: any;
     }
+    
     interface MediaSource {
         name: string;
         path: string;
         size?: number;
+        audioTrackIndex?: number;
     }
 
-    let mediaSource: MediaSource | null = null;  // Replace selectedFiles
-    let previewFiles: MediaSource[] = [];        // For directory preview only
-    
-    let selectedPath: string = '';
+    // State management
+    let mediaSource: MediaSource | null = null;
+    let previewFiles: MediaSource[] = [];
     let selectedFeatures = {
         subs2cards: false,
         dubtitles: false,
@@ -48,14 +51,47 @@
     let progress = 0;
     let showGlow = true;
     let defaultTargetLanguage = '';
-    let featureValid = false;
-    
-    function handleValidityChange(event: CustomEvent) {
-        featureValid = event.detail.isValid;
-    }
 
-    // Compute overall form validity
-    $: isFormValid = mediaSource !== null && featureValid;
+    // Error management
+    $: {
+        if (!mediaSource) {
+            errorStore.addError({
+                id: 'no-media',
+                message: 'No media file selected',
+                severity: 'critical',
+                action: {
+                    label: 'Select Media',
+                    handler: () => document.querySelector('.drop-zone')?.click()
+                }
+            });
+        } else {
+            errorStore.removeError('no-media');
+        }
+
+        if (!Object.values(selectedFeatures).some(v => v)) {
+            errorStore.addError({
+                id: 'no-features',
+                message: 'Select at least one processing feature',
+                severity: 'critical'
+            });
+        } else {
+            errorStore.removeError('no-features');
+        }
+
+        if (!$settings.nativeLanguages) {
+            errorStore.addError({
+                id: 'no-native-lang',
+                message: 'Configure native languages in settings',
+                severity: 'warning',
+                action: {
+                    label: 'Open Settings',
+                    handler: () => $showSettings = true
+                }
+            });
+        } else {
+            errorStore.removeError('no-native-lang');
+        }
+    }
 
     // Event handlers
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
@@ -86,33 +122,97 @@
             await ProcessFiles(request);
         } catch (error) {
             console.error('Processing failed:', error);
+            errorStore.addError({
+                id: 'processing-failed',
+                message: 'Processing failed: ' + (error.message || 'Unknown error'),
+                severity: 'critical',
+                dismissible: true
+            });
         } finally {
             isProcessing = false;
             progress = 0;
         }
     }
 
-    // Settings management
+    async function handleCancel() {
+        try {
+            await CancelProcessing();
+            isProcessing = false;
+            errorStore.addError({
+                id: 'processing-cancelled',
+                message: 'Processing cancelled by user',
+                severity: 'info',
+                dismissible: true
+            });
+        } catch (error) {
+            console.error('Failed to cancel processing:', error);
+            errorStore.addError({
+                id: 'cancel-failed',
+                message: 'Failed to cancel processing',
+                severity: 'critical',
+                dismissible: true
+            });
+        }
+    }
+
+// Settings management
     async function loadSettings() {
         try {
             const loadedSettings = await window.go.gui.App.LoadSettings();
             settings.set(loadedSettings);
             showGlow = loadedSettings.enableGlow;
             defaultTargetLanguage = loadedSettings.targetLanguage;
+            showLogViewer = loadedSettings.showLogViewerByDefault;
         } catch (error) {
             console.error('Failed to load settings:', error);
+            errorStore.addError({
+                id: 'settings-load-failed',
+                message: 'Failed to load settings',
+                severity: 'critical',
+                dismissible: true,
+                action: {
+                    label: 'Retry',
+                    handler: () => loadSettings()
+                }
+            });
+        }
+    }
+
+    // Docker availability check
+    async function checkDockerAvailability() {
+        try {
+            const available = await window.go.gui.App.CheckDocker();
+            if (!available) {
+                errorStore.addError({
+                    id: 'docker-not-available',
+                    message: 'Docker is not available. Some features may be limited.',
+                    severity: 'warning',
+                    docsUrl: 'https://docs.docker.com/get-docker/',
+                    dismissible: true
+                });
+            } else {
+                errorStore.removeError('docker-not-available');
+            }
+        } catch (error) {
+            console.error('Docker check failed:', error);
+            errorStore.addError({
+                id: 'docker-check-failed',
+                message: 'Failed to check Docker availability',
+                severity: 'warning',
+                dismissible: true
+            });
         }
     }
 
     // Initialization
     onMount(() => {
-        // Initialize log listener regardless of log viewer visibility
+        // Initialize log listener
         EventsOn("log", (rawLog: any) => {
             logStore.addLog(rawLog);
         });
         
         // Listen for settings updates
-        window.runtime.EventsOn("settings-loaded", (loadedSettings) => {
+        EventsOn("settings-loaded", (loadedSettings) => {
             settings.set(loadedSettings);
             showGlow = loadedSettings.enableGlow;
             defaultTargetLanguage = loadedSettings.targetLanguage;
@@ -120,11 +220,17 @@
         });
 
         loadSettings();
+        checkDockerAvailability();
     });
 
-    $: if ($settings) {
-        showLogViewer = $settings.showLogViewerByDefault;
-    }
+    // Cleanup
+    onDestroy(() => {
+        // Clear component-specific errors
+        errorStore.removeError('no-media');
+        errorStore.removeError('no-features');
+        errorStore.removeError('processing-failed');
+        errorStore.removeError('cancel-failed');
+    });
 
     // Settings update listener
     window.addEventListener('settingsUpdated', ((event: CustomEvent) => {
@@ -137,17 +243,22 @@
     {#if showGlow}
         <GlowEffect {isProcessing} />
     {/if}
+    
     <div class="flex h-full p-8 gap-8 relative z-10">
+        <!-- Settings button -->
         <div class="absolute top-4 right-4 z-20">
             <button 
                 class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
                        transition-all duration-200 hover:bg-white/15 hover:text-white
-                       hover:-translate-y-0.5"
+                       hover:-translate-y-0.5 hover:shadow-lg hover:shadow-white/5
+                       focus:outline-none focus:ring-2 focus:ring-accent/50"
                 on:click={() => $showSettings = true}
+                aria-label="Open settings"
             >
                 <span class="material-icons text-[20px]">settings</span>
             </button>
         </div>
+
         <!-- Main content area -->
         <div class="flex-1 relative {showLogViewer ? 'w-[55%]' : 'w-full'} transition-all duration-300">
             <div class="h-full flex flex-col">
@@ -157,48 +268,58 @@
                         <MediaInput 
                             bind:mediaSource
                             bind:previewFiles
+                            class="drop-zone"
                         />
                         <FeatureSelector 
                             bind:selectedFeatures 
                             on:optionsChange={handleOptionsChange}
-                            on:validityChange={handleValidityChange}
                             {mediaSource}
+                            class="feature-selector"
                         />
                     </div>
                 </div>
 
                 <!-- Fixed bottom button area -->
-    <div class="pt-6 pb-2 bg-gradient-to-t from-sky-dark via-sky-dark">
-        <div class="max-w-2xl mx-auto flex justify-center items-center gap-4">
-            <button 
-                class="px-8 py-3 bg-accent text-sky-dark rounded-lg font-medium
-                       transition-all duration-200 ease-in-out
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       hover:bg-opacity-80 hover:-translate-y-0.5
-                       shadow-lg"
-                disabled={!isFormValid || isProcessing} 
-                on:click={handleProcess}
-            >
-                {#if isProcessing}
-                    <div class="flex items-center gap-2">
-                        <span class="material-icons animate-spin">refresh</span>
-                        Processing...
-                    </div>
-                {:else}
-                    Process Files
-                {/if}
-            </button>
-            
-            <button 
-                class="p-2 rounded-lg transition-all duration-200
-                       {showLogViewer ? 'bg-accent text-sky-dark' : 'bg-white/10 text-white'}
-                       hover:bg-opacity-80"
-                on:click={toggleLogViewer}
-            >
-                <span class="material-icons">
-                    {showLogViewer ? 'chevron_right' : 'chevron_left'}
-                </span>
-            </button>
+                <div class="pt-6 pb-2 bg-gradient-to-t from-sky-dark via-sky-dark">
+                    <div class="max-w-2xl mx-auto flex justify-center items-center gap-4">
+                        <ProcessButton 
+                            {isProcessing} 
+                            on:process={handleProcess} 
+                        />
+                        
+                        {#if isProcessing}
+                            <button 
+                                class="h-12 w-12 flex items-center justify-center rounded-lg 
+                                       bg-red-500/30 text-white transition-all duration-200 
+                                       hover:bg-red-500/90 hover:-translate-y-0.5
+                                       hover:shadow-lg hover:shadow-red-500/20
+                                       focus:outline-none focus:ring-2 focus:ring-red-500/50
+                                       focus:ring-offset-2 focus:ring-offset-bg"
+                                on:click={handleCancel}
+                                in:slide={{ duration: 200, axis: 'x' }}
+                                out:slide={{ duration: 200, axis: 'x' }}
+                                aria-label="Cancel processing"
+                            >
+                                <span class="material-icons">close</span>
+                            </button>
+                        {/if}
+
+                        <button 
+                            class="h-12 w-12 flex items-center justify-center rounded-lg 
+                                   transition-all duration-200
+                                   {showLogViewer ? 'bg-accent text-sky-dark' : 'bg-white/10 text-white'}
+                                   hover:bg-opacity-80 hover:-translate-y-0.5
+                                   hover:shadow-lg
+                                   focus:outline-none focus:ring-2 
+                                   {showLogViewer ? 'focus:ring-accent/50' : 'focus:ring-white/30'}
+                                   focus:ring-offset-2 focus:ring-offset-bg"
+                            on:click={toggleLogViewer}
+                            aria-label="{showLogViewer ? 'Hide log viewer' : 'Show log viewer'}"
+                        >
+                            <span class="material-icons">
+                                {showLogViewer ? 'chevron_right' : 'chevron_left'}
+                            </span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -210,12 +331,16 @@
                         shadow-[4px_4px_0_0_rgba(159,110,247,0.4),8px_8px_16px_-2px_rgba(159,110,247,0.35)]
                         hover:shadow-[4px_4px_0_0_rgba(159,110,247,0.5),8px_8px_20px_-2px_rgba(159,110,247,0.4)]"
                  in:slide={{ duration: 400, delay: 100, axis: 'x', easing: cubicOut }}
-                 out:slide={{ duration: 400, axis: 'x', easing: cubicOut }}>
+                 out:slide={{ duration: 400, axis: 'x', easing: cubicOut }}
+                 role="region"
+                 aria-live="polite"
+            >
                 <LogViewer />
             </div>
         {/if}
     </div>
 </div>
+
 <Settings 
     onClose={() => $showSettings = false}
 />
@@ -265,5 +390,20 @@
 
     .mask-fade::-webkit-scrollbar-thumb:hover {
         background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Custom glow effect integration */
+    :global(.glow-effect) {
+        filter: drop-shadow(0 0 12px theme(colors.accent / 0.15));
+    }
+
+    /* Settings modal transition */
+    :global(.settings-modal) {
+        transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    :global(.settings-modal.opened) {
+        opacity: 1;
+        transform: translateY(0);
     }
 </style>

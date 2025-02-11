@@ -1,17 +1,15 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount } from 'svelte';
+    import { createEventDispatcher, onMount, onDestroy } from 'svelte';
     import { slide } from 'svelte/transition';
     import { get } from 'svelte/store';
     
     import { debounce } from 'lodash';
     
     import { settings, showSettings } from '../lib/stores.ts';
+    import { errorStore } from '../lib/errorStore';
     import Dropdown from './Dropdown.svelte';
     import Hovertip from './Hovertip.svelte';
     import { GetRomanizationStyles, ValidateLanguageTag, CheckMediaLanguageTags } from '../../wailsjs/go/gui/App';
-
-    // Initialize event dispatcher for parent communication
-    const dispatch = createEventDispatcher();
 
     // Props
     export let selectedFeatures = {
@@ -55,6 +53,7 @@
         standardTag?: string;
         error?: string;
     }
+    const dispatch = createEventDispatcher();
     
     // State variables
     let quickAccessLangTag = '';
@@ -62,7 +61,6 @@
     let isChecking = false;
     let standardTag = '';
     let validationError = '';
-    let providerWarnings: {[key: string]: string} = {};
     
     let romanizationStyles: string[] = [];
     let isRomanizationAvailable = true;
@@ -75,6 +73,8 @@
     let showAudioTrackIndex = false;
     let audioTrackIndex = 0;
     let hasLanguageTags = true;
+    
+    let providerWarnings: Record<string, string> = {};
     
     const providersRequiringTokens = {
         'whisper': 'replicate',
@@ -97,27 +97,42 @@
         };
     }
     
-    function updateProviderWarnings() {
-        providerWarnings = {};
-        
-        // Check dubtitles STT provider
-        if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
-            const sttProvider = currentFeatureOptions.dubtitles.stt;
-            const { isValid, tokenType } = checkProviderApiToken(sttProvider);
-            if (!isValid) {
-                providerWarnings['dubtitles'] = `${tokenType} API token is required for ${sttProvider}`;
-            }
-        }
-        
-        // Check voice enhancement provider
-        if (selectedFeatures.voiceEnhancing && currentFeatureOptions.voiceEnhancing) {
-            const sepLib = currentFeatureOptions.voiceEnhancing.sepLib;
-            const { isValid, tokenType } = checkProviderApiToken(sepLib);
-            if (!isValid) {
-                providerWarnings['voiceEnhancing'] = `${tokenType} API token is required for ${sepLib}`;
-            }
-        }
+  function updateProviderWarnings() {
+    // Check dubtitles STT provider
+    if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
+      const sttProvider = currentFeatureOptions.dubtitles.stt;
+      const { isValid, tokenType } = checkProviderApiToken(sttProvider);
+      if (!isValid) {
+        errorStore.addError({
+          id: 'provider-dubtitles',
+          message: `${tokenType} API token is required for ${sttProvider}`,
+          severity: 'critical'
+        });
+      } else {
+        errorStore.removeError('provider-dubtitles');
+      }
+    } else {
+      errorStore.removeError('provider-dubtitles');
     }
+
+    // Check voice enhancing provider
+    if (selectedFeatures.voiceEnhancing && currentFeatureOptions.voiceEnhancing) {
+      const sepLib = currentFeatureOptions.voiceEnhancing.sepLib;
+      const { isValid, tokenType } = checkProviderApiToken(sepLib);
+      if (!isValid) {
+        errorStore.addError({
+          id: 'provider-voiceEnhancing',
+          message: `${tokenType} API token is required for ${sepLib}`,
+          severity: 'critical'
+        });
+      } else {
+        errorStore.removeError('provider-voiceEnhancing');
+      }
+    } else {
+      errorStore.removeError('provider-voiceEnhancing');
+    }
+  }
+    
     export let mediaSource: MediaSource | null = null;
 
     // Update the checkMediaFiles function
@@ -311,6 +326,11 @@
             
             if (!isRomanizationAvailable && selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
+                errorStore.addError({
+                    id: 'no-romanization',
+                    message: 'No transliteration scheme available for selected language',
+                    severity: 'warning'
+                });
             }
         } catch (error) {
             console.error('Error fetching romanization styles:', error);
@@ -349,15 +369,37 @@
         }
     }
     
-    // Validity reactive statement
+    // Error management
     $: {
-        const hasFeatures = Object.values(selectedFeatures).some(v => v);
-        const isLanguageValid = isValidLanguage === true;
-        const hasValidProviders = Object.keys(providerWarnings).length === 0;
-        
-        // Dispatch an event to notify parent about validity
-        dispatch('validityChange', {
-            isValid: hasFeatures && isLanguageValid && hasValidProviders
+        // Feature selection errors
+        if (!Object.values(selectedFeatures).some(v => v)) {
+            errorStore.addError({
+                id: 'no-features',
+                message: 'Select at least one processing feature',
+                severity: 'critical'
+            });
+        } else {
+            errorStore.removeError('no-features');
+        }
+
+        // Language validation errors
+        if (!isValidLanguage && quickAccessLangTag) {
+            errorStore.addError({
+                id: 'invalid-language',
+                message: validationError || 'Invalid language code',
+                severity: 'critical'
+            });
+        } else {
+            errorStore.removeError('invalid-language');
+        }
+
+        // Provider API errors
+        Object.entries(providerWarnings).forEach(([feature, warning]) => {
+            errorStore.addError({
+                id: `provider-${feature}`,
+                message: warning,
+                severity: 'critical'
+            });
         });
     }
 
@@ -376,16 +418,12 @@
         }
     });
     
-    $: {
-        if (selectedFeatures) {
-            updateProviderWarnings();
-        }
+    $: if (selectedFeatures) {
+    updateProviderWarnings();
     }
 
-    $: {
-        if (currentFeatureOptions) {
-            updateProviderWarnings();
-        }
+    $: if (currentFeatureOptions) {
+    updateProviderWarnings();
     }
 
     onMount(async () => {
@@ -432,6 +470,40 @@
         hasLanguageTags = true;
         audioTrackIndex = 0;
     }
+    
+    $: {
+        if (selectedFeatures.subtitleRomanization && needsDocker && dockerUnreachable) {
+            errorStore.addError({
+                id: 'docker-required',
+                message: `${dockerEngine} is required but not reachable`,
+                severity: 'critical',
+                docsUrl: 'https://docs.docker.com/get-docker/'
+            });
+        } else {
+            errorStore.removeError('docker-required');
+        }
+    }
+    
+    $: {
+        if (selectedFeatures.subtitleRomanization && needsScraper && 
+            (!currentFeatureOptions.subtitleRomanization.browserAccessURL || 
+             !currentFeatureOptions.subtitleRomanization.browserAccessURL.startsWith('ws://'))) {
+            errorStore.addError({
+                id: 'invalid-browser-url',
+                message: 'Valid browser access URL is required for web scraping',
+                severity: 'critical'
+            });
+        } else {
+            errorStore.removeError('invalid-browser-url');
+        }
+    }
+    
+    onDestroy(() => {
+        errorStore.removeError('docker-required');
+        errorStore.removeError('invalid-browser-url');
+        errorStore.removeError('no-features');
+        errorStore.removeError('invalid-language');
+    });
 </script>
 
 <div class="space-y-6">
@@ -573,11 +645,11 @@
                             {formatDisplayText(feature)}
                         </span>
                     </label>
-                    {#if enabled && providerWarnings[feature]}
+                    {#if enabled && get(errorStore).some(e => e.id === `provider-${feature}`)}
                         <div class="mt-2 flex items-center gap-2 text-red-400 text-xs pl-7">
                             <span class="material-icons text-[14px]">warning</span>
                             <span>
-                                {providerWarnings[feature]}
+                                {get(errorStore).find(e => e.id === `provider-${feature}`)?.message}
                                 <button 
                                     class="ml-1 text-accent hover:text-accent/80 transition-colors"
                                     on:click={() => $showSettings = true}

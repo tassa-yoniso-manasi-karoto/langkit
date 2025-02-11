@@ -12,8 +12,8 @@ import (
 var handler *core.GUIHandler
 
 type App struct {
-	ctx     context.Context
-	handler core.MessageHandler // FIXME TBD if necessary
+	ctx		context.Context
+	procCancel	context.CancelFunc
 }
 
 func NewApp() *App {
@@ -23,7 +23,6 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	handler = core.NewGUIHandler(ctx)
-	a.handler = handler
 }
 
 func (a *App) domReady(ctx context.Context) {

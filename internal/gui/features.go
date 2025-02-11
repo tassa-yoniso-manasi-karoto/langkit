@@ -15,9 +15,10 @@ import (
 
 func (a *App) ProcessFiles(request ProcessRequest) {
 	processCtx, cancel := context.WithCancel(a.ctx)
-	defer cancel() // TODO assign this cancel in App as procCancel
+	a.procCancel = cancel
+	defer cancel()
 
-	task := core.NewTask(a.handler)
+	task := core.NewTask(handler)
 	
 	a.configureTask(task, request)
 	
@@ -31,6 +32,15 @@ func (a *App) ProcessFiles(request ProcessRequest) {
 	pp.Println(request)
 	
 	task.Routing(processCtx)
+}
+
+
+func (a *App) CancelProcessing() {
+	handler.ZeroLog().Debug().
+		Msg("Calling procCancel()")
+	a.procCancel()
+	handler.ZeroLog().Warn().
+		Msg("Processing canceled by user")
 }
 
 

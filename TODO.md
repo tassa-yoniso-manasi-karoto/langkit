@@ -1,8 +1,5 @@
 ### TODO
 
-
-   - UI: justify blocked processing button on hover
-   - cancel button
    - Add tests
 
    - crash reports:

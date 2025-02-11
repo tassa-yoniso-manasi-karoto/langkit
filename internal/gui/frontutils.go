@@ -207,7 +207,7 @@ func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResp
 	// Get available schemes for the language
 	schemes, err := common.GetSchemes(languageCode)
 	if err != nil {
-		a.handler.ZeroLog().Error().
+		handler.ZeroLog().Error().
 			Err(err).
 			Str("lang", languageCode).
 			Msg("Failed to get romanization schemes")
@@ -228,7 +228,7 @@ func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResp
 
 	if resp.NeedsDocker {
 		if err := dockerutil.EngineIsReachable(); err != nil {
-			a.handler.ZeroLog().Warn().
+			handler.ZeroLog().Warn().
 				Err(err).
 				Str("lang", languageCode).
 				Msg("Docker is required but not available")
