@@ -3,6 +3,7 @@
    - Add tests
 
    - crash reports:
+     - panic recovery in process files
      - ADD DOCKER LOGS
      - prefer zip over zstd because github issues don't support uplodad zstd
      - add snapshots of tsk throughout code
@@ -10,16 +11,20 @@
      - bind it to CLI runs too
    
 translit.go
-
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
-   - set Translitkit logwriter to langkit's
-   - fix IsToken situation
-   - implement ctx support
    
    - more logging on langs detected
-   - whisper initial_prompt
-   - user-defined API retry max
    - gain & limiter parameters for merging
+   
+- UI
+   - "Copy debug information" in settings
+   - feature checkbox don't seem tickable
+   - selective translit checkbox
+   - whisper initial_prompt
+   - add version in corner
+   
+   
+   - user-defined API retry max
    - add progress bar
    
    

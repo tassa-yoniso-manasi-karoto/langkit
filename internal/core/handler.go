@@ -15,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 )
 
 
@@ -50,12 +51,13 @@ func NewCLIHandler(ctx context.Context) *CLIHandler {
 	
 	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
 	
-	writer := zerolog.New(zerolog.ConsoleWriter{
+	writer := zerolog.ConsoleWriter{
 		Out: multiOut,
 		TimeFormat: time.TimeOnly,
-	})
+	}
 	logger := zerolog.New(writer).With().Timestamp().Logger()
 	h.logger = &logger
+	common.Log = logger.With().Timestamp().Str("module", "translitkit").Logger()
 	return h
 }
 
@@ -144,6 +146,7 @@ func NewGUIHandler(ctx context.Context) *GUIHandler {
 	
 	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
 	h.logger = &logger
+	common.Log = logger.With().Timestamp().Str("module", "translitkit").Logger()
 	return h
 }
 
