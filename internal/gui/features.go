@@ -14,6 +14,12 @@ import (
 )
 
 func (a *App) ProcessFiles(request ProcessRequest) {
+	defer func() {
+		if r := recover(); r != nil {
+			exitOnError(fmt.Errorf("panic in ProcessFiles: %v", r))
+		}
+	}()
+
 	processCtx, cancel := context.WithCancel(a.ctx)
 	a.procCancel = cancel
 	defer cancel()
