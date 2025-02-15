@@ -63,7 +63,7 @@ func WriteReport(
 	CleanUpReportsOnDisk(dir)
 	
 	timestamp := startTime.Format("20060102_150405")
-	tempPath := filepath.Join(dir, fmt.Sprintf("crash_%s.log", timestamp))
+	tempPath := filepath.Join(dir, fmt.Sprintf("crash_ZIP_ME_%s.log", timestamp))
 	
 	log.Debug().Msg("creating temp file for crash file")
 	crashFile, err := os.Create(tempPath)
@@ -250,7 +250,7 @@ func compressReport(sourcePath, destPath string) error {
 }
 
 func CleanUpReportsOnDisk(crashDir string) {
-	pattern := filepath.Join(crashDir, "crash_*.zst")
+	pattern := filepath.Join(crashDir, "crash_*")
 	
 	matches, _ := filepath.Glob(pattern)
 	
