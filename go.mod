@@ -23,6 +23,7 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250203172421-ac8cd3a8c69c
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250214220003-ae426fa8f1af
+	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.9.2
 )
 
@@ -205,7 +206,6 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250214144551-1bafbefc7f6d // indirect
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250213072854-de3451960256 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect

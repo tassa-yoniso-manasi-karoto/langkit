@@ -10,6 +10,7 @@ import (
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 	iso "github.com/barbashov/iso639-3"
+	"github.com/tidwall/pretty"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
@@ -164,7 +165,7 @@ func Mediainfo(path string) (media MediaInfo) {
 	
 	crash.Reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 		gs.MediaInfoVer = RawMediaInfo.CreatingLibrary.Version
-		es.MediaInfoDump = pp.Sprint(RawMediaInfo.Media)
+		es.MediaInfoDump = string(pretty.Pretty(output))
 	})
 	
 	media.CreatingLibrary = RawMediaInfo.CreatingLibrary
