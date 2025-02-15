@@ -97,10 +97,9 @@ func DockerNslookupCheck(w io.Writer, domain string) {
 		}
 	}()
 
-	// Check if the busybox image is already available locally.
+	// Check if busybox:latest exists locally.
 	_, _, err = cli.ImageInspectWithRaw(ctx, "busybox:latest")
 	if err != nil {
-		// If not found, pull the busybox image.
 		log.Trace().Msg("[docker-nslookup] busybox image not found locally, pulling busybox:latest...")
 		pullResp, err := cli.ImagePull(ctx, "docker.io/library/busybox:latest", image.PullOptions{})
 		if err != nil {
@@ -108,14 +107,13 @@ func DockerNslookupCheck(w io.Writer, domain string) {
 			log.Trace().Msgf("[docker-nslookup] Error pulling busybox image: %v", err)
 			return
 		}
-		// Read the response completely to ensure the pull finishes.
 		_, _ = io.Copy(ioutil.Discard, pullResp)
 		_ = pullResp.Close()
 	} else {
 		log.Trace().Msg("[docker-nslookup] busybox image found locally; skipping pull.")
 	}
 
-	// Create a new container for the nslookup command.
+	// Create a new container to run "nslookup <domain>"
 	log.Trace().Msgf("[docker-nslookup] Creating container for nslookup %s...", domain)
 	ctr, err := cli.ContainerCreate(
 		ctx,
@@ -131,38 +129,43 @@ func DockerNslookupCheck(w io.Writer, domain string) {
 		log.Trace().Msgf("[docker-nslookup] Error creating container: %v", err)
 		return
 	}
-	// Remove the container once finished.
+	// Ensure the container is removed afterwards.
 	defer func() {
 		_ = cli.ContainerRemove(ctx, ctr.ID, container.RemoveOptions{Force: true})
 	}()
 
-	// Start the container.
+	// Start the container in a goroutine with a child context timeout.
 	log.Trace().Msgf("[docker-nslookup] Starting container %s...", ctr.ID)
-	if err := cli.ContainerStart(ctx, ctr.ID, container.StartOptions{}); err != nil {
-		fmt.Fprintf(w, "Docker connectivity check: failed to start container (%v)\n", err)
-		log.Trace().Msgf("[docker-nslookup] Error starting container: %v", err)
+	startCtx, cancelStart := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelStart()
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- cli.ContainerStart(startCtx, ctr.ID, container.StartOptions{})
+	}()
+
+	select {
+	case err := <-startErrCh:
+		if err != nil {
+			fmt.Fprintf(w, "Docker connectivity check: failed to start container (%v)\n", err)
+			log.Trace().Msgf("[docker-nslookup] Error starting container: %v", err)
+			return
+		}
+	case <-startCtx.Done():
+		fmt.Fprintf(w, "Docker connectivity check: container start timed out\n")
+		log.Trace().Msg("[docker-nslookup] Container start timed out")
 		return
 	}
 
-	// Wait for the container to finish.
-	log.Trace().Msg("[docker-nslookup] Waiting for container to exit...")
-	statusCh, errCh := cli.ContainerWait(ctx, ctr.ID, container.WaitConditionNotRunning)
-	select {
-	case err := <-errCh:
-		if err != nil {
-			fmt.Fprintf(w, "Docker connectivity check: error waiting for container (%v)\n", err)
-			log.Trace().Msgf("[docker-nslookup] Error waiting for container: %v", err)
-			return
-		}
-	case status := <-statusCh:
-		log.Trace().Msgf("[docker-nslookup] Container exited with code %d", status.StatusCode)
-		if status.StatusCode != 0 {
-			fmt.Fprintf(w, "Docker connectivity check: nslookup failed (exit code %d)\n", status.StatusCode)
-			return
-		}
+	// Allow nslookup to run for few seconds, then kill the container.
+	time.Sleep(5 * time.Second)
+	log.Trace().Msgf("[docker-nslookup] Killing container %s...", ctr.ID)
+	if err := cli.ContainerKill(ctx, ctr.ID, "SIGKILL"); err != nil {
+		fmt.Fprintf(w, "Docker connectivity check: failed to kill container (%v)\n", err)
+		log.Trace().Msgf("[docker-nslookup] Error killing container: %v", err)
+		return
 	}
 
-	// Fetch the container logs.
+	// Fetch container logs.
 	log.Trace().Msg("[docker-nslookup] Fetching container logs...")
 	logs, err := cli.ContainerLogs(ctx, ctr.ID, container.LogsOptions{
 		ShowStdout: true,
@@ -189,7 +192,6 @@ func DockerNslookupCheck(w io.Writer, domain string) {
 		finalMsg = "Docker connectivity check: nslookup failed (DNS error)"
 	}
 
-	// Write the summary to the crash report.
 	fmt.Fprintln(w, finalMsg)
 	log.Trace().Msgf("[docker-nslookup] Final result: %s", finalMsg)
 }
@@ -412,10 +414,7 @@ func FormatDirectoryListing(w io.Writer, dirPath string) error {
 		return strings.ToLower(dirEntries[i].name) < strings.ToLower(dirEntries[j].name)
 	})
 
-	// Write header information directly to w.
-	if _, err := fmt.Fprintf(w, "Directory listing of %s\n", absPath); err != nil {
-		return err
-	}
+	fmt.Fprintln(w, absPath)
 	if _, err := fmt.Fprintf(w, "Scanned at: %s\n\n", time.Now().Format("2006-01-02 15:04:05 MST")); err != nil {
 		return err
 	}

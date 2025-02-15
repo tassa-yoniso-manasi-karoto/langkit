@@ -151,7 +151,7 @@ func writeReport(
 			fmt.Fprintln(w, "=================")
 			fmt.Fprintf(w, "Processing Start Time: %s\n", execScope.StartTime.Format(time.RFC3339))
 			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n", execScope.MediaInfoDump)
-			fmt.Fprintln(w, "Directory of current media:")
+			fmt.Fprint(w, "Directory of current media: ")
 			FormatDirectoryListing(w, execScope.ParentDirPath)
 			fmt.Fprint(w, "\n\n")
 		}
