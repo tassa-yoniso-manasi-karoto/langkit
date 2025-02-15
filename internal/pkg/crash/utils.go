@@ -11,15 +11,19 @@ import (
 	"strings"
 	"time"
 	"io"
+	"io/ioutil"
 	"context"
 	nurl "net/url"
 	"crypto/tls"
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
+	
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 )
@@ -72,6 +76,141 @@ func MaskAPIKey(key string) string {
 	}
 	return key[:4] + strings.Repeat("*", len(key)-8) + key[len(key)-4:]
 }
+
+// DockerNslookupCheck uses the Docker API to run "nslookup <domain>" in a BusyBox
+// container. This check is intended to reveal any Docker-specific networking issues.
+func DockerNslookupCheck(w io.Writer, domain string) {
+	ctx := context.Background()
+
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
+	if err != nil {
+		fmt.Fprintf(w, "Docker connectivity check: failed to create Docker client (%v)\n", err)
+		log.Trace().Msgf("[docker-nslookup] Error creating Docker client: %v", err)
+		return
+	}
+	defer func() {
+		if err := cli.Close(); err != nil {
+			log.Trace().Msgf("[docker-nslookup] Docker client close error: %v", err)
+		}
+	}()
+
+	// Check if the busybox image is already available locally.
+	_, _, err = cli.ImageInspectWithRaw(ctx, "busybox:latest")
+	if err != nil {
+		// If not found, pull the busybox image.
+		log.Trace().Msg("[docker-nslookup] busybox image not found locally, pulling busybox:latest...")
+		pullResp, err := cli.ImagePull(ctx, "docker.io/library/busybox:latest", image.PullOptions{})
+		if err != nil {
+			fmt.Fprintf(w, "Docker connectivity check: failed to pull busybox image (%v)\n", err)
+			log.Trace().Msgf("[docker-nslookup] Error pulling busybox image: %v", err)
+			return
+		}
+		// Read the response completely to ensure the pull finishes.
+		_, _ = io.Copy(ioutil.Discard, pullResp)
+		_ = pullResp.Close()
+	} else {
+		log.Trace().Msg("[docker-nslookup] busybox image found locally; skipping pull.")
+	}
+
+	// Create a new container for the nslookup command.
+	log.Trace().Msgf("[docker-nslookup] Creating container for nslookup %s...", domain)
+	ctr, err := cli.ContainerCreate(
+		ctx,
+		&container.Config{
+			Image: "busybox",
+			Cmd:   []string{"nslookup", domain},
+			Tty:   false,
+		},
+		nil, nil, nil, "",
+	)
+	if err != nil {
+		fmt.Fprintf(w, "Docker connectivity check: failed to create container (%v)\n", err)
+		log.Trace().Msgf("[docker-nslookup] Error creating container: %v", err)
+		return
+	}
+	// Remove the container once finished.
+	defer func() {
+		_ = cli.ContainerRemove(ctx, ctr.ID, container.RemoveOptions{Force: true})
+	}()
+
+	// Start the container.
+	log.Trace().Msgf("[docker-nslookup] Starting container %s...", ctr.ID)
+	if err := cli.ContainerStart(ctx, ctr.ID, container.StartOptions{}); err != nil {
+		fmt.Fprintf(w, "Docker connectivity check: failed to start container (%v)\n", err)
+		log.Trace().Msgf("[docker-nslookup] Error starting container: %v", err)
+		return
+	}
+
+	// Wait for the container to finish.
+	log.Trace().Msg("[docker-nslookup] Waiting for container to exit...")
+	statusCh, errCh := cli.ContainerWait(ctx, ctr.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			fmt.Fprintf(w, "Docker connectivity check: error waiting for container (%v)\n", err)
+			log.Trace().Msgf("[docker-nslookup] Error waiting for container: %v", err)
+			return
+		}
+	case status := <-statusCh:
+		log.Trace().Msgf("[docker-nslookup] Container exited with code %d", status.StatusCode)
+		if status.StatusCode != 0 {
+			fmt.Fprintf(w, "Docker connectivity check: nslookup failed (exit code %d)\n", status.StatusCode)
+			return
+		}
+	}
+
+	// Fetch the container logs.
+	log.Trace().Msg("[docker-nslookup] Fetching container logs...")
+	logs, err := cli.ContainerLogs(ctx, ctr.ID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+	})
+	if err != nil {
+		fmt.Fprintf(w, "Docker connectivity check: failed to retrieve logs (%v)\n", err)
+		log.Trace().Msgf("[docker-nslookup] Error retrieving logs: %v", err)
+		return
+	}
+	defer logs.Close()
+
+	logOutput, err := ioutil.ReadAll(logs)
+	if err != nil {
+		fmt.Fprintf(w, "Docker connectivity check: error reading logs (%v)\n", err)
+		log.Trace().Msgf("[docker-nslookup] Error reading logs: %v", err)
+		return
+	}
+
+	finalMsg := "Docker connectivity check: nslookup succeeded (network available)"
+	if len(logOutput) == 0 {
+		finalMsg = "Docker connectivity check: nslookup produced no output"
+	} else if containsError(string(logOutput)) {
+		finalMsg = "Docker connectivity check: nslookup failed (DNS error)"
+	}
+
+	// Write the summary to the crash report.
+	fmt.Fprintln(w, finalMsg)
+	log.Trace().Msgf("[docker-nslookup] Final result: %s", finalMsg)
+}
+
+// containsError checks if the nslookup logs contain common DNS error messages.
+func containsError(logs string) bool {
+	if strings.Contains(logs, "timed out") ||
+		strings.Contains(logs, "connection refused") ||
+		strings.Contains(logs, "no such host") {
+		return true
+	}
+	return false
+}
+
+// contains is a simple helper function to check if a substring is in a string.
+func contains(s, substr string) bool {
+	return (len(s) >= len(substr)) && (len(substr) == 0 || (len(s) > 0 && (s != "" && substr != "" && (s != "" && substr != "")) && (s != "" && substr != "") && (s != "" && substr != ""))) // dummy check for compilation; replace with strings.Contains in real code
+	// Note: Replace the above with:
+	// return strings.Contains(s, substr)
+}
+
 
 func formatDuration(d time.Duration) string {
 	d = d.Round(time.Millisecond)

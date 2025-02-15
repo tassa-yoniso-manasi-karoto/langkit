@@ -195,7 +195,7 @@ func writeReport(
 
 
 	log.Debug().Msg("writing CONNECTIVITY STATUS")
-	// Takes the longest, keep it last
+	// Takes the longest, keep it last, and in some scenarios the DNS still hangs the program forever
 	fmt.Fprintln(w, "CONNECTIVITY STATUS")
 	fmt.Fprintln(w, "==================")
 	// Not sure if some AI API services have georestrictions but when in doubt
@@ -203,6 +203,8 @@ func writeReport(
 		fmt.Fprintln(w, "Requests originate from:", country)
 	}
 	log.Trace().Msg("Country OK")
+	DockerNslookupCheck(w, "example.com")
+	log.Debug().Msg("DockerNslookupCheck done")
 	checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
 	checkEndpointConnectivity(w, "https://www.assemblyai.com/", "AssemblyAI")
 	checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")

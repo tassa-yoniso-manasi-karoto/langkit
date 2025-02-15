@@ -3,7 +3,6 @@
    - Add tests
 
    - crash reports:
-     - docker nslookup example.com to check DNS/network state inside Docker
      - panic recovery in process files
      - ADD DOCKER LOGS
      - add snapshots of tsk throughout code
