@@ -1,14 +1,11 @@
 package core
 
 import (
-	//"net/url"
 	"fmt"
 	"strings"
 	"regexp"
-	//"os"
-	//"unicode/utf8"
+	"context"
 	
-	//"github.com/go-rod/rod"
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
 	//"github.com/schollz/progressbar/v3"
@@ -24,7 +21,7 @@ var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
 
-func (tsk *Task) Translit(subsFilepath string) *ProcessingError {
+func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingError {
 	translitkit.BrowserAccessURL = tsk.BrowserAccessURL
 	m, err := translitkit.GetSchemeModule(tsk.Targ.Language.Part3, tsk.RomanizationStyle)
 	if err != nil {
@@ -32,6 +29,9 @@ func (tsk *Task) Translit(subsFilepath string) *ProcessingError {
 			fmt.Sprintf("translit: couldn't get default provider for language %s-%s", tsk.Targ.Language.Part3, tsk.RomanizationStyle))
 	}
 	tsk.Handler.ZeroLog().Trace().Msg("translit: successfully retrived default module for lang: " + m.Lang)
+	
+	m.WithContext(ctx)
+	
 	if !tsk.DockerRecreate {
 		err = m.Init()
 	} else {

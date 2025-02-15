@@ -150,7 +150,10 @@ func writeReport(
 			fmt.Fprintln(w, "MEDIA INFORMATION")
 			fmt.Fprintln(w, "=================")
 			fmt.Fprintf(w, "Processing Start Time: %s\n", execScope.StartTime.Format(time.RFC3339))
-			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n\n", execScope.MediaInfoDump)
+			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n", execScope.MediaInfoDump)
+			fmt.Fprintln(w, "Directory of current media:")
+			FormatDirectoryListing(w, execScope.ParentDirPath)
+			fmt.Fprint(w, "\n\n")
 		}
 
 		// Write execution snapshots
@@ -203,11 +206,10 @@ func writeReport(
 		fmt.Fprintln(w, "Requests originate from:", country)
 	}
 	log.Trace().Msg("Country OK")
-	DockerNslookupCheck(w, "example.com")
-	log.Debug().Msg("DockerNslookupCheck done")
 	checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
 	checkEndpointConnectivity(w, "https://www.assemblyai.com/", "AssemblyAI")
 	checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
+	DockerNslookupCheck(w, "example.com")
 	fmt.Fprint(w, "\n")
 	
 	

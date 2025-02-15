@@ -46,6 +46,9 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	reporter.ClearExecutionRecords()
 	
 	reporter.SaveSnapshot("Starting execution", pp.Sprintln(tsk))
+	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		es.ParentDirPath = path.Dir(tsk.MediaSourceFile)
+	})
 	
 	// "'" in filename will break the format that ffmpeg's concat filter requires.
 	// in their file format, no escaping is supported → must be trimmed from mediaPrefix.
@@ -194,7 +197,7 @@ ResumeTranslit:
 	}
 	if tsk.WantTranslit {
 		// TODO: find a way to provide transliteration in the TSV as well
-		tsk.Translit(subs)
+		tsk.Translit(ctx, subs)
 	}
 	if tsk.SeparationLib != "" {
 		if procErr:= tsk.enhance(ctx); procErr != nil {

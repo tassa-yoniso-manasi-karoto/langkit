@@ -7,6 +7,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/asticode/go-astisub v0.30.0
 	github.com/barbashov/iso639-3 v1.0.0
+	github.com/docker/docker v27.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/gookit/color v1.5.4
 	github.com/k0kubun/pp v3.0.1+incompatible
@@ -21,7 +22,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250203172421-ac8cd3a8c69c
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250202054903-8eb8bfdb5f6f
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250214220003-ae426fa8f1af
 	github.com/wailsapp/wails/v2 v2.9.2
 )
 
@@ -77,7 +78,6 @@ require (
 	github.com/docker/cli-docs-tool v0.8.0 // indirect
 	github.com/docker/compose/v2 v2.32.4 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v27.5.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go v1.5.1-1.0.20160303222718-d30aec9fd63c // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -202,8 +202,8 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250204101114-3d4a0e47c5f0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250204101035-b6dc8efd49b0 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250214144551-1bafbefc7f6d // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250213072854-de3451960256 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect

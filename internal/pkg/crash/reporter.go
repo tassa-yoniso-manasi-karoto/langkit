@@ -32,6 +32,7 @@ type GlobalScope struct {
 type ExecutionScope struct {
 	StartTime     time.Time
 	MediaInfoDump string
+	ParentDirPath string
 }
 
 type ReporterInstance struct {
