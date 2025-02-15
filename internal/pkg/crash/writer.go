@@ -63,7 +63,7 @@ func WriteReport(
 	CleanUpReportsOnDisk(dir)
 	
 	timestamp := startTime.Format("20060102_150405")
-	tempPath := filepath.Join(dir, fmt.Sprintf("temp_crash_%s.log", timestamp))
+	tempPath := filepath.Join(dir, fmt.Sprintf("crash_%s.log", timestamp))
 	
 	log.Debug().Msg("creating temp file for crash file")
 	crashFile, err := os.Create(tempPath)
