@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"strings"
 	"time"
 )
 
@@ -124,9 +125,11 @@ func (r *ReporterInstance) GetSnapshotsString() string {
 	if len(r.globalSnapshots) > 0 {
 		fmt.Fprintf(&b, "GLOBAL SNAPSHOTS\n")
 		fmt.Fprintf(&b, "================\n")
+		fmt.Fprintln(&b, "Note: In all snapshots, Handler is sanitized into nil to avoid clogging dumps.\n")
+		
 		for i, snapshot := range r.globalSnapshots {
-			fmt.Fprintf(&b, "Snapshot #%d - %s\n", i+1, snapshot.Timestamp.Format(time.RFC3339))
-			fmt.Fprintf(&b, "Step: %s\n", snapshot.Step)
+			fmt.Fprintf(&b, "GLOBAL Snapshot #%d - %s\n", i+1, snapshot.Timestamp.Format(time.RFC3339))
+			fmt.Fprintf(&b, "Step: %s\n", strings.ToUpper(snapshot.Step))
 			fmt.Fprintf(&b, "State:\n%s\n", snapshot.State)
 			fmt.Fprintf(&b, "-------------------\n")
 		}
@@ -138,8 +141,8 @@ func (r *ReporterInstance) GetSnapshotsString() string {
 		fmt.Fprintf(&b, "EXECUTION SNAPSHOTS\n")
 		fmt.Fprintf(&b, "===================\n")
 		for i, snapshot := range r.currentSnapshots {
-			fmt.Fprintf(&b, "Snapshot #%d - %s\n", i+1, snapshot.Timestamp.Format(time.RFC3339))
-			fmt.Fprintf(&b, "Step: %s\n", snapshot.Step)
+			fmt.Fprintf(&b, "EXEC Snapshot #%d - %s\n", i+1, snapshot.Timestamp.Format(time.RFC3339))
+			fmt.Fprintf(&b, "Step: %s\n", strings.ToUpper(snapshot.Step))
 			fmt.Fprintf(&b, "State:\n%s\n", snapshot.State)
 			fmt.Fprintf(&b, "-------------------\n")
 		}

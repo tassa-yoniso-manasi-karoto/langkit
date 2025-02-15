@@ -3,16 +3,17 @@
    - Add tests
 
    - crash reports:
-     - get wails ctx out of tsk.Handler because it clogs the tsk recordings
      - ADD DOCKER LOGS
      - add snapshots of tsk throughout code
      - bind it to CLI runs too
    
 translit.go
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
-   
+
    - more logging on langs detected
    - gain & limiter parameters for merging
+   
+   - translitkit:  implement CloseAll()
    
 - UI
    - "Copy debug information" in settings

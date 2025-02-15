@@ -45,7 +45,7 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	reporter := crash.Reporter
 	reporter.ClearExecutionRecords()
 	
-	reporter.SaveSnapshot("Starting execution", pp.Sprintln(tsk))
+	reporter.SaveSnapshot("Starting execution", tsk.DebugVals())
 	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 		es.ParentDirPath = path.Dir(tsk.MediaSourceFile)
 	})
@@ -63,9 +63,9 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 			"Neither languages and nor subtitle files were specified.")
 	}
 	if tsk.TargSubFile == "" {
-		reporter.SaveSnapshot("Running Autosub", pp.Sprintln(tsk))
+		reporter.SaveSnapshot("Running Autosub", tsk.DebugVals())
 		if procErr:= tsk.Autosub(); procErr != nil {
-			reporter.SaveSnapshot("Autosub failed", pp.Sprintln(tsk))
+			reporter.SaveSnapshot("Autosub failed", tsk.DebugVals())
 			return procErr
 		}
 	} else {

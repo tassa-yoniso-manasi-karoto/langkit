@@ -264,6 +264,17 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 	return nil
 }
 
+// DebugVals returns a string representation of a sanitized copy of the Task.
+// It makes a shallow copy of the Task, sets the Handler field to nil (to avoid clutter),
+// and then uses pp.Sprintln to generate the debug string.
+// Note: This shallow copy approach should work fine with the pp package, but any pointer
+// fields (other than Handler) will still reference the original underlying data.
+func (tsk *Task) DebugVals() string {
+	cp := *tsk // shallow copy
+	cp.Handler = nil
+	return pp.Sprintln(cp)
+}
+
 
 func IsFlagStrSet(cmd *cobra.Command, flagName string) (bool, string) {
 	if flag := cmd.Flags().Lookup(flagName); flag != nil {
