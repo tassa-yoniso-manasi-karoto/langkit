@@ -5,12 +5,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 	"io"
-
+	"context"
+	nurl "net/url"
+	"crypto/tls"
+	
+	"github.com/k0kubun/pp"
+	"github.com/gookit/color"
+	
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	
@@ -75,36 +82,132 @@ func formatDuration(d time.Duration) string {
 }
 
 
-func checkEndpointConnectivity(w io.Writer, url, name string) {
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-		Transport: &http.Transport{
-			DisableKeepAlives: true,
-		},
+// checkEndpointConnectivity tries to confirm that the host is reachable via TCP (with DialTimeout)
+// and that the server responds to a minimal HTTP request within 3 seconds.
+func checkEndpointConnectivity(w io.Writer, rawURL, name string) {
+	log.Trace().Msgf("[checkEndpointConnectivity] Starting check for %s: %s", name, rawURL)
+
+	// We'll cancel this context if we time out.
+	ctx, cancel := context.WithCancel(context.Background())
+	resultCh := make(chan string, 1)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Trace().Msgf("[checkNet:%s] Recovered from panic: %v", name, r)
+			}
+			log.Trace().Msgf("[checkNet:%s] Goroutine exiting", name)
+			close(resultCh)
+		}()
+
+		log.Trace().Msgf("[checkNet:%s] Goroutine started", name)
+		start := time.Now()
+
+		// 1) Parse the URL so we can do net.DialTimeout on host:port
+		parsedURL, err := nurl.Parse(rawURL)
+		if err != nil {
+			msg := fmt.Sprintf("%s: Invalid URL '%s': %v", name, rawURL, err)
+			log.Trace().Msgf("[checkNet:%s] %s", name, msg)
+			resultCh <- msg
+			return
+		}
+
+		host := parsedURL.Host
+		scheme := parsedURL.Scheme
+
+		// If the URL didn't include an explicit port, add one.
+		// e.g. "https://replicate.com" => replicate.com:443
+		if _, _, splitErr := net.SplitHostPort(host); splitErr != nil {
+			switch scheme {
+			case "https":
+				host = host + ":443"
+			case "http":
+				host = host + ":80"
+			default:
+				// fallback if unknown scheme
+				host = host + ":80"
+			}
+		}
+
+		// 2) Low-level check: net.DialTimeout, guaranteed to break in 3s
+		log.Trace().Msgf("[checkNet:%s] DialTimeout on %s", name, host)
+		conn, dialErr := net.DialTimeout("tcp", host, 3*time.Second)
+		if dialErr != nil {
+			msg := fmt.Sprintf("%s: TCP dial failed - %v", name, dialErr)
+			log.Trace().Msgf("[checkNet:%s] %s", name, msg)
+			resultCh <- msg
+			return
+		}
+		_ = conn.Close() // we only needed to confirm we can connect
+		log.Trace().Msgf("[checkNet:%s] TCP connection successful in %s", name, time.Since(start))
+
+		// 3) Do a short HTTP request to confirm it actually responds
+		// We'll create a client that also times out quickly.
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // or false if you want real cert check
+				DialContext:           (&net.Dialer{Timeout: 3 * time.Second}).DialContext,
+				TLSHandshakeTimeout:   3 * time.Second,
+				ResponseHeaderTimeout: 3 * time.Second,
+				DisableKeepAlives:     true,
+			},
+			// If the server tries to stream a huge body, or never ends,
+			// we won't be stuck due to the overall Timeout.
+			Timeout: 3 * time.Second,
+		}
+
+		// Attach our parent context, so we can forcibly cancel if we want.
+		req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+		if err != nil {
+			msg := fmt.Sprintf("%s: Failed to create request - %v", name, err)
+			log.Trace().Msgf("[checkNet:%s] %s", name, msg)
+			resultCh <- msg
+			return
+		}
+
+		log.Trace().Msgf("[checkNet:%s] Sending HTTP request...", name)
+		resp, err := client.Do(req)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				msg := fmt.Sprintf("%s: HTTP timeout after %s", name, formatDuration(time.Since(start)))
+				log.Trace().Msgf("[checkNet:%s] %s", name, msg)
+				resultCh <- msg
+			} else {
+				msg := fmt.Sprintf("%s: HTTP request failed - %v", name, err)
+				log.Trace().Msgf("[checkNet:%s] %s", name, msg)
+				resultCh <- msg
+			}
+			return
+		}
+		defer func() {
+			if cerr := resp.Body.Close(); cerr != nil {
+				log.Trace().Msgf("[checkNet:%s] Error closing body: %v", name, cerr)
+			}
+		}()
+
+		latency := time.Since(start)
+		msg := fmt.Sprintf("%s: HTTP %s (latency: %s)", name, resp.Status, formatDuration(latency))
+		log.Trace().Msgf("[checkNet:%s] %s", name, msg)
+		resultCh <- msg
+	}()
+
+	// The main goroutine waits up to 3 seconds for the result.
+	select {
+	case result := <-resultCh:
+		log.Trace().Msgf("[checkNet:%s] Received result: %s", name, result)
+		fmt.Fprintln(w, result)
+		log.Trace().Msgf("[checkNet:%s] OK", name)
+
+	case <-time.After(3 * time.Second):
+		// We forcibly cancel the goroutine's context and move on.
+		cancel()
+		msg := fmt.Sprintf("%s: Timed out after 3 seconds (forcing cancel)", name)
+		fmt.Fprintln(w, msg)
+		log.Trace().Msg(msg)
 	}
 
-	start := time.Now()
-	req, err := http.NewRequest("HEAD", url, nil)
-	if err != nil {
-		fmt.Fprintf(w, "%s: Failed to create request - %v\n", name, err)
-		return
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Fprintf(w, "%s: Failed to connect - %v\n", name, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	latency := time.Since(start)
-	fmt.Fprintf(w, "%s: Status %s (latency: %s)\n",
-		name,
-		resp.Status,
-		formatDuration(latency),
-	)
+	log.Trace().Msgf("[checkNet:%s] check complete, returning from function", name)
 }
-
 
 
 type dirEntry struct {
@@ -297,5 +400,12 @@ func GetUserCountry() (string, error) {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 	return string(body), nil
+}
+
+
+
+func placeholder5435() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }
 

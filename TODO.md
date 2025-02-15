@@ -3,9 +3,9 @@
    - Add tests
 
    - crash reports:
+     - docker nslookup example.com to check DNS/network state inside Docker
      - panic recovery in process files
      - ADD DOCKER LOGS
-     - prefer zip over zstd because github issues don't support uplodad zstd
      - add snapshots of tsk throughout code
      - ls inside directory of media
      - bind it to CLI runs too

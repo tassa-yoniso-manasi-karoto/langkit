@@ -7,14 +7,48 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"net"
 	"time"
 
-	"github.com/klauspost/compress/zstd"
+	"github.com/klauspost/compress/zip"
 	"github.com/k0kubun/pp"
-
+	"github.com/gookit/color"
+	"github.com/rs/zerolog"
+	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
+
+var log zerolog.Logger
+
+func init() {
+	writer := zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.TimeOnly,
+	}
+	writer.FormatMessage = func(i interface{}) string {
+		return fmt.Sprintf("[crashWriter] %s", i)
+	}
+	log = zerolog.New(writer).With().Timestamp().Logger()
+	
+	// On a 4G network far from the antenna I was facing intermittent hangs during connectivity checks. 
+	// I tried many different ways to fix the program hanging during connectivity checks.
+	// 
+	// - First, I wrapped HTTP requests in a goroutine with context cancellation 
+	//   and a timeout, but sometimes it still got stuck.
+	// - Then, I tweaked net/http settings (DialTimeout, TLSHandshakeTimeout, etc.), 
+	//   but the issue persisted.
+	// - I even switched to Resty (third-party HTTP client) hoping it would handle 
+	//   timeouts better, but no luck.
+	// 
+	// After all these failed attempts, what actually worked was forcing Go’s built-in 
+	// DNS resolver (PreferGo: true). Using Go’s native resolver made everything reliable.
+	//
+	// DNS. It's always DNS.
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+	}
+}
 
 // TODO use FormatDirectoryListing on dir of current media file
 
@@ -31,6 +65,7 @@ func WriteReport(
 	timestamp := startTime.Format("20060102_150405")
 	tempPath := filepath.Join(dir, fmt.Sprintf("temp_crash_%s.log", timestamp))
 	
+	log.Debug().Msg("creating temp file for crash file")
 	crashFile, err := os.Create(tempPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary crash file: %w", err)
@@ -40,20 +75,22 @@ func WriteReport(
 		os.Remove(tempPath)
 	}()
 
+	log.Debug().Msg("starting to write report")
 	if err := writeReport(crashFile, mainErr, runtimeInfo, settings, logBuffer); err != nil {
 		return "", fmt.Errorf("failed to write crash report: %w", err)
 	}
 
 	genTime := time.Since(startTime)
-	finalPath := filepath.Join(dir, fmt.Sprintf("crash_%s_gen%s.txt.zst", 
+	finalPath := filepath.Join(dir, fmt.Sprintf("crash_%s_gen%s.txt.zip", 
 		timestamp,
 		formatDuration(genTime),
 	))
 
+	log.Debug().Msg("starting to compress report")
 	if err := compressReport(tempPath, finalPath); err != nil {
 		return "", fmt.Errorf("failed to compress crash report: %w", err)
 	}
-
+	log.Debug().Msg("compressing report done")
 	return finalPath, nil
 }
 
@@ -64,7 +101,7 @@ func writeReport(
 	settings config.Settings,
 	logBuffer io.Reader,
 ) error {
-	// Write header
+	log.Debug().Msg("writing Header")
 	fmt.Fprintln(w, "LANGKIT CRASH REPORT")
 	fmt.Fprintln(w, "==================")
 	fmt.Fprintf(w, "This file has syntax highlighting through ANSI escape codes and is best viewed in a terminal using 'cat'.\n")
@@ -74,6 +111,8 @@ func writeReport(
 	fmt.Fprintln(w, version.GetVersionInfo())
 	fmt.Fprint(w, "\n")
 
+	
+	log.Debug().Msg("writing ERROR DETAILS")
 	fmt.Fprintln(w, "ERROR DETAILS")
 	fmt.Fprintln(w, "============")
 	fmt.Fprintf(w, "Error: %v\n", mainErr)
@@ -91,6 +130,7 @@ func writeReport(
 	}
 	fmt.Fprint(w, "\n")
 
+	log.Debug().Msg("writing STACK TRACE")
 	fmt.Fprintln(w, "STACK TRACE")
 	fmt.Fprintln(w, "===========")
 	fmt.Fprintf(w, "%s\n\n", string(debug.Stack()))
@@ -117,15 +157,18 @@ func writeReport(
 		fmt.Fprintf(w, "%s\n", Reporter.GetSnapshotsString())
 	}
 
+	log.Debug().Msg("writing RUNTIME INFO")
 	fmt.Fprintln(w, "RUNTIME INFORMATION")
 	fmt.Fprint(w, "==================\n\n")
 	fmt.Fprint(w, runtimeInfo + "\n\n")
 
+	log.Debug().Msg("writing ENVIRONMENT")
 	fmt.Fprintln(w, "ENVIRONMENT")
 	fmt.Fprintln(w, "===========")
 	printEnvironment(w)
 	fmt.Fprint(w, "\n")
 
+	log.Debug().Msg("writing SETTINGS")
 	fmt.Fprintln(w, "SETTINGS")
 	fmt.Fprintln(w, "========")
 	sanitizedSettings := settings
@@ -134,17 +177,24 @@ func writeReport(
 	sanitizedSettings.APIKeys.ElevenLabs = MaskAPIKey(settings.APIKeys.ElevenLabs)
 	fmt.Fprintln(w, pp.Sprint(sanitizedSettings), "\n")
 
+	log.Debug().Msg("writing LOG HISTORY")
 	fmt.Fprintln(w, "LOG HISTORY")
 	fmt.Fprintln(w, "===========")
 	if logBuffer != nil {
-		if _, err := io.Copy(w, logBuffer); err != nil {
+		n, err := io.Copy(w, logBuffer)
+		if err != nil && n != 0 {
 			return fmt.Errorf("failed to write log history: %w", err)
 		}
+		if n == 0 {
+			fmt.Fprintln(w, "No logs")
+		}
 	} else {
-		fmt.Fprintln(w, "No log history available")
+		fmt.Fprintln(w, "No logs")
 	}
 	fmt.Fprint(w, "\n")
 
+
+	log.Debug().Msg("writing CONNECTIVITY STATUS")
 	// Takes the longest, keep it last
 	fmt.Fprintln(w, "CONNECTIVITY STATUS")
 	fmt.Fprintln(w, "==================")
@@ -152,34 +202,43 @@ func writeReport(
 	if country, err := GetUserCountry(); err == nil {
 		fmt.Fprintln(w, "Requests originate from:", country)
 	}
+	log.Trace().Msg("Country OK")
 	checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
 	checkEndpointConnectivity(w, "https://www.assemblyai.com/", "AssemblyAI")
 	checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
 	fmt.Fprint(w, "\n")
 	
+	
+	fmt.Fprintln(w, "==================")
+	fmt.Fprintln(w, "END OF REPORT")
+	fmt.Fprintln(w, "==================")
 	return nil
 }
 
 func compressReport(sourcePath, destPath string) error {
+	zipFile, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
 	source, err := os.Open(sourcePath)
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
 	defer source.Close()
 
-	dest, err := os.Create(destPath)
+	// Create a file entry in the zip archive using the source filename
+	writer, err := zipWriter.Create(filepath.Base(sourcePath))
 	if err != nil {
-		return fmt.Errorf("failed to create compressed file: %w", err)
+		return fmt.Errorf("failed to create zip entry: %w", err)
 	}
-	defer dest.Close()
 
-	enc, err := zstd.NewWriter(dest, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
-	if err != nil {
-		return fmt.Errorf("failed to create zstd encoder: %w", err)
-	}
-	defer enc.Close()
-
-	if _, err := io.Copy(enc, source); err != nil {
+	// Copy the source file contents to the zip archive
+	if _, err := io.Copy(writer, source); err != nil {
 		return fmt.Errorf("failed to compress file: %w", err)
 	}
 
@@ -206,3 +265,10 @@ func CleanUpReportsOnDisk(crashDir string) {
 		}
 	}
 }
+
+
+func placeholder354() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+}
+
