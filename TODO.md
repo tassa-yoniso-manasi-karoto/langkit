@@ -3,10 +3,10 @@
    - Add tests
 
    - crash reports:
+     - get wails ctx out of tsk.Handler because it clogs the tsk recordings
      - panic recovery in process files
      - ADD DOCKER LOGS
      - add snapshots of tsk throughout code
-     - ls inside directory of media
      - bind it to CLI runs too
    
 translit.go

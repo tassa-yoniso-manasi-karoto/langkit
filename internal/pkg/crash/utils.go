@@ -358,28 +358,28 @@ type dirEntry struct {
 	symlink string
 }
 
-func FormatDirectoryListing(dirPath string) (string, error) {
+func FormatDirectoryListing(w io.Writer, dirPath string) error {
 	absPath, err := filepath.Abs(dirPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path for %s: %v", dirPath, err)
+		return fmt.Errorf("failed to get absolute path for %s: %v", dirPath, err)
 	}
 
 	dirInfo, err := os.Stat(absPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to access directory %s: %v", absPath, err)
+		return fmt.Errorf("failed to access directory %s: %v", absPath, err)
 	}
 	if !dirInfo.IsDir() {
-		return "", fmt.Errorf("path %s is not a directory", absPath)
+		return fmt.Errorf("path %s is not a directory", absPath)
 	}
 
 	entries, err := os.ReadDir(absPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read directory %s: %v", absPath, err)
+		return fmt.Errorf("failed to read directory %s: %v", absPath, err)
 	}
 
 	var dirEntries []dirEntry
 	var skippedEntries []string
-	
+
 	for _, entry := range entries {
 		info, err := entry.Info()
 		if err != nil {
@@ -412,47 +412,25 @@ func FormatDirectoryListing(dirPath string) (string, error) {
 		return strings.ToLower(dirEntries[i].name) < strings.ToLower(dirEntries[j].name)
 	})
 
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Directory listing of %s\n", absPath))
-	result.WriteString(fmt.Sprintf("Scanned at: %s\n\n", time.Now().Format("2006-01-02 15:04:05 MST")))
+	// Write header information directly to w.
+	if _, err := fmt.Fprintf(w, "Directory listing of %s\n", absPath); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "Scanned at: %s\n\n", time.Now().Format("2006-01-02 15:04:05 MST")); err != nil {
+		return err
+	}
 
-	// Create table buffer
+	// Create a table for the directory entries without borders and without the "Type" column.
 	var tableBuffer bytes.Buffer
 	table := tablewriter.NewWriter(&tableBuffer)
-	
-	// Configure table with enhanced formatting
-	table.SetHeader([]string{"Type", "Permissions", "Size", "Modified", "Name"})
+	table.SetHeader([]string{"Permissions", "Size", "Modified", "Name"})
 	table.SetAutoWrapText(false)
 	table.SetAutoFormatHeaders(true)
 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetCenterSeparator("┼")
-	table.SetColumnSeparator("│")
-	table.SetRowSeparator("─")
-	table.SetHeaderLine(true)
-	table.SetBorder(true)
-	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
-	table.SetTablePadding(" ")
-	table.SetNoWhiteSpace(true)
+	table.SetBorder(false)
 
-	// Style the table
-	table.SetHeaderColor(
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-	)
-
-	// Add entries to table
 	for _, entry := range dirEntries {
-		entryType := "F"
-		if entry.isDir {
-			entryType = "D"
-		} else if entry.mode&os.ModeSymlink != 0 {
-			entryType = "L"
-		}
-
 		name := entry.name
 		if entry.symlink != "" {
 			name = fmt.Sprintf("%s → %s", entry.name, entry.symlink)
@@ -464,7 +442,6 @@ func FormatDirectoryListing(dirPath string) (string, error) {
 		}
 
 		table.Append([]string{
-			entryType,
 			entry.mode.Perm().String(),
 			size,
 			humanize.Time(entry.modTime),
@@ -473,44 +450,46 @@ func FormatDirectoryListing(dirPath string) (string, error) {
 	}
 
 	table.Render()
-	result.WriteString(tableBuffer.String())
+	if _, err := w.Write(tableBuffer.Bytes()); err != nil {
+		return err
+	}
 
-	// Add summary
-	result.WriteString(fmt.Sprintf("\nTotal: %d items\n", len(dirEntries)))
-	
-	// Add errors table if needed
+	// Write a summary of the total number of items.
+	if _, err := fmt.Fprintf(w, "\nTotal: %d items\n", len(dirEntries)); err != nil {
+		return err
+	}
+
+	// Display any skipped entries due to errors.
 	if len(skippedEntries) > 0 {
-		result.WriteString("\nSkipped entries due to errors:\n")
-		table = tablewriter.NewWriter(&result)
-		table.SetHeader([]string{"Entry", "Error"})
-		table.SetAutoWrapText(false)
-		table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-		table.SetAlignment(tablewriter.ALIGN_LEFT)
-		table.SetCenterSeparator("┼")
-		table.SetColumnSeparator("│")
-		table.SetRowSeparator("─")
-		table.SetHeaderLine(true)
-		table.SetBorder(true)
-		table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
-		table.SetTablePadding(" ")
-		table.SetNoWhiteSpace(true)
-		
-		// Style the error table header
-		table.SetHeaderColor(
-			tablewriter.Colors{tablewriter.Bold, tablewriter.FgRedColor},
-			tablewriter.Colors{tablewriter.Bold, tablewriter.FgRedColor},
-		)
+		if _, err := fmt.Fprintf(w, "\nSkipped entries due to errors:\n"); err != nil {
+			return err
+		}
+
+		var errorBuffer bytes.Buffer
+		errorTable := tablewriter.NewWriter(&errorBuffer)
+		errorTable.SetHeader([]string{"Entry", "Error"})
+		errorTable.SetAutoWrapText(false)
+		errorTable.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+		errorTable.SetAlignment(tablewriter.ALIGN_LEFT)
+		errorTable.SetBorder(false)
 
 		for _, entry := range skippedEntries {
 			parts := strings.SplitN(entry, " (error: ", 2)
+			if len(parts) < 2 {
+				continue
+			}
 			errorMsg := strings.TrimSuffix(parts[1], ")")
-			table.Append([]string{parts[0], errorMsg})
+			errorTable.Append([]string{parts[0], errorMsg})
 		}
-		table.Render()
+		errorTable.Render()
+		if _, err := w.Write(errorBuffer.Bytes()); err != nil {
+			return err
+		}
 	}
 
-	return result.String(), nil
+	return nil
 }
+
 
 
 // GetUserCountry fetches the user's country from Mullvad's API
