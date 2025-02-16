@@ -1,17 +1,17 @@
-### TODO
 
    - Add tests
 
-   - crash reports:
-     - add snapshots of tsk throughout code
-     - bind it to CLI runs too
+   - 📌📌 crash reports:
+     - 📌📌 add snapshots of tsk throughout code
+     - 📌📌 bind it to CLI runs too
    
 translitkit
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
-   - implement CloseAll() (not sure if needed: ctx may close it already.)
+   - 🤔 implement CloseAll() (not sure if needed: ctx may close it already.)
+   - gojieba + go-pinyin
 
 
-   - gain & limiter parameters for merging
+   - 🤔 gain & limiter parameters for merging
    
    
 - UI
@@ -21,6 +21,9 @@ translitkit
    - selective translit checkbox
    - whisper initial_prompt
    - add version in corner
+   - if version is "dev" then display TRACE by default
+   - one of the button of logview overflow from control row when window is resized
+   - if log viewer is shown by default then open maximized
    
    
    - user-defined API retry max
