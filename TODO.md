@@ -8,8 +8,7 @@
    
 translitkit
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
-   - make sure empty transliteration causes error failure
-   - implement CloseAll()
+   - implement CloseAll() (not sure if needed: ctx may close it already.)
 
 
    - gain & limiter parameters for merging

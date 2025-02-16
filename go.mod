@@ -22,7 +22,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250216025127-652c1327cf51
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250214220003-ae426fa8f1af
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250216131515-600ac8d8493a
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.10.0
 )
