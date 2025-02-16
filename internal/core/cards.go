@@ -212,9 +212,7 @@ ResumeTranslit:
 }
 
 
-// idea: rework to create register: whichSub, whichLang map[string]string and scan subtitles passively without declaring tsk.Native or tsk.NativeSubFile
 func (tsk *Task) Autosub() *ProcessingError {
-	// TODO tsk.Mode == Enhance →→→ log with level debug
 	files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to read directory")
@@ -234,13 +232,16 @@ func (tsk *Task) Autosub() *ProcessingError {
 			tsk.Handler.ZeroLog().Debug().Err(err).Msg("guessing lang")
 			continue
 		}
-		color.Greenf("Guessed lang: %s\tSubtag: %s\tFile: %s\n", l.Part3, l.Subtag, file.Name())
+		tsk.Handler.ZeroLog().Debug().
+			Str("Guessed lang", l.Part3).
+			Str("Subtag", l.Subtag).
+			Msgf("File: %s", file.Name())
 		
 		// Check if subtitle name matches our target language
-		SetPrefered([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile, &tsk.Targ)
+		tsk.SetPreferred([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile, &tsk.Targ)
 		// Check if subtitle name matches any of our native/reference languages
 		for _, RefLang := range tsk.RefLangs {
-			tsk.IsCCorDubs = SetPrefered(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile, &tsk.Native)
+			tsk.IsCCorDubs = tsk.SetPreferred(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile, &tsk.Native)
 		}
 	}
 	tsk.Handler.ZeroLog().Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")

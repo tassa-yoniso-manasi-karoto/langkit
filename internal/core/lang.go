@@ -112,12 +112,21 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 	return
 }
 
-func SetPrefered(langs []Lang, l, atm Lang, filename string, out *string, Native *Lang) bool {
-	// color.Redln(atm.Language, setPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name))
-	if setPreferedLang(langs, l, atm) && isPreferedSubtypeOver(*out, filename) {
+func (tsk *Task) SetPreferred(langs []Lang, l, atm Lang, filename string, out *string, Native *Lang) bool {
+	isPreferredLang := setPreferredLang(langs, l, atm)
+	isPreferredSubtype := isPreferredSubtypeOver(*out, filename)
+	isPreferred := isPreferredLang && isPreferredSubtype
+	
+	tsk.Handler.ZeroLog().Trace().
+		Str("File", filename).
+		Str("lang_currently_selected", atm.Part3).
+		Bool("isPreferredLang", isPreferredLang).
+		Bool("isPreferredSubtype", isPreferredSubtype).
+		Msgf("candidate subs's lang '%s' should be preferred? %t", l.Part3, isPreferred)
+		
+	if isPreferred {
 		*out = filename
 		*Native = atm
-		//color.Yellowln(setPreferedLang(langs, l, atm), isPreferedSubtypeOver(*out, name), "out becomes", name)
 		return true
 	}
 	return false
@@ -248,14 +257,14 @@ func stripCommonSubsMention(s string) string {
 }
 
 
-func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {
+func setPreferredLang(langs []Lang, l, atm Lang) (b bool) {
 	// i, ok1 := getIdx(langs, l)
 	// println(l.Part1, l.Subtag, "l idx", i, ok1)
 	// j, ok2 := getIdx(langs, atm)
 	// println(atm.Part1, atm.Subtag, "atm idx", j, ok2)
 	langIdx, langIsDesired := getIdx(langs, l)
 	atmIdx, _ := getIdx(langs, atm)
-	// color.Greenln("langIsDesired", langIsDesired, "MorePreferedLang", langIdx, "<=", atmIdx, "? →", langIdx <= atmIdx)
+	// color.Greenln("langIsDesired", langIsDesired, "MorePreferredLang", langIdx, "<=", atmIdx, "? →", langIdx <= atmIdx)
 	// idx = idx in the row of lang sorted by preference the user has passed
 	if langIsDesired && langIdx <= atmIdx {
 		b = true
@@ -265,7 +274,7 @@ func setPreferedLang(langs []Lang, l, atm Lang) (b bool) {
 
 func getIdx(langs []Lang, candidate Lang) (int, bool) {
 	for i, l := range langs {
-		// support redundant compositon implicitly i.e. de-DE or th-TH
+		// support redundant composition implicitly i.e. de-DE or th-TH
 		var isRedundantSubtag bool
 		if match := iso.FromAnyCode(candidate.Subtag); match != nil {
 			isRedundantSubtag = *match == *l.Language
@@ -282,7 +291,7 @@ func getIdx(langs []Lang, candidate Lang) (int, bool) {
 }
 
 // compare subtitles filenames
-func isPreferedSubtypeOver(curr, candidate string) bool {
+func isPreferredSubtypeOver(curr, candidate string) bool {
 	currVal := subtypeMatcher(curr)
 	candidateVal := subtypeMatcher(candidate)
 	//println(candidateval, ">", currVal, "IS", candidateval > currVal)

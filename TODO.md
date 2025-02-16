@@ -10,7 +10,6 @@ translit.go
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
    - make sure empty transliteration causes error failure
 
-   - more logging on langs detected
    - gain & limiter parameters for merging
    
    - translitkit:  implement CloseAll()
