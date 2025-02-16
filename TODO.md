@@ -3,12 +3,12 @@
    - Add tests
 
    - crash reports:
-     - ADD DOCKER LOGS
      - add snapshots of tsk throughout code
      - bind it to CLI runs too
    
 translit.go
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
+   - make sure empty transliteration causes error failure
 
    - more logging on langs detected
    - gain & limiter parameters for merging
@@ -16,6 +16,7 @@ translit.go
    - translitkit:  implement CloseAll()
    
 - UI
+   - quick access language tag ignored
    - "Copy debug information" in settings
    - feature checkbox don't seem tickable
    - selective translit checkbox

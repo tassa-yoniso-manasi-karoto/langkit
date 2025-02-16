@@ -9,6 +9,7 @@ import (
 	"sort"
 	"net"
 	"time"
+	"bytes"
 
 	"github.com/klauspost/compress/zip"
 	"github.com/k0kubun/pp"
@@ -17,11 +18,13 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
+	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 )
 
 var log zerolog.Logger
 
 func init() {
+	dockerutil.SetLogOutput(dockerutil.LogToBoth)
 	writer := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: time.TimeOnly,
@@ -42,7 +45,8 @@ func init() {
 	//   timeouts better, but no luck.
 	// 
 	// After all these failed attempts, what actually worked was forcing Go’s built-in 
-	// DNS resolver (PreferGo: true). Using Go’s native resolver made everything reliable.
+	// DNS resolver (PreferGo: true). Using Go’s native resolver seem to be a bit more reliable.
+	// TODO test using hardcoded DNS to not use the system's logic
 	//
 	// DNS. It's always DNS.
 	net.DefaultResolver = &net.Resolver{
@@ -56,7 +60,7 @@ func WriteReport(
 	mainErr error,
 	runtimeInfo string,
 	settings config.Settings,
-	logBuffer io.Reader,
+	logBuffer bytes.Buffer,
 ) (string, error) {
 	startTime := time.Now()
 	dir := GetCrashDir()
@@ -99,7 +103,7 @@ func writeReport(
 	mainErr error,
 	runtimeInfo string,
 	settings config.Settings,
-	logBuffer io.Reader,
+	logBuffer bytes.Buffer,
 ) error {
 	log.Debug().Msg("writing Header")
 	fmt.Fprintln(w, "LANGKIT CRASH REPORT")
@@ -183,19 +187,12 @@ func writeReport(
 	log.Debug().Msg("writing LOG HISTORY")
 	fmt.Fprintln(w, "LOG HISTORY")
 	fmt.Fprintln(w, "===========")
-	if logBuffer != nil {
-		n, err := io.Copy(w, logBuffer)
-		if err != nil && n != 0 {
-			return fmt.Errorf("failed to write log history: %w", err)
-		}
-		if n == 0 {
-			fmt.Fprintln(w, "No logs")
-		}
-	} else {
-		fmt.Fprintln(w, "No logs")
-	}
-	fmt.Fprint(w, "\n")
+	writeLogs(w, &logBuffer)
 
+	log.Debug().Msg("writing DOCKER LOG HISTORY")
+	fmt.Fprintln(w, "DOCKER LOG HISTORY")
+	fmt.Fprintln(w, "==================")
+	writeLogs(w, &dockerutil.DockerLogBuffer)
 
 	log.Debug().Msg("writing CONNECTIVITY STATUS")
 	// Takes the longest, keep it last, and in some scenarios the DNS still hangs the program forever

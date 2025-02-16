@@ -41,11 +41,10 @@ func writeCrashLog(mainErr error) (string, error) {
 		mainErr,
 		runtimeInfo,
 		settings,
-		&logBuffer,
+		logBuffer,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to write crash report: %w", err)
 	}
-
 	return crashPath, nil
 }

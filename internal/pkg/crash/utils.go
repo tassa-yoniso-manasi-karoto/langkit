@@ -519,6 +519,22 @@ func GetUserCountry() (string, error) {
 	return string(body), nil
 }
 
+func writeLogs(w io.Writer, logBuffer *bytes.Buffer) error {
+	if logBuffer != nil && logBuffer.Len() > 0 {
+		n, err := io.Copy(w, logBuffer)
+		if err != nil {
+			return fmt.Errorf("failed to write logs: %w", err)
+		}
+		if n == 0 {
+			fmt.Fprintln(w, "No logs")
+		}
+	} else {
+		fmt.Fprintln(w, "No logs")
+	}
+	fmt.Fprintln(w)
+	return nil
+}
+
 
 
 func placeholder5435() {
