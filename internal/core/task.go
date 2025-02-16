@@ -115,7 +115,14 @@ type Task struct {
 func NewTask(handler MessageHandler) (tsk *Task) {
 	tsk = &Task{
 		Handler: handler,
+		Meta: Meta { WorkersMax: runtime.NumCPU()-1 },
+		UseAudiotrack: -1,
+		TargetChan: 2,
+		VoiceBoost: 13,
+		OriginalBoost: -9,
+		Limiter:  0.9,
 	}
+	
 	if tsk.FieldSep == "" {
 		tsk.FieldSep = "\t"
 	}
@@ -156,9 +163,6 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 			MediainfoPath = dest
 		}
 	}
-	tsk.Meta.WorkersMax = runtime.NumCPU()-1
-	tsk.UseAudiotrack = -1
-	tsk.TargetChan = 2
 	return tsk
 }
 

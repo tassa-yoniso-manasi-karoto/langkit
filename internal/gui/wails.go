@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 
+	"github.com/gookit/color"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -88,6 +89,8 @@ func Run() {
 		},
 	})
 	
+	//err = fmt.Errorf("TEST ERROR")
+	
 	// handler != nil is to support Wails' double start that wails dev performs
 	if err != nil && handler != nil {
 		exitOnError(err)
@@ -100,7 +103,7 @@ func exitOnError(err error) {
 	go ShowErrorDialog(err)
 
 	if _, dumpErr := writeCrashLog(err); dumpErr != nil {
-		fmt.Printf("Error dumping log file: %v\n", dumpErr)
+		color.Redf("Error dumping log file: %v\n", dumpErr)
 	}
 }
 

@@ -18,7 +18,7 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/shirou/gopsutil/v3 v3.24.5
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1-0.20250216180814-a97f9fd47b29
 	github.com/spf13/viper v1.19.0
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250216025127-652c1327cf51
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
@@ -205,8 +205,8 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250216022613-a83107ba6d89 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250213072854-de3451960256 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250119041459-d91450df40c3 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250119063737-96ed9cfa2288 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
