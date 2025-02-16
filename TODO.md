@@ -6,13 +6,14 @@
      - add snapshots of tsk throughout code
      - bind it to CLI runs too
    
-translit.go
+translitkit
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
    - make sure empty transliteration causes error failure
+   - implement CloseAll()
+
 
    - gain & limiter parameters for merging
    
-   - translitkit:  implement CloseAll()
    
 - UI
    - quick access language tag ignored
