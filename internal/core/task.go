@@ -243,7 +243,7 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 		tsk.WantTranslit = value
 	}
 	
-	if procErr := tsk.PrepareLangs(); procErr.Err != nil {
+	if procErr := tsk.PrepareLangs(); procErr != nil {
 		return procErr
 	}
 	tsk.Handler.ZeroLog().Trace().Strs("langs", tsk.Langs).Msg("PrepareLangs done:")

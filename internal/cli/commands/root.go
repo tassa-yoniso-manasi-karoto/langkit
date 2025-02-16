@@ -9,9 +9,11 @@ import (
 	
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/gookit/color"
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -30,11 +32,39 @@ func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 		tsk := core.NewTask(core.NewCLIHandler(ctx))
+		defer func() {
+			if r := recover(); r != nil {
+				exitOnError(tsk, fmt.Errorf("panic: %v", r))
+			}
+		}()
 		if err := fn(tsk, ctx, cmd, args); err != nil {
-			os.Exit(1)
+			exitOnError(tsk, err)
 		}
 	}
 }
+
+
+func exitOnError(tsk *core.Task, mainErr error) {
+	tsk.Handler.ZeroLog().Warn().
+		Err(mainErr).
+		Msgf("An error occured, creating a crash report at %s", crash.GetCrashDir())
+
+	settings, err := config.LoadSettings()
+	if err != nil {
+		// Continue with empty settings if loading fails
+		fmt.Printf("Warning: Failed to load settings: %v\n", err)
+	}
+	
+	crashPath, err := crash.WriteReport(mainErr, settings, tsk.Handler.GetLogBuffer())
+	if err != nil {
+		color.Redf("failed to write crash report: %w", err)
+	}
+	tsk.Handler.ZeroLog().Fatal().
+		Err(mainErr).
+		Str("report_path", crashPath).
+		Msg("An error occured, exiting...")
+}
+
 
 var cfgFile string
 

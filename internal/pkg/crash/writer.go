@@ -54,14 +54,7 @@ func init() {
 	}
 }
 
-// TODO use FormatDirectoryListing on dir of current media file
-
-func WriteReport(
-	mainErr error,
-	runtimeInfo string,
-	settings config.Settings,
-	logBuffer bytes.Buffer,
-) (string, error) {
+func WriteReport(mainErr error, settings config.Settings, logBuffer bytes.Buffer) (string, error) {
 	startTime := time.Now()
 	dir := GetCrashDir()
 	CleanUpReportsOnDisk(dir)
@@ -80,7 +73,7 @@ func WriteReport(
 	}()
 
 	log.Debug().Msg("starting to write report")
-	if err := writeReport(crashFile, mainErr, runtimeInfo, settings, logBuffer); err != nil {
+	if err := writeReport(crashFile, mainErr, settings, logBuffer); err != nil {
 		return "", fmt.Errorf("failed to write crash report: %w", err)
 	}
 
@@ -98,13 +91,7 @@ func WriteReport(
 	return finalPath, nil
 }
 
-func writeReport(
-	w io.Writer,
-	mainErr error,
-	runtimeInfo string,
-	settings config.Settings,
-	logBuffer bytes.Buffer,
-) error {
+func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer bytes.Buffer) error {
 	log.Debug().Msg("writing Header")
 	fmt.Fprintln(w, "LANGKIT CRASH REPORT")
 	fmt.Fprintln(w, "==================")
@@ -167,7 +154,7 @@ func writeReport(
 	log.Debug().Msg("writing RUNTIME INFO")
 	fmt.Fprintln(w, "RUNTIME INFORMATION")
 	fmt.Fprint(w, "==================\n\n")
-	fmt.Fprint(w, runtimeInfo + "\n\n")
+	fmt.Fprint(w, NewRuntimeInfo().String() + "\n\n")
 
 	log.Debug().Msg("writing ENVIRONMENT")
 	fmt.Fprintln(w, "ENVIRONMENT")

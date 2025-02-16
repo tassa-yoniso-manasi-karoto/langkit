@@ -3,7 +3,7 @@
 
    - 📌📌 crash reports:
      - 📌📌 add snapshots of tsk throughout code
-     - 📌📌 bind it to CLI runs too
+     - reveal if GUI or CLI run
    
 translitkit
    - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT

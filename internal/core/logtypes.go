@@ -7,15 +7,14 @@ import (
 type ProcessingError struct {
 	Err      error
 	Behavior string
-	//Level    int8				// probably unneeded
-	//Message  string			// probably unneeded
+	//Level    int8			// probably unneeded
+	//Message  string		// probably unneeded
 	Context  map[string]interface{}	// probably unneeded
 }
-// probably unneeded, right now, using ProcessingError.Err directly because
-// it is enough to signal the existence of an error to the processing logic
-//func (e *ProcessingError) Error() string {
-//	return e.Message
-//}
+
+func (e *ProcessingError) Error() string {
+	return e.Err.Error()
+}
 
 const (
 	//ContinueProcessing	= "continue"

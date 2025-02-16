@@ -4,7 +4,6 @@ import (
 	"embed"
 	"fmt"
 
-	"github.com/gookit/color"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -97,13 +96,4 @@ func Run() {
 	}
 }
 
-func exitOnError(err error) {
-	// Instead of logging the error (which might not be visible to a GUI user),
-	// we create a crash dump and then display an error message dialog.
-	go ShowErrorDialog(err)
-
-	if _, dumpErr := writeCrashLog(err); dumpErr != nil {
-		color.Redf("Error dumping log file: %v\n", dumpErr)
-	}
-}
 
