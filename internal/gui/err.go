@@ -26,6 +26,7 @@ func exitOnError(mainErr error) {
 	if err != nil {
 		color.Redf("failed to write crash report: %w", err)
 	}
+	os.Exit(1)
 }
 
 
@@ -38,5 +39,4 @@ func ShowErrorDialog(mainErr error) {
 	if err != nil {
 		fmt.Printf("Failed to show error dialog: %v\n", err)
 	}
-	os.Exit(1)
 }

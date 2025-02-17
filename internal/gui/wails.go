@@ -21,7 +21,6 @@ var icon []byte
 
 func Run() {
 	defer func() {
-		// TODO maybe use panicwrap because this doesn't seem to recover panic from go code called from frontend
 		if r := recover(); r != nil {
 			exitOnError(fmt.Errorf("panic: %v", r))
 		}

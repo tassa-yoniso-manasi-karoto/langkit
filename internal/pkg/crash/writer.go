@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sort"
-	"net"
 	"time"
 	"bytes"
 
@@ -33,25 +32,6 @@ func init() {
 		return fmt.Sprintf("[crashWriter] %s", i)
 	}
 	log = zerolog.New(writer).With().Timestamp().Logger()
-	
-	// On a 4G network far from the antenna I was facing intermittent hangs during connectivity checks. 
-	// I tried many different ways to fix the program hanging during connectivity checks.
-	// 
-	// - First, I wrapped HTTP requests in a goroutine with context cancellation 
-	//   and a timeout, but sometimes it still got stuck.
-	// - Then, I tweaked net/http settings (DialTimeout, TLSHandshakeTimeout, etc.), 
-	//   but the issue persisted.
-	// - I even switched to Resty (third-party HTTP client) hoping it would handle 
-	//   timeouts better, but no luck.
-	// 
-	// After all these failed attempts, what actually worked was forcing Go’s built-in 
-	// DNS resolver (PreferGo: true). Using Go’s native resolver seem to be a bit more reliable.
-	// TODO test using hardcoded DNS to not use the system's logic
-	//
-	// DNS. It's always DNS.
-	net.DefaultResolver = &net.Resolver{
-		PreferGo: true,
-	}
 }
 
 func WriteReport(mainErr error, settings config.Settings, logBuffer bytes.Buffer) (string, error) {
