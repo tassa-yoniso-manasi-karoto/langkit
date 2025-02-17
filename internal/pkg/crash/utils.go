@@ -81,13 +81,14 @@ func MaskAPIKey(key string) string {
 // container. This check is intended to reveal any Docker-specific networking issues.
 func DockerNslookupCheck(w io.Writer, domain string) {
 	ctx := context.Background()
+	finalMsg := "Docker connectivity check: "
 
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
 	)
 	if err != nil {
-		fmt.Fprintf(w, "Docker connectivity check: failed to create Docker client (%v)\n", err)
+		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to create Docker client (%v)\n", err))
 		log.Trace().Msgf("[docker-nslookup] Error creating Docker client: %v", err)
 		return
 	}
@@ -97,23 +98,25 @@ func DockerNslookupCheck(w io.Writer, domain string) {
 		}
 	}()
 
-	// Check if busybox:latest exists locally.
+	// Check if the busybox image is already available locally.
 	_, _, err = cli.ImageInspectWithRaw(ctx, "busybox:latest")
 	if err != nil {
+		// If not found, pull the busybox image.
 		log.Trace().Msg("[docker-nslookup] busybox image not found locally, pulling busybox:latest...")
 		pullResp, err := cli.ImagePull(ctx, "docker.io/library/busybox:latest", image.PullOptions{})
 		if err != nil {
-			fmt.Fprintf(w, "Docker connectivity check: failed to pull busybox image (%v)\n", err)
+			fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to pull busybox image (%v)\n", err))
 			log.Trace().Msgf("[docker-nslookup] Error pulling busybox image: %v", err)
 			return
 		}
+		// Read the response completely to ensure the pull finishes.
 		_, _ = io.Copy(ioutil.Discard, pullResp)
 		_ = pullResp.Close()
 	} else {
 		log.Trace().Msg("[docker-nslookup] busybox image found locally; skipping pull.")
 	}
 
-	// Create a new container to run "nslookup <domain>"
+	// Create a new container for the nslookup command.
 	log.Trace().Msgf("[docker-nslookup] Creating container for nslookup %s...", domain)
 	ctr, err := cli.ContainerCreate(
 		ctx,
@@ -125,54 +128,49 @@ func DockerNslookupCheck(w io.Writer, domain string) {
 		nil, nil, nil, "",
 	)
 	if err != nil {
-		fmt.Fprintf(w, "Docker connectivity check: failed to create container (%v)\n", err)
+		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to create container (%v)\n", err))
 		log.Trace().Msgf("[docker-nslookup] Error creating container: %v", err)
 		return
 	}
-	// Ensure the container is removed afterwards.
+	// Remove the container once finished.
 	defer func() {
 		_ = cli.ContainerRemove(ctx, ctr.ID, container.RemoveOptions{Force: true})
 	}()
 
-	// Start the container in a goroutine with a child context timeout.
+	// Start the container.
 	log.Trace().Msgf("[docker-nslookup] Starting container %s...", ctr.ID)
-	startCtx, cancelStart := context.WithTimeout(ctx, 5*time.Second)
-	defer cancelStart()
-	startErrCh := make(chan error, 1)
-	go func() {
-		startErrCh <- cli.ContainerStart(startCtx, ctr.ID, container.StartOptions{})
-	}()
+	if err := cli.ContainerStart(ctx, ctr.ID, container.StartOptions{}); err != nil {
+		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to start container (%v)\n", err))
+		log.Trace().Msgf("[docker-nslookup] Error starting container: %v", err)
+		return
+	}
 
+	// Wait for the container to finish.
+	log.Trace().Msg("[docker-nslookup] Waiting for container to exit...")
+	statusCh, errCh := cli.ContainerWait(ctx, ctr.ID, container.WaitConditionNotRunning)
 	select {
-	case err := <-startErrCh:
+	case err := <-errCh:
 		if err != nil {
-			fmt.Fprintf(w, "Docker connectivity check: failed to start container (%v)\n", err)
-			log.Trace().Msgf("[docker-nslookup] Error starting container: %v", err)
+			fmt.Fprintf(w, finalMsg + color.Red.Sprintf("error waiting for container (%v)\n", err))
+			log.Trace().Msgf("[docker-nslookup] Error waiting for container: %v", err)
 			return
 		}
-	case <-startCtx.Done():
-		fmt.Fprintf(w, "Docker connectivity check: container start timed out\n")
-		log.Trace().Msg("[docker-nslookup] Container start timed out")
-		return
+	case status := <-statusCh:
+		log.Trace().Msgf("[docker-nslookup] Container exited with code %d", status.StatusCode)
+		if status.StatusCode != 0 {
+			fmt.Fprintf(w, finalMsg + color.Red.Sprintf("nslookup failed (exit code %d)\n", status.StatusCode))
+			return
+		}
 	}
 
-	// Allow nslookup to run for few seconds, then kill the container.
-	time.Sleep(5 * time.Second)
-	log.Trace().Msgf("[docker-nslookup] Killing container %s...", ctr.ID)
-	if err := cli.ContainerKill(ctx, ctr.ID, "SIGKILL"); err != nil {
-		fmt.Fprintf(w, "Docker connectivity check: failed to kill container (%v)\n", err)
-		log.Trace().Msgf("[docker-nslookup] Error killing container: %v", err)
-		return
-	}
-
-	// Fetch container logs.
+	// Fetch the container logs.
 	log.Trace().Msg("[docker-nslookup] Fetching container logs...")
 	logs, err := cli.ContainerLogs(ctx, ctr.ID, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 	})
 	if err != nil {
-		fmt.Fprintf(w, "Docker connectivity check: failed to retrieve logs (%v)\n", err)
+		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to retrieve logs (%v)\n", err))
 		log.Trace().Msgf("[docker-nslookup] Error retrieving logs: %v", err)
 		return
 	}
@@ -180,18 +178,20 @@ func DockerNslookupCheck(w io.Writer, domain string) {
 
 	logOutput, err := ioutil.ReadAll(logs)
 	if err != nil {
-		fmt.Fprintf(w, "Docker connectivity check: error reading logs (%v)\n", err)
+		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("error reading logs (%v)\n", err))
 		log.Trace().Msgf("[docker-nslookup] Error reading logs: %v", err)
 		return
 	}
 
-	finalMsg := "Docker connectivity check: nslookup succeeded (network available)"
 	if len(logOutput) == 0 {
-		finalMsg = "Docker connectivity check: nslookup produced no output"
+		finalMsg += color.Red.Sprint("nslookup produced no output")
 	} else if containsError(string(logOutput)) {
-		finalMsg = "Docker connectivity check: nslookup failed (DNS error)"
+		finalMsg += color.Red.Sprint("nslookup failed (DNS error)")
+	} else {
+		finalMsg += color.Green.Sprint("nslookup succeeded (network available)")
 	}
 
+	// Write the summary to the crash report.
 	fmt.Fprintln(w, finalMsg)
 	log.Trace().Msgf("[docker-nslookup] Final result: %s", finalMsg)
 }
@@ -225,6 +225,7 @@ func formatDuration(d time.Duration) string {
 
 // checkEndpointConnectivity tries to confirm that the host is reachable via TCP (with DialTimeout)
 // and that the server responds to a minimal HTTP request within 3 seconds.
+// currently overkill. See msg of commit 0dc32dc5ed5b794cc73667be243d443c3cc829c3.
 func checkEndpointConnectivity(w io.Writer, rawURL, name string) {
 	log.Trace().Msgf("[checkEndpointConnectivity] Starting check for %s: %s", name, rawURL)
 
@@ -310,11 +311,11 @@ func checkEndpointConnectivity(w io.Writer, rawURL, name string) {
 		resp, err := client.Do(req)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				msg := fmt.Sprintf("%s: HTTP timeout after %s", name, formatDuration(time.Since(start)))
+				msg := color.Red.Sprintf("%s: HTTP timeout after %s", name, formatDuration(time.Since(start)))
 				log.Trace().Msgf("[checkNet:%s] %s", name, msg)
 				resultCh <- msg
 			} else {
-				msg := fmt.Sprintf("%s: HTTP request failed - %v", name, err)
+				msg := color.Red.Sprintf("%s: HTTP request failed - %v", name, err)
 				log.Trace().Msgf("[checkNet:%s] %s", name, msg)
 				resultCh <- msg
 			}
@@ -327,7 +328,7 @@ func checkEndpointConnectivity(w io.Writer, rawURL, name string) {
 		}()
 
 		latency := time.Since(start)
-		msg := fmt.Sprintf("%s: HTTP %s (latency: %s)", name, resp.Status, formatDuration(latency))
+		msg := name + ": " + color.Green.Sprintf("HTTP %s (latency: %s)", resp.Status, formatDuration(latency))
 		log.Trace().Msgf("[checkNet:%s] %s", name, msg)
 		resultCh <- msg
 	}()
@@ -335,7 +336,6 @@ func checkEndpointConnectivity(w io.Writer, rawURL, name string) {
 	// The main goroutine waits up to 3 seconds for the result.
 	select {
 	case result := <-resultCh:
-		log.Trace().Msgf("[checkNet:%s] Received result: %s", name, result)
 		fmt.Fprintln(w, result)
 		log.Trace().Msgf("[checkNet:%s] OK", name)
 
