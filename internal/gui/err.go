@@ -22,7 +22,7 @@ func exitOnError(mainErr error) {
 		fmt.Printf("Warning: Failed to load settings: %v\n", err)
 	}
 	
-	_, err = crash.WriteReport(mainErr, settings, handler.GetLogBuffer())
+	_, err = crash.WriteReport(mainErr, settings, handler.GetLogBuffer(), false)
 	if err != nil {
 		color.Redf("failed to write crash report: %w", err)
 	}

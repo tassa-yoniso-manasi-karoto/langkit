@@ -34,7 +34,7 @@ func init() {
 	log = zerolog.New(writer).With().Timestamp().Logger()
 }
 
-func WriteReport(mainErr error, settings config.Settings, logBuffer bytes.Buffer) (string, error) {
+func WriteReport(mainErr error, settings config.Settings, logBuffer bytes.Buffer, isCLI bool) (string, error) {
 	startTime := time.Now()
 	dir := GetCrashDir()
 	CleanUpReportsOnDisk(dir)
@@ -53,7 +53,7 @@ func WriteReport(mainErr error, settings config.Settings, logBuffer bytes.Buffer
 	}()
 
 	log.Debug().Msg("starting to write report")
-	if err := writeReport(crashFile, mainErr, settings, logBuffer); err != nil {
+	if err := writeReport(crashFile, mainErr, settings, logBuffer, isCLI); err != nil {
 		return "", fmt.Errorf("failed to write crash report: %w", err)
 	}
 
@@ -71,7 +71,7 @@ func WriteReport(mainErr error, settings config.Settings, logBuffer bytes.Buffer
 	return finalPath, nil
 }
 
-func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer bytes.Buffer) error {
+func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer bytes.Buffer, isCLI bool) error {
 	log.Debug().Msg("writing Header")
 	fmt.Fprintln(w, "LANGKIT CRASH REPORT")
 	fmt.Fprintln(w, "==================")
@@ -80,7 +80,14 @@ func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer
 
 	fmt.Fprintln(w, "Langkit:")
 	fmt.Fprintln(w, version.GetVersionInfo())
-	fmt.Fprint(w, "\n")
+	
+	fmt.Fprint(w, "Interface mode: ")
+	if isCLI {
+		fmt.Fprintln(w, "CLI")
+	} else {
+		fmt.Fprintln(w, "GUI Wails")
+	}
+	fmt.Fprint(w, "\n\n")
 
 	
 	log.Debug().Msg("writing ERROR DETAILS")
