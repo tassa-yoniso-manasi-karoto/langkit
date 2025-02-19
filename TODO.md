@@ -6,7 +6,6 @@ translitkit
    
 - UI
    - "Copy debug information" in settings
-   - if log viewer is shown by default then open maximized
    - SHOULD BE INFO: Failed to get romanization schemes error=no transliteration schemes registered for language cos lang=cos
    
 - pkg voice: whisper initial_prompt

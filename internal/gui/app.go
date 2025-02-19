@@ -40,6 +40,10 @@ func (a *App) domReady(ctx context.Context) {
 
 	// Emit settings to frontend
 	runtime.EventsEmit(ctx, "settings-loaded", settings)
+	
+	if settings.ShowLogViewerByDefault {
+		runtime.WindowMaximise(ctx)
+	}
 }
 
 // beforeClose is called when the application is about to quit,
