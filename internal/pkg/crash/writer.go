@@ -79,7 +79,7 @@ func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer
 	fmt.Fprintf(w, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
 
 	fmt.Fprintln(w, "Langkit:")
-	fmt.Fprintln(w, version.GetVersionInfo())
+	fmt.Fprintln(w, version.GetInfo().String())
 	
 	fmt.Fprint(w, "Interface mode: ")
 	if isCLI {
