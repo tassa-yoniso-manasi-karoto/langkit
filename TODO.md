@@ -6,8 +6,6 @@ translitkit
    
 - UI
    - "Copy debug information" in settings
-   - SHOULD BE INFO: Failed to get romanization schemes error=no transliteration schemes registered for language cos lang=cos
-
 
 transliteration:
    - selective translit rework

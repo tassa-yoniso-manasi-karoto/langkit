@@ -217,10 +217,14 @@ func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResp
 	// Get available schemes for the language
 	schemes, err := common.GetSchemes(languageCode)
 	if err != nil {
-		handler.ZeroLog().Error().
-			Err(err).
-			Str("lang", languageCode).
-			Msg("Failed to get romanization schemes")
+		if err == common.ErrNoSchemesRegistered {
+			handler.ZeroLog().Warn().Msgf("%v \"%s\"", err, languageCode)
+		} else {
+			handler.ZeroLog().Error().
+				Err(err).
+				Str("lang", languageCode).
+				Msg("Failed to get romanization schemes")
+		}
 		return resp, err
 	}
 	for _, scheme := range schemes {
