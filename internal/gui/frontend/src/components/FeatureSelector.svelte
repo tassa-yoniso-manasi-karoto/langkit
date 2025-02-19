@@ -32,6 +32,7 @@
             padTiming: number;
             stt: string;
             sttTimeout: number;
+            initialPrompt: string;
         };
         voiceEnhancing: {
             sepLib: string;
@@ -180,7 +181,8 @@
         dubtitles: {
             padTiming: 250,
             stt: "whisper",
-            sttTimeout: 90
+            sttTimeout: 90,
+            initialPrompt: ""
         },
         voiceEnhancing: {
             sepLib: "demucs",
@@ -208,7 +210,8 @@
         dubtitles: {
             padTiming: "Padding (ms)",
             stt: "Speech-To-Text",
-            sttTimeout: "Speech-To-Text Timeout (sec)"
+            sttTimeout: "Speech-To-Text Timeout (sec)",
+            initialPrompt: "Initial prompt for Whisper"      
         },
         voiceEnhancing: {
             sepLib: "Voice separation library",
@@ -226,6 +229,9 @@
     
     const optionHovertips = {
         trackOverride: "In case the audiotracks of your media files don't have proper languages tags, set the number/index of the audio track to use as basis for processing here. It is still a good idea to set the language tag for STT, romanization... etc.",
+        dubtitles: {
+            initialPrompt: "Whisper works best when provided with an initial prompt containing exact names and terms from your audio. List character names with correct spellings (e.g.,'Eren Yeager','Mikasa Ackerman'), unique terminology (e.g.,'ODM gear') and any words the model might struggle with. Limit your prompt to 30-50 key terms for optimal results. Prioritize words that appear frequently in your audio and those with unusual pronunciations or spellings. Use comma separation rather than complete sentences. Avoid adding plot information or dialogue patterns - stick to names and terminology only. If transcribing series content like podcasts or shows, add location names and recurring concepts that define the content's universe. Maximum length is 224 tokens (approx. 850 characters)."    
+        },
         subtitleRomanization: {
             browserAccessURL: "URL to programmatically control a Chromium-based browser through Devtools. Required for providers that need web scraping capabilities",
             selectiveTransliteration: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana",
@@ -498,6 +504,11 @@
         }
     }
     
+    // Compute the ordering for dubtitles options so that the “initialPrompt” is only shown for whisper.
+    $: dubtitlesOptionOrder = currentFeatureOptions.dubtitles.stt === "whisper"
+        ? ['padTiming', 'stt', 'sttTimeout', 'initialPrompt']
+        : ['padTiming', 'stt', 'sttTimeout'];
+        
     onDestroy(() => {
         errorStore.removeError('docker-required');
         errorStore.removeError('invalid-browser-url');
@@ -699,7 +710,12 @@
                             {#each (optionOrder[feature] || Object.keys(currentFeatureOptions[feature])) as option}
                                 {@const value = currentFeatureOptions[feature][option]}
                                 <div class="flex items-center">
+                                    <!-- instead of manually patching in the options that are meant to appear only in a certain configuration we use
+                                    the same looping logic as any other options to declare them and write empty if statement for the configurations
+                                    where they are not meant to appear (there is probably a better way to achieve the same result but this is the
+                                    simplest I can think of) -->
                                     {#if option === 'selectiveTransliteration' && !(standardTag === 'jpn')}
+                                    {:else if option === 'initialPrompt' && currentFeatureOptions.dubtitles.stt !== 'whisper'}
                                     {:else if option === 'dockerRecreate' && !needsDocker}
                                     {:else if option === 'browserAccessURL' && !needsScraper}
                                     {:else if option === 'provider'}
@@ -733,6 +749,18 @@
                                                 placeholder="Enter threshold (e.g., 100)"
                                             />
                                          {/if}
+                                    {:else if option === 'initialPrompt'}
+                                        {#if currentFeatureOptions.dubtitles.stt === 'whisper'}
+                                     		<textarea
+			                                    bind:value={currentFeatureOptions.dubtitles.initialPrompt}
+			                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-2 text-sm font-medium 
+			                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+			                                           transition-colors duration-200 placeholder:text-gray-500"
+			                                    rows="3"
+			                                    maxlength="850"
+			                                    placeholder="e.g. Attack on Titan: Eren Yeager, Mikasa Ackerman, Armin Arlert, Titans, Colossal Titan, Armored Titan, Survey Corps, Wall Maria, Wall Rose, Wall Sina, ODM gear, Omni-directional mobility gear, Captain Levi, Commander Erwin Smith, Cadet Corps, Garrison Regiment, Military Police, Trost District, Shiganshina District, Titan Shifter, 3D Maneuver Gear, Sasha Blouse, Jean Kirstein, Connie Springer, Reiner Braun, Bertholdt Hoover, Annie Leonhart, Hange Zoë, Grisha Yeager, Carla Yeager, Cannons, blades, survey mission, beyond the walls, Scout Regiment, titan attack, breach, trainees, The 104th Cadet Corps"
+		                                    />
+                                        {/if}
                                     {:else if optionChoices[feature]?.[option]}
                                         <Dropdown
                                             options={optionChoices[feature][option]}
@@ -806,7 +834,7 @@
                                             bind:value={currentFeatureOptions[feature][option]}
                                             class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
                                                    focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                                                   transition-colors duration-200 text-sm font-medium"
+                                                   transition-colors duration-200 text-sm font-medium placeholder:text-gray-500"
                                             placeholder="e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                                         />
                                     {:else}

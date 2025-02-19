@@ -103,6 +103,7 @@ type Task struct {
 	STT                  string
 	TimeoutSTT           int
 	WantDubs             bool
+	InitialPrompt        string
 	
 	// Romanization options
 	WantTranslit         bool

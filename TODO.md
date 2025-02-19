@@ -6,18 +6,18 @@ translitkit
    
 - UI
    - "Copy debug information" in settings
-   - feature checkbox don't seem tickable
-   - selective translit checkbox
-   - whisper initial_prompt
    - add version in corner
-   - if version is "dev" then display TRACE by default
+     - if version is "dev" then display TRACE by default
    - one of the button of logview overflow from control row when window is resized
    - if log viewer is shown by default then open maximized
    - SHOULD BE INFO: Failed to get romanization schemes error=no transliteration schemes registered for language cos lang=cos
    
+- pkg voice: whisper initial_prompt
 
-translitkit
-   - 🤔 implement CloseAll() (not sure if needed: ctx may close it already.)
+transliteration:
+   - selective translit rework
+   - selective translit UI checkbox
+   - 🤔 implement CloseAll()
 
    - crash reports:
      - add snapshots of tsk throughout code

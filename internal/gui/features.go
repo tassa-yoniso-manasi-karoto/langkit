@@ -68,9 +68,10 @@ type FeatureOptions struct {
 	} `json:"subs2cards"`
 
 	Dubtitles struct {
-		PadTiming  int    `json:"padTiming"`
-		STT        string `json:"stt"`
-		STTtimeout int    `json:"sttTimeout"`
+		PadTiming     int    `json:"padTiming"`
+		STT           string `json:"stt"`
+		STTtimeout    int    `json:"sttTimeout"`
+		InitialPrompt string `json:"initialPrompt"`
 	} `json:"dubtitles"`
 
 	VoiceEnhancing struct {
@@ -166,6 +167,7 @@ func (a *App) configureTask(task *core.Task, request ProcessRequest) {
 		task.Offset = time.Duration(opts.PadTiming) * time.Millisecond
 		task.STT = opts.STT
 		task.TimeoutSTT = opts.STTtimeout
+		task.InitialPrompt = opts.InitialPrompt
 
 		task.Handler.ZeroLog().Debug().
 			Interface("dubtitles_options", opts).
