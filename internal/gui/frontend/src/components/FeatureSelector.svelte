@@ -18,6 +18,7 @@
         voiceEnhancing: false,
         subtitleRomanization: false
     };
+    export let quickAccessLangTag = '';
 
     // Interfaces
     interface FeatureOptions {
@@ -56,7 +57,6 @@
     const dispatch = createEventDispatcher();
     
     // State variables
-    let quickAccessLangTag = '';
     let isValidLanguage: boolean | null = null;
     let isChecking = false;
     let standardTag = '';

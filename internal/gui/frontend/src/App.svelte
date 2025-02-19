@@ -51,6 +51,7 @@
     let progress = 0;
     let showGlow = true;
     let defaultTargetLanguage = '';
+    let quickAccessLangTag = '';
 
     // Error management
     $: {
@@ -109,12 +110,17 @@
         showLogViewer = true;
         progress = 0;
 
+        // Use the quick access language tag if it differs from the default target language
+        const effectiveLanguageCode = quickAccessLangTag && quickAccessLangTag !== defaultTargetLanguage
+            ? quickAccessLangTag
+            : defaultTargetLanguage;
+
         try {
             const request = {
                 path: mediaSource.path,
                 selectedFeatures,
                 options: currentFeatureOptions,
-                languageCode: defaultTargetLanguage,
+                languageCode: effectiveLanguageCode, // UPDATED
                 audioTrackIndex: mediaSource?.audioTrackIndex || 0
             };
 
@@ -271,7 +277,8 @@
                             class="drop-zone"
                         />
                         <FeatureSelector 
-                            bind:selectedFeatures 
+                            bind:selectedFeatures
+                            bind:quickAccessLangTag
                             on:optionsChange={handleOptionsChange}
                             {mediaSource}
                             class="feature-selector"

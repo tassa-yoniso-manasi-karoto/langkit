@@ -1,17 +1,10 @@
 
    - Add tests
-
-   - 📌📌 crash reports:
-     - 📌📌 add snapshots of tsk throughout code
    
 translitkit
-   - USE SELECTIVETRANSLIT DIRECTLY FOR KANA TRANSLIT
-   - 🤔 implement CloseAll() (not sure if needed: ctx may close it already.)
    - gojieba + go-pinyin
    
-   
 - UI
-   - quick access language tag ignored
    - "Copy debug information" in settings
    - feature checkbox don't seem tickable
    - selective translit checkbox
@@ -20,8 +13,15 @@ translitkit
    - if version is "dev" then display TRACE by default
    - one of the button of logview overflow from control row when window is resized
    - if log viewer is shown by default then open maximized
+   - SHOULD BE INFO: Failed to get romanization schemes error=no transliteration schemes registered for language cos lang=cos
    
-   
+
+translitkit
+   - 🤔 implement CloseAll() (not sure if needed: ctx may close it already.)
+
+   - crash reports:
+     - add snapshots of tsk throughout code
+
    - user-defined API retry max
    - add progress bar
    
