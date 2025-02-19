@@ -1,3 +1,5 @@
+al.essio.dev/pkg/shellescape v1.5.1 h1:86HrALUujYS/h+GtqoB26SBEdkWfmMI6FubjXlsXyho=
+al.essio.dev/pkg/shellescape v1.5.1/go.mod h1:6sIqp7X2P6mThCQ7twERpZTuigpr6KbZWtls1U8I890=
 dario.cat/mergo v1.0.1 h1:Ra4+bf83h2ztPIQYNP99R6m+Y7KfnARDfID+a+vLl4s=
 dario.cat/mergo v1.0.1/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 h1:He8afgbRMd7mFxO99hRNu+6tazq8nFF9lIwo9JFroBk=
@@ -586,8 +588,8 @@ github.com/spf13/cast v0.0.0-20150508191742-4d07383ffe94/go.mod h1:r2rcYCSwa1IEx
 github.com/spf13/cast v1.7.1 h1:cuNEagBQEHWN1FnbGEjCXL2szYEXqfJPbP2HNUaca9Y=
 github.com/spf13/cast v1.7.1/go.mod h1:ancEpBxwJDODSW/UG4rDrAqiKolqNNh2DX3mk86cAdo=
 github.com/spf13/cobra v0.0.1/go.mod h1:1l0Ry5zgKvJasoi3XT1TypsSe7PqH0Sj9dhYf7v3XqQ=
-github.com/spf13/cobra v1.9.1-0.20250216180814-a97f9fd47b29 h1:T4I0anFM/R651NIF7OgziQmbV2baG+29KsH0+/mlgn0=
-github.com/spf13/cobra v1.9.1-0.20250216180814-a97f9fd47b29/go.mod h1:nDyEzZ8ogv936Cinf6g1RU9MRY64Ir93oCnqb9wxYW0=
+github.com/spf13/cobra v1.9.1 h1:CXSaggrXdbHK9CF+8ywj8Amf7PBRmPCOJugH954Nnlo=
+github.com/spf13/cobra v1.9.1/go.mod h1:nDyEzZ8ogv936Cinf6g1RU9MRY64Ir93oCnqb9wxYW0=
 github.com/spf13/jwalterweatherman v0.0.0-20141219030609-3d60171a6431/go.mod h1:cQK4TGJAtQXfYWX+Ddv3mKDzgVb68N+wFjFa4jdeBTo=
 github.com/spf13/pflag v1.0.0/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/spf13/pflag v1.0.6 h1:jFzHGLGAlb3ruxLB8MhbI6A8+AQX/2eW4qeyNZXNp2o=
@@ -614,10 +616,10 @@ github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250216025127-652c1327c
 github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250216025127-652c1327cf51/go.mod h1:vqVmetSp1Dbcb+og18U6WtKKHWoPOfUVw/WCOtzrmC4=
 github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac h1:irZTZH6g2gTPmZ0zzK/XT2fF9FDThfK4c6CDgsfhXg4=
 github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac/go.mod h1:uJZaFWGBJJ+/iezVfF182nM97i3u5kU3UUOcdD0bkJM=
-github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250119041459-d91450df40c3 h1:kWgjvYvED6JMkn2wxNXHri0TabAKVxalePIqiEV/DO4=
-github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250119041459-d91450df40c3/go.mod h1:wXqQlXeCy50ud+3KB8KfSQBiU72iK93lQxzB9KRnm+4=
-github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250119063737-96ed9cfa2288 h1:OH2W5fAx4W7JLukmTE9b0Z1T3wVeH6wpq+mm7Dq/5W4=
-github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250119063737-96ed9cfa2288/go.mod h1:DvUmlrYis52MP5n8Mh2uSXoLD0YK0cSC+LmJUnrCt+g=
+github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250216022613-a83107ba6d89 h1:gGf8A8o90NMoyD8AVvyvxks13C6bgGgldVZIAo/BXCo=
+github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250216022613-a83107ba6d89/go.mod h1:wXqQlXeCy50ud+3KB8KfSQBiU72iK93lQxzB9KRnm+4=
+github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250218110359-2a9cd7ba3d95 h1:V2tZAGco9cb+ZlUx4CG8dd2qj9s8EPK89Ib+HTwPlOo=
+github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250218110359-2a9cd7ba3d95/go.mod h1:yLc9zQA1386gyLYPuW3e2BzaM0EfYjy0Jg2B/S8PbXQ=
 github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250216131515-600ac8d8493a h1:fuIK7JVWH/WcqrC/NOPxPwgSLurtn5NvMWsyX2REkcQ=
 github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250216131515-600ac8d8493a/go.mod h1:y2WtUtJridHCtVw+MDcPLvzKlQXtK6z/u4b+AEz4BV4=
 github.com/theupdateframework/notary v0.7.0 h1:QyagRZ7wlSpjT5N2qQAh/pN+DVqgekv4DzbAiAiEL3c=

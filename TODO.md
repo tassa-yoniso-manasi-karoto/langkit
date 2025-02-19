@@ -13,6 +13,7 @@ translitkit
    - SHOULD BE INFO: Failed to get romanization schemes error=no transliteration schemes registered for language cos lang=cos
    
 - pkg voice: whisper initial_prompt
+- panic concurrent map writes
 
 transliteration:
    - selective translit rework

@@ -32,6 +32,7 @@ func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingE
 	
 	m.WithContext(ctx)
 	
+	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s-%s-%s provider initialization starting, please wait...", m.Lang, m.ProviderNames(), tsk.RomanizationStyle)
 	if !tsk.DockerRecreate {
 		err = m.Init()
 	} else {
@@ -41,7 +42,7 @@ func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingE
 		return tsk.Handler.LogErr(err, AbortAllTasks,
 			fmt.Sprintf("translit: failed to init default provider for language %s", tsk.Targ.Language.Part3))
 	}
-	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s-%s-%s successfully initialized", m.Lang, m.ProviderNames(), tsk.RomanizationStyle)
+	tsk.Handler.ZeroLog().Info().Msgf("translit: %s-%s-%s successfully initialized", m.Lang, m.ProviderNames(), tsk.RomanizationStyle)
 	
 	SubTranslit, _ := astisub.OpenFile(subsFilepath)
 	SubTokenized, _ := astisub.OpenFile(subsFilepath)

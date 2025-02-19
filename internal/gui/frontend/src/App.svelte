@@ -3,19 +3,19 @@
     import { cubicOut } from 'svelte/easing';
     import { onMount, onDestroy } from 'svelte';
     import '@material-design-icons/font';
-    
+
     import { settings, showSettings } from './lib/stores';
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
-    
+
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
     import LogViewer from './components/LogViewer.svelte';
     import GlowEffect from './components/GlowEffect.svelte';
     import Settings from './components/Settings.svelte';
     import ProcessButton from './components/ProcessButton.svelte';
-    
-    import { ProcessFiles, CancelProcessing } from '../wailsjs/go/gui/App';
+
+    import { ProcessFiles, CancelProcessing, GetVersion } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
 
     // Define interfaces
@@ -28,7 +28,7 @@
     interface FeatureOptions {
         [key: string]: any;
     }
-    
+
     interface MediaSource {
         name: string;
         path: string;
@@ -36,7 +36,11 @@
         audioTrackIndex?: number;
     }
 
-    // State management
+    // Version info state variables
+    let version: string = "";
+    let updateAvailable: boolean = false;
+
+    // Other state variables
     let mediaSource: MediaSource | null = null;
     let previewFiles: MediaSource[] = [];
     let selectedFeatures = {
@@ -50,51 +54,50 @@
     let showLogViewer = false;
     let progress = 0;
     let showGlow = true;
-    let defaultTargetLanguage = '';
-    let quickAccessLangTag = '';
+    let defaultTargetLanguage = "";
+    let quickAccessLangTag = "";
 
-    // Error management
+    // Reactive error management
     $: {
         if (!mediaSource) {
             errorStore.addError({
-                id: 'no-media',
-                message: 'No media file selected',
-                severity: 'critical',
+                id: "no-media",
+                message: "No media file selected",
+                severity: "critical",
                 action: {
-                    label: 'Select Media',
-                    handler: () => document.querySelector('.drop-zone')?.click()
+                    label: "Select Media",
+                    handler: () => document.querySelector(".drop-zone")?.click()
                 }
             });
         } else {
-            errorStore.removeError('no-media');
+            errorStore.removeError("no-media");
         }
 
         if (!Object.values(selectedFeatures).some(v => v)) {
             errorStore.addError({
-                id: 'no-features',
-                message: 'Select at least one processing feature',
-                severity: 'critical'
+                id: "no-features",
+                message: "Select at least one processing feature",
+                severity: "critical"
             });
         } else {
-            errorStore.removeError('no-features');
+            errorStore.removeError("no-features");
         }
 
         if (!$settings.nativeLanguages) {
             errorStore.addError({
-                id: 'no-native-lang',
-                message: 'Configure native languages in settings',
-                severity: 'warning',
+                id: "no-native-lang",
+                message: "Configure native languages in settings",
+                severity: "warning",
                 action: {
-                    label: 'Open Settings',
+                    label: "Open Settings",
                     handler: () => $showSettings = true
                 }
             });
         } else {
-            errorStore.removeError('no-native-lang');
+            errorStore.removeError("no-native-lang");
         }
     }
 
-    // Event handlers
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
         currentFeatureOptions = event.detail;
     }
@@ -105,12 +108,12 @@
 
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
-        
+
         isProcessing = true;
         showLogViewer = true;
         progress = 0;
 
-        // Use the quick access language tag if it differs from the default target language
+        // Use the quick access language tag if it differs from the default
         const effectiveLanguageCode = quickAccessLangTag && quickAccessLangTag !== defaultTargetLanguage
             ? quickAccessLangTag
             : defaultTargetLanguage;
@@ -120,18 +123,18 @@
                 path: mediaSource.path,
                 selectedFeatures,
                 options: currentFeatureOptions,
-                languageCode: effectiveLanguageCode, // UPDATED
+                languageCode: effectiveLanguageCode,
                 audioTrackIndex: mediaSource?.audioTrackIndex || 0
             };
 
-            console.log('Sending processing request:', request);
+            console.log("Sending processing request:", request);
             await ProcessFiles(request);
         } catch (error) {
-            console.error('Processing failed:', error);
+            console.error("Processing failed:", error);
             errorStore.addError({
-                id: 'processing-failed',
-                message: 'Processing failed: ' + (error.message || 'Unknown error'),
-                severity: 'critical',
+                id: "processing-failed",
+                message: "Processing failed: " + (error.message || "Unknown error"),
+                severity: "critical",
                 dismissible: true
             });
         } finally {
@@ -145,23 +148,22 @@
             await CancelProcessing();
             isProcessing = false;
             errorStore.addError({
-                id: 'processing-cancelled',
-                message: 'Processing cancelled by user',
-                severity: 'info',
+                id: "processing-cancelled",
+                message: "Processing cancelled by user",
+                severity: "info",
                 dismissible: true
             });
         } catch (error) {
-            console.error('Failed to cancel processing:', error);
+            console.error("Failed to cancel processing:", error);
             errorStore.addError({
-                id: 'cancel-failed',
-                message: 'Failed to cancel processing',
-                severity: 'critical',
+                id: "cancel-failed",
+                message: "Failed to cancel processing",
+                severity: "critical",
                 dismissible: true
             });
         }
     }
 
-// Settings management
     async function loadSettings() {
         try {
             const loadedSettings = await window.go.gui.App.LoadSettings();
@@ -170,53 +172,51 @@
             defaultTargetLanguage = loadedSettings.targetLanguage;
             showLogViewer = loadedSettings.showLogViewerByDefault;
         } catch (error) {
-            console.error('Failed to load settings:', error);
+            console.error("Failed to load settings:", error);
             errorStore.addError({
-                id: 'settings-load-failed',
-                message: 'Failed to load settings',
-                severity: 'critical',
+                id: "settings-load-failed",
+                message: "Failed to load settings",
+                severity: "critical",
                 dismissible: true,
                 action: {
-                    label: 'Retry',
+                    label: "Retry",
                     handler: () => loadSettings()
                 }
             });
         }
     }
 
-    // Docker availability check
     async function checkDockerAvailability() {
         try {
             const available = await window.go.gui.App.CheckDocker();
             if (!available) {
                 errorStore.addError({
-                    id: 'docker-not-available',
-                    message: 'Docker is not available. Some features may be limited.',
-                    severity: 'warning',
-                    docsUrl: 'https://docs.docker.com/get-docker/',
-                    dismissible: true
+                    id: "docker-not-available",
+                    message: "Docker is not available. Some features may be limited.",
+                    severity: "warning",
+                    dismissible: true,
+                    docsUrl: "https://docs.docker.com/get-docker/"
                 });
             } else {
-                errorStore.removeError('docker-not-available');
+                errorStore.removeError("docker-not-available");
             }
         } catch (error) {
-            console.error('Docker check failed:', error);
+            console.error("Docker check failed:", error);
             errorStore.addError({
-                id: 'docker-check-failed',
-                message: 'Failed to check Docker availability',
-                severity: 'warning',
+                id: "docker-check-failed",
+                message: "Failed to check Docker availability",
+                severity: "warning",
                 dismissible: true
             });
         }
     }
 
-    // Initialization
     onMount(() => {
         // Initialize log listener
         EventsOn("log", (rawLog: any) => {
             logStore.addLog(rawLog);
         });
-        
+
         // Listen for settings updates
         EventsOn("settings-loaded", (loadedSettings) => {
             settings.set(loadedSettings);
@@ -225,58 +225,87 @@
             showLogViewer = loadedSettings.showLogViewerByDefault;
         });
 
+        GetVersion()
+            .then((result: any) => {
+                console.log("GetVersion result:", result);
+                version = result.version;
+                updateAvailable = result.newerVersionAvailable;
+            })
+            .catch(err => {
+                console.error("Failed to get version info:", err);
+            });
+
         loadSettings();
         checkDockerAvailability();
     });
 
-    // Cleanup
     onDestroy(() => {
         // Clear component-specific errors
-        errorStore.removeError('no-media');
-        errorStore.removeError('no-features');
-        errorStore.removeError('processing-failed');
-        errorStore.removeError('cancel-failed');
+        errorStore.removeError("no-media");
+        errorStore.removeError("no-features");
+        errorStore.removeError("processing-failed");
+        errorStore.removeError("cancel-failed");
     });
 
-    // Settings update listener
-    window.addEventListener('settingsUpdated', ((event: CustomEvent) => {
+    window.addEventListener("settingsUpdated", ((event: CustomEvent) => {
         settings.set(event.detail);
         showGlow = event.detail.enableGlow;
     }) as EventListener);
 </script>
 
-<div class="min-h-screen min-w-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
+<!-- Version display (fixed, using Tailwind and DM Mono) -->
+<div class="fixed top-[0.5rem] right-[3.9rem] z-50 p-0 text-[0.6rem] text-gray-500 text-xs font-dm-mono">
+    {#if version}
+        {#if version === "dev"}
+            {version}
+        {:else}
+            v{version}
+        {/if}
+        {#if updateAvailable}
+            <a href="https://github.com/tassa-yoniso-manasi-karoto/langkit/releases"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="ml-2 font-bold blinking-update"
+               title="Click to view latest release">
+                an update is available
+            </a>
+        {/if}
+    {/if}
+</div>
+
+<!-- Main container now spans full viewport -->
+<div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
     {#if showGlow}
         <GlowEffect {isProcessing} />
     {/if}
-    
-    <div class="flex h-full p-8 gap-8 relative z-10">
-        <!-- Settings button -->
-        <div class="absolute top-4 right-4 z-20">
-            <button 
-                class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
-                       transition-all duration-200 hover:bg-white/15 hover:text-white
-                       hover:-translate-y-0.5 hover:shadow-lg hover:shadow-white/5
-                       focus:outline-none focus:ring-2 focus:ring-accent/50"
-                on:click={() => $showSettings = true}
-                aria-label="Open settings"
-            >
-                <span class="material-icons text-[20px]">settings</span>
-            </button>
-        </div>
 
+    <!-- Settings button container -->
+    <div class="absolute top-4 right-4 z-20 flex items-center gap-4">
+        <button
+            class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
+                   transition-all duration-200 hover:bg-white/15 hover:text-white
+                   hover:-translate-y-0.5 hover:shadow-lg hover:shadow-white/5
+                   focus:outline-none focus:ring-2 focus:ring-accent/50"
+            on:click={() => $showSettings = true}
+            aria-label="Open settings"
+        >
+            <span class="material-icons text-[20px]">settings</span>
+        </button>
+    </div>
+
+    <div class="flex h-full p-8 gap-8 relative z-10">
         <!-- Main content area -->
         <div class="flex-1 relative {showLogViewer ? 'w-[55%]' : 'w-full'} transition-all duration-300">
             <div class="h-full flex flex-col">
                 <!-- Scrollable content -->
                 <div class="flex-1 overflow-y-auto pr-4 mask-fade">
                     <div class="max-w-2xl mx-auto space-y-6">
-                        <MediaInput 
+                        <MediaInput
                             bind:mediaSource
                             bind:previewFiles
                             class="drop-zone"
                         />
-                        <FeatureSelector 
+                        <FeatureSelector
                             bind:selectedFeatures
                             bind:quickAccessLangTag
                             on:optionsChange={handleOptionsChange}
@@ -289,42 +318,40 @@
                 <!-- Fixed bottom button area -->
                 <div class="pt-6 pb-2 bg-gradient-to-t from-sky-dark via-sky-dark">
                     <div class="max-w-2xl mx-auto flex justify-center items-center gap-4">
-                        <ProcessButton 
-                            {isProcessing} 
-                            on:process={handleProcess} 
+                        <ProcessButton
+                            {isProcessing}
+                            on:process={handleProcess}
                         />
-                        
                         {#if isProcessing}
-                            <button 
-                                class="h-12 w-12 flex items-center justify-center rounded-lg 
-                                       bg-red-500/30 text-white transition-all duration-200 
+                            <button
+                                class="h-12 w-12 flex items-center justify-center rounded-lg
+                                       bg-red-500/30 text-white transition-all duration-200
                                        hover:bg-red-500/90 hover:-translate-y-0.5
                                        hover:shadow-lg hover:shadow-red-500/20
                                        focus:outline-none focus:ring-2 focus:ring-red-500/50
                                        focus:ring-offset-2 focus:ring-offset-bg"
                                 on:click={handleCancel}
-                                in:slide={{ duration: 200, axis: 'x' }}
-                                out:slide={{ duration: 200, axis: 'x' }}
+                                in:slide={{ duration: 200, axis: "x" }}
+                                out:slide={{ duration: 200, axis: "x" }}
                                 aria-label="Cancel processing"
                             >
                                 <span class="material-icons">close</span>
                             </button>
                         {/if}
-
-                        <button 
-                            class="h-12 w-12 flex items-center justify-center rounded-lg 
+                        <button
+                            class="h-12 w-12 flex items-center justify-center rounded-lg
                                    transition-all duration-200
                                    {showLogViewer ? 'bg-accent text-sky-dark' : 'bg-white/10 text-white'}
                                    hover:bg-opacity-80 hover:-translate-y-0.5
                                    hover:shadow-lg
-                                   focus:outline-none focus:ring-2 
+                                   focus:outline-none focus:ring-2
                                    {showLogViewer ? 'focus:ring-accent/50' : 'focus:ring-white/30'}
                                    focus:ring-offset-2 focus:ring-offset-bg"
                             on:click={toggleLogViewer}
                             aria-label="{showLogViewer ? 'Hide log viewer' : 'Show log viewer'}"
                         >
                             <span class="material-icons">
-                                {showLogViewer ? 'chevron_right' : 'chevron_left'}
+                                {showLogViewer ? "chevron_right" : "chevron_left"}
                             </span>
                         </button>
                     </div>
@@ -337,8 +364,8 @@
             <div class="w-[45%] rounded-lg overflow-hidden transition-all duration-500 ease-out
                         shadow-[4px_4px_0_0_rgba(159,110,247,0.4),8px_8px_16px_-2px_rgba(159,110,247,0.35)]
                         hover:shadow-[4px_4px_0_0_rgba(159,110,247,0.5),8px_8px_20px_-2px_rgba(159,110,247,0.4)]"
-                 in:slide={{ duration: 400, delay: 100, axis: 'x', easing: cubicOut }}
-                 out:slide={{ duration: 400, axis: 'x', easing: cubicOut }}
+                 in:slide={{ duration: 400, delay: 100, axis: "x", easing: cubicOut }}
+                 out:slide={{ duration: 400, axis: "x", easing: cubicOut }}
                  role="region"
                  aria-live="polite"
             >
@@ -348,7 +375,7 @@
     </div>
 </div>
 
-<Settings 
+<Settings
     onClose={() => $showSettings = false}
 />
 
@@ -399,12 +426,22 @@
         background-color: rgba(255, 255, 255, 0.2);
     }
 
-    /* Custom glow effect integration */
-    :global(.glow-effect) {
-        filter: drop-shadow(0 0 12px theme(colors.accent / 0.15));
+    /* Blinking "update available" effect */
+    @keyframes fadeBlink {
+        0% {
+            color: #f97316; /* orange-500 */
+        }
+        50% {
+            color: #dc2626; /* red-600 */
+        }
+        100% {
+            color: #f97316;
+        }
+    }
+    .blinking-update {
+        animation: fadeBlink 1.5s linear infinite;
     }
 
-    /* Settings modal transition */
     :global(.settings-modal) {
         transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }

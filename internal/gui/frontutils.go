@@ -13,10 +13,20 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	
 	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
+
+
+
+func (a *App) GetVersion() version.Info {
+	return version.GetInfo()
+}
+
 
 // VideoInfo represents information about a video file
 type VideoInfo struct {
