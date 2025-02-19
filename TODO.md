@@ -1,19 +1,21 @@
 
    - Add tests
    
+- UI
+  - "Copy debug information" in settings
+   
+- implement CloseAll()
+
+- crash reports:
+  - add snapshots of tsk throughout code
+
+
 translitkit
    - gojieba + go-pinyin
-   
-- UI
-   - "Copy debug information" in settings
 
 transliteration:
    - selective translit rework
    - selective translit UI checkbox
-   - implement CloseAll()
-
-   - crash reports:
-     - add snapshots of tsk throughout code
 
    - user-defined API retry max
    - add progress bar
