@@ -369,7 +369,7 @@
                  role="region"
                  aria-live="polite"
             >
-                <LogViewer />
+                <LogViewer version={version} />
             </div>
         {/if}
     </div>

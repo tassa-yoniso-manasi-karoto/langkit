@@ -5,7 +5,9 @@
     import ProgressBar from './ProgressBar.svelte';
 
     export let downloadProgress: any = null;
+    export let version: string = "";
     
+    let selectedLogLevel = version === "dev" ? "TRACE" : "INFO";
     let scrollContainer: HTMLElement;
     let autoScroll = true;
     let isScrolling = false;
@@ -13,7 +15,6 @@
 
     // Add log level filter
     const logLevels = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL', 'PANIC'];
-    let selectedLogLevel = 'INFO';
     
     const logLevelPriority = {
         'trace': 0,
