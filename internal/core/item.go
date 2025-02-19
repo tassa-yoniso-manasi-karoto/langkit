@@ -80,7 +80,7 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 		dub := ""
 		switch tsk.STT {
 		case "whisper":
-			dub, err = voice.Whisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1, "")
+			dub, err = voice.Whisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1, tsk.InitialPrompt)
 		case "insanely-fast-whisper":
 			dub, err = voice.InsanelyFastWhisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
 		case "universal-1":
