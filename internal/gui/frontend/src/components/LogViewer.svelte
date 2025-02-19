@@ -4,46 +4,55 @@
     import { logStore, type LogMessage } from '../lib/logStore';
     import ProgressBar from './ProgressBar.svelte';
 
-    export let downloadProgress: any = null;
-    export let version: string = "";
-    
+    // Optional version prop to handle dev vs. prod initialization.
+    export let version: string = "dev";
+
+    // Decide initial log filter
     let selectedLogLevel = version === "dev" ? "TRACE" : "INFO";
+    
     let scrollContainer: HTMLElement;
     let autoScroll = true;
     let isScrolling = false;
     let scrollTimeout: number;
 
-    // Add log level filter
-    const logLevels = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL', 'PANIC'];
-    
-    const logLevelPriority = {
+    // Log levels available
+    const logLevels = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
+
+    // Priority map for numeric comparisons
+    const logLevelPriority: Record<string, number> = {
         'trace': 0,
         'debug': 1,
         'info': 2,
         'warn': 3,
         'error': 4,
-        'fatal': 5,
-        'panic': 6
     };
 
-    const behaviorColors = {
+    // Match certain behaviors to text colors
+    const behaviorColors: Record<string, string> = {
         'abort_task': 'text-red-400',
         'abort_all': 'text-red-600',
         'probe': 'text-yellow-400'
     };
 
-    // Update getLevelClass to handle case standardization
-    const getLevelClass = (level: string) => ({
-        'DEBUG': 'debug',
-        'INFO': 'info',
-        'WARN': 'warn',
-        'ERROR': 'error',
-        'FATAL': 'fatal',
-        'PANIC': 'panic',
-        'TRACE': 'trace'
-    }[level.toUpperCase()] || 'info');
+    // Return a Tailwind class for each log level
+    function getLevelClass(level: string): string {
+        switch (level.toUpperCase()) {
+            case 'TRACE':
+                return 'text-violet-400';
+            case 'DEBUG':
+                return 'text-blue-500';
+            case 'INFO':
+                return 'text-green-500';
+            case 'WARN':
+                return 'text-yellow-500';
+            case 'ERROR':
+                return 'text-red-500';
+            default:
+                return 'text-green-500';
+        }
+    }
 
-    // Helper function to format fields
+    // Helper function: format additional fields
     function formatFields(fields: Record<string, any> | undefined): string {
         if (!fields) return '';
         return Object.entries(fields)
@@ -51,11 +60,11 @@
             .join(' ');
     }
 
-    // Helper function to format structured fields
+    // Helper function: format structured fields
     function formatStructuredFields(log: LogMessage): string {
-        const excludedKeys = ['level', 'message', 'time', 'behavior'];
+        const excluded = ['level', 'message', 'time', 'behavior'];
         const fields = Object.entries(log)
-            .filter(([key]) => !excludedKeys.includes(key))
+            .filter(([key]) => !excluded.includes(key))
             .map(([key, value]) => {
                 if (typeof value === 'object') {
                     return `${key}=${JSON.stringify(value)}`;
@@ -66,11 +75,12 @@
         return fields;
     }
 
-    // Filter logs based on level
-    $: filteredLogs = $logStore.filter(log => 
+    // Filter logs on selected level
+    $: filteredLogs = $logStore.filter(log =>
         logLevelPriority[log.level.toLowerCase()] >= logLevelPriority[selectedLogLevel.toLowerCase()]
     );
 
+    // Scroll management
     function handleScroll(e: Event) {
         if (isScrolling) return;
         
@@ -84,7 +94,6 @@
         }
 
         clearTimeout(scrollTimeout);
-        
         scrollTimeout = window.setTimeout(() => {
             isScrolling = false;
         }, 150);
@@ -112,18 +121,18 @@
     function handleLogBehavior(log: LogMessage) {
         switch (log.behavior) {
             case 'abort_all':
-                // Handle complete abort
+                // handle
                 break;
             case 'abort_task':
-                // Handle single task abort
+                // handle
                 break;
             case 'warning':
-                // Handle warning
+                // handle
                 break;
         }
     }
 
-    // Watch for changes in filtered logs and scroll if needed
+    // If logs update while we are auto-scrolling, scroll down
     $: if (filteredLogs.length && autoScroll) {
         scrollToBottom();
     }
@@ -133,21 +142,29 @@
             scrollToBottom();
         }
     });
+
+    // For showing a progress bar (download, etc.)
+    export let downloadProgress: any = null;
 </script>
 
-<div class="log-viewer font-dm-mono">
-    <div class="controls">
+<!-- Main container for the log viewer -->
+<div class="flex flex-col h-full bg-[#1e1e1e] text-white font-[DM_Mono] text-[11px]">
+    <!-- Top controls row -->
+    <div class="px-3 py-2 border-b border-gray-800 bg-[#252525] h-10 flex items-center justify-between">
         <div class="flex items-center gap-6">
             <!-- Log level filter -->
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 whitespace-nowrap">
                 <span class="text-xs uppercase tracking-wider font-medium text-gray-400">
                     Log Level:
                 </span>
                 <select
                     bind:value={selectedLogLevel}
-                    class="bg-[#333] text-white text-xs font-medium uppercase tracking-wider
+                    class="w-20 h-7 bg-[#333] text-white text-[11px] font-medium uppercase tracking-wider
                            border-none rounded px-2 py-1.5
-                           focus:ring-1 focus:ring-accent outline-none"
+                           focus:ring-1 focus:ring-accent outline-none
+                           appearance-none
+                           [background-image:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22white%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22/%3E%3C/svg%3E')] 
+                           bg-no-repeat bg-[right_0.5rem_center] bg-[length:1em]"
                 >
                     {#each logLevels as level}
                         <option value={level}>{level}</option>
@@ -158,50 +175,59 @@
             <!-- Auto-scroll toggle -->
             <button 
                 type="button" 
-                class="flex items-center gap-2 text-xs uppercase tracking-wider font-medium
-                       text-gray-400 hover:text-white transition-colors"
+                class="flex items-center gap-1 px-3 py-1 bg-[#333] h-7 text-gray-400 rounded whitespace-nowrap flex-shrink-0 text-[11px] uppercase tracking-wider hover:bg-[#444] hover:text-white transition-colors"
                 on:click={() => toggleAutoScroll(!autoScroll)}
             >
                 <input 
                     type="checkbox" 
                     checked={autoScroll}
                     on:change={(e) => toggleAutoScroll(e.target.checked)}
-                    class="w-3.5 h-3.5 accent-accent"
+                    class="w-3.5 h-3.5 accent-accent m-0"
                 />
                 Auto-scroll
             </button>
+
             
             <!-- Clear button -->
-            <button 
-                on:click={() => logStore.clearLogs()}
-                class="text-xs uppercase tracking-wider font-medium
-                       text-gray-400 hover:text-white transition-colors"
-            >
-                Clear
-            </button>
+        <button 
+            on:click={() => logStore.clearLogs()}
+            class="px-3 py-1 h-7 bg-[#333] text-gray-400 rounded whitespace-nowrap flex-shrink-0 text-[11px] uppercase tracking-wider hover:bg-[#444] hover:text-white transition-colors"
+        >
+            Clear
+        </button>
         </div>
     </div>
     
-    <div class="content-wrapper">
+    <!-- Content area: logs and optional progress bar -->
+    <div class="relative flex flex-col flex-1 min-h-0">
+        <!-- The scrollable container for log entries -->
         <div 
-            class="log-container" 
-            bind:this={scrollContainer} 
+            class="flex-1 overflow-y-auto min-h-0"
+            bind:this={scrollContainer}
             on:scroll={handleScroll}
         >
             {#if filteredLogs.length === 0}
-                <div class="empty-state">
-                    <span>No logs to display</span>
+                <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center text-gray-600 italic text-sm">
+                    No logs to display
                 </div>
             {:else}
                 {#each filteredLogs as log}
-                    <div class="log-entry {log.behavior ? behaviorColors[log.behavior] : ''}" 
-                         on:click={() => handleLogBehavior(log)}>
-                        <span class="time">{log.time}</span>
-                        <span class="level {getLevelClass(log.level)}">{log.level}</span>
-                        <span class="message">
+                    <div 
+                    <div class="{log.behavior ? behaviorColors[log.behavior] : 'text-[#c1c1c1]'} py-1 px-3 border-b border-[#2a2a2a] whitespace-pre-wrap break-words leading-snug flex items-baseline justify-start text-left w-full hover:bg-[rgba(255,255,255,0.02)]"
+                        on:click={() => handleLogBehavior(log)}
+                    >
+                        <span class="text-[#888] mr-2 text-xs flex-shrink-0">
+                            {log.time}
+                        </span>
+                        <span class={"font-bold text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)}>
+                            {log.level}
+                        </span>
+                        <span class="flex-grow text-sm text-left overflow-x-auto">
                             {log.message}
                             {#if formatStructuredFields(log)}
-                                <span class="fields">{formatStructuredFields(log)}</span>
+                                <span class="ml-2 text-[#666] text-[12px] font-[DM_Mono]">
+                                    {formatStructuredFields(log)}
+                                </span>
                             {/if}
                         </span>
                     </div>
@@ -210,8 +236,8 @@
         </div>
         
         {#if downloadProgress}
-            <div class="progress-section">
-                <ProgressBar 
+            <div class="p-2 bg-[#252525] border-t border-gray-800">
+                <ProgressBar
                     progress={downloadProgress.progress}
                     current={downloadProgress.current}
                     total={downloadProgress.total}
@@ -230,246 +256,3 @@
         Log levels present: {[...new Set(logs.map(l => l.level))].join(', ')}
     </div>
 {/if}-->
-
-<style>
-    .log-viewer {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        background: #1e1e1e;
-        color: #ffffff;
-        font-family: 'DM Mono', monospace;
-        font-size: 12px;
-    }
-
-
-    .content-wrapper {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 0;
-        position: relative;
-    }
-
-    .controls {
-        padding: 8px 12px;
-        border-bottom: 1px solid #333;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: #252525;
-        height: 40px; /* Fixed height for consistency */
-    }
-
-    .auto-scroll {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .empty-state {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        width: 100%;
-        position: absolute;
-        top: 0;
-        left: 0;
-    }
-
-
-    .empty-state {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        color: #666;
-        font-style: italic;
-        font-size: 14px;
-    }
-
-    .log-container {
-        flex: 1;
-        overflow-y: auto;
-        padding: 0;
-        min-height: 0;
-    }
-    
-    .log-entry {
-        padding: 4px 12px;
-        border-bottom: 1px solid #2a2a2a;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        line-height: 1.4;
-        display: flex;
-        align-items: baseline;
-        justify-content: flex-start;
-        text-align: left;
-        width: 100%;
-        min-width: fit-content; /* Handle overflow */
-    }
-
-
-    .log-entry:hover {
-        background: rgba(255, 255, 255, 0.02);
-        width: 100%;
-    }
-
-    .time {
-        color: #888;
-        margin-right: 8px;
-        font-size: 11px;
-        flex-shrink: 0;
-    }
-
-    .level {
-        font-weight: bold;
-        margin-right: 8px;
-        flex-shrink: 0;
-        min-width: 40px;
-    }
-
-    .message {
-        flex-grow: 1;
-        color: #d4d4d4;
-        text-align: left;
-        overflow-x: auto; /* Allow horizontal scroll for very long messages */
-    }
-    /* Add horizontal scrollbar styling for overflow */
-    .message::-webkit-scrollbar {
-        height: 6px;
-    }
-
-    .message::-webkit-scrollbar-track {
-        background: #1e1e1e;
-    }
-
-    .message::-webkit-scrollbar-thumb {
-        background-color: #444444;
-        border-radius: 3px;
-    }
-
-    .message::-webkit-scrollbar-thumb:hover {
-        background-color: #555555;
-    }
-
-    .progress-section {
-        padding: 8px;
-        background: #252525;
-        border-top: 1px solid #333;
-    }
-
-    /* Log level colors matching zerolog's ConsoleWriter */
-    .debug { color: #3b82f6; }  /* blue */
-    .info { color: #10b981; }   /* green */
-    .warn { color: #f59e0b; }   /* yellow */
-    .error { color: #ef4444; }  /* red */
-    .fatal { color: #dc2626; }  /* darker red */
-    .panic { color: #b91c1c; }  /* darkest red */
-    .trace { color: #c084fc; }  /* purple */
-
-    button {
-        padding: 4px 12px;
-        background: #333;
-        border: none;
-        color: #999;
-        border-radius: 3px;
-        cursor: pointer;
-        font-size: 11px;
-        text-transform: uppercase;
-        transition: all 0.2s ease;
-    }
-
-    button:hover {
-        background: #444;
-        color: #fff;
-    }
-
-    /* Style the checkbox to be smaller and match the theme */
-    input[type="checkbox"] {
-        accent-color: #9f6ef7;
-        margin: 0;
-    }
-
-    /* Scrollbar styles */
-    .log-container::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-
-    .log-container::-webkit-scrollbar-track {
-        background: #1e1e1e;
-    }
-
-    .log-container::-webkit-scrollbar-thumb {
-        background-color: #444444;
-        border-radius: 3px;
-    }
-
-    .log-container::-webkit-scrollbar-thumb:hover {
-        background-color: #555555;
-    }
-
-    .log-container::-webkit-scrollbar-corner {
-        background: #1e1e1e;
-    }
-    
-
-    select {
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 0.5rem center;
-        background-size: 1em;
-        padding-right: 1.75rem;
-    }
-
-    select:focus {
-        box-shadow: 0 0 0 2px rgba(159, 110, 247, 0.3);
-    }
-    
-    
-    .fields {
-        color: #666;
-        margin-left: 8px;
-        font-size: 11px;
-    }
-
-    .behavior {
-        color: #666;
-        margin-left: 8px;
-        font-style: italic;
-        font-size: 11px;
-    }
-
-    /* Add behavior-specific styles */
-    .log-entry.abort_task {
-        background: rgba(239, 68, 68, 0.1);
-    }
-
-    .log-entry.abort_all {
-        background: rgba(239, 68, 68, 0.2);
-    }
-
-    .log-entry.warning {
-        background: rgba(251, 191, 36, 0.1);
-    }
-    .fields {
-        color: #666;
-        margin-left: 8px;
-        font-size: 11px;
-        font-family: 'DM Mono', monospace;
-    }
-    .debug-overlay {
-        position: fixed;
-        top: 0;
-        right: 0;
-        background: rgba(0,0,0,0.8);
-        padding: 8px;
-        color: white;
-        font-size: 12px;
-        z-index: 9999;
-        pointer-events: none;
-    }
-</style>

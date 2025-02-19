@@ -6,7 +6,6 @@ translitkit
    
 - UI
    - "Copy debug information" in settings
-   - one of the button of logview overflow from control row when window is resized
    - if log viewer is shown by default then open maximized
    - SHOULD BE INFO: Failed to get romanization schemes error=no transliteration schemes registered for language cos lang=cos
    
