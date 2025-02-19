@@ -9,12 +9,10 @@ translitkit
    - SHOULD BE INFO: Failed to get romanization schemes error=no transliteration schemes registered for language cos lang=cos
 
 
-- panic concurrent map writes
-
 transliteration:
    - selective translit rework
    - selective translit UI checkbox
-   - 🤔 implement CloseAll()
+   - implement CloseAll()
 
    - crash reports:
      - add snapshots of tsk throughout code

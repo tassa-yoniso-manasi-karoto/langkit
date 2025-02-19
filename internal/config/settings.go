@@ -129,7 +129,7 @@ func (settings Settings) LoadKeys() {
 		if s := os.Getenv(strings.ToUpper(name) + "_API_KEY"); s != "" {
 			key = s
 		}
-		voice.APIKeys[name] = key
+		voice.APIKeys.Store(name, key)
 	}
 }
 

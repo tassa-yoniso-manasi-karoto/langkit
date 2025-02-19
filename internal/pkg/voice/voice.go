@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"math"
+	"sync"
 	
 	"github.com/tassa-yoniso-manasi-karoto/elevenlabs-go"
 	
@@ -22,14 +23,24 @@ import (
 )
 
 var (
-	APIKeys = make(map[string]string, 3)
+	APIKeys = &sync.Map{}
 )
+
+func init() {
+	APIKeys.Store("elevenlabs", "")
+	APIKeys.Store("assemblyai", "")
+	APIKeys.Store("replicate", "")
+}
 
 
 func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]byte, error) {
-	APIKey, found := APIKeys["elevenlabs"]
+	apiKeyValue, found := APIKeys.Load("elevenlabs")
 	if !found {
 		return nil, fmt.Errorf("No Elevenlabs API key was provided")
+	}
+	APIKey, ok := apiKeyValue.(string)
+	if !ok || APIKey == "" {
+		return nil, fmt.Errorf("Invalid Elevenlabs API key format")
 	}
 	client := elevenlabs.NewClient(ctx, APIKey, time.Duration(timeout)*time.Second)
 	audio, err := client.VoiceIsolator(filePath)
@@ -41,9 +52,13 @@ func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]by
 
 
 func Universal1(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
-	APIKey, found := APIKeys["assemblyai"]
+	apiKeyValue, found := APIKeys.Load("assemblyai")
 	if !found {
 		return "", fmt.Errorf("No AssemblyAI API key was provided")
+	}
+	APIKey, ok := apiKeyValue.(string)
+	if !ok || APIKey == "" {
+		return "", fmt.Errorf("Invalid AssemblyAI API key format")
 	}
 	client := aai.NewClient(APIKey)
 
@@ -178,9 +193,13 @@ type r8RunParams struct {
 }
 
 func r8RunWithAudioFile(params r8RunParams) (string, error) {
-	APIKey, found := APIKeys["replicate"]
+	apiKeyValue, found := APIKeys.Load("replicate")
 	if !found {
 		return "", fmt.Errorf("No Replicate API key was provided")
+	}
+	APIKey, ok := apiKeyValue.(string)
+	if !ok || APIKey == "" {
+		return "", fmt.Errorf("Invalid Replicate API key format")
 	}
 	var predictionOutput replicate.PredictionOutput
 	baseDelay := time.Millisecond * 500
