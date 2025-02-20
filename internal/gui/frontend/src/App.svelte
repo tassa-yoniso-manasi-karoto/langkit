@@ -298,7 +298,7 @@
         <div class="flex-1 relative {showLogViewer ? 'w-[55%]' : 'w-full'} transition-all duration-300">
             <div class="h-full flex flex-col">
                 <!-- Scrollable content -->
-                <div class="flex-1 overflow-y-auto pr-4 mask-fade">
+                <div class="flex-1 no-scrollbar overflow-y-auto pr-4 mask-fade">
                     <div class="max-w-2xl mx-auto space-y-6">
                         <MediaInput
                             bind:mediaSource
@@ -381,21 +381,21 @@
 
 <style>
     /* Smooth fade mask for scrollable content */
-    .mask-fade {
-        mask-image: linear-gradient(
-            to bottom,
-            transparent,
-            black 2%,
-            black 98%,
-            transparent
-        );
-        -webkit-mask-image: linear-gradient(
-            to bottom,
-            transparent,
-            black 2%,
-            black 98%,
-            transparent
-        );
+.mask-fade {
+    mask-image: linear-gradient(
+        to bottom,
+        transparent,
+        black 7%,
+        black 93%,
+        transparent
+    );
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent,
+        black 7%,
+        black 93%,
+        transparent
+    );
         scrollbar-gutter: stable;
     }
 
@@ -449,5 +449,13 @@
     :global(.settings-modal.opened) {
         opacity: 1;
         transform: translateY(0);
+    }
+    
+    .no-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;     /* Firefox */
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;             /* Chrome, Safari, Opera */
     }
 </style>
