@@ -1,6 +1,7 @@
 package crash
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -8,16 +9,23 @@ import (
 	"runtime/debug"
 	"sort"
 	"time"
-	"bytes"
 
-	"github.com/klauspost/compress/zip"
-	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
+	"github.com/klauspost/compress/zip"
 	"github.com/rs/zerolog"
-	
+
+	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
-	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
+)
+
+type ReportMode int
+
+const (
+	ModeCrash ReportMode = iota
+	ModeDebug
 )
 
 var log zerolog.Logger
@@ -34,89 +42,128 @@ func init() {
 	log = zerolog.New(writer).With().Timestamp().Logger()
 }
 
-func WriteReport(mainErr error, settings config.Settings, logBuffer bytes.Buffer, isCLI bool) (string, error) {
+func WriteReport(
+	reportMode ReportMode,
+	mainErr error, // may be nil if ModeDebug
+	settings config.Settings,
+	logBuffer bytes.Buffer,
+	isCLI bool,
+) (string, error) {
+
 	startTime := time.Now()
 	dir := GetCrashDir()
 	CleanUpReportsOnDisk(dir)
-	
+
 	timestamp := startTime.Format("20060102_150405")
-	tempPath := filepath.Join(dir, fmt.Sprintf("crash_ZIP_ME_%s.log", timestamp))
-	
-	log.Debug().Msg("creating temp file for crash file")
-	crashFile, err := os.Create(tempPath)
+
+	// Distinguish the prefix + final name
+	var prefix string
+	if reportMode == ModeCrash {
+		prefix = "crash"
+	} else {
+		prefix = "debug"
+	}
+	tempPath := filepath.Join(dir, fmt.Sprintf("%s_ZIP_ME_%s.log", prefix, timestamp))
+
+	log.Debug().Msgf("creating temp file for %s file", prefix)
+	reportFile, err := os.Create(tempPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to create temporary crash file: %w", err)
+		return "", fmt.Errorf("failed to create temporary %s file: %w", prefix, err)
 	}
 	defer func() {
-		crashFile.Close()
-		os.Remove(tempPath)
+		reportFile.Close()
+		os.Remove(tempPath) // we remove the intermediate .log once it's zipped
 	}()
 
-	log.Debug().Msg("starting to write report")
-	if err := writeReport(crashFile, mainErr, settings, logBuffer, isCLI); err != nil {
-		return "", fmt.Errorf("failed to write crash report: %w", err)
+	log.Debug().Msg("starting to write report content")
+	if err := writeReportContent(reportMode, reportFile, mainErr, settings, logBuffer, isCLI); err != nil {
+		return "", fmt.Errorf("failed to write %s report: %w", prefix, err)
 	}
 
 	genTime := time.Since(startTime)
-	finalPath := filepath.Join(dir, fmt.Sprintf("crash_%s_gen%s.txt.zip", 
+	finalPath := filepath.Join(dir, fmt.Sprintf("%s_%s_gen%s.txt.zip",
+		prefix,
 		timestamp,
 		formatDuration(genTime),
 	))
 
 	log.Debug().Msg("starting to compress report")
 	if err := compressReport(tempPath, finalPath); err != nil {
-		return "", fmt.Errorf("failed to compress crash report: %w", err)
+		return "", fmt.Errorf("failed to compress %s report: %w", prefix, err)
 	}
 	log.Debug().Msg("compressing report done")
 	return finalPath, nil
 }
 
-func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer bytes.Buffer, isCLI bool) error {
-	log.Debug().Msg("writing Header")
-	fmt.Fprintln(w, "LANGKIT CRASH REPORT")
+// writeReportContent writes either the crash or debug data into an uncompressed file (which will
+// later be zipped).
+func writeReportContent(
+	mode ReportMode,
+	w io.Writer,
+	mainErr error,      // might be nil for debug
+	settings config.Settings,
+	logBuffer bytes.Buffer,
+	isCLI bool,
+) error {
+
+	// 1. Header
+	if mode == ModeCrash {
+		fmt.Fprintln(w, "LANGKIT CRASH REPORT")
+	} else {
+		fmt.Fprintln(w, "LANGKIT DEBUG REPORT")
+	}
 	fmt.Fprintln(w, "==================")
-	fmt.Fprintf(w, "This file has syntax highlighting through ANSI escape codes and is best viewed in a terminal using 'cat'.\n")
+	fmt.Fprintln(w, "This file has syntax highlighting through ANSI escape codes and is best viewed")
+	fmt.Fprintln(w, "in a terminal using 'cat'.\n")
 	fmt.Fprintf(w, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
 
+	// 2. Basic app info
 	fmt.Fprintln(w, "Langkit:")
 	fmt.Fprintln(w, version.GetInfo().String())
-	
-	fmt.Fprint(w, "Interface mode: ")
+	fmt.Fprintf(w, "Interface mode: ")
 	if isCLI {
 		fmt.Fprintln(w, "CLI")
 	} else {
-		fmt.Fprintln(w, "GUI Wails")
+		fmt.Fprintln(w, "GUI / Wails")
 	}
 	fmt.Fprint(w, "\n\n")
 
-	
-	log.Debug().Msg("writing ERROR DETAILS")
-	fmt.Fprintln(w, "ERROR DETAILS")
-	fmt.Fprintln(w, "============")
-	fmt.Fprintf(w, "Error: %v\n", mainErr)
-	if err, ok := mainErr.(interface{ Unwrap() error }); ok {
-		fmt.Fprintf(w, "Unwrapped Error Chain:\n")
-		for err := err.Unwrap(); err != nil; {
-			if unwrappable, ok := err.(interface{ Unwrap() error }); ok {
-				fmt.Fprintf(w, "  → %v\n", err)
-				err = unwrappable.Unwrap()
-			} else {
-				fmt.Fprintf(w, "  → %v\n", err)
-				break
+	// 3. Error details (only if crash mode and mainErr != nil)
+	if mode == ModeCrash {
+		fmt.Fprintln(w, "ERROR DETAILS")
+		fmt.Fprintln(w, "============")
+		if mainErr == nil {
+			fmt.Fprintln(w, "WARNING: No mainErr provided, but mode is crash.")
+		} else {
+			fmt.Fprintf(w, "Error: %v\n", mainErr)
+			if unwrappable, ok := mainErr.(interface{ Unwrap() error }); ok {
+				fmt.Fprintf(w, "Unwrapped Error Chain:\n")
+				err := unwrappable.Unwrap()
+				for err != nil {
+					fmt.Fprintf(w, "  → %v\n", err)
+					if next, ok := err.(interface{ Unwrap() error }); ok {
+						err = next.Unwrap()
+					} else {
+						err = nil
+					}
+				}
 			}
 		}
+		fmt.Fprint(w, "\n")
+
+		// 4. Stack trace
+		fmt.Fprintln(w, "STACK TRACE")
+		fmt.Fprintln(w, "===========")
+		fmt.Fprintf(w, "%s\n\n", string(debug.Stack()))
+	} else {
+		// Debug mode: no crash details
+		fmt.Fprintln(w, "NO ERROR DETAILS: user-triggered debug report.\n")
 	}
-	fmt.Fprint(w, "\n")
 
-	log.Debug().Msg("writing STACK TRACE")
-	fmt.Fprintln(w, "STACK TRACE")
-	fmt.Fprintln(w, "===========")
-	fmt.Fprintf(w, "%s\n\n", string(debug.Stack()))
-
-	// Write execution context from reporter
+	// 5. Crash reporter scopes (if any)
 	if Reporter != nil {
 		globalScope, execScope := Reporter.GetScopes()
-		
+
 		fmt.Fprintln(w, "GLOBAL SCOPE")
 		fmt.Fprintln(w, "============")
 		fmt.Fprintf(w, "Program Start Time: %s\n", globalScope.StartTime.Format(time.RFC3339))
@@ -134,22 +181,22 @@ func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer
 			fmt.Fprint(w, "\n\n")
 		}
 
-		// Write execution snapshots
+		// 6. Execution snapshots
 		fmt.Fprintf(w, "%s\n", Reporter.GetSnapshotsString())
 	}
 
-	log.Debug().Msg("writing RUNTIME INFO")
+	// 7. System / runtime info
 	fmt.Fprintln(w, "RUNTIME INFORMATION")
-	fmt.Fprint(w, "==================\n\n")
-	fmt.Fprint(w, NewRuntimeInfo().String() + "\n\n")
+	fmt.Fprintln(w, "==================\n")
+	fmt.Fprintln(w, NewRuntimeInfo().String())
 
-	log.Debug().Msg("writing ENVIRONMENT")
+	// 8. Environment
 	fmt.Fprintln(w, "ENVIRONMENT")
 	fmt.Fprintln(w, "===========")
 	printEnvironment(w)
 	fmt.Fprint(w, "\n")
 
-	log.Debug().Msg("writing SETTINGS")
+	// 9. Settings (mask API keys)
 	fmt.Fprintln(w, "SETTINGS")
 	fmt.Fprintln(w, "========")
 	sanitizedSettings := settings
@@ -158,37 +205,36 @@ func writeReport(w io.Writer, mainErr error, settings config.Settings, logBuffer
 	sanitizedSettings.APIKeys.ElevenLabs = MaskAPIKey(settings.APIKeys.ElevenLabs)
 	fmt.Fprintln(w, pp.Sprint(sanitizedSettings), "\n")
 
-	log.Debug().Msg("writing LOG HISTORY")
+	// 10. Log history
 	fmt.Fprintln(w, "LOG HISTORY")
 	fmt.Fprintln(w, "===========")
 	writeLogs(w, &logBuffer)
 
-	log.Debug().Msg("writing DOCKER LOG HISTORY")
+	// 11. Docker log history
 	fmt.Fprintln(w, "DOCKER LOG HISTORY")
 	fmt.Fprintln(w, "==================")
 	writeLogs(w, &dockerutil.DockerLogBuffer)
 
-	log.Debug().Msg("writing CONNECTIVITY STATUS")
-	// Takes the longest, keep it last, and in some scenarios the DNS still hangs the program forever
+	// 12. Connectivity status
 	fmt.Fprintln(w, "CONNECTIVITY STATUS")
 	fmt.Fprintln(w, "==================")
 	// Not sure if some AI API services have georestrictions but when in doubt
 	if country, err := GetUserCountry(); err == nil {
 		fmt.Fprintln(w, "Requests originate from:", country)
 	}
-	log.Trace().Msg("Country OK")
 	checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
 	checkEndpointConnectivity(w, "https://www.assemblyai.com/", "AssemblyAI")
 	checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
 	DockerNslookupCheck(w, "example.com")
 	fmt.Fprint(w, "\n")
-	
-	
+
 	fmt.Fprintln(w, "==================")
 	fmt.Fprintln(w, "END OF REPORT")
 	fmt.Fprintln(w, "==================")
+
 	return nil
 }
+	
 
 func compressReport(sourcePath, destPath string) error {
 	zipFile, err := os.Create(destPath)

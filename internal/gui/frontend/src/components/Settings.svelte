@@ -1,8 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { slide, fade } from 'svelte/transition';
-    import { settings, showSettings } from '../lib/stores.ts';
+    import { settings, showSettings } from '../lib/stores';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
+    import { ExportDebugReport } from '../../wailsjs/go/gui/App';
 
     export let onClose: () => void;
 
@@ -19,7 +20,9 @@
         },
         targetLanguage: '',
         nativeLanguages: '',
-        enableGlow: true
+        enableGlow: true,
+        showLogViewerByDefault: false,
+        maxLogEntries: 10000
     };
 
     let targetLangValid = false;
@@ -28,8 +31,24 @@
     let nativeLangError = '';
     let isValid = true;
 
+    // Local state for debug-export UI
+    let isExportingDebug = false;
+    let exportSuccess = false;
+    let exportError = '';
+
+    /*
+      We define a reactive variable "exportGlowClass" that is set to:
+        - "glow-success" if export succeeded,
+        - "glow-error" if export failed,
+        - "glow-default" otherwise.
+    */
+    $: exportGlowClass = exportSuccess
+        ? 'glow-success'
+        : exportError
+            ? 'glow-error'
+            : 'glow-default';
+
     async function validateLanguages() {
-        // Validate target language
         if (currentSettings.targetLanguage) {
             const targetResponse = await ValidateLanguageTag(currentSettings.targetLanguage, true);
             targetLangValid = targetResponse.isValid;
@@ -39,7 +58,6 @@
             targetLangError = '';
         }
 
-        // Validate native languages
         if (currentSettings.nativeLanguages) {
             const nativeResponse = await ValidateLanguageTag(currentSettings.nativeLanguages, false);
             nativeLangValid = nativeResponse.isValid;
@@ -49,24 +67,37 @@
             nativeLangError = '';
         }
 
-        // Update overall validity
         isValid = (!currentSettings.targetLanguage || targetLangValid) &&
-                 (!currentSettings.nativeLanguages || nativeLangValid);
+                  (!currentSettings.nativeLanguages || nativeLangValid);
     }
 
     async function saveSettings() {
         await validateLanguages();
         if (!isValid) return;
-        
         try {
             await window.go.gui.App.SaveSettings(currentSettings);
             settings.set(currentSettings);
             onClose();
-            window.dispatchEvent(new CustomEvent('settingsUpdated', { 
-                detail: currentSettings 
+            window.dispatchEvent(new CustomEvent('settingsUpdated', {
+                detail: currentSettings
             }));
         } catch (error) {
             console.error('Failed to save settings:', error);
+        }
+    }
+
+    async function exportDebugReport() {
+        isExportingDebug = true;
+        exportSuccess = false;
+        exportError = '';
+        try {
+            await ExportDebugReport();
+            exportSuccess = true;
+        } catch (err) {
+            console.error('Failed to export debug report:', err);
+            exportError = err?.message || 'Unknown error occurred.';
+        } finally {
+            isExportingDebug = false;
         }
     }
 
@@ -85,15 +116,13 @@
         }
     });
 
-    // Watch for changes in language inputs
     $: {
-        if (currentSettings.targetLanguage !== undefined || 
+        if (currentSettings.targetLanguage !== undefined ||
             currentSettings.nativeLanguages !== undefined) {
             validateLanguages();
         }
     }
 
-    // Subscribe to settings store
     settings.subscribe(value => {
         if (value) {
             currentSettings = {
@@ -105,16 +134,12 @@
     });
 </script>
 
-
 {#if $showSettings}
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto"
-         transition:fade={{ duration: 200 }}
-    >
-        
+         transition:fade={{ duration: 200 }}>
         <div class="container mx-auto max-w-2xl p-4 min-h-screen flex items-center"
              transition:slide={{ duration: 300 }}
              on:click|stopPropagation>
-            
             <div class="bg-[#252525] rounded-xl shadow-2xl border border-white/10 w-full">
                 <!-- Header -->
                 <div class="p-6 border-b border-white/10">
@@ -123,13 +148,11 @@
                             <span class="material-icons text-accent/70">settings</span>
                             Settings
                         </h2>
-                    <button 
-                        class="w-10 h-10 flex items-center justify-center rounded-full
-                               transition-colors duration-200 hover:bg-red-500/90"
-                        on:click={onClose}
-                    >
-                        <span class="material-icons">close</span>
-                    </button>
+                        <button class="w-10 h-10 flex items-center justify-center rounded-full
+                                       transition-colors duration-200 hover:bg-red-500/90"
+                                on:click={onClose}>
+                            <span class="material-icons">close</span>
+                        </button>
                     </div>
                 </div>
                 
@@ -141,15 +164,14 @@
                             <span class="material-icons text-accent/70">translate</span>
                             Default Language Settings
                         </h3>
-                        
                         <div class="grid grid-cols-2 gap-6">
-                            <!-- Target Languages -->
+                            <!-- Target Language -->
                             <div class="space-y-2">
                                 <label class="text-sm text-gray-300 font-medium">
                                     Target Language
                                 </label>
                                 <div class="relative">
-                                   <input
+                                    <input
                                         type="text"
                                         bind:value={currentSettings.targetLanguage}
                                         maxlength="9"
@@ -160,13 +182,13 @@
                                     />
                                     {#if targetLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                   material-icons text-green-300 text-sm">
+                                                     material-icons text-green-300 text-sm">
                                             check_circle
                                         </span>
                                     {:else if targetLangError}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                   material-icons text-red-500 text-sm"
-                                                   title={targetLangError}>
+                                                     material-icons text-red-500 text-sm"
+                                              title={targetLangError}>
                                             error
                                         </span>
                                     {/if}
@@ -189,13 +211,13 @@
                                     />
                                     {#if nativeLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                   material-icons text-green-300 text-sm">
+                                                     material-icons text-green-300 text-sm">
                                             check_circle
                                         </span>
                                     {:else if nativeLangError}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                   material-icons text-red-500 text-sm"
-                                                   title={nativeLangError}>
+                                                     material-icons text-red-500 text-sm"
+                                              title={nativeLangError}>
                                             error
                                         </span>
                                     {/if}
@@ -273,7 +295,6 @@
                                     Enable glow effects (disable if you experience performance issues)
                                 </span>
                             </label>
-                            
                             <label class="flex items-center gap-3 cursor-pointer group">
                                 <input
                                     type="checkbox"
@@ -284,9 +305,10 @@
                                     Show log viewer by default
                                 </span>
                             </label>
-
                             <div class="space-y-2">
-                                <label class="text-sm text-left block text-gray-300">Maximum log entries:</label>
+                                <label class="text-sm text-left block text-gray-300">
+                                    Maximum log entries:
+                                </label>
                                 <input
                                     type="number"
                                     bind:value={currentSettings.maxLogEntries}
@@ -300,21 +322,56 @@
                             </div>
                         </div>
                     </section>
+
+                    <!-- Diagnostic / Debug Export Section -->
+                    <section class="space-y-6">
+                        <h3 class="text-lg font-medium text-accent/80 flex items-center gap-2">
+                            <span class="material-icons text-accent/70">bug_report</span>
+                            Diagnostic Tools
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center gap-4">
+                                <button
+                                    class="px-6 py-3 text-gray-300 rounded-lg font-medium bg-sky-dark/50 transition-all duration-200 focus:outline-none"
+                                    on:click={exportDebugReport}
+                                    disabled={isExportingDebug}
+                                    class:glow-success={exportGlowClass==='glow-success'}
+                                    class:glow-error={exportGlowClass==='glow-error'}
+                                    class:glow-default={exportGlowClass==='glow-default'}
+                                >
+                                    Export Debug Report
+                                </button>
+                                {#if isExportingDebug}
+                                    <span class="inline-flex items-center gap-1 text-gray-300 text-sm">
+                                        <span class="material-icons animate-spin">autorenew</span>
+                                        Creating debug report, please wait...
+                                    </span>
+                                {:else if exportSuccess}
+                                    <span class="inline-flex items-center gap-1 text-green-400 text-sm">
+                                        <span class="material-icons">check_circle</span>
+                                        Debug report successfully saved!
+                                    </span>
+                                {:else if exportError}
+                                    <span class="inline-flex items-center gap-1 text-red-400 text-sm">
+                                        <span class="material-icons">error</span>
+                                        {exportError}
+                                    </span>
+                                {/if}
+                            </div>
+                        </div>
+                    </section>
                 </div>
-                
+
                 <!-- Footer -->
                 <div class="p-6 border-t border-white/10 flex justify-end gap-3">
                     <button
-                        class="px-4 py-2 text-white/70 hover:text-white hover:bg-red-500/90
-                               transition-colors duration-200 rounded-lg transition-all duration-200"
+                        class="px-4 py-2 text-white/70 hover:text-white hover:bg-red-500/90 transition-colors duration-200 rounded-lg"
                         on:click={onClose}
                     >
                         Cancel
                     </button>
                     <button
-                        class="px-6 py-2 bg-accent text-sky-dark rounded-lg font-medium
-                               transition-all duration-200 hover:bg-opacity-80
-                               disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="px-6 py-2 bg-accent text-sky-dark rounded-lg font-medium transition-all duration-200 hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
                         on:click={saveSettings}
                         disabled={!isValid}
                     >
@@ -327,29 +384,72 @@
 {/if}
 
 <style>
-    /* Add smooth scrolling */
+    /* Smooth scrolling for overflow */
     .overflow-y-auto {
         scrollbar-gutter: stable;
         scroll-behavior: smooth;
     }
-
-    /* Customize scrollbar */
     .overflow-y-auto::-webkit-scrollbar {
         width: 8px;
     }
-
     .overflow-y-auto::-webkit-scrollbar-track {
         background: transparent;
     }
-
     .overflow-y-auto::-webkit-scrollbar-thumb {
         background-color: rgba(255, 255, 255, 0.1);
         border-radius: 20px;
         border: 3px solid transparent;
         background-clip: content-box;
     }
-
     .overflow-y-auto::-webkit-scrollbar-thumb:hover {
         background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /*
+      Glow classes:
+      - .glow-default: no glow, violet border
+      - .glow-success: animated green glow gradient
+      - .glow-error: animated red glow gradient
+    */
+
+    :global(.glow-default) {
+        border: 1px solid #9f6ef7;
+        transition: box-shadow 0.6s ease-in-out, border-color 0.6s ease-in-out;
+    }
+
+    @keyframes glowSuccess {
+        0% {
+            box-shadow: none;
+            border-color: #9f6ef7;
+        }
+        100% {
+            border-color: #22c55e;
+            box-shadow:
+                0 0 8px 2px rgba(34, 197, 94, 0.4),
+                0 0 16px 4px rgba(34, 197, 94, 0.2),
+                0 0 24px 6px rgba(34, 197, 94, 0.15);
+        }
+    }
+
+    :global(.glow-success) {
+        animation: glowSuccess 1s forwards;
+    }
+
+    @keyframes glowError {
+        0% {
+            box-shadow: none;
+            border-color: #9f6ef7;
+        }
+        100% {
+            border-color: #ef4444;
+            box-shadow:
+                0 0 8px 2px rgba(239, 68, 68, 0.4),
+                0 0 16px 4px rgba(239, 68, 68, 0.2),
+                0 0 24px 6px rgba(239, 68, 68, 0.1);
+        }
+    }
+
+    :global(.glow-error) {
+        animation: glowError 1s forwards;
     }
 </style>

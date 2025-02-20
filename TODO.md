@@ -1,13 +1,8 @@
 
-   - Add tests
-   
-- UI
-  - "Copy debug information" in settings
-   
+- Add tests
+- UI: add progress bar
 - implement CloseAll()
-
-- crash reports:
-  - add snapshots of tsk throughout code
+- crash reports add snapshots of tsk throughout code
 
 
 translitkit
@@ -18,13 +13,8 @@ transliteration:
    - selective translit UI checkbox
 
    - user-defined API retry max
-   - add progress bar
    
-   
-   - Add documentation
    - fix newlines in builtin documentation
-
-   - use lower bitrate opus with DRED & LBRR that were just standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
 
 *in progress:*
 - add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
@@ -44,17 +34,17 @@ https://go.libhunt.com/
 	
 	Transliteration needed too: Arabic, Cantonese
 - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
-- for bulk processing: leverage WithLevel() to implement --less-lethal
 - (MUST TEST:) insanely-fast-whisper
 
 *later:*
 
 
-- Make autosub local-independent: en match if en-US, no match if en-US and en-IN. Add a --stric
 - with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 
 *might:*
 
+- Make autosub local-independent: en match if en-US, no match if en-US and en-IN. Add a --stric
 - use Enhanced voice audiotrack as basis for audio clips
+- use lower bitrate opus with DRED & LBRR that were just standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
 - lossless AVIF extraction from AV1 (HQ but worst than JPEG in size)
 

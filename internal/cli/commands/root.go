@@ -55,7 +55,7 @@ func exitOnError(tsk *core.Task, mainErr error) {
 		fmt.Printf("Warning: Failed to load settings: %v\n", err)
 	}
 	
-	crashPath, err := crash.WriteReport(mainErr, settings, tsk.Handler.GetLogBuffer(), true)
+	crashPath, err := crash.WriteReport(crash.ModeCrash, mainErr, settings, tsk.Handler.GetLogBuffer(), true)
 	if err != nil {
 		color.Redf("failed to write crash report: %w", err)
 	}

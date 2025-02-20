@@ -21,8 +21,6 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
 
-
-
 func (a *App) GetVersion() version.Info {
 	return version.GetInfo()
 }

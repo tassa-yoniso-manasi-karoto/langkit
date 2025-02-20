@@ -3,13 +3,81 @@ package gui
 import (
 	"fmt"
 	"os"
+	"io"
 	
 	"github.com/ncruces/zenity"
 	"github.com/gookit/color"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
+
+func (a *App) ExportDebugReport() error {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		// Continue with empty settings if loading fails
+		fmt.Printf("Warning: Failed to load settings: %v\n", err)
+	}
+	zipPath, err := crash.WriteReport(
+		crash.ModeDebug,
+		nil,
+		settings,
+		handler.GetLogBuffer(),
+		false,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Prompt user for a place to save the file
+	savePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "Save Debug Report",
+		DefaultFilename: "langkit_debug_report.zip",
+		Filters: []runtime.FileFilter{
+			{
+				DisplayName: "Zip Archive",
+				Pattern:     "*.zip",
+			},
+		},
+	})
+	if err != nil || savePath == "" {
+		// user canceled or error
+		return err
+	}
+
+	// Copy the file from `zipPath` to `savePath`
+	err = copyFile(zipPath, savePath)
+	if err != nil {
+		return err
+	}
+
+	// Possibly let them know it’s done
+	runtime.EventsEmit(a.ctx, "debugReportExported", savePath)
+	return nil
+}
+
+// Simple copyFile utility
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
+}
+
 
 func exitOnError(mainErr error) {
 	// Instead of logging the error (which might not be visible to a GUI user),
@@ -22,7 +90,7 @@ func exitOnError(mainErr error) {
 		fmt.Printf("Warning: Failed to load settings: %v\n", err)
 	}
 	
-	_, err = crash.WriteReport(mainErr, settings, handler.GetLogBuffer(), false)
+	_, err = crash.WriteReport(crash.ModeCrash, mainErr, settings, handler.GetLogBuffer(), false)
 	if err != nil {
 		color.Redf("failed to write crash report: %w", err)
 	}
