@@ -101,7 +101,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			// 		Operation:   string(task.Mode),
 			// 	})
 			
-			if procErr = tsk.Execute(ctx); procErr.Err != nil {
+			if procErr = tsk.Execute(ctx); procErr != nil {
 				color.Redf("Routing: behavior %s after error: %v",
 					procErr.Behavior, procErr.Err)
 				if procErr.Behavior == AbortTask {

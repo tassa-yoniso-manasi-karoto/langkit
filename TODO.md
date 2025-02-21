@@ -1,5 +1,4 @@
 
-- investigate panic
 - ctx canceled in Whisper???
 
 
