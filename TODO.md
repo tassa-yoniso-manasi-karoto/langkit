@@ -6,7 +6,6 @@ transliteration:
 
 - UI: 
   - add progress bar
-  - do something about whitescreen at startup
   - embed the fonts DM Sans/Mono
 
 

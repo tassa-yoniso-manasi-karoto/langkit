@@ -25,10 +25,8 @@ func Run() {
 			exitOnError(fmt.Errorf("panic: %v", r))
 		}
 	}()
-	// Create an instance of the app structure
 	app := NewApp()
 
-	// Create application with options
 	err := wails.Run(&options.App{
 		Title:             "langkit",
 		/*Width:             1024,
@@ -42,7 +40,7 @@ func Run() {
 		Frameless:         false,
 		StartHidden:       false,
 		HideWindowOnClose: false,
-		BackgroundColour:  &options.RGBA{R: 255, G: 255, B: 255, A: 255},
+		BackgroundColour:  &options.RGBA{R: 26, G: 26, B: 26, A: 255},
 		AssetServer:       &assetserver.Options{
 			Assets: assets,
 		},
@@ -62,9 +60,10 @@ func Run() {
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
 			DisableWindowIcon:    false,
-			// DisableFramelessWindowDecorations: false,
-			WebviewUserDataPath: "",
-			ZoomFactor: 1.0,
+			BackdropType:         windows.Auto,
+			Theme:	              windows.Dark,
+			WebviewUserDataPath:  "",
+			ZoomFactor:           1.0,
 		},
 		// Mac platform specific options
 		Mac: &mac.Options{
@@ -72,7 +71,7 @@ func Run() {
 				TitlebarAppearsTransparent: true,
 				HideTitle:                  false,
 				HideTitleBar:               false,
-				FullSizeContent:            false,
+				FullSizeContent:            true,
 				UseToolbar:                 false,
 				HideToolbarSeparator:       true,
 			},
