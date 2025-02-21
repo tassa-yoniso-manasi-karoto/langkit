@@ -91,13 +91,13 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 			Msg("No language flag passed. Attempted to guess language from filename.")
 	}
 	var outStream *os.File
-	switch tsk.Mode { // TODO remove when I rewrite Execute with proper functions
-	case Enhance, Translit:
-		goto ResumeEnhance
-	}
 	tsk.TargSubs, err = subs.OpenFile(tsk.TargSubFile, false)
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortTask, "can't read foreign subtitles")
+	}
+	switch tsk.Mode { // TODO remove when I rewrite Execute with proper functions
+	case Enhance, Translit:
+		goto ResumeEnhance
 	}
 	// if not in bulk mode then it wasn't assigned yet
 	if totalItems == 0 {
