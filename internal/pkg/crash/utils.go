@@ -15,6 +15,7 @@ import (
 	"context"
 	nurl "net/url"
 	"crypto/tls"
+	"slices"
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -414,10 +415,7 @@ func FormatDirectoryListing(w io.Writer, dirPath string) error {
 		return strings.ToLower(dirEntries[i].name) < strings.ToLower(dirEntries[j].name)
 	})
 
-	fmt.Fprintln(w, absPath)
-	if _, err := fmt.Fprintf(w, "Scanned at: %s\n\n", time.Now().Format("2006-01-02 15:04:05 MST")); err != nil {
-		return err
-	}
+	fmt.Fprintln(w, "Path: " +absPath)
 
 	// Create a table for the directory entries without borders and without the "Type" column.
 	var tableBuffer bytes.Buffer
@@ -437,7 +435,17 @@ func FormatDirectoryListing(w io.Writer, dirPath string) error {
 
 		size := humanize.Bytes(uint64(entry.size))
 		if entry.isDir {
-			size = "<DIR>"
+			folderColor := color.HEXStyle("ebd3ad")
+			size = folderColor.Sprint("<DIR>")
+			name = folderColor.Sprint(name)
+		} else {
+			ext := strings.ToLower(filepath.Ext(entry.name))
+			if isVideoFile(ext) {
+				name = color.Blue.Sprint(name)
+			}
+			if isSubtitleFile(ext) {
+				name = color.HEXStyle("90EE90").Sprint(name)
+			}
 		}
 
 		table.Append([]string{
@@ -536,6 +544,22 @@ func writeLogs(w io.Writer, logBuffer *bytes.Buffer) error {
 }
 
 
+func isVideoFile(ext string) bool {
+	videoExts := []string{
+		".mp4", ".mkv", ".avi", ".mov", 
+		".wmv", ".flv", ".webm", ".m4v",
+		".mpg", ".mpeg", ".3gp", ".ts",
+	}
+	return slices.Contains(videoExts, ext)
+}
+
+func isSubtitleFile(ext string) bool {
+	subtitleExts := []string{
+		".srt", ".sub", ".sbv", ".ass",
+		".ssa", ".vtt", ".ttml",
+	}
+	return slices.Contains(subtitleExts, ext)
+}
 
 func placeholder5435() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")

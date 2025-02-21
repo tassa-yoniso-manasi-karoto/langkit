@@ -118,7 +118,6 @@ func writeReportContent(
 	fmt.Fprintf(w, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
 
 	// 2. Basic app info
-	fmt.Fprintln(w, "Langkit:")
 	fmt.Fprintln(w, version.GetInfo().String())
 	fmt.Fprintf(w, "Interface mode: ")
 	if isCLI {
@@ -156,8 +155,7 @@ func writeReportContent(
 		fmt.Fprintln(w, "===========")
 		fmt.Fprintf(w, "%s\n\n", string(debug.Stack()))
 	} else {
-		// Debug mode: no crash details
-		fmt.Fprintln(w, "NO ERROR DETAILS: user-triggered debug report.\n")
+		fmt.Fprintln(w, "User-triggered debug report.\n")
 	}
 
 	// 5. Crash reporter scopes (if any)
@@ -172,11 +170,13 @@ func writeReportContent(
 		fmt.Fprintf(w, "MediaInfo Version: %s\n\n", globalScope.MediaInfoVer)
 
 		if execScope.MediaInfoDump != "" {
-			fmt.Fprintln(w, "MEDIA INFORMATION")
-			fmt.Fprintln(w, "=================")
+			fmt.Fprintln(w, "CURRENT MEDIA INFORMATION")
+			fmt.Fprintln(w, "=========================")
 			fmt.Fprintf(w, "Processing Start Time: %s\n", execScope.StartTime.Format(time.RFC3339))
-			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n", execScope.MediaInfoDump)
-			fmt.Fprint(w, "Directory of current media: ")
+			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n\n", execScope.MediaInfoDump)
+			
+			fmt.Fprintln(w, "PARENT DIR OF MEDIA FILE")
+			fmt.Fprintln(w, "========================")
 			FormatDirectoryListing(w, execScope.ParentDirPath)
 			fmt.Fprint(w, "\n\n")
 		}
