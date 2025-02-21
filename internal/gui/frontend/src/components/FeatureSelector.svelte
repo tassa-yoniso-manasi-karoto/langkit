@@ -229,13 +229,13 @@
     };
     
     const optionHovertips = {
-        trackOverride: "In case the audiotracks of your media files don't have proper languages tags, set the number/index of the audio track to use as basis for processing here. It is still a good idea to set the language tag for STT, romanization... etc.",
+        trackOverride: "In case the audiotracks of your media files don't have proper languages tags, set the number/index of the audio track to use as basis for processing here. \n\n It is still a good idea to set the language tag for STT, romanization... etc.",
         dubtitles: {
-            initialPrompt: "Whisper works best when provided with an initial prompt containing exact names and terms from your audio. List character names with correct spellings (e.g.,'Eren Yeager','Mikasa Ackerman'), unique terminology (e.g.,'ODM gear') and any words the model might struggle with. Limit your prompt to 30-50 key terms for optimal results. Prioritize words that appear frequently in your audio and those with unusual pronunciations or spellings. Use comma separation rather than complete sentences. Avoid adding plot information or dialogue patterns - stick to names and terminology only. If transcribing series content like podcasts or shows, add location names and recurring concepts that define the content's universe. Maximum length is 224 tokens (approx. 850 characters)."    
+            initialPrompt: "Whisper works best when provided with an initial prompt containing exact names and terms from your audio.\n\n 🡆 List character names with correct spellings (e.g.,'Eren Yeager','Mikasa Ackerman'), unique terminology (e.g.,'ODM gear'), location names, recurring concepts that define the content's universe and any words the model might struggle with.\n 🡆 Limit your prompt to 30-50 key terms for optimal results. Prioritize words that appear frequently in your audio and those with unusual pronunciations or spellings.\n 🡆 Use comma separation rather than complete sentences. Avoid adding plot information or dialogue patterns - stick to names and terminology only.\n\n Maximum length is 224 tokens (approx. 850 characters)."    
         },
         subtitleRomanization: {
-            browserAccessURL: "URL to programmatically control a Chromium-based browser through Devtools. Required for providers that need web scraping capabilities",
-            selectiveTransliteration: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana",
+            browserAccessURL: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
+            selectiveTransliteration: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana.",
             dockerRecreate: "Use this if the previous run failed or if you're experiencing issues."
         }
     };
@@ -577,12 +577,12 @@
                   audioTrackIndex = audioTrackIndex === 0 ? 1 : audioTrackIndex;
               }
             }}
-            title="Toggle audio track selection"
+            title="Toggle method used to select audio track"
           >
             <span class="transform transition-transform duration-1000 text-accent/70
                          hover:text-accent text-2xl leading-none"
                   class:rotate-180={showAudioTrackIndex}>
-              ◀
+              🡸
             </span>
           </button>
 

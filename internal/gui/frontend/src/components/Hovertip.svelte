@@ -59,9 +59,12 @@
 {#if visible}
 	<Portal target="body">
 		<div bind:this={tooltip} style={tooltipStyle} class="fixed z-50">
-			<div class="bg-gray-800 wtext-white text-xs rounded-lg p-2 max-w-64 shadow-lg relative">
+			<div class="bg-gray-800 text-white text-xs rounded-lg p-2 max-w-64 shadow-lg relative">
 				{#if message}
-					{message}
+					<!-- Use Tailwind's whitespace-pre-line to respect newline characters -->
+					<div class="whitespace-pre-line">
+						{message}
+					</div>
 				{:else}
 					<slot />
 				{/if}

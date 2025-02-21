@@ -11,7 +11,6 @@ transliteration:
 
 - UI: 
   - add progress bar (
-  - newline support in hovertips
 
 
 
