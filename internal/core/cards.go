@@ -39,6 +39,8 @@ func (tsk *Task) audioBase() string {
 	return base
 }
 
+
+// TODO Wait for Claude 4 release to break large functions and write some tests.
 func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	var err error // compiler shenanigans FIXME rm later
 	
@@ -90,10 +92,8 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	}
 	var outStream *os.File
 	switch tsk.Mode { // TODO remove when I rewrite Execute with proper functions
-	case Enhance:
+	case Enhance, Translit:
 		goto ResumeEnhance
-	case Translit:
-		goto ResumeTranslit
 	}
 	tsk.TargSubs, err = subs.OpenFile(tsk.TargSubFile, false)
 	if err != nil {
@@ -143,17 +143,18 @@ ResumeEnhance:
 		tsk.Handler.ZeroLog().Info().Msg("Detected original lang:"+ tsk.OriginalLang)
 	}*/
 
-	for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
-		if err := tsk.ChooseAudio(fn); err != nil {
-			return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
+	if tsk.Mode != Translit {
+		for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
+			if err := tsk.ChooseAudio(fn); err != nil {
+				return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
+			}
 		}
+		tsk.Handler.ZeroLog().Debug().
+			Int("UseAudiotrack", tsk.UseAudiotrack).
+			Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
+			Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
 	}
-
-	tsk.Handler.ZeroLog().Debug().
-		Int("UseAudiotrack", tsk.UseAudiotrack).
-		Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
-		Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
-
+	
 	if tsk.Mode != Enhance {
 		if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
 			tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
@@ -164,7 +165,7 @@ ResumeEnhance:
 	}
 	// FIXME this warning won't occur if the sub file are passed as arg
 	// FIXME HANDLE GUI
-	if tsk.IsCCorDubs && tsk.STT != "" {
+	if tsk.IsCCorDubs && tsk.STT != "" && tsk.Handler.IsCLI() {
 		tsk.Handler.ZeroLog().Warn().Msg("Speech-to-Text is requested but closed captions or dubtitles are available for the target language," +
 			" which are usually reliable transcriptions of dubbings.")
 		if !userConfirmed() {
@@ -177,7 +178,6 @@ ResumeEnhance:
 		}
 	}
 	
-ResumeTranslit:
 	// subs is the reference subtitle/dubtitle file to use when transliterating
 	subs := tsk.TargSubFile
 	if tsk.STT != "" && tsk.WantDubs {
