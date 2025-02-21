@@ -22,6 +22,7 @@
         nativeLanguages: '',
         enableGlow: true,
         showLogViewerByDefault: false,
+        maxAPIRetries: 10,
         maxLogEntries: 10000
     };
 
@@ -176,6 +177,7 @@
                                         bind:value={currentSettings.targetLanguage}
                                         maxlength="9"
                                         class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2.5
+                                               hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
                                                focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
                                                transition-all duration-200 placeholder:text-white/30"
                                         placeholder="e.g. es, yue or pt-BR"
@@ -205,6 +207,7 @@
                                         type="text"
                                         bind:value={currentSettings.nativeLanguages}
                                         class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2.5
+                                               hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
                                                focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
                                                transition-all duration-200 placeholder:text-white/30"
                                         placeholder="e.g. en, fr, es"
@@ -238,6 +241,7 @@
                                     type="password"
                                     bind:value={currentSettings.apiKeys.replicate}
                                     class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg pl-[156px] pr-3 py-2
+                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30 tracking-wider text-lg
                                            focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
                                            transition-all duration-200"
                                 />
@@ -252,6 +256,7 @@
                                     type="password"
                                     bind:value={currentSettings.apiKeys.assemblyAI}
                                     class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg pl-[156px] pr-3 py-2
+                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30 tracking-wider text-lg
                                            focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
                                            transition-all duration-200"
                                 />
@@ -266,6 +271,7 @@
                                     type="password"
                                     bind:value={currentSettings.apiKeys.elevenLabs}
                                     class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg pl-[156px] pr-3 py-2
+                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30 tracking-wider text-lg
                                            focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
                                            transition-all duration-200"
                                 />
@@ -275,6 +281,20 @@
                                     Eleven Labs
                                 </span>
                             </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <label class="text-sm text-gray-300 whitespace-nowrap">
+                                Maximum API retries:
+                            </label>
+                            <input
+                                type="number"
+                                bind:value={currentSettings.maxAPIRetries}
+                                min="1"
+                                class="w-32 bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2 pl-4
+                                       hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
+                                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                       transition-all duration-200"
+                            />
                         </div>
                     </section>
 
@@ -305,8 +325,8 @@
                                     Show log viewer by default
                                 </span>
                             </label>
-                            <div class="space-y-2">
-                                <label class="text-sm text-left block text-gray-300">
+                            <div class="flex items-center gap-4">
+                                <label class="text-sm text-gray-300 whitespace-nowrap">
                                     Maximum log entries:
                                 </label>
                                 <input
@@ -315,7 +335,8 @@
                                     min="100"
                                     max="10000"
                                     step="100"
-                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2
+                                    class="w-32 bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2 pl-4
+                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
                                            focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
                                            transition-all duration-200"
                                 />

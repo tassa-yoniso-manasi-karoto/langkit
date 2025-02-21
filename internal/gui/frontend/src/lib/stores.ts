@@ -11,9 +11,10 @@ type Settings = {
     enableGlow: boolean;
     showLogViewerByDefault: boolean;
     maxLogEntries: number;
+    maxAPIRetries: number;
 };
 
-const defaultSettings: Settings = {
+const initSettings: Settings = {
     apiKeys: {
         replicate: '',
         assemblyAI: '',
@@ -23,10 +24,11 @@ const defaultSettings: Settings = {
     nativeLanguages: 'en, en-US',
     enableGlow: true,
     showLogViewerByDefault: false,
-    maxLogEntries: 10000
+    maxLogEntries: 10000,
+    maxAPIRetries: 10,
 };
 
 type showSettings = boolean;
 
-export const settings = writable<Settings>(defaultSettings);
+export const settings = writable<Settings>(initSettings);
 export const showSettings = writable(false);

@@ -30,6 +30,7 @@ func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingE
 	}
 	tsk.Handler.ZeroLog().Trace().Msg("translit: successfully retrived default module for lang: " + m.Lang)
 	
+	// TODO to derive or not to derive?
 	m.WithContext(ctx)
 	
 	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s-%s-%s provider initialization starting, please wait...", m.Lang, m.ProviderNames(), tsk.RomanizationStyle)

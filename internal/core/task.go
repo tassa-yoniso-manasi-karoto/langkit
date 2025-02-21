@@ -83,6 +83,7 @@ type Task struct {
 	FieldSep             string // defaults to "\t"
 	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv" otherwise
 	Offset               time.Duration
+	MaxAPIRetries        int
 	
 	// Subs2cards options
 	WantCondensedAudio   bool
@@ -122,6 +123,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		VoiceBoost: 13,
 		OriginalBoost: -9,
 		Limiter:  0.9,
+		MaxAPIRetries: 10,
 	}
 	
 	if tsk.FieldSep == "" {
@@ -164,6 +166,11 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 			MediainfoPath = dest
 		}
 	}
+	
+	if settings, err := config.LoadSettings(); err == nil {
+		tsk.MaxAPIRetries = settings.MaxAPIRetries
+	}
+	
 	return tsk
 }
 

@@ -36,6 +36,9 @@ type ProcessedItem struct {
 }
 
 func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (item ProcessedItem, procErr *ProcessingError) {
+	childCtx, childCancel := context.WithCancel(ctx)
+	defer childCancel()
+	
 	item.Source = tsk.outputBase()
 	item.ForeignCurr = joinLines(foreignItem.String())
 
@@ -80,16 +83,16 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 		dub := ""
 		switch tsk.STT {
 		case "whisper":
-			dub, err = voice.Whisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1, tsk.InitialPrompt)
+			dub, err = voice.Whisper(childCtx, audiofile, tsk.MaxAPIRetries, tsk.TimeoutSTT, lang.Part1, tsk.InitialPrompt)
 		case "insanely-fast-whisper":
-			dub, err = voice.InsanelyFastWhisper(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+			dub, err = voice.InsanelyFastWhisper(childCtx, audiofile, tsk.MaxAPIRetries, tsk.TimeoutSTT, lang.Part1)
 		case "universal-1":
-			dub, err = voice.Universal1(ctx, audiofile, 5, tsk.TimeoutSTT, lang.Part1)
+			dub, err = voice.Universal1(childCtx, audiofile, tsk.MaxAPIRetries, tsk.TimeoutSTT, lang.Part1)
 		}
 		item.ForeignCurr = dub
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				return item, tsk.Handler.Log(Debug, AbortAllTasks, "STT: Operation cancelled due to context cancellation.")
+				return item, tsk.Handler.Log(Debug, AbortAllTasks, "STT: Processing canceled.")
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				return item, tsk.Handler.LogErr(err, AbortTask, "STT: Operation timed out.")
 			}

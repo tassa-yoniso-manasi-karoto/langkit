@@ -22,6 +22,7 @@ type Settings struct {
 	EnableGlow             bool   `json:"enableGlow" mapstructure:"enable_glow"`
 	ShowLogViewerByDefault bool   `json:"showLogViewerByDefault" mapstructure:"show_log_viewer_default"`
 	MaxLogEntries          int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
+	MaxAPIRetries          int    `json:"maxAPIRetries" mapstructure:"max_api_retries"`
 }
 
 
@@ -63,6 +64,7 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("enable_glow", true)
 	viper.SetDefault("show_log_viewer_default", false)
 	viper.SetDefault("max_log_entries", 10000)
+	viper.SetDefault("max_api_retries", 10)
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -89,6 +91,7 @@ func SaveSettings(settings Settings) error {
 	viper.Set("enable_glow", settings.EnableGlow)
 	viper.Set("show_log_viewer_default", settings.ShowLogViewerByDefault)
 	viper.Set("max_log_entries", settings.MaxLogEntries)
+	viper.Set("max_api_retries", settings.MaxAPIRetries)
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()

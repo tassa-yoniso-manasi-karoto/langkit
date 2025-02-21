@@ -1,15 +1,13 @@
 
-- ctx canceled in Whisper???
-
-
 transliteration:
-   - selective translit rework
    - selective translit as a separate feature only for jpn
-
+   - update UI accordingly
 
 
 - UI: 
-  - add progress bar (
+  - add progress bar
+  - do something about whitescreen at startup
+  - embed the fonts DM Sans/Mono
 
 
 
@@ -25,7 +23,6 @@ translitkit
 
 
 - Add tests
-   - user-defined API retry max
    
    - fix directory tree: branches off center
    - fix newlines in builtin documentation
