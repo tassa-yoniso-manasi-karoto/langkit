@@ -14,6 +14,7 @@
     import GlowEffect from './components/GlowEffect.svelte';
     import Settings from './components/Settings.svelte';
     import ProcessButton from './components/ProcessButton.svelte';
+    import UpdateNotification from './components/UpdateNotification.svelte';
 
     import { ProcessFiles, CancelProcessing, GetVersion } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
@@ -262,13 +263,9 @@
             v{version}
         {/if}
         {#if updateAvailable}
-            <a href="https://github.com/tassa-yoniso-manasi-karoto/langkit/releases"
-               target="_blank"
-               rel="noopener noreferrer"
-               class="ml-2 font-bold blinking-update"
-               title="Click to view latest release">
+            <UpdateNotification href="https://github.com/tassa-yoniso-manasi-karoto/langkit/releases">
                 an update is available
-            </a>
+            </UpdateNotification>
         {/if}
     {/if}
 </div>
@@ -424,22 +421,6 @@
 
     .mask-fade::-webkit-scrollbar-thumb:hover {
         background-color: rgba(255, 255, 255, 0.2);
-    }
-
-    /* Blinking "update available" effect */
-    @keyframes fadeBlink {
-        0% {
-            color: #f97316; /* orange-500 */
-        }
-        50% {
-            color: #dc2626; /* red-600 */
-        }
-        100% {
-            color: #f97316;
-        }
-    }
-    .blinking-update {
-        animation: fadeBlink 1.5s linear infinite;
     }
 
     :global(.settings-modal) {

@@ -1,20 +1,38 @@
 
-- Add tests
-- UI: add progress bar
-- implement CloseAll()
-- crash reports add snapshots of tsk throughout code
+- investigate panic
+- ctx canceled in Whisper???
+
+
+transliteration:
+   - selective translit rework
+   - selective translit as a separate feature only for jpn
+
+
+
+- UI: 
+  - add progress bar (
+  - newline support in hovertips
+
 
 
 translitkit
    - gojieba + go-pinyin
 
-transliteration:
-   - selective translit rework
-   - selective translit UI checkbox
 
+
+
+
+- implement CloseAll()
+- crash reports add snapshots of tsk throughout code
+
+
+- Add tests
    - user-defined API retry max
    
+   - fix directory tree: branches off center
    - fix newlines in builtin documentation
+
+→→→ Wait for Claude 4 release soon to break large functions (Execute and ProcessItem) and write some tests.
 
 *in progress:*
 - add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔

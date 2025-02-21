@@ -21,6 +21,10 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
 
+func (a *App) OpenURL(url string) {
+	runtime.BrowserOpenURL(a.ctx, url)
+}
+
 func (a *App) GetVersion() version.Info {
 	return version.GetInfo()
 }
