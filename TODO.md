@@ -1,7 +1,5 @@
 
 transliteration:
-   - MAYBE: split on splitter 𓃰 but not chars
-   - scraper should have exponential backoff both in timing and in their chunks' sizes
    - selective translit as a separate feature only for jpn
    - update UI with "Selective transliteration" for jpn
    - ichiran: add database corrupted warning
@@ -11,8 +9,10 @@ transliteration:
   - add progress bar
   - remove round around button to close settings
   - sliding appearance of features' cards
+  - homogenize colors of log level with green check mark etc, paler blue debug level
 
 - dubs allow user to request cached sep voice file deletion
+- hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
 translitkit
    - gojieba + go-pinyin
@@ -25,6 +25,7 @@ translitkit
 - crash reports add snapshots of tsk throughout code
 
 
+   - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
 - Add tests
    
    - fix directory tree: branches off center

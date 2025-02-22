@@ -202,8 +202,11 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 	if !ok || APIKey == "" {
 		return "", fmt.Errorf("Invalid Replicate API key format")
 	}
-	var predictionOutput replicate.PredictionOutput
-	baseDelay := time.Millisecond * 500
+	var (
+		predictionOutput replicate.PredictionOutput
+		file *replicate.File
+		baseDelay = time.Millisecond * 500
+	)
 	for try := 0; try < params.MaxTry; try++ {
 		r8, err := replicate.NewClient(replicate.WithToken(APIKey))
 		ctx, cancel := context.WithTimeout(params.Ctx, time.Duration(params.Timeout)*time.Second)
@@ -213,9 +216,16 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 			pp.Println(err)
 			return "", fmt.Errorf("Failed retrieving %s's information: %w", params.Name, err)
 		}
-		file, err := r8.CreateFileFromPath(ctx, params.Filepath, nil)
-		if err != nil {
-			return "", fmt.Errorf("CreateFileFromPath failed when passed with \"%s\": %w", params.Filepath, err)
+		
+		for uploadTry := 0; uploadTry <= params.MaxTry; uploadTry++ {
+			file, err = r8.CreateFileFromPath(ctx, params.Filepath, nil)
+			if err != nil {
+				if uploadTry == params.MaxTry {
+					return "", fmt.Errorf("CreateFileFromPath failed when passed with \"%s\": %w", params.Filepath, err)
+				}
+				continue
+			}
+			break
 		}
 		input := replicate.PredictionInput{
 			"audio": file,
