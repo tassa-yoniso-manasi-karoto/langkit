@@ -22,8 +22,15 @@ import (
 type MessageHandler interface {
 	IsCLI() bool
 
+	// TODO log methods don't actually require an interface:
+	// could use a Handler.Std() method to access Log* and thus regroup the Log* funcs under Std()
 	Log(level int8, behavior string, msg string) *ProcessingError
+	// this is a helper that logs to LevelError by default as most err log correspond to LevelError
 	LogErr(err error, behavior string, msg string) *ProcessingError
+	// this is a helper that returns an err but doesn't use a LevelError,
+	// it is meant to be used to handle ctx.Err following user-requested context cancelation
+	LogErrWithLevel(level int8, err error, behavior string, msg string) *ProcessingError
+	
 	LogFields(level int8, behavior string, msg string, fields map[string]interface{}) *ProcessingError
 	LogErrFields(err error, behavior string, msg string, fields map[string]interface{}) *ProcessingError
 	
@@ -70,6 +77,7 @@ func (h *CLIHandler) GetLogBuffer() bytes.Buffer {
 	return h.buffer
 }
 
+
 func (h *CLIHandler) Log(level int8, behavior string, msg string) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, nil)
 }
@@ -77,6 +85,12 @@ func (h *CLIHandler) Log(level int8, behavior string, msg string) *ProcessingErr
 func (h *CLIHandler) LogErr(err error, behavior string, msg string) *ProcessingError {
 	return log(h, int8(zerolog.ErrorLevel), err, behavior, msg, nil)
 }
+
+func (h *CLIHandler) LogErrWithLevel(level int8, err error, behavior string, msg string) *ProcessingError {
+	return log(h, int8(level), err, behavior, msg, nil)
+}
+
+
 
 func (h *CLIHandler) LogFields(level int8, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, fields)
@@ -159,12 +173,21 @@ func (h *GUIHandler) GetLogBuffer() bytes.Buffer {
 	return h.buffer
 }
 
+
+
 func (h *GUIHandler) Log(level int8, behavior string, msg string) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, nil)
 }
+
 func (h *GUIHandler) LogErr(err error, behavior string, msg string) *ProcessingError {
 	return log(h, Error, err, behavior, msg, nil)
 }
+
+func (h *GUIHandler) LogErrWithLevel(level int8, err error, behavior string, msg string) *ProcessingError {
+	return log(h, int8(level), err, behavior, msg, nil)
+}
+
+
 
 func (h *GUIHandler) LogFields(level int8, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
 	return log(h, int8(level), nil, behavior, msg, fields)

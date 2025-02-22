@@ -45,8 +45,6 @@ func (a *App) CancelProcessing() {
 	handler.ZeroLog().Debug().
 		Msg("Calling procCancel()")
 	a.procCancel()
-	handler.ZeroLog().Warn().
-		Msg("Processing canceled by user")
 }
 
 
