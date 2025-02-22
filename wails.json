@@ -10,5 +10,12 @@
   "author": {
     "name": "tassa-yoniso-manasi-karoto",
     "email": "awp4imdrdpwh@posteo.de"
+  },
+  "assets": {
+    "default": {
+      "include": [
+        "internal/gui/frontend/fonts/*"
+      ]
+    }
   }
 }

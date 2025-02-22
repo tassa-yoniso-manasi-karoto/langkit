@@ -45,7 +45,7 @@ function createErrorStore() {
                 value: error.severity === 'critical' ? 1 : 0
             });
         } catch (e) {
-            console.debug('Error tracking not available:', e);
+            // console.debug('Error tracking not available:', e);
         }
     }
 
@@ -53,7 +53,7 @@ function createErrorStore() {
         subscribe: store.subscribe,
 
         addError: (error: ErrorMessage) => {
-            console.debug(`[Error Store] Adding error: ${error.id}`, error);
+            // console.debug(`[Error Store] Adding error: ${error.id}`, error);
             trackErrorMetric(error);
 
             store.update(errors => {
@@ -79,17 +79,17 @@ function createErrorStore() {
         },
 
         removeError: (id: string) => {
-            console.debug(`[Error Store] Removing error: ${id}`);
+            // console.debug(`[Error Store] Removing error: ${id}`);
             store.update(errors => errors.filter(e => e.id !== id));
         },
 
         clearErrors: () => {
-            console.debug('[Error Store] Clearing all errors');
+            // console.debug('[Error Store] Clearing all errors');
             store.set([]);
         },
 
         clearErrorsOfType: (severity: ErrorSeverity) => {
-            console.debug(`[Error Store] Clearing errors of type: ${severity}`);
+            // console.debug(`[Error Store] Clearing errors of type: ${severity}`);
             store.update(errors => errors.filter(e => e.severity !== severity));
         },
 

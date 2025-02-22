@@ -1,14 +1,19 @@
 
 transliteration:
+   - MAYBE: split on splitter 𓃰 but not chars
+   - skip transliteration if previously completed
+   - scraper should have exponential backoff both in timing and in their chunks' sizes
    - selective translit as a separate feature only for jpn
    - update UI accordingly
+   - add database corrupted warning
 
 
 - UI: 
   - add progress bar
-  - embed the fonts DM Sans/Mono
+  - remove round around button to close settings
+  - sliding appearance of features' cards
 
-
+- dubs allow user to request cached sep voice file deletion
 
 translitkit
    - gojieba + go-pinyin
@@ -25,6 +30,7 @@ translitkit
    
    - fix directory tree: branches off center
    - fix newlines in builtin documentation
+   - refactor r8RunWithAudioFile
 
 →→→ Wait for Claude 4 release soon to break large functions (Execute and ProcessItem) and write some tests.
 
