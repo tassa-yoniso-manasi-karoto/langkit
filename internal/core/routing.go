@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"context"
+	"errors"
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -76,7 +77,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			if err != nil {
 				tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
 			}
-			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L120
+			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L162
 				foreignSubs.TrimCC2Dubs()
 			}
 			totalItems += len(foreignSubs.Items)
@@ -101,12 +102,20 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			// 		Operation:   string(task.Mode),
 			// 	})
 			
-			if procErr = tsk.Execute(ctx); procErr != nil {
-				color.Redf("Routing: behavior %s after error: %v",
-					procErr.Behavior, procErr.Err)
-				if procErr.Behavior == AbortTask {
+			if err := tsk.Execute(ctx); err != nil {
+				if errors.Is(err.Err, context.Canceled) {
+					tsk.Handler.ZeroLog().Info().Msg("Processing canceled by the user")
+				} else if errors.Is(err.Err, context.DeadlineExceeded) {
+					tsk.Handler.ZeroLog().Warn().Msg("A timeout error occured")
+				}
+				
+				tsk.Handler.ZeroLog().Debug().Msgf("Routing: behavior %s after error: %w\n",
+					err.Behavior, err.Err)
+				if err.Behavior == AbortTask {
+					tsk.Handler.ZeroLog().Trace().Msg("AbortTask behavior: continuning to the next task planned...")
 					continue
 				}
+				tsk.Handler.ZeroLog().Debug().Msg("Aborting processing")
 				return
 			}
 		}

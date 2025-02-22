@@ -78,7 +78,8 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
                                Msg("Couldn't guess the language of foreign subtitle file")
 		}
 		// NOTE: Native subtitle declared in CLI must trail foreign subtitle declaration,
-		// thus if the native subtitle's lang needs guessing, TargSubFile can't be empty.
+		// thus if the native subtitle's lang needs guessing, TargSubFile can't be empty
+		// = no need for a new if
 		tsk.Native, err = GuessLangFromFilename(tsk.NativeSubFile)
 		if tsk.NativeSubFile != "" && err != nil {
                        tsk.Handler.ZeroLog().Warn().Err(err).
@@ -173,8 +174,8 @@ ResumeEnhance:
 		}	
 	}
 	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
-		if procErr := tsk.Supervisor(ctx, outStream, write); procErr != nil {
-			return procErr
+		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
+			return err
 		}
 	}
 	
@@ -197,11 +198,13 @@ ResumeEnhance:
 	}
 	if tsk.WantTranslit {
 		// TODO: find a way to provide transliteration in the TSV as well
-		tsk.Translit(ctx, subs)
+		if err := tsk.Translit(ctx, subs); err != nil {
+			return err
+		}
 	}
 	if tsk.SeparationLib != "" {
-		if procErr:= tsk.enhance(ctx); procErr != nil {
-			return procErr
+		if err := tsk.enhance(ctx); err != nil {
+			return err
 		}
 	} else if tsk.Mode == Enhance {
 		tsk.Handler.ZeroLog().Error().Msg("No separation API to isolate the voice's audio was specified.")

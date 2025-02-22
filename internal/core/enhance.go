@@ -73,7 +73,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		}
 		if err != nil {
 		        if errors.Is(err, context.Canceled) {
-				return tsk.Handler.Log(Debug, AbortAllTasks, "enhance: Operation cancelled due to context cancellation.")
+				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "enhance: STT: operation canceled by user")
 		        } else if errors.Is(err, context.DeadlineExceeded) {
 				return tsk.Handler.LogErr(err, AbortTask, "enhance: Operation timed out.")
 			}

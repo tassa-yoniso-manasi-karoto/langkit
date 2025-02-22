@@ -1,14 +1,18 @@
+	- translit.go not using the dubtitles as expected as source for the transliteration
 
 transliteration:
    - selective translit as a separate feature only for jpn
    - update UI with "Selective transliteration" for jpn
    - ichiran: add database corrupted warning
 
+- switch to retrypolicy in r8RunWithAudioFile
 
 - UI: 
+  - gui: single video picker not connected to Autosub logic??
   - add progress bar
   - remove round around button to close settings
   - sliding appearance of features' cards
+  - spinner of "Processing..." causes weird border effect
   - homogenize colors of log level with green check mark etc, paler blue debug level
 
 - dubs allow user to request cached sep voice file deletion

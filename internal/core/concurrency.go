@@ -215,7 +215,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		return finalErr
 	}
 	if ctx.Err() != nil {
-		return tsk.Handler.Log(Debug, AbortAllTasks, "operation cancelled by user")
+		return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "supervisor: operation canceled by user")
 	}
 	if tsk.WantCondensedAudio {
 		tsk.ConcatWAVstoOGG("CONDENSED") // TODO probably better to put it elsewhere
@@ -253,7 +253,7 @@ func (tsk *Task) worker(cfg WorkerConfig) {
 			}
 			item, procErr := tsk.ProcessItem(cfg.ctx, indexedSub.Item)
 			if procErr != nil {
-				// Try to send error, but don't block if cancelled
+				// Try to send error, but don't block if canceled
 				select {
 				case cfg.errChan <- procErr:
 				case <-cfg.ctx.Done():
@@ -262,7 +262,7 @@ func (tsk *Task) worker(cfg WorkerConfig) {
 			}
 			// Stamp the processed item with its original index.
 			item.Index = indexedSub.Index
-			// Try to send result, but don't block if cancelled
+			// Try to send result, but don't block if canceled
 			select {
 			case <-cfg.ctx.Done():
 				return

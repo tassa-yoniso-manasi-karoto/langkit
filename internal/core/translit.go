@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"context"
 	"os"
+	"errors"
 	
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -54,6 +55,11 @@ func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingE
 		err = m.InitRecreate(true)
 	}
 	if err != nil {
+	        if errors.Is(err, context.Canceled) {
+			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: init: operation canceled by user")
+	        } else if errors.Is(err, context.DeadlineExceeded) {
+			return tsk.Handler.LogErr(err, AbortTask, "translit: init: operation timed out.")
+		}
 		return tsk.Handler.LogErr(err, AbortAllTasks,
 			fmt.Sprintf("translit: failed to init default provider for language %s", tsk.Targ.Language.Part3))
 	}
@@ -68,6 +74,11 @@ func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingE
 	// we can replace directly of mergedSubsStr, before splitting mergedSubsStr to recover subtitles
 	tokens, err := m.Tokens(mergedSubsStr)
 	if err != nil {
+	        if errors.Is(err, context.Canceled) {
+			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: tkns: operation canceled by user")
+	        } else if errors.Is(err, context.DeadlineExceeded) {
+			return tsk.Handler.LogErr(err, AbortTask, "translit: tkns: operation timed out.")
+		}
 		return tsk.Handler.LogErr(err, AbortAllTasks,
 			fmt.Sprintf("couldn't get tokens from default provider for language %s", tsk.Targ.Language.Part3))
 			//Str("module-lang", m.Lang).

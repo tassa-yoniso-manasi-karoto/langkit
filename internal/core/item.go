@@ -95,7 +95,7 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 		item.ForeignCurr = dub
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				return item, tsk.Handler.Log(Debug, AbortAllTasks, "STT: Processing canceled.")
+				return item, tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "STT: Processing canceled")
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				return item, tsk.Handler.LogErr(err, AbortTask, "STT: Operation timed out.")
 			}
