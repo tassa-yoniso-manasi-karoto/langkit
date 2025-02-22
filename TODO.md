@@ -1,13 +1,12 @@
-	- translit.go not using the dubtitles as expected as source for the transliteration
+	- "no language passed" log
 
 transliteration:
    - selective translit as a separate feature only for jpn
    - update UI with "Selective transliteration" for jpn
-   - ichiran: add database corrupted warning
 
-- switch to retrypolicy in r8RunWithAudioFile
 
 - UI: 
+  - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
   - gui: single video picker not connected to Autosub logic??
   - add progress bar
   - remove round around button to close settings
@@ -16,13 +15,13 @@ transliteration:
   - homogenize colors of log level with green check mark etc, paler blue debug level
 
 - dubs allow user to request cached sep voice file deletion
-- hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
 translitkit
    - gojieba + go-pinyin
 
 
 
+   - ichiran: add database corrupted warning
 
 
 - implement CloseAll()
@@ -34,7 +33,7 @@ translitkit
    
    - fix directory tree: branches off center
    - fix newlines in builtin documentation
-   - refactor r8RunWithAudioFile
+   - refactor r8RunWithAudioFile with retrypolicy
 
 →→→ Wait for Claude 4 release soon to break large functions (Execute and ProcessItem) and write some tests.
 

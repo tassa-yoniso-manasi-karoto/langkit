@@ -103,7 +103,7 @@ type Task struct {
 	// STT options
 	STT                  string
 	TimeoutSTT           int
-	WantDubs             bool
+	WantDubs             bool // controls whether dubtitle file should be made too when using STT for subs2cards
 	InitialPrompt        string
 	
 	// Romanization options
@@ -124,6 +124,10 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		OriginalBoost: -9,
 		Limiter:  0.9,
 		MaxAPIRetries: 10,
+		// the actual control over STT activation remains in STT string being != "",
+		// by default assume a subtitle file is wanted and therefore
+		// let that value be overwritten as needed (currently only by CLI).
+		WantDubs: true,
 	}
 	
 	if tsk.FieldSep == "" {
