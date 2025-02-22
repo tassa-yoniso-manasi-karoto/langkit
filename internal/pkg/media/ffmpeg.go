@@ -93,7 +93,7 @@ func CreateConcatFile(wavFiles []string) (string, error) {
 	// Create a temporary file to store the concat list
 	concatFile, err := os.CreateTemp("", "ffmpeg_concat_*.txt")
 	if err != nil {
-		return "", fmt.Errorf("error creating temporary file: %v", err)
+		return "", fmt.Errorf("error creating temporary file: %w", err)
 	}
 	defer concatFile.Close()
 
@@ -101,7 +101,7 @@ func CreateConcatFile(wavFiles []string) (string, error) {
 	for _, wavFile := range wavFiles {
 		line := fmt.Sprintf("file '%s'\n", wavFile)
 		if _, err := concatFile.WriteString(line); err != nil {
-			return "", fmt.Errorf("error writing to concat file: %v", err)
+			return "", fmt.Errorf("error writing to concat file: %w", err)
 		}
 	}
 
@@ -128,7 +128,7 @@ func FFmpeg(arg ...string) error {
 	cmd.Stdout = os.Stdout
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("ffmpeg command %v failed: %v", arg, err)
+		return fmt.Errorf("ffmpeg command %v failed: %w", arg, err)
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func GetFFmpegVersion() (string, error) {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("failed to run ffmpeg: %v", err)
+		return "", fmt.Errorf("failed to run ffmpeg: %w", err)
 	}
 
 	output := out.String()

@@ -162,13 +162,13 @@ func fileExistsAndNotEmpty(filepath string) (bool, error) {
 // 	// Create the output file
 // 	outputFile, err := os.Create(filepath)
 // 	if err != nil {
-// 		return fmt.Errorf("failed to create file: %v", err)
+// 		return fmt.Errorf("failed to create file: %w", err)
 // 	}
 // 	defer outputFile.Close()
 
 // 	// Write the subtitles to ASS format
 // 	if err := subtitles.WriteToSSA(outputFile); err != nil {
-// 		return fmt.Errorf("failed to write subtitles to ASS format: %v", err)
+// 		return fmt.Errorf("failed to write subtitles to ASS format: %w", err)
 // 	}
 
 // 	return nil

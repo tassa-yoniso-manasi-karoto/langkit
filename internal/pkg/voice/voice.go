@@ -247,7 +247,7 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 			}
 			return "", fmt.Errorf("Timed out %s prediction after %d attempts: %w", params.Name, params.MaxTry, err)
 		} else if errors.Is(err, context.Canceled) {
-			return "", fmt.Errorf("Abort %s prediction: context cancelled: %v", params.Name, err)
+			return "", fmt.Errorf("Abort %s prediction: context cancelled: %w", params.Name, err)
 		} else {
 			pp.Println("RawPredictionErr", err)
 			err, ok := err.(*replicate.ModelError)
@@ -264,7 +264,7 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 			pp.Println(err)
 			color.Redln(strings.ReplaceAll(logs, "\n", "\n\t"))
 			cancel()
-			return "", fmt.Errorf("Failed %s prediction: %v", params.Name, err)
+			return "", fmt.Errorf("Failed %s prediction: %w", params.Name, err)
 		}
 		cancel()
 	}
@@ -285,7 +285,7 @@ func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
 	
 	resp, err := makeRequestWithRetry(URL, params.MaxTry)
 	if err != nil {
-		return nil, fmt.Errorf("Failed request on prediction output after %d attempts: %v", params.MaxTry, err)
+		return nil, fmt.Errorf("Failed request on prediction output after %d attempts: %w", params.MaxTry, err)
 	}
 	defer resp.Body.Close()
 
