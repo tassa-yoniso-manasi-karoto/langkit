@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"math"
 	"sync"
+	"errors"
 	
 	"github.com/tassa-yoniso-manasi-karoto/elevenlabs-go"
 	
@@ -206,7 +207,6 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 	for try := 0; try < params.MaxTry; try++ {
 		r8, err := replicate.NewClient(replicate.WithToken(APIKey))
 		ctx, cancel := context.WithTimeout(params.Ctx, time.Duration(params.Timeout)*time.Second)
-		defer cancel()
 		
 		model, err := r8.GetModel(ctx, params.Owner, params.Name)
 		if err != nil {
@@ -228,7 +228,7 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 		
 		if err == nil {
 			break
-		} else if err == context.DeadlineExceeded {
+		} else if errors.Is(err, context.DeadlineExceeded) {
 			fmt.Fprintf(os.Stderr, "WARN: Timed out %s prediction (%d/%d)...\n", params.Name, try, params.MaxTry)
 			if try+1 != params.MaxTry {
 				delay := calcExponentialBackoff(try, baseDelay)
@@ -236,7 +236,7 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 				continue
 			}
 			return "", fmt.Errorf("Timed out %s prediction after %d attempts: %w", params.Name, params.MaxTry, err)
-		} else if err == context.Canceled {
+		} else if errors.Is(err, context.Canceled) {
 			return "", fmt.Errorf("Abort %s prediction: context cancelled: %v", params.Name, err)
 		} else {
 			pp.Println("RawPredictionErr", err)
@@ -253,10 +253,12 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 			}
 			pp.Println(err)
 			color.Redln(strings.ReplaceAll(logs, "\n", "\n\t"))
+			cancel()
 			return "", fmt.Errorf("Failed %s prediction: %v", params.Name, err)
 		}
+		cancel()
 	}
-	pp.Println("predictionOutput:", predictionOutput)
+	//pp.Println("predictionOutput:", predictionOutput)
 	str, err := params.Parser(predictionOutput)
 	if err != nil {
 		pp.Println(err)
