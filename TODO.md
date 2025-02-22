@@ -1,11 +1,10 @@
 
 transliteration:
    - MAYBE: split on splitter 𓃰 but not chars
-   - skip transliteration if previously completed
    - scraper should have exponential backoff both in timing and in their chunks' sizes
    - selective translit as a separate feature only for jpn
-   - update UI accordingly
-   - add database corrupted warning
+   - update UI with "Selective transliteration" for jpn
+   - ichiran: add database corrupted warning
 
 
 - UI: 

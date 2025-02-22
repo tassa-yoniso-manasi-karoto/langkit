@@ -5,6 +5,7 @@ import (
 	"strings"
 	"regexp"
 	"context"
+	"os"
 	
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -21,8 +22,21 @@ var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
 
-func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingError {
+func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingError {	
 	translitkit.BrowserAccessURL = tsk.BrowserAccessURL
+	subsFilepathTokenized := strings.TrimSuffix(subsFilepath, ".srt") + "_tokenized.srt"
+	subsFilepathTranslit := strings.TrimSuffix(subsFilepath, ".srt") + "_translit.srt"
+	
+	if alreadyDone, err := fileExistsAndNotEmpty(subsFilepathTranslit); err != nil {
+		return tsk.Handler.LogErr(err, AbortAllTasks,
+			fmt.Sprintf("translit: error checking destination file %s", subsFilepathTranslit))
+	} else if alreadyDone {
+		tsk.Handler.ZeroLog().Info().
+			Bool("file_exists_and_not_empty", alreadyDone).
+			Msg("Subtitle were already transliterated previously, continuing...")
+		return nil
+	}
+
 	m, err := translitkit.GetSchemeModule(tsk.Targ.Language.Part3, tsk.RomanizationStyle)
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortAllTasks,
@@ -101,10 +115,11 @@ func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingE
 		Int("len(SubTokenized.Items)", len(SubTokenized.Items)).
 		Int("len(SubTranslit.Items)", len(SubTranslit.Items)).
 		Msg("")
-	if err := SubTokenized.Write(strings.TrimSuffix(subsFilepath, ".srt") + "_tokenized.srt"); err != nil {
+	
+	if err := SubTokenized.Write(subsFilepathTokenized); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write tokenized subtitles")
 	}
-	if err := SubTranslit.Write(strings.TrimSuffix(subsFilepath, ".srt") + "_translit.srt"); err != nil {
+	if err := SubTranslit.Write(subsFilepathTranslit); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write transliterated subtitles")
 	}
 	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
@@ -128,22 +143,17 @@ func Subs2StringBlock(subs *astisub.Subtitles) (mergedSubsStr string, subSlice [
 	return
 }
 
+func fileExistsAndNotEmpty(filepath string) (bool, error) {
+        fileInfo, err := os.Stat(filepath)
+        if os.IsNotExist(err) {
+                return false, nil // File does not exist, not an error
+        }
+        if err != nil {
+                return false, err // Other errors (permissions, etc.)
+        }
 
-
-
-
-
-// func prepare(subSlice []string, max int) (QuerySliced []string) {
-// 	var Query string
-// 	for _, element := range subSlice {
-// 		if max > 0 && utf8.RuneCountInString(Query+element) > max {
-// 			QuerySliced = append(QuerySliced, Query)
-// 			Query = ""
-// 		}
-// 		Query += element
-// 	}
-// 	return append(QuerySliced, Query)
-// }
+        return fileInfo.Size() > 0, nil
+}
 
 
 
