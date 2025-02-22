@@ -208,12 +208,10 @@ func log(h MessageHandler, level int8, err error, behavior string, msg string, f
 	} // TODO check if need to make fields when they are nil
 	event.Str("behavior", behavior).Msg(msg)
 
-	if level >= int8(Error) {
+	if err != nil {
 		return &ProcessingError{
 			Behavior: behavior,
 			Err:      err,
-			//Message:  msg,
-			//Context:  fields,
 		}
 	}
 	return nil
