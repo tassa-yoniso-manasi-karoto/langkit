@@ -79,6 +79,9 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
 	
 	if tsk.STT != "" {
+		tsk.Handler.ZeroLog().Trace().
+			Int("idx", foreignItem.Index).
+			Msgf("Requesting %s prediction to remote API...", tsk.STT)
 		lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
 		dub := ""
 		switch tsk.STT {

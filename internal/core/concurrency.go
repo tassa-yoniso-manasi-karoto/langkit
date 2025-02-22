@@ -267,10 +267,10 @@ func (tsk *Task) worker(cfg WorkerConfig) {
 			case <-cfg.ctx.Done():
 				return
 			case cfg.itemChan <- item:
-				tsk.Handler.ZeroLog().Trace().
-					Int("workerID", cfg.id).
-					Int("lenItemChan", len(cfg.itemChan)).
-					Msg("Item successfully sent")
+				//tsk.Handler.ZeroLog().Trace().
+				//	Int("workerID", cfg.id).
+				//	Int("lenItemChan", len(cfg.itemChan)).
+				//	Msg("Item successfully sent")
 			}
 		}
 	}
