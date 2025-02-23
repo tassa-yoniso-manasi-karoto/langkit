@@ -88,7 +88,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			return
 		}
 		mediabar := mkMediabar(len(tasks))
-		for _, tsk := range tasks {
+		for idx, tsk := range tasks {
 			mediabar.Add(1)
 			// trick to have a new line without the log prefix
 			tsk.Handler.ZeroLog().Info().Msg("\r             \n"+mediabar.String())
@@ -109,10 +109,12 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 					tsk.Handler.ZeroLog().Warn().Msg("A timeout error occured")
 				}
 				
-				tsk.Handler.ZeroLog().Debug().Msgf("Routing: behavior %s after error: %w\n",
+				tsk.Handler.ZeroLog().Debug().Msgf("Routing: behavior %s after error: %s\n",
 					err.Behavior, err.Err)
 				if err.Behavior == AbortTask {
-					tsk.Handler.ZeroLog().Trace().Msg("AbortTask behavior: continuning to the next task planned...")
+					if idx != len(tasks)-1 {
+						tsk.Handler.ZeroLog().Trace().Msg("AbortTask behavior: continuning to the next task planned...")
+					}
 					continue
 				}
 				tsk.Handler.ZeroLog().Debug().Msg("Aborting processing")
@@ -120,6 +122,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			}
 		}
 	}
+	tsk.Handler.ZeroLog().Debug().Msg("Routing completed successfully")
 	return
 }
 

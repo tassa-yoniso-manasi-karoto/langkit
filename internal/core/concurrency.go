@@ -95,7 +95,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 			
 			if already {
 				tsk.Handler.ZeroLog().Trace().
-					Int("lineNum", i).
+					Int("idx", i).
 					Msg("Skipping subtitle line previously processed")
 				skipped++
 				totalItems--
@@ -152,8 +152,10 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		waitingRoom := make(map[int]ProcessedItem)
 		nextIndex := 0
 		for {
-			// If the next expected item is already in waitingRoom, write it.
 			if item, exists := waitingRoom[nextIndex]; exists {
+				tsk.Handler.ZeroLog().Debug().
+					Int("idx", item.Index).
+					Msg("writer: item is already in waitingRoom")
 				write(outStream, &item)
 				updateBar(&item)
 				delete(waitingRoom, nextIndex)
@@ -166,9 +168,11 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 				return
 			case item, ok := <-itemChan:
 				if !ok {
-					// No more items; flush any remaining in-order items.
 					for {
 						if nextItem, exists := waitingRoom[nextIndex]; exists {
+							tsk.Handler.ZeroLog().Trace().
+								Int("idx", nextItem.Index).
+								Msg("writer: no more items to come: flushing waitingRoom in order")
 							write(outStream, &nextItem)
 							updateBar(&nextItem)
 							delete(waitingRoom, nextIndex)
@@ -179,13 +183,17 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 					}
 				}
 				if item.Index == nextIndex {
-					// Write the expected item immediately.
+					tsk.Handler.ZeroLog().Trace().
+						Int("idx", item.Index).
+						Msg("writer: just received the correct next item")
 					write(outStream, &item)
 					updateBar(&item)
 					nextIndex++
-					// Check if subsequent items are already waitingRoom.
 					for {
 						if nextItem, exists := waitingRoom[nextIndex]; exists {
+							tsk.Handler.ZeroLog().Trace().
+								Int("idx", nextItem.Index).
+								Msg("writer: SUBSEQUENT item is already in waitingRoom")
 							write(outStream, &nextItem)
 							updateBar(&nextItem)
 							delete(waitingRoom, nextIndex)
@@ -195,7 +203,9 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 						}
 					}
 				} else {
-					// Item arrived out-of-order; store it for later.
+					tsk.Handler.ZeroLog().Trace().
+						Int("idx", item.Index).
+						Msg("writer: STORING in waitingRoom out-of-order item")
 					waitingRoom[item.Index] = item
 				}
 			}
