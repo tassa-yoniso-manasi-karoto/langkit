@@ -1,4 +1,7 @@
-	- "no language passed" log
+- bug merged subline see "หยุดเดี๋ยวนี้" e14
+- input number field weird behavior when suppr when field is already empty
+- "no language passed" log
+- r8 Timed out whisper prediction does not reset from one request to the next
 
 transliteration:
    - selective translit as a separate feature only for jpn

@@ -11,7 +11,7 @@ import (
 	"errors"
 	"context"
 
-	astisub "github.com/asticode/go-astisub"
+	//astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	
@@ -35,7 +35,9 @@ type ProcessedItem struct {
 	NativeNext  string
 }
 
-func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (item ProcessedItem, procErr *ProcessingError) {
+func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (item ProcessedItem, procErr *ProcessingError) {
+	// CAVEAT: astisub.Item has an "index" field and so does our IndexedSubItem
+	foreignItem := indexedSub.Item
 	childCtx, childCancel := context.WithCancel(ctx)
 	defer childCancel()
 	
@@ -80,7 +82,7 @@ func (tsk *Task) ProcessItem(ctx context.Context, foreignItem *astisub.Item) (it
 	
 	if tsk.STT != "" {
 		tsk.Handler.ZeroLog().Trace().
-			Int("idx", foreignItem.Index).
+			Int("idx", indexedSub.Index). // FIXME discrepancies should be expected in closedcaptions trimmed to dubtitle
 			Msgf("Requesting %s prediction to remote API...", tsk.STT)
 		lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
 		dub := ""

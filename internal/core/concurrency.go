@@ -28,6 +28,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		errChan     = make(chan *ProcessingError, tsk.Meta.WorkersMax)	// Channel for worker errors.
 		wg          sync.WaitGroup
 		skipped     int
+		skippedIndexes = make(map[int]bool)
 	)
 
 	toCheckChan := make(chan string)
@@ -76,8 +77,8 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		// Ensure both work and duplicate-check channels are closed when done.
 		defer close(subLineChan)
 		defer close(toCheckChan)
-		for i, subLine := range tsk.TargSubs.Items {
-			searchString := tsk.FieldSep + timePosition(subLine.StartAt) + tsk.FieldSep
+		for i, astitem := range tsk.TargSubs.Items {
+			searchString := tsk.FieldSep + timePosition(astitem.StartAt) + tsk.FieldSep
 			// Send the search string to check for duplicates.
 			select {
 			case <-supCtx.Done():
@@ -94,19 +95,22 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 			}
 			
 			if already {
+				// If the item was already processed, mark it as skipped
 				tsk.Handler.ZeroLog().Trace().
 					Int("idx", i).
+					Str("subline", getSubLineText(*astitem)).
 					Msg("Skipping subtitle line previously processed")
 				skipped++
+				skippedIndexes[i] = true
 				totalItems--
 				continue
 			}
 			
-			// Then dispatch work
+			// Otherwise, dispatch this item for processing
 			select {
 			case <-supCtx.Done():
 				return
-			case subLineChan <- IndexedSubItem{Index: i, Item: subLine}:
+			case subLineChan <- IndexedSubItem{Index: i, Item: astitem}:
 			}
 		}
 		if skipped != 0 {
@@ -148,10 +152,20 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 	writerWG.Add(1)
 	go func() {
 		defer writerWG.Done()
-		// waitingRoom holds processed items that have arrived out-of-order.
+		
 		waitingRoom := make(map[int]ProcessedItem)
 		nextIndex := 0
+		
 		for {
+			// Skip any consecutive indexes that were already processed (skipped).
+			for skippedIndexes[nextIndex] {
+				tsk.Handler.ZeroLog().Trace().
+					Int("idx", nextIndex).
+					Msg("writer: item exist in file already, skipping...")
+				// We pretend that item was “written,” so we just jump ahead.
+				nextIndex++
+			}
+			
 			if item, exists := waitingRoom[nextIndex]; exists {
 				tsk.Handler.ZeroLog().Debug().
 					Int("idx", item.Index).
@@ -169,6 +183,14 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 			case item, ok := <-itemChan:
 				if !ok {
 					for {
+						// Skip any future indexes that we know were processed
+						for skippedIndexes[nextIndex] {
+							tsk.Handler.ZeroLog().Trace().
+								Int("idx", nextIndex).
+								Msg("writer: item exist in file already, skipping...")
+							nextIndex++
+						}
+						
 						if nextItem, exists := waitingRoom[nextIndex]; exists {
 							tsk.Handler.ZeroLog().Trace().
 								Int("idx", nextItem.Index).
@@ -184,12 +206,19 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 				}
 				if item.Index == nextIndex {
 					tsk.Handler.ZeroLog().Trace().
-						Int("idx", item.Index).
+						Int("idx", nextIndex).
 						Msg("writer: just received the correct next item")
 					write(outStream, &item)
 					updateBar(&item)
 					nextIndex++
 					for {
+						// Again, skip any that were marked as already processed.
+						for skippedIndexes[nextIndex] {
+							tsk.Handler.ZeroLog().Trace().
+								Int("idx", nextIndex).
+								Msg("writer: item exist in file already, skipping...")
+							nextIndex++
+						}
 						if nextItem, exists := waitingRoom[nextIndex]; exists {
 							tsk.Handler.ZeroLog().Trace().
 								Int("idx", nextItem.Index).
@@ -261,7 +290,7 @@ func (tsk *Task) worker(cfg WorkerConfig) {
 				// No more work.
 				return
 			}
-			item, procErr := tsk.ProcessItem(cfg.ctx, indexedSub.Item)
+			item, procErr := tsk.ProcessItem(cfg.ctx, indexedSub)
 			if procErr != nil {
 				// Try to send error, but don't block if canceled
 				select {
@@ -311,6 +340,17 @@ func (tsk *Task) descrBar() string {
 	}
 	return "Items"
 }
+
+func getSubLineText(subLine astisub.Item) string {
+	if len(subLine.Lines) == 0 {
+		return ""
+	}
+	if len(subLine.Lines[0].Items) == 0 {
+		return ""
+	}
+	return subLine.Lines[0].Items[0].Text
+}
+
 
 func placeholder4234565() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")

@@ -124,6 +124,10 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortTask,
 			fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
+	} else {
+		tsk.Handler.ZeroLog().Debug().
+			Str("outStream", tsk.outputFile()).
+			Msg("outStream file successfully open")
 	}
 	defer outStream.Close()
 
