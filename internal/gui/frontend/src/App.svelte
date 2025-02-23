@@ -241,11 +241,7 @@
     });
 
     onDestroy(() => {
-        // Clear component-specific errors
-        errorStore.removeError("no-media");
-        errorStore.removeError("no-features");
-        errorStore.removeError("processing-failed");
-        errorStore.removeError("cancel-failed");
+        clearErrors();
     });
 
     window.addEventListener("settingsUpdated", ((event: CustomEvent) => {
