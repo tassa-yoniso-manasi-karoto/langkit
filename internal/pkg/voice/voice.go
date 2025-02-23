@@ -25,6 +25,7 @@ import (
 
 var (
 	APIKeys = &sync.Map{}
+	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1"}
 )
 
 func init() {

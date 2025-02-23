@@ -179,18 +179,18 @@ ResumeEnhance:
 		}
 	}
 	
-	// subs is the reference subtitle/dubtitle file to use when transliterating
+	// subs is the path of the reference subtitle/dubtitle file to use when transliterating
 	subs := tsk.TargSubFile
 	if tsk.STT != "" && tsk.WantDubs {
-		// Subs2Dubs uses the TSV file to transform the subtitles into dubtitles in place
+		// Subs2Dubs uses the TSV file containing transcriptions to
+		// transform the subtitles into dubtitles in place
 		err = tsk.TargSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "making dubtitles")
 		}
 		subs = strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
 		subs = strings.TrimSuffix(subs, ".tsv")
-		// FIXME path.Join what for???
-		subs = path.Join(subs + "." + strings.ToUpper(tsk.STT) + filepath.Ext(tsk.TargSubFile))
+		subs = subs + langkitMadeDubtitlesMarker(tsk.STT) + filepath.Ext(tsk.TargSubFile)
 		
 		if err = tsk.TargSubs.Write(subs); err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
@@ -344,6 +344,9 @@ func Base2Absolute(s, dir string) string {
 	return ""
 }
 
+func langkitMadeDubtitlesMarker(STT string) string {
+	return "." + strings.ToUpper(STT)
+}
 
 func userConfirmed() bool {
 	reader := bufio.NewReader(os.Stdin)

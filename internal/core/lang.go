@@ -9,6 +9,8 @@ import (
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 	iso "github.com/barbashov/iso639-3"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 // TODO May make sense to move some functions to translitkit/pkg
@@ -21,7 +23,6 @@ const (
 	CC
 )
 
-//const unknownLang = "❔❔" // avoid "n/a" or "?" for path safety
 const unknownLang = "und" // = undetermined, special code part of the ISO639 spec
 
 var refmatch = map[string]int{
@@ -302,9 +303,15 @@ func subtypeMatcher(s string) int {
 	if s == "" {
 		return 0
 	}
-	s = strings.ToLower(s)
+	// dismiss dubtitles previously made by langkit
+	for _ , model := range voice.STTModels {
+		if strings.Contains(s, langkitMadeDubtitlesMarker(model)) {
+			return 0
+		}
+	}
+	
 	for subtype, v := range refmatch {
-		if strings.Contains(s, subtype) {
+		if strings.Contains(strings.ToLower(s), subtype) {
 			return v
 		}
 	}
