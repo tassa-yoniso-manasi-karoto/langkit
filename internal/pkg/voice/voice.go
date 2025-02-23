@@ -364,7 +364,7 @@ func makeRequestWithRetry(URL string, maxTry int) (*http.Response, error) {
 }
 
 func calcExponentialBackoff(attempt int, baseDelay time.Duration) time.Duration {
-	return time.Duration(math.Pow(2, float64(attempt))) * baseDelay
+	return time.Duration(math.Pow(1.3, float64(attempt))) * baseDelay
 }
 
 func placeholder5() {
