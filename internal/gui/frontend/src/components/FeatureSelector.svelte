@@ -791,6 +791,14 @@
                                             type="number" 
                                             step={option.includes('Boost') ? '0.1' : '1'}
                                             bind:value={currentFeatureOptions[feature][option]}
+                                            on:keydown={(e) => {
+                                                // Only allow backspace if there's more than one character
+                                                if (e.key === 'Backspace' && e.target.value.length <= 1) {
+                                                    // If only one character left, don't allow deletion
+                                                    // This prevents empty values without surprising the user
+                                                    e.preventDefault();
+                                                }
+                                            }}
                                             class="w-full h-[42px] bg-sky-dark/50 border-2 border-accent/30 rounded-md px-3
                                                    focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
                                                    hover:border-accent/50
