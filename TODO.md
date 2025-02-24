@@ -1,7 +1,7 @@
-- bug merged subline see "หยุดเดี๋ยวนี้" e14
 - input number field weird behavior when suppr when field is already empty
 - "no language passed" log
 - r8 Timed out whisper prediction does not reset from one request to the next
+- refactor r8RunWithAudioFile with retrypolicy3
 
 transliteration:
    - selective translit as a separate feature only for jpn
@@ -36,7 +36,7 @@ translitkit
    
    - fix directory tree: branches off center
    - fix newlines in builtin documentation
-   - refactor r8RunWithAudioFile with retrypolicy
+   
 
 →→→ Wait for Claude 4 release soon to break large functions (Execute and ProcessItem) and write some tests.
 
