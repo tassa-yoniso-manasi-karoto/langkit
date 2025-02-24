@@ -24,3 +24,4 @@
 - Always use tabs to indent Golang code and use 4 spaces to indent CSS, Javascript or Svelte code.
 - The GUI should follow the Material Design philosophy and principles.
 - In the GUI any actions on interactable elements should trigger an effect to provide the user visual feedback.
+- do not git add or revert go.mod or go.sum

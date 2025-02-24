@@ -9,12 +9,14 @@
     export let fullWidth: boolean = true;
     export let center: boolean = true;
     export let className: string = "";
-
+    
     function handleKeydown(e: KeyboardEvent) {
-        // Only allow backspace if there's more than one character
-        if (e.key === 'Backspace' && (e.target as HTMLInputElement).value.length <= 1) {
-            // If only one character left, don't allow deletion
-            // This prevents empty values without surprising the user
+        const input = e.target as HTMLInputElement;
+        // Remove minus signs from the value before checking its length.
+        const digits = input.value.replace(/-/g, '');
+        // For both Backspace and Delete: if there's only one digit left 
+        // (and the value isn't just a lone minus sign), prevent deletion.
+        if ((e.key === 'Backspace' || e.key === 'Delete') && digits.length <= 1 && input.value !== '-') {
             e.preventDefault();
         }
     }
@@ -25,7 +27,7 @@
     // Default styling classes that can be overridden
     const defaultClasses = "border-2 border-accent/30 rounded-md h-[42px] px-3 text-sm font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 hover:border-accent/50";
     
-    // Conditional classes
+    // Conditional classes based on the component's props
     const conditionalClasses = `${center ? 'text-center' : ''} ${fullWidth ? 'w-full' : ''}`;
     
     // Merge classes with tailwind-merge to properly handle class conflicts
