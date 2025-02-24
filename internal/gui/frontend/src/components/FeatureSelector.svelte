@@ -10,6 +10,7 @@
     import Dropdown from './Dropdown.svelte';
     import Hovertip from './Hovertip.svelte';
     import ExternalLink from './ExternalLink.svelte';
+    import NumericInput from './NumericInput.svelte';
     import { GetRomanizationStyles, ValidateLanguageTag, CheckMediaLanguageTags } from '../../wailsjs/go/gui/App';
 
     // Props
@@ -605,15 +606,12 @@
 		            </span>
 	            </Hovertip>
                 <!-- The input field: reduced horizontal padding and fixed height -->
-                <input
-                  type="number"
+                <NumericInput
                   bind:value={audioTrackIndex}
-                  min="1"
-                  max="99"
-                  class="w-10 h-6 bg-sky-dark/50 border border-accent/30 rounded
-                         px-1 text-xs font-medium text-center
-                         focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
-                         transition-colors duration-200"
+                  min={1}
+                  max={99}
+                  fullWidth={false}
+                  className="w-10 h-6 px-1 py-0 text-xs border focus:ring-1"
                 />
               </div>
             </div>
@@ -740,15 +738,10 @@
                                 <div>
                                     {#if (option === 'selectiveTransliteration')}
                                         {#if (standardTag === 'jpn')}
-                                            <input 
-                                                type="number" 
+                                            <NumericInput 
                                                 bind:value={currentFeatureOptions[feature][option]}
-                                                min="1"
-                                                max="3000"
-                                                class="w-full h-[42px] bg-sky-dark/50 border-2 border-accent/30 rounded-md px-3
-                                                       focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
-                                                       hover:border-accent/50
-                                                       transition-all duration-200 text-sm font-medium text-center"
+                                                min={1}
+                                                max={3000}
                                                 placeholder="Enter threshold (e.g., 100)"
                                             />
                                          {/if}
@@ -787,22 +780,9 @@
                                         </label>
                                         {/if}
                                     {:else if typeof value === 'number'}
-                                        <input 
-                                            type="number" 
+                                        <NumericInput 
                                             step={option.includes('Boost') ? '0.1' : '1'}
                                             bind:value={currentFeatureOptions[feature][option]}
-                                            on:keydown={(e) => {
-                                                // Only allow backspace if there's more than one character
-                                                if (e.key === 'Backspace' && e.target.value.length <= 1) {
-                                                    // If only one character left, don't allow deletion
-                                                    // This prevents empty values without surprising the user
-                                                    e.preventDefault();
-                                                }
-                                            }}
-                                            class="w-full h-[42px] bg-sky-dark/50 border-2 border-accent/30 rounded-md px-3
-                                                   focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
-                                                   hover:border-accent/50
-                                                   transition-all duration-200 text-sm font-medium text-center"
                                         />
                                     {:else if feature === 'subtitleRomanization' && option === 'style'}
                                         <Dropdown
