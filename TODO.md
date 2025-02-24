@@ -1,7 +1,5 @@
-- input number field weird behavior when suppr when field is already empty
 - "no language passed" log
-- r8 Timed out whisper prediction does not reset from one request to the next
-- refactor r8RunWithAudioFile with retrypolicy3
+- refactor r8RunWithAudioFile with retrypolicy
 
 transliteration:
    - selective translit as a separate feature only for jpn
@@ -9,7 +7,6 @@ transliteration:
 
 
 - UI: 
-  - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
   - gui: single video picker not connected to Autosub logic??
   - add progress bar
   - remove round around button to close settings
@@ -21,15 +18,15 @@ transliteration:
 
 translitkit
    - gojieba + go-pinyin
-
-
-
    - ichiran: add database corrupted warning
+
+
 
 
 - implement CloseAll()
 - crash reports add snapshots of tsk throughout code
-
+- input number field weird behavior when suppr when field is already empty
+  - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
    - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
 - Add tests
