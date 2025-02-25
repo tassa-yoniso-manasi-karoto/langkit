@@ -781,7 +781,9 @@
                                         {/if}
                                     {:else if typeof value === 'number'}
                                         <NumericInput 
-                                            step={option.includes('Boost') ? '0.1' : '1'}
+                                            step={option.includes('limiter') ? '0.0125' : option.includes('Boost') ? '0.1' : '1'}
+                                            min={option.includes('limiter') ? 0.0625 : undefined}
+                                            max={option.includes('limiter') ? 1 : undefined}
                                             bind:value={currentFeatureOptions[feature][option]}
                                         />
                                     {:else if feature === 'subtitleRomanization' && option === 'style'}
