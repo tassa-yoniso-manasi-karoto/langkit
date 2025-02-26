@@ -595,7 +595,7 @@
         </div>
 
         <!-- Audio track selection with slide animation -->
-        <div class="flex">
+        <div class="flex overflow-hidden">
           <!-- Disclosure arrow button with connected border and matching background -->
           <button
             class="flex items-center justify-center p-4 w-6 h-6
