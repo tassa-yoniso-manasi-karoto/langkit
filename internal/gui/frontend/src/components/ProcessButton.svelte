@@ -96,9 +96,10 @@
 <div class="relative inline-block">
     <button
         bind:this={buttonRef}
-        class="h-12 px-4 bg-accent text-white rounded-lg font-bold transition-colors transition-shadow transform outline-none flex items-center justify-center hover:bg-[#8a5de5] hover:shadow-md hover:translate-y-[-2px] active:translate-y-0"
+        class="h-12 px-4 bg-accent text-white rounded-lg font-bold outline-none flex items-center justify-center overflow-hidden"
         class:opacity-50={hasCriticalErrors || isProcessing}
         class:cursor-not-allowed={hasCriticalErrors || isProcessing}
+        class:hover:bg-[#8a5de5]={!hasCriticalErrors && !isProcessing}
         on:click={handleClick}
         on:mouseover={handleMouseOver}
         on:mousemove={handleMouseMove}
@@ -108,10 +109,11 @@
         aria-disabled={hasCriticalErrors || isProcessing}
         role="button"
         tabindex="0"
+        style="transition: all 0.2s ease;"
     >
         <div class="flex items-center gap-2">
             {#if isProcessing}
-                <span class="material-icons animate-spin">refresh</span>
+                <span class="material-icons animate-spin w-6 h-6 flex items-center justify-center">refresh</span>
                 <span>Processing...</span>
             {:else}
                 <span>Process Files</span>
