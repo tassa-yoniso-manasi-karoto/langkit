@@ -1,6 +1,8 @@
 <script lang="ts">
     import { createEventDispatcher, onMount, onDestroy } from 'svelte';
     import { slide } from 'svelte/transition';
+    import { fly } from 'svelte/transition';
+    import { cubicOut } from 'svelte/easing';
     import { get } from 'svelte/store';
     
     import { debounce } from 'lodash';
@@ -11,7 +13,11 @@
     import Hovertip from './Hovertip.svelte';
     import ExternalLink from './ExternalLink.svelte';
     import NumericInput from './NumericInput.svelte';
-    import { GetRomanizationStyles, ValidateLanguageTag, CheckMediaLanguageTags } from '../../wailsjs/go/gui/App';
+    import { 
+        GetRomanizationStyles, 
+        ValidateLanguageTag, 
+        CheckMediaLanguageTags 
+    } from '../../wailsjs/go/gui/App';
 
     // Props
     export let selectedFeatures = {
@@ -21,6 +27,7 @@
         subtitleRomanization: false
     };
     export let quickAccessLangTag = '';
+    export let showLogViewer: bool;
 
     // Interfaces
     interface FeatureOptions {
@@ -60,6 +67,8 @@
     const dispatch = createEventDispatcher();
     
     // State variables
+    let visibleFeatures: string[] = [];
+    
     let isValidLanguage: boolean | null = null;
     let isChecking = false;
     let standardTag = '';
@@ -350,6 +359,16 @@
         }
     }
 
+    // for visible but unavailable features: slight shaking on click
+    function handleFeatureClick(event: Event, feature: string) {
+        if (!isRomanizationAvailable && feature === 'subtitleRomanization') {
+            const element = event.currentTarget as HTMLElement;
+            element.classList.remove('shake-animation');
+            void element.offsetWidth; // Force reflow to restart animation
+            element.classList.add('shake-animation');
+        }
+    }
+
     // Handle dropdown changes
     function handleDropdownChange(feature: string, option: string, value: string) {
         currentFeatureOptions[feature][option] = value;
@@ -441,6 +460,22 @@
             await validateLanguageTag(currentSettings.targetLanguage, true);
         }
          updateProviderWarnings();
+        
+        let initialWait = 0;
+        if (showLogViewer) {
+            initialWait = 2500;
+        }
+        // When the component mounts, gradually add features with staggered delays.
+        const allFeatures = Object.keys(selectedFeatures);
+        allFeatures.forEach((feature, index) => {
+            const baseDelay = 50; // Base delay in ms
+            const exponentialFactor = 2.2; // Exponential factor
+            // Dividing the index by 2 flattens the curve (slower increase in delay)
+            const delay = baseDelay * Math.pow(exponentialFactor, index / 1.2);
+            setTimeout(() => {
+                visibleFeatures = [...visibleFeatures, feature];
+            }, delay+initialWait);
+        });
     });
 
     $: {
@@ -561,7 +596,7 @@
 
         <!-- Audio track selection with slide animation -->
         <div class="flex">
-          <!-- Disclosure triangle button with connected border and matching background -->
+          <!-- Disclosure arrow button with connected border and matching background -->
           <button
             class="flex items-center justify-center p-4 w-6 h-6
                    border border-accent/30 
@@ -622,9 +657,11 @@
     </div>
     
     <div class="space-y-4">
-        {#each Object.entries(selectedFeatures) as [feature, enabled]}
+        {#each Object.entries(selectedFeatures)
+        .filter(([feature]) => visibleFeatures.includes(feature)) as [feature, enabled], i (feature)}
             <div class="bg-white/5 rounded-lg
-                     transition-all duration-300 ease-out transform
+                       transition-all duration-300 ease-out transform
+                       hover:translate-y-[-2px]
                      {!isRomanizationAvailable && feature === 'subtitleRomanization' 
                         ? 'opacity-50 cursor-not-allowed' 
                         : 'hover:translate-y-[-2px]'}"
@@ -632,14 +669,14 @@
                  class:shadow-glow={enabled}
                  class:hover:shadow-glow-hover={!enabled && isRomanizationAvailable}
                  class:opacity-30={anyFeatureSelected && !enabled}
-                 on:click={() => {
-                    if (!isRomanizationAvailable && feature === 'subtitleRomanization') {
-                        const element = event.currentTarget;
-                        element.classList.remove('shake-animation');
-                        void element.offsetWidth;
-                        element.classList.add('shake-animation');
-                    }
-                 }}>
+                 on:click={()  => handleFeatureClick(event, feature)}
+            in:fly={{ 
+                x: 300, 
+                duration: 400 - (i * 20),
+                easing: cubicOut,
+                opacity: 0
+            }}
+        >
                 <div class="p-4 border-b border-white/10">
                     <label class="flex items-center gap-3 cursor-pointer group
                                 {!isRomanizationAvailable && feature === 'subtitleRomanization' ? 'cursor-not-allowed' : ''}">

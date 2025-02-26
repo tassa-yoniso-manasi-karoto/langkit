@@ -301,6 +301,7 @@
                         <FeatureSelector
                             bind:selectedFeatures
                             bind:quickAccessLangTag
+                            bind:showLogViewer
                             on:optionsChange={handleOptionsChange}
                             {mediaSource}
                             class="feature-selector"

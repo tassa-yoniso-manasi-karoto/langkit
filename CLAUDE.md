@@ -24,4 +24,9 @@
 - Always use tabs to indent Golang code and use 4 spaces to indent CSS, Javascript or Svelte code.
 - The GUI should follow the Material Design philosophy and principles.
 - In the GUI any actions on interactable elements should trigger an effect to provide the user visual feedback.
+
+## Code management
 - do not git add or revert go.mod or go.sum
+- do not git diff or git pull
+- do not write commit messages in the "convential commit" style
+- you must briefly mention all noteworthy changes within the "main" message of git commit and separate them using semicolons. 

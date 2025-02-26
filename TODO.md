@@ -1,31 +1,29 @@
-- "no language passed" log
-- refactor r8RunWithAudioFile with retrypolicy
+- 😎😎😎 "no language passed" log 
+- 🤯😎😎 refactor r8RunWithAudioFile with retrypolicy
 
 transliteration:
-   - selective translit as a separate feature only for jpn
-   - update UI with "Selective transliteration" for jpn
+   - 🤯😎😎 selective translit as a separate feature only for jpn
+   - 🤯😎😎update UI with "Selective transliteration" for jpn
 
 
 - UI: 
-  - gui: single video picker not connected to Autosub logic??
-  - add progress bar
-  - remove round around button to close settings
-  - sliding appearance of features' cards
+  - 🤯😎😎 gui: single video picker not connected to Autosub logic??
+  - 🤯🤯😎 add progress bar
+  - 😎😎😎 remove round around button to close settings
   - spinner of "Processing..." causes weird border effect
-  - homogenize colors of log level with green check mark etc, paler blue debug level
+  - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
 
-- dubs allow user to request cached sep voice file deletion
+- 🤯😎😎 dubs allow user to request cached sep voice file deletion
 
 translitkit
-   - gojieba + go-pinyin
-   - ichiran: add database corrupted warning
+   - 🤯🤯😎 gojieba + go-pinyin
+   - 😎😎😎 ichiran: add database corrupted warning
 
 
 
 
-- implement CloseAll()
+- 🤯🤯😎 implement CloseAll()
 - crash reports add snapshots of tsk throughout code
-- input number field weird behavior when suppr when field is already empty
   - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
    - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
