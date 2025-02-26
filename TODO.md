@@ -9,8 +9,6 @@ transliteration:
 - UI: 
   - 🤯😎😎 gui: single video picker not connected to Autosub logic??
   - 🤯🤯😎 add progress bar
-  - 😎😎😎 remove round around button to close settings
-  - spinner of "Processing..." causes weird border effect
   - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion

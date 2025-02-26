@@ -150,7 +150,8 @@
                             Settings
                         </h2>
                         <button class="w-10 h-10 flex items-center justify-center rounded-full
-                                       transition-colors duration-200 hover:bg-red-500/90"
+                                border-0 hover:border-0 bg-transparent text-gray-300 transition-colors duration-200
+                                hover:text-red-500 hover:scale-125 hover:font-bold focus:outline-none"
                                 on:click={onClose}>
                             <span class="material-icons">close</span>
                         </button>
