@@ -1,13 +1,12 @@
-- 😎😎😎 "no language passed" log 
 - 🤯😎😎 refactor r8RunWithAudioFile with retrypolicy
+- 🤯🤯😎 major FeatureSelector.svelte refactor
 
 transliteration:
    - 🤯😎😎 selective translit as a separate feature only for jpn
-   - 🤯😎😎update UI with "Selective transliteration" for jpn
+   - 🤯😎😎 update UI with "Selective transliteration" for jpn
 
 
 - UI: 
-  - 🤯😎😎 gui: single video picker not connected to Autosub logic??
   - 🤯🤯😎 add progress bar
   - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
 
@@ -25,13 +24,13 @@ translitkit
   - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
    - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
+
+- break large functions (Execute and ProcessItem) and write some tests.
 - Add tests
    
    - fix directory tree: branches off center
    - fix newlines in builtin documentation
    
-
-→→→ Wait for Claude 4 release soon to break large functions (Execute and ProcessItem) and write some tests.
 
 *in progress:*
 - add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔

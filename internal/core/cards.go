@@ -71,6 +71,13 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 			return procErr
 		}
 	} else {
+		// in the CLI case where subs where specified explicitly
+		if len(tsk.Langs) == 0 {
+			tsk.Handler.ZeroLog().Trace().
+				Str("Targ", tsk.Targ.String()).
+				Str("Native", tsk.Native.String()).
+				Msg("No language flag passed. Attempted to guess language from filename.")
+		}
 		tsk.Targ, err = GuessLangFromFilename(tsk.TargSubFile)
 		if err != nil {
                        tsk.Handler.ZeroLog().Warn().Err(err).
@@ -86,10 +93,6 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
                                Str("NativeSubFile", tsk.NativeSubFile).
                                Msg("Couldn't guess the language of native subtitle file")
 		}
-		tsk.Handler.ZeroLog().Trace().
-			Str("Targ", tsk.Targ.String()).
-			Str("Native", tsk.Native.String()).
-			Msg("No language flag passed. Attempted to guess language from filename.")
 	}
 	var outStream *os.File
 	tsk.TargSubs, err = subs.OpenFile(tsk.TargSubFile, false)
