@@ -241,7 +241,7 @@
     });
 
     onDestroy(() => {
-        clearErrors();
+        errorStore.clearErrors();
     });
 
     window.addEventListener("settingsUpdated", ((event: CustomEvent) => {
