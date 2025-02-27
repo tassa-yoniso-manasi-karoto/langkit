@@ -10,6 +10,7 @@ require (
 	github.com/barbashov/iso639-3 v1.0.0
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
+	github.com/failsafe-go/failsafe-go v0.6.9
 	github.com/gookit/color v1.5.4
 	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/klauspost/compress v1.17.11
@@ -21,9 +22,9 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
-	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250216025127-652c1327cf51
+	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250125053402-0ba60f8e6ba7
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250216131515-600ac8d8493a
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250222132106-0aae9f68d384
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.10.0
 )
@@ -206,7 +207,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250216022613-a83107ba6d89 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250119041459-d91450df40c3 // indirect
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250218110359-2a9cd7ba3d95 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect
