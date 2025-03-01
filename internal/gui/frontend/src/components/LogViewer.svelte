@@ -2,7 +2,6 @@
     import { onMount } from 'svelte';
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
-    import ProgressBar from './ProgressBar.svelte';
 
     // Optional version prop to handle dev vs. prod initialization.
     export let version: string = "dev";
@@ -142,9 +141,6 @@
             scrollToBottom();
         }
     });
-
-    // For showing a progress bar (download, etc.)
-    export let downloadProgress: any = null;
 </script>
 
 <!-- Main container for the log viewer -->
@@ -234,17 +230,6 @@
                 {/each}
             {/if}
         </div>
-        
-        {#if downloadProgress}
-            <div class="p-2 bg-[#252525] border-t border-gray-800">
-                <ProgressBar
-                    progress={downloadProgress.progress}
-                    current={downloadProgress.current}
-                    total={downloadProgress.total}
-                    description={downloadProgress.description}
-                />
-            </div>
-        {/if}
     </div>
 </div>
 

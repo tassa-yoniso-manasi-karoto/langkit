@@ -1,5 +1,5 @@
-- 🤯😎😎 refactor r8RunWithAudioFile with retrypolicy
 - 🤯🤯😎 major FeatureSelector.svelte refactor
+- catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
 transliteration:
    - 🤯😎😎 selective translit as a separate feature only for jpn
@@ -13,7 +13,7 @@ transliteration:
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion
 
 translitkit
-   - 🤯🤯😎 gojieba + go-pinyin
+   - 🤯🤯😎 gojieba + go-pinyin	<== O1
    - 😎😎😎 ichiran: add database corrupted warning
 
 

@@ -12,6 +12,7 @@ import (
 	"github.com/gookit/color"
 	
 	"github.com/rs/zerolog"
+	"github.com/schollz/progressbar/v3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
@@ -36,8 +37,10 @@ type MessageHandler interface {
 	
 	ZeroLog() *zerolog.Logger
 	GetLogBuffer() bytes.Buffer
-	HandleProgress(current, total int, description string) //TODO
 	HandleStatus(status string) //TODO
+	
+	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
+
 }
 
 // #############################################################################
@@ -50,10 +53,15 @@ type CLIHandler struct {
 	ctx	context.Context
 	logger *zerolog.Logger
 	buffer bytes.Buffer
+	
+	progressBars map[string]*progressbar.ProgressBar
 }
 
 func NewCLIHandler(ctx context.Context) *CLIHandler {
-	h := &CLIHandler{ ctx: ctx }
+	h := &CLIHandler{ 
+		ctx: ctx,
+		progressBars: make(map[string]*progressbar.ProgressBar),
+	}
 	crash.InitReporter(ctx)
 	
 	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
@@ -107,14 +115,53 @@ func (h *CLIHandler) ZeroLog() *zerolog.Logger {
 	return h.logger
 }
 
-func (h *CLIHandler) HandleProgress(current, total int, description string) {
-	// TODO Implementation for CLI progress bar
-}
 
 func (h *CLIHandler) HandleStatus(status string) {
 	h.logger.Info().Msg(status)
 }
 
+func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, desc, size string) {
+	if h.progressBars == nil {
+		h.progressBars = make(map[string]*progressbar.ProgressBar)
+	}
+
+	bar, exists := h.progressBars[taskID]
+	if !exists {
+		// Create a new progress bar for this ID
+		bar = progressbar.NewOptions(
+			total,
+			progressbar.OptionSetDescription(desc),
+			progressbar.OptionShowCount(),
+			progressbar.OptionSetWidth(31),
+			progressbar.OptionClearOnFinish(),
+			progressbar.OptionSetPredictTime(true),
+			progressbar.OptionSetWriter(os.Stdout),
+			progressbar.OptionSetTheme(progressbar.Theme{
+				Saucer:        "#",
+				SaucerPadding: "-",
+				BarStart:      "[",
+				BarEnd:        "]",
+			}),
+		)
+		h.progressBars[taskID] = bar
+		fmt.Printf("\n%s\n", operation) // Show an extra line with the name of the operation if you like
+	}
+	
+	// If the total changed, adjust the bar's max
+	if bar.GetMax() != total {
+		bar.ChangeMax(total)
+		bar.Describe(desc) // update text if you want
+	}
+	
+	// Increment by the specified amount
+	bar.Add(increment)
+
+	// If we're done, clear & remove from map so we don’t keep unused bars
+	if bar.State().CurrentPercent >= 1.0 {
+		bar.Clear()
+		delete(h.progressBars, taskID)
+	}
+}
 
 
 // #############################################################################
@@ -128,6 +175,8 @@ type GUIHandler struct {
 	ctx	context.Context
 	logger  *zerolog.Logger
 	buffer  bytes.Buffer
+	
+	progressMap map[string]int
 }
 
 // LogWriter must implement io.Writer for zerolog.MultiLevelWriter
@@ -143,7 +192,10 @@ func (w *LogWriter) Write(p []byte) (n int, err error) {
 
 
 func NewGUIHandler(ctx context.Context) *GUIHandler {
-	h := &GUIHandler{ ctx: ctx }
+	h := &GUIHandler{
+		ctx:         ctx,
+		progressMap: make(map[string]int),
+	}
 	crash.InitReporter(ctx)
 	
 	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
@@ -221,12 +273,66 @@ func (h *GUIHandler) ZeroLog() *zerolog.Logger {
 	return h.logger
 }
 
-func (h *GUIHandler) HandleProgress(current, total int, description string) {
-	runtime.EventsEmit(h.ctx, "progress", map[string]interface{}{
+func (h *GUIHandler) DestroyProgressBar(id string) {
+	runtime.EventsEmit(h.ctx, "progress-remove", id)
+}
+
+
+// TODO Possibly a helper function for "error" state:
+func (h *GUIHandler) MarkProgressError(id string, description string) {
+	// Just re-emit the same bar but with color=red and optionally set progress=100
+	payload := map[string]interface{}{
+		"id":          id,
+		"progress":    100,
+		"operation":   "Error",
+		"description": description,
+		"color":       "red",
+		"size":        "sm",
+		"striped":     true,
+		"animated":    true,
+	}
+	runtime.EventsEmit(h.ctx, "progress", payload)
+}
+
+func (h *GUIHandler) IncrementProgress(
+	taskID string, 
+	increment, total, priority int, 
+	operation, descr, size string,
+) {
+	fmt.Println("DEBUG: Emitting progress event for taskID:", taskID, " ...")
+	// Bump up the current count for that task
+	h.progressMap[taskID] += increment
+	current := h.progressMap[taskID]
+
+	percent := 0.0
+	if total > 0 {
+		percent = (float64(current) / float64(total)) * 100.0
+	} else {
+		// fallback if total=0
+		percent = float64(current)
+	}
+
+	payload := map[string]interface{}{
+		"id":          taskID,
+		"progress":    percent,
 		"current":     current,
 		"total":       total,
-		"description": description,
-	})
+		"operation":   operation,
+		"description": descr,
+		"color":       "",
+		"size":        size,
+		"striped":     true,
+		"animated":    true,
+		"priority":    priority,
+	}
+	runtime.EventsEmit(h.ctx, "progress", payload)
+
+	// If we reached or exceeded total, optionally remove from the map
+	if total > 0 && current >= total {
+		delete(h.progressMap, taskID)
+		// If you want to signal "done" or auto-remove the bar on the front-end:
+		// runtime.EventsEmit(h.ctx, "progress-remove", taskID)
+	}
 }
 
 func (h *GUIHandler) HandleStatus(status string) {

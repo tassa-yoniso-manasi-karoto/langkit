@@ -13,18 +13,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	"github.com/schollz/progressbar/v3"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
 
-
-var (
-	itembar *progressbar.ProgressBar
-	totalItems int
-)
 
 func init() {	
 	zerolog.SetGlobalLevel(zerolog.TraceLevel)

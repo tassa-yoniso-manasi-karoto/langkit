@@ -3,7 +3,9 @@
 ## Build Commands
 - Build entire application: `wails build --clean`
 - Build for Windows: `wails build --clean --platform windows/amd64`
-- Use scripts in `/scripts/` directory for platform-specific builds
+- Build frontend only: `cd internal/gui/frontend && npm run build`
+- Dev frontend: `cd internal/gui/frontend && npm run dev`
+- Type checking: `cd internal/gui/frontend && npm run check`
 - Install Wails CLI (required): `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 
 ## Code Style Guidelines
@@ -13,7 +15,7 @@
   - Types/Exported: PascalCase
   - Constants: ALL_CAPS (enum-like) or camelCase (others)
 - **Error Handling**: Return errors, use custom ProcessingError type, early returns
-- **Formatting**: Standard Go formatting (gofmt)
+- **Formatting**: Standard Go formatting (gofmt), 4 spaces for Svelte/TS/CSS
 - **Comments**: Document behavior rather than implementation
 - **Package Organization**:
   - core/: Business logic
@@ -21,12 +23,14 @@
   - pkg/: Shared utilities
   - config/: Configuration
 - **Patterns**: Context propagation, interface-based design, dependency injection
-- Always use tabs to indent Golang code and use 4 spaces to indent CSS, Javascript or Svelte code.
-- The GUI should follow the Material Design philosophy and principles.
-- In the GUI any actions on interactable elements should trigger an effect to provide the user visual feedback.
+- **UI Guidelines**:
+  - Follow Material Design principles
+  - All interactive elements should have visual feedback
+  - Use Tailwind utility classes for styling
+  - Stores for state management (errorStore, logStore, progressBarsStore)
 
 ## Code management
-- do not git add or revert go.mod or go.sum
-- do not git diff or git pull
-- do not write commit messages in the "convential commit" style
-- you must briefly mention all noteworthy changes within the "main" message of git commit and separate them using semicolons. 
+- Do not git add or revert go.mod or go.sum
+- Do not git diff or git pull
+- Do not write commit messages in the "conventional commit" style
+- Include all noteworthy changes in the main commit message, separated by semicolons

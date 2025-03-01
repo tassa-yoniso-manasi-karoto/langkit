@@ -19,6 +19,11 @@ import (
 )
 
 
+var (
+	itembar *progressbar.ProgressBar
+	totalItems int
+)
+
 func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	version, err := media.GetFFmpegVersion()
 	if err != nil {
@@ -87,20 +92,21 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		if err != nil {
 			return
 		}
-		mediabar := mkMediabar(len(tasks))
+		//mediabar := mkMediabar(len(tasks))
 		for idx, tsk := range tasks {
-			mediabar.Add(1)
+			//mediabar.Add(1)
+			tsk.Handler.IncrementProgress(
+				"media-bar",
+				1,
+				len(tasks),
+				10,
+				"Processing",
+				"Total media files done...",
+				"h-4",
+			)
 			// trick to have a new line without the log prefix
-			tsk.Handler.ZeroLog().Info().Msg("\r             \n"+mediabar.String())
+			tsk.Handler.ZeroLog().Info().Msg("\r             \n")//+mediabar.String())
 			tsk.Handler.ZeroLog().Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
-			// Update progress for file start
-			// 	a.updateProgress(ProgressUpdate{
-			// 		Progress:    float64(i) / float64(totalFiles) * 100,
-			// 		Current:     i + 1,
-			// 		Total:      totalFiles,
-			// 		CurrentFile: file,
-			// 		Operation:   string(task.Mode),
-			// 	})
 			
 			if err := tsk.Execute(ctx); err != nil {
 				if errors.Is(err.Err, context.Canceled) {
@@ -156,24 +162,6 @@ func mkMediabar(i int) *progressbar.ProgressBar {
 		}),
 	)
 }
-
-func mkItemBar(i int, descr string) *progressbar.ProgressBar {
-	return progressbar.NewOptions(i,
-		progressbar.OptionSetDescription(descr),
-		progressbar.OptionShowCount(),		
-		progressbar.OptionSetWidth(31),
-		progressbar.OptionClearOnFinish(),
-		progressbar.OptionSetPredictTime(true),
-		progressbar.OptionSetWriter(os.Stdout),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "#",
-			SaucerPadding: "-",
-			BarStart:      "[",
-			BarEnd:        "]",
-		}),
-	)
-}
-
 
 
 

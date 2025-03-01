@@ -9,6 +9,7 @@ import (
 	astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/schollz/progressbar/v3"
 )
 
 // IndexedSubItem wraps a subtitle item along with its original index.
@@ -39,15 +40,28 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		}
 	}()
 
+					/*updateBar := func(item *ProcessedItem) {
+						// Only update progress for items that were not already done.
+						if !item.AlreadyDone {
+							if itembar == nil {
+								itembar = mkItemBar(totalItems, tsk.descrBar())
+							} else if itembar.GetMax() != totalItems {
+								itembar.ChangeMax(totalItems)
+							}
+							itembar.Add(1)
+						}
+					}*/
 	updateBar := func(item *ProcessedItem) {
-		// Only update progress for items that were not already done.
 		if !item.AlreadyDone {
-			if itembar == nil {
-				itembar = mkItemBar(totalItems, tsk.descrBar())
-			} else if itembar.GetMax() != totalItems {
-				itembar.ChangeMax(totalItems)
-			}
-			itembar.Add(1)
+			tsk.Handler.IncrementProgress(
+				"item-bar",
+				1,
+				totalItems,
+				20,
+				"Subtitle lines processed (combined total)...", 
+				tsk.descrBar(),
+				"h-2",
+			)
 		}
 	}
 
@@ -331,6 +345,25 @@ func checkStringsInFile(filepath string, toCheckChan <-chan string, isAlreadyCha
 		}
 	}
 	return nil
+}
+
+
+
+func mkItemBar(i int, descr string) *progressbar.ProgressBar {
+	return progressbar.NewOptions(i,
+		progressbar.OptionSetDescription(descr),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSetWidth(31),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionSetWriter(os.Stdout),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "#",
+			SaucerPadding: "-",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
+	)
 }
 
 

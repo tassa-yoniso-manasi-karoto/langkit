@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"math"
 	"sync"
 	"errors"
 	
@@ -386,7 +385,7 @@ func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
 func spleeterDemucsParser (predictionOutput replicate.PredictionOutput) (string, error) {
 	vocals, ok := predictionOutput.(map[string]interface{})["vocals"].(string)
 	if !ok {
-		return "", fmt.Errorf("vyocals key is missing or not a string")
+		return "", fmt.Errorf("vocals key is missing or not a string")
 	}
 	return vocals, nil
 }
@@ -400,10 +399,6 @@ func whisperParser (predictionOutput replicate.PredictionOutput) (string, error)
 	return transcription, nil
 }
 
-
-func calcExponentialBackoff(attempt int, baseDelay time.Duration) time.Duration {
-	return time.Duration(math.Pow(1.3, float64(attempt))) * baseDelay
-}
 
 func placeholder5() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")

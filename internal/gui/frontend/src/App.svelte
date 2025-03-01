@@ -7,6 +7,7 @@
     import { settings, showSettings } from './lib/stores';
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
+    import { updateProgressBar, removeProgressBar } from './lib/progressBarsStore';
 
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -15,6 +16,7 @@
     import Settings from './components/Settings.svelte';
     import ProcessButton from './components/ProcessButton.svelte';
     import UpdateNotification from './components/UpdateNotification.svelte';
+    import ProgressManager from './components/ProgressManager.svelte';
 
     import { ProcessFiles, CancelProcessing, GetVersion } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
@@ -217,15 +219,7 @@
         EventsOn("log", (rawLog: any) => {
             logStore.addLog(rawLog);
         });
-
-        // Listen for settings updates
-        EventsOn("settings-loaded", (loadedSettings) => {
-            settings.set(loadedSettings);
-            showGlow = loadedSettings.enableGlow;
-            defaultTargetLanguage = loadedSettings.targetLanguage;
-            showLogViewer = loadedSettings.showLogViewerByDefault;
-        });
-
+        
         GetVersion()
             .then((result: any) => {
                 console.log("GetVersion result:", result);
@@ -236,7 +230,27 @@
                 console.error("Failed to get version info:", err);
             });
 
+        // Listen for settings updates
+        EventsOn("settings-loaded", (loadedSettings) => {
+            settings.set(loadedSettings);
+            showGlow = loadedSettings.enableGlow;
+            defaultTargetLanguage = loadedSettings.targetLanguage;
+            showLogViewer = loadedSettings.showLogViewerByDefault;
+        });
+
         loadSettings();
+        
+        // either create or update a bar
+        EventsOn("progress", (data) => {
+            console.log("Received progress event", data);
+            updateProgressBar(data);
+        });
+
+        // remove the bar with that ID
+        EventsOn("progress-remove", (barID: string) => {
+            removeProgressBar(barID);
+        });
+        
         checkDockerAvailability();
     });
 
@@ -309,9 +323,15 @@
                     </div>
                 </div>
 
-                <!-- Fixed bottom button area -->
-                <div class="pt-6 pb-2 bg-gradient-to-t from-sky-dark via-sky-dark">
-                    <div class="max-w-2xl mx-auto flex justify-center items-center gap-4">
+                <!-- Fixed bottom area -->
+                <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
+                    <!-- Progress Manager with minimal spacing -->
+                    <div class="mb-2">
+                        <ProgressManager />
+                    </div>
+                    
+                    <!-- Process Button Row with no bottom padding -->
+                    <div class="max-w-2xl mx-auto flex justify-center items-center gap-4 pb-0">
                         <ProcessButton
                             {isProcessing}
                             on:process={handleProcess}
