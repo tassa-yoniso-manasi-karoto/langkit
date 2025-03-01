@@ -1,7 +1,7 @@
 // Feature configuration model to centralize all feature-related data
 
 export interface FeatureOption {
-    type: 'number' | 'boolean' | 'string' | 'dropdown' | 'romanizationDropdown';
+    type: 'number' | 'boolean' | 'string' | 'dropdown' | 'romanizationDropdown' | 'provider';
     label: string;
     default: any;
     min?: number;
@@ -153,7 +153,7 @@ export const features: FeatureDefinition[] = [
                 default: ''
             },
             provider: {
-                type: 'string',
+                type: 'provider',
                 label: 'Provider',
                 default: '',
                 showCondition: "context.romanizationSchemes.length > 0"

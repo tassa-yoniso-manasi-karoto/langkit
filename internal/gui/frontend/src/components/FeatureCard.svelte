@@ -1,7 +1,6 @@
 <script lang="ts">
-    import { slide } from 'svelte/transition';
     import { get } from 'svelte/store';
-    import { createEventDispatcher } from 'svelte';
+    import { createEventDispatcher, onMount } from 'svelte';
     
     import { formatDisplayText, type FeatureDefinition } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
@@ -29,6 +28,27 @@
 
     const dispatch = createEventDispatcher();
     
+    // Animation references and state
+    let optionsContainer: HTMLElement;
+    let optionsWrapper: HTMLElement;
+    let optionsHeight = 0;
+    let animating = false;
+    
+    onMount(() => {
+        // Initial measurement of the options height if enabled
+        if (enabled && optionsWrapper) {
+            optionsHeight = optionsWrapper.offsetHeight;
+        }
+    });
+    
+    // Update options height when they change
+    $: if (enabled && optionsWrapper && !animating) {
+        // Small delay to ensure DOM is updated
+        setTimeout(() => {
+            optionsHeight = optionsWrapper.offsetHeight;
+        }, 50);
+    }
+    
     // Helper function for text color classes
     function getTextColorClass(enabled: boolean, anyFeatureSelected: boolean): string {
         if (enabled) return 'text-white';
@@ -36,16 +56,28 @@
         return 'text-white/70';
     }
     
-    // Handle feature click for unavailable features
+    // Handle feature click for toggling and unavailable features
     function handleFeatureClick(event: Event) {
+        // Prevent toggling if clicking inside of the options drawer
+        const targetEl = event.target as HTMLElement;
+        const optionsEl = optionsContainer;
+        
+        // Don't toggle if clicking inside the options area or on checkbox
+        if (optionsEl && (optionsEl.contains(targetEl) || targetEl.tagName === 'INPUT')) {
+            return;
+        }
+        
         if (!isRomanizationAvailable && feature.id === 'subtitleRomanization') {
             const element = event.currentTarget as HTMLElement;
             element.classList.remove('shake-animation');
             void element.offsetWidth; // Force reflow to restart animation
             element.classList.add('shake-animation');
+            return; // Don't allow toggling disabled features
         }
         
-        dispatch('featureClick', { id: feature.id, event });
+        // Toggle the feature directly
+        enabled = !enabled;
+        dispatch('enabledChange', { id: feature.id, enabled });
     }
     
     // Check if option should be shown based on conditions
@@ -102,6 +134,37 @@
             shouldShowOption(optionId, feature.options[optionId])
         );
     }
+    
+    // When enabled status changes, animate the height
+    $: {
+        if (optionsContainer) {
+            animating = true;
+            
+            if (enabled) {
+                // Opening animation
+                // First measure height of the content
+                if (optionsWrapper) {
+                    setTimeout(() => {
+                        optionsHeight = optionsWrapper.offsetHeight;
+                        optionsContainer.style.height = optionsHeight + 'px';
+                        
+                        // Animation complete
+                        setTimeout(() => {
+                            animating = false;
+                        }, 350);
+                    }, 10);
+                }
+            } else {
+                // Closing animation
+                optionsContainer.style.height = '0px';
+                
+                // Animation complete
+                setTimeout(() => {
+                    animating = false;
+                }, 350);
+            }
+        }
+    }
 </script>
 
 <div class="bg-white/5 rounded-lg
@@ -117,21 +180,24 @@
      on:click={handleFeatureClick}
 >
     <div class="p-4 border-b border-white/10">
-        <label class="flex items-center gap-3 cursor-pointer group
-                    {!isRomanizationAvailable && feature.id === 'subtitleRomanization' ? 'cursor-not-allowed' : ''}">
+        <div class="flex items-center gap-3 cursor-pointer group
+                  {!isRomanizationAvailable && feature.id === 'subtitleRomanization' ? 'cursor-not-allowed' : ''}">
             <input
                 type="checkbox"
                 class="w-4 h-4 accent-accent"
                 bind:checked={enabled}
                 disabled={!isRomanizationAvailable && feature.id === 'subtitleRomanization'}
-                on:change={() => dispatch('enabledChange', { id: feature.id, enabled })}
+                on:change={(e) => {
+                    e.stopPropagation();
+                    dispatch('enabledChange', { id: feature.id, enabled });
+                }}
             />
             <span class="text-lg transition-all duration-300 {getTextColorClass(enabled, anyFeatureSelected)}
                        group-hover:text-accent/90"
                   class:font-semibold={enabled || !anyFeatureSelected}>
                 {feature.label || formatDisplayText(feature.id)}
             </span>
-        </label>
+        </div>
         
         {#if enabled && get(errorStore).some(e => e.id === `provider-${feature.id}`)}
             <div class="mt-2 flex items-center gap-2 text-red-400 text-xs pl-7">
@@ -180,9 +246,10 @@
         {/if}
     </div>
     
-    {#if enabled}
-        <div class="p-4" transition:slide={{ duration: 300 }}>
-            <div class="grid grid-cols-[1fr,1.5fr] gap-x-6 gap-y-3 transition-opacity duration-300">
+    <!-- Options drawer with slide animation -->
+    <div bind:this={optionsContainer} class="overflow-hidden" style="height: 0px; transition: height 350ms cubic-bezier(0.25, 1, 0.5, 1)">
+        <div bind:this={optionsWrapper} class="p-4">
+            <div class="grid grid-cols-[1fr,1.5fr] gap-x-6 gap-y-3">
                 {#each getVisibleOptions() as optionId}
                     {@const optionDef = feature.options[optionId]}
                     {@const value = options[optionId]}
@@ -272,7 +339,7 @@
                                 }}
                                 label="Select style"
                             />
-                        {:else if feature.id === 'subtitleRomanization' && optionId === 'provider'}
+                        {:else if optionDef.type === 'provider'}
                             <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
                                 {#if options['style']}
                                     {@const provider = romanizationSchemes.find(s => s.name === options['style'])?.provider || ''}
@@ -296,7 +363,7 @@
                 {/each}
             </div>
         </div>
-    {/if}
+    </div>
 </div>
 
 <style>

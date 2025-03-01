@@ -21,7 +21,7 @@
     } from '../../wailsjs/go/gui/App';
     
     import FeatureCard from './FeatureCard.svelte';
-    import LanguageSelector from './LanguageSelector.svelte';
+    import QuickAccessLangSelector from './QuickAccessLangSelector.svelte';
 
     // Props
     export let selectedFeatures = {
@@ -387,7 +387,7 @@
         
         <!-- Language selector component -->
         <div class="flex items-center ml-auto item-right gap-2 pr-3">
-            <LanguageSelector 
+            <QuickAccessLangSelector 
                 languageTag={quickAccessLangTag}
                 {isValidLanguage}
                 {isChecking}
