@@ -1,0 +1,35 @@
+/* Common styles for feature components */
+
+/* Glow effects for different states */
+:global(.shadow-glow) {
+    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.3),
+              4px 4px 8px -2px rgba(159, 110, 247, 0.2);
+}
+
+:global(.shadow-glow-strong) {
+    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.4),
+              4px 4px 12px -2px rgba(159, 110, 247, 0.25);
+}
+
+:global(.shadow-glow-hover) {
+    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.35),
+              4px 4px 16px -2px rgba(159, 110, 247, 0.3);
+}
+
+/* Animation for cards */
+@keyframes shake {
+    0%, 100% { transform: translateX(0) translateY(0); }
+    25% { transform: translateX(-2px) translateY(0); }
+    75% { transform: translateX(2px) translateY(0); }
+}
+
+.shake-animation {
+    animation: shake 0.4s ease-in-out;
+    position: relative;
+}
+
+/* Icon adjustments */
+.material-icon-adjust {
+    position: relative;
+    top: 5px;
+}
