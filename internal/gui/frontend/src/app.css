@@ -4,6 +4,40 @@
 
 :root {
     color-scheme: dark;
+    
+    /* CSS Variables for colors */
+    --accent-color: #9f6ef7;
+    --error-task-color: #f97316;
+    --error-all-color: #ef4444;
+    --user-cancel-color: #6b7280;
+}
+
+/* Progress bar animations */
+@keyframes transitionToError {
+  0% { background-color: var(--accent-color); }
+  100% { background-color: var(--error-task-color); }
+}
+
+@keyframes transitionToCritical {
+  0% { background-color: var(--accent-color); }
+  100% { background-color: var(--error-all-color); }
+}
+
+@keyframes transitionToCancel {
+  0% { background-color: var(--accent-color); }
+  100% { background-color: var(--user-cancel-color); }
+}
+
+.animate-to-error {
+  animation: transitionToError 2s forwards;
+}
+
+.animate-to-critical {
+  animation: transitionToCritical 2s forwards;
+}
+
+.animate-to-cancel {
+  animation: transitionToCancel 2s forwards;
 }
 
 :root {

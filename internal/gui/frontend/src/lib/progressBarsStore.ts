@@ -11,6 +11,8 @@ export interface ProgressBarData {
     size: string;            // e.g. "h-2" | "h-4" 
     labelOutside?: string;
     priority?: number;      // lower number => higher (earlier) in the UI
+    errorState?: string;    // 'error_task', 'error_all' or 'user_cancel'
+    transitionComplete?: boolean; // Flag to track if color transition has finished
 }
 
 export const progressBars = writable<ProgressBarData[]>([]);

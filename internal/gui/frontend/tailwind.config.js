@@ -7,6 +7,9 @@ export default {
       colors: {
         accent: '#9f6ef7',  // soft violet
         bg: '#1a1a1a',      // classic dark gray
+        'error-task': '#f97316', // Orange for task errors
+        'error-all': '#ef4444',  // Red for critical errors
+        'user-cancel': '#6b7280', // Gray for user cancellations
         primary: {
           50: '#f5f3ff',
           100: '#ede9fe',

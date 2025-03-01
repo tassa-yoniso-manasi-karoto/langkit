@@ -26,10 +26,11 @@
         'error': 4,
     };
 
-    // Match certain behaviors to text colors
+    // Match certain behaviors to text colors using the centralized colors
     const behaviorColors: Record<string, string> = {
-        'abort_task': 'text-red-400',
-        'abort_all': 'text-red-600',
+        'abort_task': 'text-[var(--error-task-color)]',
+        'abort_all': 'text-[var(--error-all-color)]',
+        'user_cancel': 'text-[var(--user-cancel-color)]',
         'probe': 'text-yellow-400'
     };
 
@@ -114,20 +115,6 @@
         autoScroll = value;
         if (autoScroll) {
             scrollToBottom();
-        }
-    }
-
-    function handleLogBehavior(log: LogMessage) {
-        switch (log.behavior) {
-            case 'abort_all':
-                // handle
-                break;
-            case 'abort_task':
-                // handle
-                break;
-            case 'warning':
-                // handle
-                break;
         }
     }
 
