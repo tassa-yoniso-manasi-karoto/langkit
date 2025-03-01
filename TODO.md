@@ -1,4 +1,3 @@
-- 🤯🤯😎 major FeatureSelector.svelte refactor
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
 transliteration:
@@ -7,7 +6,6 @@ transliteration:
 
 
 - UI: 
-  - 🤯🤯😎 add progress bar
   - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion

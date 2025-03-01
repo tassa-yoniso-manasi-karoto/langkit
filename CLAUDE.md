@@ -31,6 +31,7 @@
 
 ## Code management
 - Do not git add or revert go.mod or go.sum
-- Do not git diff or git pull
+- Unless I specifically request it: Do not git add / diff / commit and do not git pull
 - Do not write commit messages in the "conventional commit" style
+- When writing detailed list of changed in the git descriptions, use one line per change and preceed it by a bullet point "∙"
 - Include all noteworthy changes in the main commit message, separated by semicolons
