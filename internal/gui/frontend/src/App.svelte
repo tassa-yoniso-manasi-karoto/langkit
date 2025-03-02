@@ -18,7 +18,7 @@
     import UpdateNotification from './components/UpdateNotification.svelte';
     import ProgressManager from './components/ProgressManager.svelte';
 
-    import { ProcessFiles, CancelProcessing, GetVersion } from '../wailsjs/go/gui/App';
+    import { SendProcessingRequest, CancelProcessing, GetVersion } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
 
     // Define interfaces
@@ -29,7 +29,9 @@
     }
 
     interface FeatureOptions {
-        [key: string]: any;
+        [featureId: string]: {
+            [optionId: string]: any;
+        };
     }
 
     interface MediaSource {
@@ -126,13 +128,13 @@
             const request = {
                 path: mediaSource.path,
                 selectedFeatures,
-                options: currentFeatureOptions,
+                options: { Options: currentFeatureOptions },
                 languageCode: effectiveLanguageCode,
                 audioTrackIndex: mediaSource?.audioTrackIndex || 0
             };
 
             console.log("Sending processing request:", request);
-            await ProcessFiles(request);
+            await SendProcessingRequest(request);
         } catch (error) {
             console.error("Processing failed:", error);
             errorStore.addError({

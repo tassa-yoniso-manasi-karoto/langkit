@@ -13,10 +13,10 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
-func (a *App) ProcessFiles(request ProcessRequest) {
+func (a *App) SendProcessingRequest(request ProcessRequest) {
 	defer func() {
 		if r := recover(); r != nil {
-			exitOnError(fmt.Errorf("panic in ProcessFiles: %v", r))
+			exitOnError(fmt.Errorf("panic in SendProcessingRequest: %v", r))
 		}
 	}()
 
@@ -24,20 +24,20 @@ func (a *App) ProcessFiles(request ProcessRequest) {
 	a.procCancel = cancel
 	defer cancel()
 
-	task := core.NewTask(handler)
+	tsk := core.NewTask(handler)
 	
-	a.configureTask(task, request)
+	a.configureTask(tsk, request)
 	
-	task.MediaSourceFile = request.Path
+	tsk.MediaSourceFile = request.Path
 	
-	task.Handler.ZeroLog().Info().
-		Str("file", task.MediaSourceFile).
-		Str("mode", string(task.Mode)).
+	tsk.Handler.ZeroLog().Info().
+		Str("file", tsk.MediaSourceFile).
+		Str("mode", string(tsk.Mode)).
 		Msg("Starting processing")
 
 	pp.Println(request)
 	
-	task.Routing(processCtx)
+	tsk.Routing(processCtx)
 }
 
 
@@ -58,141 +58,265 @@ type ProcessRequest struct {
 }
 
 type FeatureOptions struct {
-	Subs2Cards struct {
-		PadTiming        int  `json:"padTiming"`
-		ScreenshotWidth  int  `json:"screenshotWidth"`
-		ScreenshotHeight int  `json:"screenshotHeight"`
-		CondensedAudio   bool `json:"condensedAudio"`
-	} `json:"subs2cards"`
-
-	Dubtitles struct {
-		PadTiming     int    `json:"padTiming"`
-		STT           string `json:"stt"`
-		STTtimeout    int    `json:"sttTimeout"`
-		InitialPrompt string `json:"initialPrompt"`
-	} `json:"dubtitles"`
-
-	VoiceEnhancing struct {
-		SepLib        string  `json:"sepLib"`
-		VoiceBoost    float64 `json:"voiceBoost"`
-		OriginalBoost float64 `json:"originalBoost"`
-		Limiter       float64 `json:"limiter"`
-		MergingFormat string  `json:"mergingFormat"`
-	} `json:"voiceEnhancing"`
-
-	SubtitleRomanization struct {
-		Style                    string `json:"style"`
-		SelectiveTransliteration int    `json:"selectiveTransliteration,omitempty"`
-		DockerRecreate           bool   `json:"dockerRecreate"`
-		BrowserAccessURL         string `json:"browserAccessURL"`
-	} `json:"subtitleRomanization"`
+	// Dynamic options map for all features based on featureModel.ts
+	Options map[string]map[string]interface{} `json:"options"`
 }
 
 
 
-func (a *App) configureTask(task *core.Task, request ProcessRequest) {
+func (a *App) configureTask(tsk *core.Task, request ProcessRequest) {
 	settings, err := config.LoadSettings()
 	if err != nil {
-		// TODO return tsk.Handler.LogErr(err, AbortAllTasks, "failed to load settings")
+		tsk.Handler.LogErr(err, core.AbortAllTasks, "failed to load settings")
+		return
 	}
 
 	if request.LanguageCode != "" {
-		task.Langs = []string{request.LanguageCode}
+		tsk.Langs = []string{request.LanguageCode}
 		if settings.NativeLanguages != "" {
-			task.Langs = append(task.Langs, core.TagsStr2TagsArr(settings.NativeLanguages)...)
+			tsk.Langs = append(tsk.Langs, core.TagsStr2TagsArr(settings.NativeLanguages)...)
 		} else {
-			// TODO return ERR
+			tsk.Handler.Log(core.Error, core.AbortAllTasks, "No native languages configured in settings")
+			return
 		}
 	}
 	
-	if procErr := task.PrepareLangs(); procErr != nil {
-		task.Handler.ZeroLog().Error().Err(procErr.Err).
+	if procErr := tsk.PrepareLangs(); procErr != nil {
+		tsk.Handler.ZeroLog().Error().Err(procErr.Err).
 			Msg("PrepareLangs failed")
 	}
+	
 	// Configure based on selected features starting from the most specific,
 	// restricted processing mode to the most general, multipurpose in order to
-	// have the correct task.Mode at the end to pass on downstream.
+	// have the correct tsk.Mode at the end to pass on downstream.
 	
-	// internally tsk.UseAudiotrack refers to first track as track index 0
+	// internally tsk.UseAudiotrack refers to first track as the track whose index is 0
 	request.AudioTrackIndex -= 1
 	
 	// Set audio track if specified
 	if request.AudioTrackIndex >= 0 {
-		task.UseAudiotrack = request.AudioTrackIndex
-		task.Handler.ZeroLog().Debug().
-			Int("UseAudiotrack", task.UseAudiotrack).
+		tsk.UseAudiotrack = request.AudioTrackIndex
+		tsk.Handler.ZeroLog().Debug().
+			Int("UseAudiotrack", tsk.UseAudiotrack).
 			Msg("Set audio track index")
 	}
+	
+	
+
+	// Get options from the dynamically structured feature options
+	if request.SelectedFeatures["selectiveTransliteration"] {
+		tsk.Mode = core.Translit
+		tsk.WantTranslit = true
+		
+		featureOpts, ok := request.Options.Options["selectiveTransliteration"]
+		if !ok {
+			tsk.Handler.Log(core.Error, core.AbortTask, "selectiveTransliteration options not found")
+			return
+		}
+		
+		if kanjiThreshold, ok := featureOpts["kanjiFrequencyThreshold"]; ok {
+			if threshold, ok := kanjiThreshold.(float64); ok {
+				tsk.KanjiThreshold = int(threshold)
+			}
+		}
+		
+		if provider, ok := featureOpts["provider"]; ok {
+			if providerStr, ok := provider.(string); ok && providerStr != "" {
+				// Use provider if needed
+			}
+		}
+		
+		if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
+			if recreate, ok := dockerRecreate.(bool); ok {
+				tsk.DockerRecreate = recreate
+			}
+		}
+		
+		tsk.Handler.ZeroLog().Debug().
+			Interface("selective_transliteration_options", featureOpts).
+			Int("kanji_threshold", tsk.KanjiThreshold).
+			Msg("Configured Selective Transliteration")
+	}
+	
+
+	//######################################################################
+	
 
 	if request.SelectedFeatures["subtitleRomanization"] {
-		opts := request.Options.SubtitleRomanization
-		task.Mode = core.Translit
-		task.WantTranslit = true
-		task.RomanizationStyle = opts.Style
-
-		if opts.SelectiveTransliteration > 0 {
-			task.KanjiThreshold = opts.SelectiveTransliteration
+		featureOpts, ok := request.Options.Options["subtitleRomanization"]
+		if !ok {
+			tsk.Handler.Log(core.Error, core.AbortTask, "subtitleRomanization options not found")
+			return
+		}
+		
+		tsk.Mode = core.Translit
+		tsk.WantTranslit = true
+		
+		if style, ok := featureOpts["style"]; ok {
+			if styleStr, ok := style.(string); ok {
+				tsk.RomanizationStyle = styleStr
+			}
+		}
+		
+		if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
+			if recreate, ok := dockerRecreate.(bool); ok {
+				tsk.DockerRecreate = recreate
+			}
+		}
+		
+		if browserAccessURL, ok := featureOpts["browserAccessURL"]; ok {
+			if url, ok := browserAccessURL.(string); ok {
+				tsk.BrowserAccessURL = url
+			}
+		}
+		
+		if provider, ok := featureOpts["provider"]; ok {
+			// Provider info is captured in the style selection for romanization
+			tsk.Handler.ZeroLog().Debug().Interface("provider", provider).Msg("Provider info")
 		}
 
-		// New options
-		task.DockerRecreate = opts.DockerRecreate
-		task.BrowserAccessURL = opts.BrowserAccessURL
-
-		task.Handler.ZeroLog().Debug().
-			Interface("romanization_options", opts).
-			Bool("docker_recreate", opts.DockerRecreate).
-			Str("browser_url", opts.BrowserAccessURL).
+		tsk.Handler.ZeroLog().Debug().
+			Interface("romanization_options", featureOpts).
+			Bool("docker_recreate", tsk.DockerRecreate).
+			Str("browser_url", tsk.BrowserAccessURL).
 			Msg("Configured Subtitle Romanization")
 	}
+	
+
+	//######################################################################
+	
+
 
 	if request.SelectedFeatures["voiceEnhancing"] {
-		opts := request.Options.VoiceEnhancing
-		task.Mode = core.Enhance
-		task.SeparationLib = opts.SepLib
-		task.VoiceBoost = opts.VoiceBoost
-		task.OriginalBoost = opts.OriginalBoost
-		task.Limiter = opts.Limiter
-		task.MergingFormat = opts.MergingFormat
+		featureOpts, ok := request.Options.Options["voiceEnhancing"]
+		if !ok {
+			tsk.Handler.Log(core.Error, core.AbortTask, "voiceEnhancing options not found")
+			return
+		}
+		
+		tsk.Mode = core.Enhance
+		
+		if sepLib, ok := featureOpts["sepLib"]; ok {
+			if sepLibStr, ok := sepLib.(string); ok {
+				tsk.SeparationLib = sepLibStr
+			}
+		}
+		
+		if voiceBoost, ok := featureOpts["voiceBoost"]; ok {
+			if boost, ok := voiceBoost.(float64); ok {
+				tsk.VoiceBoost = boost
+			}
+		}
+		
+		if originalBoost, ok := featureOpts["originalBoost"]; ok {
+			if boost, ok := originalBoost.(float64); ok {
+				tsk.OriginalBoost = boost
+			}
+		}
+		
+		if limiter, ok := featureOpts["limiter"]; ok {
+			if limit, ok := limiter.(float64); ok {
+				tsk.Limiter = limit
+			}
+		}
+		
+		if mergingFormat, ok := featureOpts["mergingFormat"]; ok {
+			if format, ok := mergingFormat.(string); ok {
+				tsk.MergingFormat = format
+			}
+		}
 
-		task.Handler.ZeroLog().Debug().
-			Interface("voice_enhancing_options", opts).
+		tsk.Handler.ZeroLog().Debug().
+			Interface("voice_enhancing_options", featureOpts).
 			Msg("Configured Voice Enhancing")
 	}
+	
+
+	//######################################################################
+	
+
 
 	if request.SelectedFeatures["dubtitles"] {
-		opts := request.Options.Dubtitles
-		task.Mode = core.Subs2Dubs
-		task.Offset = time.Duration(opts.PadTiming) * time.Millisecond
-		task.STT = opts.STT
-		task.TimeoutSTT = opts.STTtimeout
-		task.InitialPrompt = opts.InitialPrompt
+		featureOpts, ok := request.Options.Options["dubtitles"]
+		if !ok {
+			tsk.Handler.Log(core.Error, core.AbortTask, "dubtitles options not found")
+			return
+		}
+		
+		tsk.Mode = core.Subs2Dubs
+		
+		if padTiming, ok := featureOpts["padTiming"]; ok {
+			if padding, ok := padTiming.(float64); ok {
+				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+			}
+		}
+		
+		if stt, ok := featureOpts["stt"]; ok {
+			if sttStr, ok := stt.(string); ok {
+				tsk.STT = sttStr
+			}
+		}
+		
+		if sttTimeout, ok := featureOpts["sttTimeout"]; ok {
+			if timeout, ok := sttTimeout.(float64); ok {
+				tsk.TimeoutSTT = int(timeout)
+			}
+		}
+		
+		if initialPrompt, ok := featureOpts["initialPrompt"]; ok {
+			if prompt, ok := initialPrompt.(string); ok {
+				tsk.InitialPrompt = prompt
+			}
+		}
 
-		task.Handler.ZeroLog().Debug().
-			Interface("dubtitles_options", opts).
+		tsk.Handler.ZeroLog().Debug().
+			Interface("dubtitles_options", featureOpts).
 			Msg("Configured Dubtitles")
 	}
+	
+
+	//######################################################################
+	
+
 
 	if request.SelectedFeatures["subs2cards"] {
-		opts := request.Options.Subs2Cards
-		task.Mode = core.Subs2Cards
-		task.Offset = time.Duration(opts.PadTiming) * time.Millisecond
-		media.MaxWidth = opts.ScreenshotWidth
-		media.MaxHeight = opts.ScreenshotHeight
-		task.WantCondensedAudio = opts.CondensedAudio
+		featureOpts, ok := request.Options.Options["subs2cards"]
+		if !ok {
+			tsk.Handler.Log(core.Error, core.AbortTask, "subs2cards options not found")
+			return
+		}
+		
+		tsk.Mode = core.Subs2Cards
+		
+		if padTiming, ok := featureOpts["padTiming"]; ok {
+			if padding, ok := padTiming.(float64); ok {
+				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+			}
+		}
+		
+		if screenshotWidth, ok := featureOpts["screenshotWidth"]; ok {
+			if width, ok := screenshotWidth.(float64); ok {
+				media.MaxWidth = int(width)
+			}
+		}
+		
+		if screenshotHeight, ok := featureOpts["screenshotHeight"]; ok {
+			if height, ok := screenshotHeight.(float64); ok {
+				media.MaxHeight = int(height)
+			}
+		}
+		
+		if condensedAudio, ok := featureOpts["condensedAudio"]; ok {
+			if condensed, ok := condensedAudio.(bool); ok {
+				tsk.WantCondensedAudio = condensed
+			}
+		}
 
-		task.Handler.ZeroLog().Debug().
-			Interface("subs2cards_options", opts).
+		tsk.Handler.ZeroLog().Debug().
+			Interface("subs2cards_options", featureOpts).
 			Msg("Configured Subs2Cards")
 	}
-	return
 }
-
-
-
-/*func (a *App) updateProgress(update ProgressUpdate) {
-	runtime.EventsEmit(a.ctx, "download-progress", update)
-}*/
-
 
 
 
