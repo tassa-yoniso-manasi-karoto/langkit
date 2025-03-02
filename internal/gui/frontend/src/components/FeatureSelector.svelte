@@ -230,6 +230,43 @@
         const { id, enabled } = event.detail;
         selectedFeatures[id] = enabled;
         updateProviderWarnings();
+        
+        // If a feature was enabled, scroll it into view after a small delay
+        // to allow UI to update and expand the feature card options
+        if (enabled) {
+            // First timeout to let the feature expand
+            setTimeout(() => {
+                const featureCard = document.querySelector(`[data-feature-id="${id}"]`);
+                if (featureCard) {
+                    // Get the scroll container (mask-fade element)
+                    const scrollContainer = featureCard.closest('.mask-fade');
+                    if (!scrollContainer) return;
+                    
+                    // Get the position of the feature card within the scroll container
+                    const containerRect = scrollContainer.getBoundingClientRect();
+                    const featureRect = featureCard.getBoundingClientRect();
+                    
+                    // Calculate the vertical padding needed to avoid mask-fade edges
+                    const verticalPadding = containerRect.height * 0.15; // 15% of container height
+                    
+                    // Calculate target scroll position to center the feature
+                    let targetScrollTop = scrollContainer.scrollTop + 
+                                        (featureRect.top - containerRect.top) - 
+                                        (containerRect.height / 2) + 
+                                        (featureRect.height / 2);
+                    
+                    // Ensure the feature won't be hidden by top or bottom mask-fade
+                    const minScrollTop = featureRect.top - containerRect.top - verticalPadding;
+                    const maxScrollTop = featureRect.bottom - containerRect.bottom + verticalPadding;
+                    
+                    // Apply smoothly with animation
+                    scrollContainer.scrollTo({
+                        top: targetScrollTop,
+                        behavior: 'smooth'
+                    });
+                }
+            }, 250);
+        }
     }
     
     function handleOptionChange(event: CustomEvent) {
@@ -421,22 +458,24 @@
                 easing: cubicOut,
                 opacity: 0
             }}>
-                <FeatureCard
-                    {feature}
-                    enabled={selectedFeatures[feature.id]}
-                    options={currentFeatureOptions[feature.id]}
-                    {anyFeatureSelected}
-                    {romanizationSchemes}
-                    {isRomanizationAvailable}
-                    {needsDocker}
-                    {dockerUnreachable}
-                    {dockerEngine}
-                    {needsScraper}
-                    {standardTag}
-                    {providerGithubUrls}
-                    on:enabledChange={handleFeatureEnabledChange}
-                    on:optionChange={handleOptionChange}
-                />
+                <div data-feature-id={feature.id}>
+                    <FeatureCard
+                        {feature}
+                        enabled={selectedFeatures[feature.id]}
+                        options={currentFeatureOptions[feature.id]}
+                        {anyFeatureSelected}
+                        {romanizationSchemes}
+                        {isRomanizationAvailable}
+                        {needsDocker}
+                        {dockerUnreachable}
+                        {dockerEngine}
+                        {needsScraper}
+                        {standardTag}
+                        {providerGithubUrls}
+                        on:enabledChange={handleFeatureEnabledChange}
+                        on:optionChange={handleOptionChange}
+                    />
+                </div>
             </div>
         {/each}
         <br>
