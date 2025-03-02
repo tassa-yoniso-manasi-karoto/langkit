@@ -22,6 +22,7 @@ export interface FeatureDefinition {
     requiresDocker?: boolean;
     requiresScraper?: boolean;
     requiresLanguage?: boolean;
+    availableLanguages?: string[]; // Languages where this feature is available
 }
 
 export interface RomanizationScheme {
@@ -145,7 +146,7 @@ export const features: FeatureDefinition[] = [
     {
         id: 'subtitleRomanization',
         label: 'Subtitle Romanization',
-        optionOrder: ['style', 'provider', 'selectiveTransliteration', 'dockerRecreate', 'browserAccessURL'],
+        optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
         options: {
             style: {
                 type: 'romanizationDropdown',
@@ -157,16 +158,6 @@ export const features: FeatureDefinition[] = [
                 label: 'Provider',
                 default: '',
                 showCondition: "context.romanizationSchemes.length > 0"
-            },
-            selectiveTransliteration: {
-                type: 'number',
-                label: 'Retain Kanjis below most frequent',
-                default: 100,
-                min: 1,
-                max: 3000,
-                hovertip: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana.",
-                placeholder: "Enter threshold (e.g., 100)",
-                showCondition: "context.standardTag === 'jpn'"
             },
             dockerRecreate: {
                 type: 'boolean',
@@ -187,6 +178,38 @@ export const features: FeatureDefinition[] = [
         requiresLanguage: true,
         requiresDocker: true,
         requiresScraper: true
+    },
+    {
+        id: 'selectiveTransliteration',
+        label: 'Kanji to Kana Transliteration',
+        options: {
+            provider: {
+                type: 'provider',
+                label: 'Provider',
+                default: 'ichiran',
+                showCondition: "context.standardTag === 'jpn'"
+            },
+            kanjiFrequencyThreshold: {
+                type: 'number',
+                label: 'Retain Kanjis below most frequent',
+                default: 100,
+                min: 1,
+                max: 3000,
+                hovertip: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana.",
+                placeholder: "Enter threshold (e.g., 100)",
+                showCondition: "context.standardTag === 'jpn'"
+            },
+            dockerRecreate: {
+                type: 'boolean',
+                label: 'Recreate Docker containers',
+                default: false,
+                hovertip: "Use this if the previous run failed or if you're experiencing issues.",
+                showCondition: "context.needsDocker"
+            }
+        },
+        requiresLanguage: true,
+        requiresDocker: true,
+        availableLanguages: ['jpn']
     }
 ];
 

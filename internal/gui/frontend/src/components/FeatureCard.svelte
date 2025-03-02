@@ -67,7 +67,12 @@
             return;
         }
         
-        if (!isRomanizationAvailable && feature.id === 'subtitleRomanization') {
+        // Check if the feature is unavailable based on language requirements
+        const isFeatureUnavailable = 
+            (feature.id === 'subtitleRomanization' && !isRomanizationAvailable) || 
+            (feature.id === 'selectiveTransliteration' && (standardTag !== 'jpn'));
+        
+        if (isFeatureUnavailable) {
             const element = event.currentTarget as HTMLElement;
             element.classList.remove('shake-animation');
             void element.offsetWidth; // Force reflow to restart animation
@@ -170,23 +175,28 @@
 <div class="bg-white/5 rounded-lg
            transition-all duration-300 ease-out transform
            hover:translate-y-[-2px]
-         {!isRomanizationAvailable && feature.id === 'subtitleRomanization' 
+         {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
+           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))
             ? 'opacity-50 cursor-not-allowed' 
             : 'hover:translate-y-[-2px]'}"
      class:shadow-glow-strong={enabled && !anyFeatureSelected}
      class:shadow-glow={enabled}
-     class:hover:shadow-glow-hover={!enabled && isRomanizationAvailable}
+     class:hover:shadow-glow-hover={!enabled && ((feature.id !== 'subtitleRomanization' || isRomanizationAvailable) && 
+                                                (feature.id !== 'selectiveTransliteration' || standardTag === 'jpn'))}
      class:opacity-30={anyFeatureSelected && !enabled}
      on:click={handleFeatureClick}
 >
     <div class="p-4 border-b border-white/10">
         <div class="flex items-center gap-3 cursor-pointer group
-                  {!isRomanizationAvailable && feature.id === 'subtitleRomanization' ? 'cursor-not-allowed' : ''}">
+                  {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
+                    (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))
+                    ? 'cursor-not-allowed' : ''}">
             <input
                 type="checkbox"
                 class="w-4 h-4 accent-accent"
                 bind:checked={enabled}
-                disabled={!isRomanizationAvailable && feature.id === 'subtitleRomanization'}
+                disabled={((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
+                           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))}
                 on:change={(e) => {
                     e.stopPropagation();
                     dispatch('enabledChange', { id: feature.id, enabled });
@@ -241,6 +251,25 @@
                         rel="noopener noreferrer">
                         Pull requests and feedback are welcome.
                     </ExternalLink>
+                </div>
+            {/if}
+        {:else if feature.id === 'selectiveTransliteration'}
+            {#if enabled && needsDocker && !dockerUnreachable}
+                <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
+                    🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
+                </div>
+            {/if}
+            {#if needsDocker && dockerUnreachable}
+                <div class="mt-2 flex items-left text-xs font-bold text-red-500 pl-7">
+                    🔴 {dockerEngine} is required but not reachable. Please make sure it is installed and running.
+                </div>
+            {:else if !standardTag}
+                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
+                    Please select a language to proceed.
+                </div>
+            {:else if standardTag !== 'jpn'}
+                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
+                    Kanji to Kana transliteration is only available for Japanese.
                 </div>
             {/if}
         {/if}

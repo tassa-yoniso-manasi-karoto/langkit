@@ -28,7 +28,8 @@
         subs2cards: false,
         dubtitles: false,
         voiceEnhancing: false,
-        subtitleRomanization: false
+        subtitleRomanization: false,
+        selectiveTransliteration: false
     };
     export let quickAccessLangTag = '';
     export let showLogViewer: boolean;
@@ -45,6 +46,7 @@
     
     let romanizationSchemes: RomanizationScheme[] = [];
     let isRomanizationAvailable = true;
+    let isSelectiveTransliterationAvailable = false;
     
     let dockerUnreachable = false;
     let dockerEngine = '';
@@ -96,10 +98,14 @@
         if (!tag?.trim()) {
             romanizationSchemes = [];
             isRomanizationAvailable = false;
+            isSelectiveTransliterationAvailable = false;
             needsDocker = false;
             needsScraper = false;
             if (selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
+            }
+            if (selectedFeatures.selectiveTransliteration) {
+                selectedFeatures.selectiveTransliteration = false;
             }
             return;
         }
@@ -109,6 +115,10 @@
             
             romanizationSchemes = response.schemes || [];
             isRomanizationAvailable = romanizationSchemes.length > 0;
+            
+            // Check if selective transliteration is available for this language (only Japanese for now)
+            isSelectiveTransliterationAvailable = tag === 'jpn';
+            
             needsScraper = response.needsScraper || false;
             dockerUnreachable = response.dockerUnreachable || false;
             needsDocker = response.needsDocker || false;
@@ -119,6 +129,7 @@
                 currentFeatureOptions.subtitleRomanization.style = romanizationSchemes[0].name;
             }
             
+            // Disable subtitle romanization if not available
             if (!isRomanizationAvailable && selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
                 errorStore.addError({
@@ -127,12 +138,26 @@
                     severity: 'warning'
                 });
             }
+            
+            // Disable selective transliteration if not available
+            if (!isSelectiveTransliterationAvailable && selectedFeatures.selectiveTransliteration) {
+                selectedFeatures.selectiveTransliteration = false;
+                errorStore.addError({
+                    id: 'no-selective-transliteration',
+                    message: 'Kanji to Kana transliteration is only available for Japanese',
+                    severity: 'warning'
+                });
+            }
         } catch (error) {
             console.error('Error fetching romanization styles:', error);
             romanizationSchemes = [];
             isRomanizationAvailable = false;
+            isSelectiveTransliterationAvailable = false;
             if (selectedFeatures.subtitleRomanization) {
                 selectedFeatures.subtitleRomanization = false;
+            }
+            if (selectedFeatures.selectiveTransliteration) {
+                selectedFeatures.selectiveTransliteration = false;
             }
         }
     }
@@ -277,22 +302,7 @@
         }
     });
     
-    // Japanese-specific option handling
-    $: if (standardTag === 'jpn' && !currentFeatureOptions.subtitleRomanization.hasOwnProperty('selectiveTransliteration')) {
-        currentFeatureOptions = {
-            ...currentFeatureOptions,
-            subtitleRomanization: {
-                ...currentFeatureOptions.subtitleRomanization,
-                selectiveTransliteration: 100
-            }
-        };
-    } else if (standardTag != 'jpn' && currentFeatureOptions.subtitleRomanization.hasOwnProperty('selectiveTransliteration')) {
-        const { selectiveTransliteration, ...rest } = currentFeatureOptions.subtitleRomanization;
-        currentFeatureOptions = {
-            ...currentFeatureOptions,
-            subtitleRomanization: rest
-        };
-    }
+    // Remove this section as we've moved selective transliteration to its own feature
     
     // Media source change
     $: if (mediaSource) {
@@ -305,7 +315,8 @@
     
     // Docker errors
     $: {
-        if (selectedFeatures.subtitleRomanization && needsDocker && dockerUnreachable) {
+        if ((selectedFeatures.subtitleRomanization || selectedFeatures.selectiveTransliteration) && 
+            needsDocker && dockerUnreachable) {
             errorStore.addError({
                 id: 'docker-required',
                 message: `${dockerEngine} is required but not reachable`,
@@ -375,6 +386,8 @@
         errorStore.removeError('invalid-language');
         errorStore.removeError('provider-dubtitles');
         errorStore.removeError('provider-voiceEnhancing');
+        errorStore.removeError('no-romanization');
+        errorStore.removeError('no-selective-transliteration');
     });
 </script>
 
