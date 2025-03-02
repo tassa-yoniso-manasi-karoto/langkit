@@ -122,6 +122,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		// by default assume a subtitle file is wanted and therefore
 		// let that value be overwritten as needed (currently only by CLI).
 		WantDubs: true,
+		KanjiThreshold: -1,
 	}
 	
 	if tsk.FieldSep == "" {
