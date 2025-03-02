@@ -181,7 +181,7 @@ export const features: FeatureDefinition[] = [
     },
     {
         id: 'selectiveTransliteration',
-        label: 'Kanji to Kana Transliteration',
+        label: 'Selective Transliteration',
         options: {
             provider: {
                 type: 'provider',

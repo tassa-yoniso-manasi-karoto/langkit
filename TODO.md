@@ -1,9 +1,6 @@
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
-transliteration:
-   - 🤯😎😎 selective translit as a separate feature only for jpn
-   - 🤯😎😎 update UI with "Selective transliteration" for jpn
-
+- pprof selective translit perf issues
 
 - UI: 
   - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
