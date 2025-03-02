@@ -24,133 +24,23 @@ var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
 
-func (tsk *Task) Translit(ctx context.Context, subsFilepath string) *ProcessingError {	
-	common.BrowserAccessURL = tsk.BrowserAccessURL 
-	// TODO rm hardcoded ext
-	subsFilepathTokenized := strings.TrimSuffix(subsFilepath, ".srt") + "_tokenized.srt"
-	subsFilepathTranslit := strings.TrimSuffix(subsFilepath, ".srt") + "_translit.srt"
-	
-	if alreadyDone, err := fileExistsAndNotEmpty(subsFilepathTranslit); err != nil {
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: error checking destination file %s", subsFilepathTranslit))
-	} else if alreadyDone {
-		tsk.Handler.ZeroLog().Info().
-			Bool("file_exists_and_not_empty", alreadyDone).
-			Msg("Subtitle were already transliterated previously, continuing...")
-		return nil
-	}
-
-	m, err := common.GetSchemeModule(tsk.Targ.Language.Part3, tsk.RomanizationStyle)
-	if err != nil {
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: couldn't get default provider for language %s-%s", tsk.Targ.Language.Part3, tsk.RomanizationStyle))
-	}
-	tsk.Handler.ZeroLog().Trace().Msg("translit: successfully retrived default module for lang: " + m.Lang)
-	
-	// TODO to derive or not to derive?
-	m.WithContext(ctx)
-	
-	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s-%s-%s provider initialization starting, please wait...", m.Lang, m.ProviderNames(), tsk.RomanizationStyle)
-	if !tsk.DockerRecreate {
-		err = m.Init()
-	} else {
-		err = m.InitRecreate(true)
-	}
-	if err != nil {
-	        if errors.Is(err, context.Canceled) {
-			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: init: operation canceled by user")
-	        } else if errors.Is(err, context.DeadlineExceeded) {
-			return tsk.Handler.LogErr(err, AbortTask, "translit: init: operation timed out.")
-		}
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: failed to init default provider for language %s", tsk.Targ.Language.Part3))
-	}
-	tsk.Handler.ZeroLog().Info().Msgf("translit: %s-%s-%s successfully initialized", m.Lang, m.ProviderNames(), tsk.RomanizationStyle)
-	
-	SubTranslit, _ := astisub.OpenFile(subsFilepath)
-	SubTokenized, _ := astisub.OpenFile(subsFilepath)
-	mergedSubsStr, _ := Subs2StringBlock(SubTranslit)
-	
-	// module returns array of all tokenized and all tokenized+transliteration that
-	// we can replace directly of mergedSubsStr, before splitting mergedSubsStr to recover subtitles
-	tokens, err := m.Tokens(mergedSubsStr)
-	if err != nil {
-	        if errors.Is(err, context.Canceled) {
-			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: tkns: operation canceled by user")
-	        } else if errors.Is(err, context.DeadlineExceeded) {
-			return tsk.Handler.LogErr(err, AbortTask, "translit: tkns: operation timed out.")
-		}
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("couldn't get tokens from default provider for language %s", tsk.Targ.Language.Part3))
-			//Str("module-lang", m.Lang).
-			//Str("module-provider", m.ProviderNames()).
-	}
-	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s-%s returned tokens", m.Lang, m.ProviderNames())
-	tokenizeds := tokens.TokenizedParts()
-	translits  := tokens.RomanParts()
-	tsk.Handler.ZeroLog().Trace().Msg("Tokenization/transliteration query finished")
-	
-	// TODO this convoluted replacement system of processed word on the original subtitle line
-	//  was designed to workaround the fact that some providers trimmed non-lexical elements such as
-	// punctuation and therefore deformed the original string's format but after recent updates on
-	// translitkit I am not sure whether it's still needed
-	mergedSubsStrTranslit := mergedSubsStr
-	for i, tokenized := range tokenizeds {
-		translit := translits[i]
-		//color.Redln("Replacing: ", tokenized, " –> ", translit, "\tisFound? ", strings.Contains(mergedSubsStrTranslit, tokenized))
-		mergedSubsStrTranslit = strings.Replace(mergedSubsStrTranslit, tokenized, translit+" ", 1)
-	}
-	
-	// Replace from translit this time because if we replace thai by thai-tokenize we will endup replacing FALSE POSITIVES!
-	mergedSubsStrTokenized := mergedSubsStrTranslit
-	for i, tokenized := range tokenizeds {
-		translit := translits[i]
-		//color.Redln("Replacing: ", translit, " –> ", tokenized, "\tisFound? ", strings.Contains(mergedSubsStrTokenized, translit))
-		mergedSubsStrTokenized = strings.Replace(mergedSubsStrTokenized, translit, tokenized, 1)
-	}
-	
-	idx := 0
-	subSliceTranslit  := strings.Split(mergedSubsStrTranslit, Splitter)
-	subSliceTokenized := strings.Split(mergedSubsStrTokenized, Splitter)
-	tsk.Handler.ZeroLog().Trace().
-		Int("len(subSliceTranslit)", len(subSliceTranslit)).
-		Int("len(subSliceTokenized)", len(subSliceTokenized)).
-		Msg("")
-	for i, _ := range (*SubTranslit).Items {
-		for j, _ := range (*SubTranslit).Items[i].Lines {
-			for k, _ := range (*SubTranslit).Items[i].Lines[j].Items {
-				// FIXME: Trimmed closed captions have some sublines removed, hence must adjust idx
-				target := subSliceTranslit[idx]
-				(*SubTokenized).Items[i].Lines[j].Items[k].Text = clean(subSliceTokenized[idx])
-				(*SubTranslit).Items[i].Lines[j].Items[k].Text = m.RomanPostProcess(target, func(s string) string { return s })
-				idx += 1
-			}
-		}
-	}
-	tsk.Handler.ZeroLog().Trace().
-		Int("len(SubTokenized.Items)", len(SubTokenized.Items)).
-		Int("len(SubTranslit.Items)", len(SubTranslit.Items)).
-		Msg("")
-	
-	if err := SubTokenized.Write(subsFilepathTokenized); err != nil {
-		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write tokenized subtitles")
-	}
-	if err := SubTranslit.Write(subsFilepathTranslit); err != nil {
-		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write transliterated subtitles")
-	}
-	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
-	return nil
+// TranslitProvider defines an interface for transliteration providers
+// translitkit already acts a layer of abstraction but for selective transliteration
+// it is better to access the dedicated lib for a given language directly.
+type TranslitProvider interface {
+	Initialize(ctx context.Context, tsk *Task) error
+	GetTokens(ctx context.Context, text string) (tokenized []string, transliterated []string, err error)
+	GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error)
+	PostProcess(text string) string
+	ProviderName() string
 }
 
-
-// pretty much the same code as above as I haven't found a simple way to add 
-//  a custom routing for a specific language inside the general purpose func.
-func (tsk *Task) TranslitJPN(ctx context.Context, subsFilepath string) *ProcessingError {	
+func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *ProcessingError {
 	common.BrowserAccessURL = tsk.BrowserAccessURL
 	subsFilepathTokenized := strings.TrimSuffix(subsFilepath, ".srt") + "_tokenized.srt"
 	subsFilepathTranslit := strings.TrimSuffix(subsFilepath, ".srt") + "_translit.srt"
-	subsFilepathSelective := strings.TrimSuffix(subsFilepath, ".srt") + "_selective.srt"
 	
+	// Check if transliteration already exists
 	if alreadyDone, err := fileExistsAndNotEmpty(subsFilepathTranslit); err != nil {
 		return tsk.Handler.LogErr(err, AbortAllTasks,
 			fmt.Sprintf("translit: error checking destination file %s", subsFilepathTranslit))
@@ -160,113 +50,153 @@ func (tsk *Task) TranslitJPN(ctx context.Context, subsFilepath string) *Processi
 			Msg("Subtitle were already transliterated previously, continuing...")
 		return nil
 	}
-	
-	ichiran.Ctx = ctx
-	
-	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s-%s provider initialization starting, please wait...", "jpn", "ichiran")
-	var err error
-	if !tsk.DockerRecreate {
-		err = ichiran.Init()
-	} else {
-		err = ichiran.InitRecreate(true)
-	}
+
+	// Get the appropriate transliteration provider based on language
+	provider, err := GetTranslitProvider(tsk.Targ.Language.Part3, tsk.RomanizationStyle)
 	if err != nil {
-	        if errors.Is(err, context.Canceled) {
+		return tsk.Handler.LogErr(err, AbortAllTasks,
+			fmt.Sprintf("translit: couldn't get provider for language %s-%s", tsk.Targ.Language.Part3, tsk.RomanizationStyle))
+	}
+	
+	// Initialize provider
+	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s provider initialization starting, please wait...", provider.ProviderName())
+	if err := provider.Initialize(ctx, tsk); err != nil {
+		if errors.Is(err, context.Canceled) {
 			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: init: operation canceled by user")
-	        } else if errors.Is(err, context.DeadlineExceeded) {
+		} else if errors.Is(err, context.DeadlineExceeded) {
 			return tsk.Handler.LogErr(err, AbortTask, "translit: init: operation timed out.")
 		}
 		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: failed to init default provider for language %s", tsk.Targ.Language.Part3))
+			fmt.Sprintf("translit: failed to init provider for language %s", tsk.Targ.Language.Part3))
 	}
-	tsk.Handler.ZeroLog().Info().Msgf("translit: %s-%s successfully initialized", "jpn", "ichiran")
+	tsk.Handler.ZeroLog().Info().Msgf("translit: %s successfully initialized", provider.ProviderName())
 	
+	// Open subtitle files
 	SubTranslit, _ := astisub.OpenFile(subsFilepath)
 	SubTokenized, _ := astisub.OpenFile(subsFilepath)
-	SubSelective, _ := astisub.OpenFile(subsFilepath)
 	mergedSubsStr, _ := Subs2StringBlock(SubTranslit)
 	
-	// module returns array of all tokenized and all tokenized+transliteration that
-	// we can replace directly of mergedSubsStr, before splitting mergedSubsStr to recover subtitles
-	tokens, err := ichiran.Analyze(mergedSubsStr)
+	// Get tokens
+	// returns array of all tokenized and all tokenized+transliteration that
+	// we can replace directly of mergedSubsStr, before splitting mergedSubsStr
+	// to recover subtitles without altering their format: punctuation etc
+	tokenizeds, translits, err := provider.GetTokens(ctx, mergedSubsStr)
 	if err != nil {
-	        if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) {
 			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: tkns: operation canceled by user")
-	        } else if errors.Is(err, context.DeadlineExceeded) {
+		} else if errors.Is(err, context.DeadlineExceeded) {
 			return tsk.Handler.LogErr(err, AbortTask, "translit: tkns: operation timed out.")
 		}
-		return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't get tokens from ichiran")
+		return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't get tokens from provider")
 	}
-	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s-%s returned tokens", "jpn", "ichiran")
-	tokenizeds := tokens.TokenizedParts()
-	translits  := tokens.RomanParts()
-	mergedSubsStrSelective, err  := tokens.SelectiveTranslit(tsk.KanjiThreshold)
-	if err != nil {
-	        if errors.Is(err, context.Canceled) {
-			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: selectiveTranslit: operation canceled by user")
-	        } else if errors.Is(err, context.DeadlineExceeded) {
-			return tsk.Handler.LogErr(err, AbortTask, "translit: selectiveTranslit: operation timed out.")
+	tsk.Handler.ZeroLog().Trace().Msgf("translit: %s returned tokens", provider.ProviderName())
+	
+	// Get selective transliteration if supported (for Japanese)
+	var SubSelective *astisub.Subtitles
+	var mergedSubsStrSelective string
+	
+	if tsk.Targ.Language.Part3 == "jpn" && tsk.KanjiThreshold > -1 {
+		SubSelective, _ = astisub.OpenFile(subsFilepath)
+		subsFilepathSelective := strings.TrimSuffix(subsFilepath, ".srt") + "_selective.srt"
+		
+		mergedSubsStrSelective, err = provider.GetSelectiveTranslit(ctx, mergedSubsStr, tsk.KanjiThreshold)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: selectiveTranslit: operation canceled by user")
+			} else if errors.Is(err, context.DeadlineExceeded) {
+				return tsk.Handler.LogErr(err, AbortTask, "translit: selectiveTranslit: operation timed out.")
+			}
+			return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't get selective transliteration")
 		}
-		return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't get selectiveTranslit from ichiran")
 	}
+	
 	tsk.Handler.ZeroLog().Trace().Msg("Tokenization/transliteration query finished")
 	
 	// TODO this convoluted replacement system of processed word on the original subtitle line
 	//  was designed to workaround the fact that some providers trimmed non-lexical elements such as
 	// punctuation and therefore deformed the original string's format but after recent updates on
 	// translitkit I am not sure whether it's still needed
+	
+	// Common replacement logic
 	mergedSubsStrTranslit := mergedSubsStr
 	for i, tokenized := range tokenizeds {
 		translit := translits[i]
-		//color.Redln("Replacing: ", tokenized, " –> ", translit, "\tisFound? ", strings.Contains(mergedSubsStrTranslit, tokenized))
 		mergedSubsStrTranslit = strings.Replace(mergedSubsStrTranslit, tokenized, translit+" ", 1)
 	}
 	
 	mergedSubsStrTokenized := mergedSubsStrTranslit
 	for i, tokenized := range tokenizeds {
 		translit := translits[i]
-		//color.Redln("Replacing: ", translit, " –> ", tokenized, "\tisFound? ", strings.Contains(mergedSubsStrTokenized, translit))
 		mergedSubsStrTokenized = strings.Replace(mergedSubsStrTokenized, translit, tokenized, 1)
 	}
 	
+	// Split results
 	idx := 0
-	subSliceTranslit  := strings.Split(mergedSubsStrTranslit, Splitter)
+	subSliceTranslit := strings.Split(mergedSubsStrTranslit, Splitter)
 	subSliceTokenized := strings.Split(mergedSubsStrTokenized, Splitter)
-	subSliceSelective := strings.Split(mergedSubsStrSelective, Splitter)
-	tsk.Handler.ZeroLog().Trace().
-		Int("len(subSliceTranslit)", len(subSliceTranslit)).
-		Int("len(subSliceTokenized)", len(subSliceTokenized)).
-		Int("len(subSliceSelective)", len(subSliceSelective)).
-		Msg("")
-	for i, _ := range (*SubTranslit).Items {
-		for j, _ := range (*SubTranslit).Items[i].Lines {
-			for k, _ := range (*SubTranslit).Items[i].Lines[j].Items {
+	
+	// Add selective slice for Japanese if available
+	var subSliceSelective []string
+	if tsk.Targ.Language.Part3 == "jpn" && tsk.KanjiThreshold > -1 && mergedSubsStrSelective != "" {
+		subSliceSelective = strings.Split(mergedSubsStrSelective, Splitter)
+		
+		tsk.Handler.ZeroLog().Trace().
+			Int("len(subSliceTranslit)", len(subSliceTranslit)).
+			Int("len(subSliceTokenized)", len(subSliceTokenized)).
+			Int("len(subSliceSelective)", len(subSliceSelective)).
+			Msg("")
+	} else {
+		tsk.Handler.ZeroLog().Trace().
+			Int("len(subSliceTranslit)", len(subSliceTranslit)).
+			Int("len(subSliceTokenized)", len(subSliceTokenized)).
+			Msg("")
+	}
+	
+	// Apply changes to subtitles
+	for i := range (*SubTranslit).Items {
+		for j := range (*SubTranslit).Items[i].Lines {
+			for k := range (*SubTranslit).Items[i].Lines[j].Items {
 				// FIXME: Trimmed closed captions have some sublines removed, hence must adjust idx
 				(*SubTokenized).Items[i].Lines[j].Items[k].Text = clean(subSliceTokenized[idx])
-				(*SubTranslit).Items[i].Lines[j].Items[k].Text = subSliceTranslit[idx]
-				if tsk.KanjiThreshold > -1 {
+				
+				// Process transliteration
+				if tsk.Targ.Language.Part3 == "jpn" {
+					(*SubTranslit).Items[i].Lines[j].Items[k].Text = subSliceTranslit[idx]
+				} else {
+					(*SubTranslit).Items[i].Lines[j].Items[k].Text = provider.PostProcess(subSliceTranslit[idx])
+				}
+				
+				// Add selective transliteration for Japanese
+				if tsk.Targ.Language.Part3 == "jpn" && tsk.KanjiThreshold > -1 && SubSelective != nil {
 					(*SubSelective).Items[i].Lines[j].Items[k].Text = subSliceSelective[idx]
 				}
-				idx += 1
+				
+				idx++
 			}
 		}
 	}
+	
 	tsk.Handler.ZeroLog().Trace().
 		Int("len(SubTokenized.Items)", len(SubTokenized.Items)).
 		Int("len(SubTranslit.Items)", len(SubTranslit.Items)).
 		Msg("")
 	
+	// Write output files
 	if err := SubTokenized.Write(subsFilepathTokenized); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write tokenized subtitles")
 	}
 	if err := SubTranslit.Write(subsFilepathTranslit); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write transliterated subtitles")
 	}
-	if tsk.KanjiThreshold > -1 {
+	
+	// Write selective transliteration for Japanese if needed
+	if tsk.Targ.Language.Part3 == "jpn" && tsk.KanjiThreshold > -1 && SubSelective != nil {
+		subsFilepathSelective := strings.TrimSuffix(subsFilepath, ".srt") + "_selective.srt"
 		if err := SubSelective.Write(subsFilepathSelective); err != nil {
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write selectively transliterated subtitles")
 		}
 	}
+	
 	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
 	return nil
 }
@@ -282,6 +212,106 @@ func Subs2StringBlock(subs *astisub.Subtitles) (mergedSubsStr string, subSlice [
 	}
 	return
 }
+
+
+
+// GenericProvider implements the transliteration for most languages
+type GenericProvider struct {
+	module *common.SchemeModule
+}
+
+func NewGenericProvider(lang string, style string) (*GenericProvider, error) {
+	m, err := common.GetSchemeModule(lang, style)
+	if err != nil {
+		return nil, err
+	}
+	return &GenericProvider{module: m}, nil
+}
+
+func (p *GenericProvider) Initialize(ctx context.Context, tsk *Task) error {
+	p.module.WithContext(ctx)
+	
+	if !tsk.DockerRecreate {
+		return p.module.Init()
+	} 
+	return p.module.InitRecreate(true)
+}
+
+func (p *GenericProvider) GetTokens(ctx context.Context, text string) ([]string, []string, error) {
+	tokens, err := p.module.Tokens(text)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tokens.TokenizedParts(), tokens.RomanParts(), nil
+}
+
+func (p *GenericProvider) GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error) {
+	// Most languages don't support selective transliteration
+	return "", nil
+}
+
+func (p *GenericProvider) PostProcess(text string) string {
+	return p.module.RomanPostProcess(text, func(s string) string { return s })
+}
+
+func (p *GenericProvider) ProviderName() string {
+	return fmt.Sprintf("%s-%s", p.module.Lang, p.module.ProviderNames())
+}
+
+// JapaneseProvider handles Japanese-specific transliteration
+type JapaneseProvider struct{}
+
+func NewJapaneseProvider() *JapaneseProvider {
+	return &JapaneseProvider{}
+}
+
+func (p *JapaneseProvider) Initialize(ctx context.Context, tsk *Task) error {
+	ichiran.Ctx = ctx
+	
+	if !tsk.DockerRecreate {
+		return ichiran.Init()
+	}
+	return ichiran.InitRecreate(true)
+}
+
+func (p *JapaneseProvider) GetTokens(ctx context.Context, text string) ([]string, []string, error) {
+	tokens, err := ichiran.Analyze(text)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tokens.TokenizedParts(), tokens.RomanParts(), nil
+}
+
+func (p *JapaneseProvider) GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error) {
+	if threshold > -1 {
+		tokens, err := ichiran.Analyze(text)
+		if err != nil {
+			return "", err
+		}
+		return tokens.SelectiveTranslit(threshold)
+	}
+	return "", nil
+}
+
+func (p *JapaneseProvider) PostProcess(text string) string {
+	// Japanese doesn't need post-processing for transliteration
+	return text
+}
+
+func (p *JapaneseProvider) ProviderName() string {
+	return "jpn-ichiran"
+}
+
+// GetTranslitProvider returns the appropriate provider based on language
+func GetTranslitProvider(lang string, style string) (TranslitProvider, error) {
+	if lang == "jpn" {
+		return NewJapaneseProvider(), nil
+	}
+	
+	return NewGenericProvider(lang, style)
+}
+
+
 
 func fileExistsAndNotEmpty(filepath string) (bool, error) {
         fileInfo, err := os.Stat(filepath)
