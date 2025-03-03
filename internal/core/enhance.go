@@ -106,8 +106,8 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
-					fmt.Sprintf("[0:a]volume=%ddB[a1];", tsk.VoiceBoost) +
-					fmt.Sprintf("[1:a]volume=%ddB[a2];", tsk.OriginalBoost) +
+					fmt.Sprintf("[0:a]volume=%fdB[a1];", tsk.VoiceBoost) +
+					fmt.Sprintf("[1:a]volume=%fdB[a2];", tsk.OriginalBoost) +
 					"[a1][a2]amix=inputs=2[amixed];" +
 					fmt.Sprintf("[amixed]alimiter=limit=%f[final]", tsk.Limiter),
 					"-map", "[final]", "-metadata:s:a:0", "language=" + tsk.Targ.String(),
