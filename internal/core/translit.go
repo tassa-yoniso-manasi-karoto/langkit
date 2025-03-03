@@ -422,7 +422,7 @@ func (p *GenericProvider) ProviderName() string {
 // JapaneseProvider handles Japanese-specific transliteration
 type JapaneseProvider struct {
 	// Cache the tokens to avoid redundant Analyze calls
-	tokens  *ichiran.Tokens
+	tokens  *ichiran.JSONTokens
 	text    string // Keep track of the text we've analyzed
 }
 
@@ -440,7 +440,7 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, tsk *Task) error {
 }
 
 // analyzeText ensures we only call ichiran.Analyze once for the same text
-func (p *JapaneseProvider) analyzeText(text string) (*ichiran.Tokens, error) {
+func (p *JapaneseProvider) analyzeText(text string) (*ichiran.JSONTokens, error) {
 	// If we've already analyzed this text, return the cached tokens
 	if p.tokens != nil && p.text == text {
 		return p.tokens, nil

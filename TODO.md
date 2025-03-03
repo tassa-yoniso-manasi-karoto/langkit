@@ -1,6 +1,7 @@
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
-- pprof selective translit perf issues
+- pprof selective translit perf issues -> maybe still some improvement to make?
+  - 😎😎😎 ichiran: add database corrupted warning
 
 - UI: 
   - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
@@ -9,7 +10,6 @@
 
 translitkit
    - 🤯🤯😎 gojieba + go-pinyin	<== O1
-   - 😎😎😎 ichiran: add database corrupted warning
 
 
 
