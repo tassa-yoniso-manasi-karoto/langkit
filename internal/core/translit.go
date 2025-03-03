@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"time"
-	"log"
 	
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -190,7 +189,6 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	
 	if langCode == "jpn" && tsk.KanjiThreshold > -1 {
 		SubSelective, _ = astisub.OpenFile(subsFilepath)
-		subsFilepathSelective := strings.TrimSuffix(subsFilepath, ".srt") + "_selective.srt"
 		
 		selectiveStartTime := time.Now()
 		mergedSubsStrSelective, err = provider.GetSelectiveTranslit(ctx, mergedSubsStr, tsk.KanjiThreshold)
@@ -380,7 +378,7 @@ func Subs2StringBlock(subs *astisub.Subtitles) (mergedSubsStr string, subSlice [
 
 // GenericProvider implements the transliteration for most languages
 type GenericProvider struct {
-	module *common.SchemeModule
+	module *common.Module
 }
 
 func NewGenericProvider(lang string, style string) (*GenericProvider, error) {

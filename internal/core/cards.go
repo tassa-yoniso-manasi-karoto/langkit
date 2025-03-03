@@ -205,14 +205,8 @@ ResumeEnhance:
 	}
 	if tsk.WantTranslit {
 		// TODO: find a way to provide transliteration in the TSV as well
-		if tsk.Targ.Language.Part3 == "jpn" {
-			if err := tsk.TranslitJPN(ctx, subs); err != nil {
-				return err
-			}
-		} else {
-			if err := tsk.Translit(ctx, subs); err != nil {
-				return err
-			}
+		if err := tsk.Transliterate(ctx, subs); err != nil {
+			return err
 		}
 	}
 	if tsk.SeparationLib != "" {
