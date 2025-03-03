@@ -420,7 +420,11 @@ func (p *GenericProvider) ProviderName() string {
 }
 
 // JapaneseProvider handles Japanese-specific transliteration
-type JapaneseProvider struct{}
+type JapaneseProvider struct {
+	// Cache the tokens to avoid redundant Analyze calls
+	tokens  *ichiran.Tokens
+	text    string // Keep track of the text we've analyzed
+}
 
 func NewJapaneseProvider() *JapaneseProvider {
 	return &JapaneseProvider{}
@@ -435,8 +439,28 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, tsk *Task) error {
 	return ichiran.InitRecreate(true)
 }
 
-func (p *JapaneseProvider) GetTokens(ctx context.Context, text string) ([]string, []string, error) {
+// analyzeText ensures we only call ichiran.Analyze once for the same text
+func (p *JapaneseProvider) analyzeText(text string) (*ichiran.Tokens, error) {
+	// If we've already analyzed this text, return the cached tokens
+	if p.tokens != nil && p.text == text {
+		return p.tokens, nil
+	}
+	
+	// Analyze the text and cache the results
 	tokens, err := ichiran.Analyze(text)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Cache the tokens and text for future use
+	p.tokens = tokens
+	p.text = text
+	
+	return tokens, nil
+}
+
+func (p *JapaneseProvider) GetTokens(ctx context.Context, text string) ([]string, []string, error) {
+	tokens, err := p.analyzeText(text)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -445,7 +469,7 @@ func (p *JapaneseProvider) GetTokens(ctx context.Context, text string) ([]string
 
 func (p *JapaneseProvider) GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error) {
 	if threshold > -1 {
-		tokens, err := ichiran.Analyze(text)
+		tokens, err := p.analyzeText(text)
 		if err != nil {
 			return "", err
 		}
