@@ -22,9 +22,10 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250222130553-4736132089a9
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250218110359-2a9cd7ba3d95
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250227035935-60d1ec1be412
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250222132106-0aae9f68d384
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.10.0
@@ -206,7 +207,6 @@ require (
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250222130736-c9e6da206ea6 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect

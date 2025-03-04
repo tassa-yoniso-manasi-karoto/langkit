@@ -620,8 +620,8 @@ github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c74
 github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac/go.mod h1:uJZaFWGBJJ+/iezVfF182nM97i3u5kU3UUOcdD0bkJM=
 github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250222130736-c9e6da206ea6 h1:QK8eEwvuTksHN1z0swPHb6EULw9ALGjh9CPuyKQK1SY=
 github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250222130736-c9e6da206ea6/go.mod h1:wXqQlXeCy50ud+3KB8KfSQBiU72iK93lQxzB9KRnm+4=
-github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250218110359-2a9cd7ba3d95 h1:V2tZAGco9cb+ZlUx4CG8dd2qj9s8EPK89Ib+HTwPlOo=
-github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250218110359-2a9cd7ba3d95/go.mod h1:yLc9zQA1386gyLYPuW3e2BzaM0EfYjy0Jg2B/S8PbXQ=
+github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250227035935-60d1ec1be412 h1:IyCvzHdIKPsOUb7IVJju3ggOnrQJuc9Kfiq1qx7GxFI=
+github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250227035935-60d1ec1be412/go.mod h1:LeVRb3Eo9biCHWdKXn+nX126tufwzZ0soU8YM/YYfAE=
 github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250222132106-0aae9f68d384 h1:x2FSNoFsw6YVY+7RYkz6OJBHZz7CS4pJbr6oyfMGWkA=
 github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250222132106-0aae9f68d384/go.mod h1:y2WtUtJridHCtVw+MDcPLvzKlQXtK6z/u4b+AEz4BV4=
 github.com/theupdateframework/notary v0.7.0 h1:QyagRZ7wlSpjT5N2qQAh/pN+DVqgekv4DzbAiAiEL3c=

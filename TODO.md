@@ -1,7 +1,10 @@
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
-- pprof selective translit perf issues -> maybe still some improvement to make?
   - 😎😎😎 ichiran: add database corrupted warning
+- update subtitle exclusion for translit, tokenized, selective
+- PROGRESS BAR  for other features (translit, etc)
+- proper routing translit for selective
+- translitkit close
 
 - UI: 
   - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
@@ -14,7 +17,6 @@ translitkit
 
 
 
-- 🤯🤯😎 implement CloseAll()
 - crash reports add snapshots of tsk throughout code
   - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
