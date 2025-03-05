@@ -25,7 +25,7 @@
     const baseClasses = "bg-sky-dark/50 focus:outline-none transition-all duration-200";
     
     // Default styling classes that can be overridden
-    const defaultClasses = "border-2 border-accent/30 rounded-md h-[42px] px-3 text-sm font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 hover:border-accent/50";
+    const defaultClasses = "border-2 border-primary/30 rounded-md h-[42px] px-3 text-sm font-medium focus:border-primary focus:ring-2 focus:ring-primary/30 hover:border-primary/50";
     
     // Conditional classes based on the component's props
     const conditionalClasses = `${center ? 'text-center' : ''} ${fullWidth ? 'w-full' : ''}`;

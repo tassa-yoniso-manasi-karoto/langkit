@@ -115,10 +115,10 @@
 <div class="relative" role="presentation">
     <div
         role="presentation"
-        class="relative border-2 border-dashed border-accent/30 rounded-lg p-4 text-center
+        class="relative border-2 border-dashed border-primary/30 rounded-lg p-4 text-center
                transition-all duration-200 ease-out bg-white/5
-               hover:border-accent/50 hover:bg-white/10
-               {dragOver ? 'border-accent bg-accent/10' : ''}
+               hover:border-primary/50 hover:bg-white/10
+               {dragOver ? 'border-primary bg-primary/10' : ''}
                {mediaSource ? 'opacity-90' : ''}"
         on:dragenter={handleDragEnter}
         on:dragleave={handleDragLeave}
@@ -126,19 +126,19 @@
         on:drop={handleDrop}
     >
         {#if !mediaSource}
-            <div class="text-accent/70">
+            <div class="text-primary/70">
                 <span class="material-icons text-2xl mb-1">upload_file</span>
                 <p class="text-sm leading-none">
                     Select
                     <button 
-                        class="text-accent hover:text-accent-2 underline decoration-dotted
+                        class="text-primary hover:text-primary-2 underline decoration-dotted
                                leading-none inline hover:-translate-y-0.5
                                transition-all duration-200"
                         on:click={handleDirectorySelect}
                     >a directory</button>
                     or
                     <button 
-                        class="text-accent hover:text-accent-2 underline decoration-dotted
+                        class="text-primary hover:text-primary-2 underline decoration-dotted
                                leading-none inline hover:-translate-y-0.5
                                transition-all duration-200"
                         on:click={handleVideoSelect}
@@ -150,9 +150,9 @@
             <div class="text-left">
                 <div class="space-y-2">
                     {#if isDirectory}
-                        <div class="flex items-center justify-between gap-1 p-1.5 bg-accent/10 rounded text-sm">
+                        <div class="flex items-center justify-between gap-1 p-1.5 bg-primary/10 rounded text-sm">
                             <div class="flex items-center gap-1 min-w-0">
-                                <span class="material-icons text-accent text-sm flex-shrink-0">folder</span>
+                                <span class="material-icons text-primary text-sm flex-shrink-0">folder</span>
                                 <span class="truncate">{mediaSource.path}</span>
                             </div>
                             <button 
@@ -182,7 +182,7 @@
                                     </div>
                                     <!-- Content -->
                                     <div class="flex items-center gap-2 min-w-0">
-                                        <span class="material-icons text-accent text-sm flex-shrink-0">movie</span>
+                                        <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
                                         <span class="truncate">{file.name}</span>
                                     </div>
                                 </div>
@@ -204,9 +204,9 @@
                             {/if}
                         </div>
                     {:else}
-                        <div class="flex items-center justify-between gap-1 p-1.5 bg-accent/10 rounded text-sm">
+                        <div class="flex items-center justify-between gap-1 p-1.5 bg-primary/10 rounded text-sm">
                             <div class="flex items-center gap-1 min-w-0">
-                                <span class="material-icons text-accent text-sm flex-shrink-0">movie</span>
+                                <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
                                 <span class="truncate">{mediaSource.path}</span>
                             </div>
                             <button 

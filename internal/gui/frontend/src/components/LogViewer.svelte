@@ -28,27 +28,27 @@
 
     // Match certain behaviors to text colors using the centralized colors
     const behaviorColors: Record<string, string> = {
-        'abort_task': 'text-[var(--error-task-color)]',
-        'abort_all': 'text-[var(--error-all-color)]',
-        'user_cancel': 'text-[var(--user-cancel-color)]',
-        'probe': 'text-yellow-400'
+        'abort_task': 'text-error-task',
+        'abort_all': 'text-error-all',
+        'user_cancel': 'text-user-cancel',
+        'probe': 'text-log-warn'
     };
 
     // Return a Tailwind class for each log level
     function getLevelClass(level: string): string {
         switch (level.toUpperCase()) {
             case 'TRACE':
-                return 'text-violet-400';
+                return 'text-log-trace';
             case 'DEBUG':
-                return 'text-blue-500';
+                return 'text-log-debug';
             case 'INFO':
-                return 'text-green-500';
+                return 'text-log-info';
             case 'WARN':
-                return 'text-yellow-500';
+                return 'text-log-warn';
             case 'ERROR':
-                return 'text-red-500';
+                return 'text-log-error';
             default:
-                return 'text-green-500';
+                return 'text-log-info';
         }
     }
 
@@ -144,7 +144,7 @@
                     bind:value={selectedLogLevel}
                     class="w-20 h-7 bg-[#333] text-white text-[11px] font-medium uppercase tracking-wider
                            border-none rounded px-2 py-1.5
-                           focus:ring-1 focus:ring-accent outline-none
+                           focus:ring-1 focus:ring-primary outline-none
                            appearance-none
                            [background-image:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22white%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22/%3E%3C/svg%3E')] 
                            bg-no-repeat bg-[right_0.5rem_center] bg-[length:1em]"
@@ -165,7 +165,7 @@
                     type="checkbox" 
                     checked={autoScroll}
                     on:change={(e) => toggleAutoScroll(e.target.checked)}
-                    class="w-3.5 h-3.5 accent-accent m-0"
+                    class="w-3.5 h-3.5 accent-primary m-0"
                 />
                 Auto-scroll
             </button>

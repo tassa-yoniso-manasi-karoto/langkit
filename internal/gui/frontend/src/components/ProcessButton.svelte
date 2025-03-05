@@ -96,10 +96,12 @@
 <div class="relative inline-block">
     <button
         bind:this={buttonRef}
-        class="h-12 px-4 bg-accent text-white rounded-lg font-bold outline-none flex items-center justify-center overflow-hidden"
+        class="h-12 px-4 bg-primary text-white rounded-lg font-bold outline-none flex items-center justify-center overflow-hidden"
         class:opacity-50={hasCriticalErrors || isProcessing}
         class:cursor-not-allowed={hasCriticalErrors || isProcessing}
-        class:hover:bg-[#8a5de5]={!hasCriticalErrors && !isProcessing}
+        class:hover:bg-opacity-80={!hasCriticalErrors && !isProcessing}
+        class:hover:-translate-y-0.5={!hasCriticalErrors && !isProcessing}
+        class:hover:shadow-lg={!hasCriticalErrors && !isProcessing}
         on:click={handleClick}
         on:mouseover={handleMouseOver}
         on:mousemove={handleMouseMove}

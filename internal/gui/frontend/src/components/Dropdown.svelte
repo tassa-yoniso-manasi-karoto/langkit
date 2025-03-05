@@ -41,9 +41,9 @@
         <select
             bind:value
             on:change={handleSelect}
-            class="w-full h-[42px] bg-sky-dark/50 border-2 border-accent/30 rounded-md
-                   focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 
-                   hover:border-accent/50 transition-all duration-200 text-sm font-medium
+            class="w-full h-[42px] bg-sky-dark/50 border-2 border-primary/30 rounded-md
+                   focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 
+                   hover:border-primary/50 transition-all duration-200 text-sm font-medium
                    appearance-none cursor-pointer select-centered"
         >
             {#each options as option}
@@ -52,7 +52,7 @@
                 </option>
             {/each}
         </select>
-        <span class="material-icons text-accent/70 absolute right-3 pointer-events-none">
+        <span class="material-icons text-primary/70 absolute right-3 pointer-events-none">
             expand_more
         </span>
     </div>

@@ -295,7 +295,7 @@
             class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
                    transition-all duration-200 hover:bg-white/15 hover:text-white
                    hover:-translate-y-0.5 hover:shadow-lg hover:shadow-white/5
-                   focus:outline-none focus:ring-2 focus:ring-accent/50"
+                   focus:outline-none focus:ring-2 focus:ring-primary/50"
             on:click={() => $showSettings = true}
             aria-label="Open settings"
         >
@@ -358,11 +358,11 @@
                         <button
                             class="h-12 w-12 flex items-center justify-center rounded-lg
                                    transition-all duration-200
-                                   {showLogViewer ? 'bg-accent text-sky-dark' : 'bg-white/10 text-white'}
+                                   {showLogViewer ? 'bg-primary text-sky-dark' : 'bg-white/10 text-white'}
                                    hover:bg-opacity-80 hover:-translate-y-0.5
                                    hover:shadow-lg
                                    focus:outline-none focus:ring-2
-                                   {showLogViewer ? 'focus:ring-accent/50' : 'focus:ring-white/30'}
+                                   {showLogViewer ? 'focus:ring-primary/50' : 'focus:ring-white/30'}
                                    focus:ring-offset-2 focus:ring-offset-bg"
                             on:click={toggleLogViewer}
                             aria-label="{showLogViewer ? 'Hide log viewer' : 'Show log viewer'}"

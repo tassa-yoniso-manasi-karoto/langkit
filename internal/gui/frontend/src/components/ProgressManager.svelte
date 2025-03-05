@@ -130,7 +130,7 @@
         
     // Determine bar color based on error state
     function getBarColor(bar: ProgressBarData) {
-        if (!bar.errorState) return 'bg-accent';
+        if (!bar.errorState) return 'bg-primary';
         
         // Use inline style with calculated color instead of gradient
         return 'color-transition';
@@ -146,7 +146,7 @@
             case 'user_cancel':
                 return getComputedStyle(document.documentElement).getPropertyValue('--user-cancel-color').trim() || '#6b7280';
             default:
-                return getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || '#9f6ef7';
+                return getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#9f6ef7';
         }
     }
     
@@ -234,7 +234,7 @@
                         </div>
                         <div class="relative w-full bg-[#333] rounded-full overflow-hidden {bar.size || 'h-2.5'}">
                             <div
-                                class="absolute inset-0 bg-accent {bar.errorState === 'error_task' ? 'animate-to-error' : ''} 
+                                class="absolute inset-0 bg-primary {bar.errorState === 'error_task' ? 'animate-to-error' : ''} 
                                                                {bar.errorState === 'error_all' ? 'animate-to-critical' : ''}
                                                                {bar.errorState === 'user_cancel' ? 'animate-to-cancel' : ''}"
                                 style="width: {bar.progress}%;"

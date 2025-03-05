@@ -208,7 +208,7 @@
                     ? 'cursor-not-allowed' : ''}">
             <input
                 type="checkbox"
-                class="w-4 h-4 accent-accent"
+                class="w-4 h-4 accent-primary"
                 bind:checked={enabled}
                 disabled={((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
                            (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))}
@@ -218,7 +218,7 @@
                 }}
             />
             <span class="text-lg transition-all duration-300 {getTextColorClass(enabled, anyFeatureSelected)}
-                       group-hover:text-accent/90"
+                       group-hover:text-primary"
                   class:font-semibold={enabled || !anyFeatureSelected}>
                 {displayLabel || formatDisplayText(feature.id)}
             </span>
@@ -230,7 +230,7 @@
                 <span>
                     {get(errorStore).find(e => e.id === `provider-${feature.id}`)?.message}
                     <button 
-                        class="ml-1 text-accent hover:text-accent/80 transition-colors"
+                        class="ml-1 text-primary hover:text-primary/80 transition-colors"
                         on:click={() => $showSettings = true}
                     >
                         Configure API Keys
@@ -306,7 +306,7 @@
                                 {optionDef.label}
                                 {#if optionDef.hovertip}
                                     <Hovertip message={optionDef.hovertip}>
-                                        <span slot="trigger" class="material-icons text-accent/70 cursor-help pr-1 leading-none material-icon-adjust">
+                                        <span slot="trigger" class="material-icons text-primary/70 cursor-help pr-1 leading-none material-icon-adjust">
                                             help_outline
                                         </span>
                                     </Hovertip>
@@ -328,9 +328,9 @@
                             <label class="inline-flex items-center cursor-pointer">
                                 <input 
                                     type="checkbox" 
-                                    class="w-5 h-5 accent-accent rounded border-2 border-accent/50 
-                                           checked:bg-accent checked:border-accent
-                                           focus:ring-2 focus:ring-accent/30
+                                    class="w-5 h-5 accent-primary rounded border-2 border-primary/50 
+                                           checked:bg-primary checked:border-primary
+                                           focus:ring-2 focus:ring-primary/30
                                            transition-all duration-200
                                            cursor-pointer"
                                     bind:checked={options[optionId]}
@@ -348,8 +348,8 @@
                             {#if optionId === 'initialPrompt'}
                                 <textarea
                                     bind:value={options[optionId]}
-                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-2 text-sm font-medium 
-                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                                    class="w-full bg-sky-dark/50 border border-primary/30 rounded px-3 py-2 text-sm font-medium 
+                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary
                                            transition-colors duration-200 placeholder:text-gray-500"
                                     rows="3"
                                     maxlength="850"
@@ -360,8 +360,8 @@
                                 <input 
                                     type="text"
                                     bind:value={options[optionId]}
-                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded px-3 py-1
-                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+                                    class="w-full bg-sky-dark/50 border border-primary/30 rounded px-3 py-1
+                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary
                                            transition-colors duration-200 text-sm font-medium placeholder:text-gray-500"
                                     placeholder={optionDef.placeholder}
                                     on:input={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
@@ -392,9 +392,9 @@
                                         href={providerGithubUrls[provider]}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-accent/70 hover:text-accent transition-colors duration-200"
+                                        className="text-primary/70 hover:text-primary transition-colors duration-200"
                                         title="View provider repository">
-                                        <svg viewBox="0 0 16 16" class="w-5 h-5 fill-accent">
+                                        <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
                                             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                                         </svg>
                                     </ExternalLink>

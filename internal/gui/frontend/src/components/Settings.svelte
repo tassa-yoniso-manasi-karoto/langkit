@@ -145,8 +145,8 @@
                 <!-- Header -->
                 <div class="p-6 border-b border-white/10">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-xl font-medium text-accent/90 flex items-center gap-2">
-                            <span class="material-icons text-accent/70">settings</span>
+                        <h2 class="text-xl font-medium text-primary/90 flex items-center gap-2">
+                            <span class="material-icons text-primary/70">settings</span>
                             Settings
                         </h2>
                         <button class="w-10 h-10 flex items-center justify-center rounded-full
@@ -162,8 +162,8 @@
                 <div class="p-6 space-y-8 max-h-[calc(100vh-16rem)] overflow-y-auto">
                     <!-- Language Settings -->
                     <section class="space-y-6">
-                        <h3 class="text-lg font-medium text-accent/80 flex items-center gap-2">
-                            <span class="material-icons text-accent/70">translate</span>
+                        <h3 class="text-lg font-medium text-primary/80 flex items-center gap-2">
+                            <span class="material-icons text-primary/70">translate</span>
                             Default Language Settings
                         </h3>
                         <div class="grid grid-cols-2 gap-6">
@@ -177,15 +177,15 @@
                                         type="text"
                                         bind:value={currentSettings.targetLanguage}
                                         maxlength="9"
-                                        class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2.5
-                                               hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
-                                               focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                        class="w-full bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2.5
+                                               hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
+                                               focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                                transition-all duration-200 placeholder:text-white/30"
                                         placeholder="e.g. es, yue or pt-BR"
                                     />
                                     {#if targetLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                     material-icons text-green-300 text-sm">
+                                                     material-icons text-pale-green text-sm">
                                             check_circle
                                         </span>
                                     {:else if targetLangError}
@@ -207,15 +207,15 @@
                                     <input
                                         type="text"
                                         bind:value={currentSettings.nativeLanguages}
-                                        class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2.5
-                                               hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
-                                               focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                        class="w-full bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2.5
+                                               hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
+                                               focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                                transition-all duration-200 placeholder:text-white/30"
                                         placeholder="e.g. en, fr, es"
                                     />
                                     {#if nativeLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                     material-icons text-green-300 text-sm">
+                                                     material-icons text-pale-green text-sm">
                                             check_circle
                                         </span>
                                     {:else if nativeLangError}
@@ -232,8 +232,8 @@
 
                     <!-- API Settings -->
                     <section class="space-y-6">
-                        <h3 class="text-lg font-medium text-accent/80 flex items-center gap-2">
-                            <span class="material-icons text-accent/70">vpn_key</span>
+                        <h3 class="text-lg font-medium text-primary/80 flex items-center gap-2">
+                            <span class="material-icons text-primary/70">vpn_key</span>
                             API Keys
                         </h3>
                         <div class="space-y-4">
@@ -241,14 +241,14 @@
                                 <input
                                     type="password"
                                     bind:value={currentSettings.apiKeys.replicate}
-                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg pl-[156px] pr-3 py-2
-                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30 tracking-wider text-lg
-                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                    class="w-full bg-sky-dark/50 border border-primary/30 rounded-lg pl-[156px] pr-3 py-2
+                                           hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30 tracking-wider text-lg
+                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                            transition-all duration-200"
                                 />
                                 <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
-                                             w-[140px] bg-accent/10 border-r border-accent/30 rounded-l-lg
-                                             text-sm text-accent/90 font-medium">
+                                             w-[140px] bg-primary/10 border-r border-primary/30 rounded-l-lg
+                                             text-sm text-primary/90 font-medium">
                                     Replicate
                                 </span>
                             </div>
@@ -256,14 +256,14 @@
                                 <input
                                     type="password"
                                     bind:value={currentSettings.apiKeys.assemblyAI}
-                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg pl-[156px] pr-3 py-2
-                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30 tracking-wider text-lg
-                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                    class="w-full bg-sky-dark/50 border border-primary/30 rounded-lg pl-[156px] pr-3 py-2
+                                           hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30 tracking-wider text-lg
+                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                            transition-all duration-200"
                                 />
                                 <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
-                                             w-[140px] bg-accent/10 border-r border-accent/30 rounded-l-lg
-                                             text-sm text-accent/90 font-medium">
+                                             w-[140px] bg-primary/10 border-r border-primary/30 rounded-l-lg
+                                             text-sm text-primary/90 font-medium">
                                     Assembly AI
                                 </span>
                             </div>
@@ -271,14 +271,14 @@
                                 <input
                                     type="password"
                                     bind:value={currentSettings.apiKeys.elevenLabs}
-                                    class="w-full bg-sky-dark/50 border border-accent/30 rounded-lg pl-[156px] pr-3 py-2
-                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30 tracking-wider text-lg
-                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                    class="w-full bg-sky-dark/50 border border-primary/30 rounded-lg pl-[156px] pr-3 py-2
+                                           hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30 tracking-wider text-lg
+                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                            transition-all duration-200"
                                 />
                                 <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
-                                             w-[140px] bg-accent/10 border-r border-accent/30 rounded-l-lg
-                                             text-sm text-accent/90 font-medium">
+                                             w-[140px] bg-primary/10 border-r border-primary/30 rounded-l-lg
+                                             text-sm text-primary/90 font-medium">
                                     Eleven Labs
                                 </span>
                             </div>
@@ -291,9 +291,9 @@
                                 type="number"
                                 bind:value={currentSettings.maxAPIRetries}
                                 min="1"
-                                class="w-32 bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2 pl-4
-                                       hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
-                                       focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                class="w-32 bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2 pl-4
+                                       hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
+                                       focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                        transition-all duration-200"
                             />
                         </div>
@@ -301,8 +301,8 @@
 
                     <!-- UI Settings -->
                     <section class="space-y-6">
-                        <h3 class="text-lg font-medium text-accent/80 flex items-center gap-2">
-                            <span class="material-icons text-accent/70">palette</span>
+                        <h3 class="text-lg font-medium text-primary/80 flex items-center gap-2">
+                            <span class="material-icons text-primary/70">palette</span>
                             Interface Settings
                         </h3>
                         <div class="space-y-4">
@@ -310,7 +310,7 @@
                                 <input
                                     type="checkbox"
                                     bind:checked={currentSettings.enableGlow}
-                                    class="w-4 h-4 accent-accent rounded"
+                                    class="w-4 h-4 accent-primary rounded"
                                 />
                                 <span class="text-sm text-gray-300 group-hover:text-white transition-colors">
                                     Enable glow effects (disable if you experience performance issues)
@@ -320,7 +320,7 @@
                                 <input
                                     type="checkbox"
                                     bind:checked={currentSettings.showLogViewerByDefault}
-                                    class="w-4 h-4 accent-accent rounded"
+                                    class="w-4 h-4 accent-primary rounded"
                                 />
                                 <span class="text-sm text-gray-300 group-hover:text-white transition-colors">
                                     Show log viewer by default
@@ -336,9 +336,9 @@
                                     min="100"
                                     max="10000"
                                     step="100"
-                                    class="w-32 bg-sky-dark/50 border border-accent/30 rounded-lg px-3 py-2 pl-4
-                                           hover:border-accent/55 hover:shadow-sm hover:shadow-accent/30
-                                           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50
+                                    class="w-32 bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2 pl-4
+                                           hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
+                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                            transition-all duration-200"
                                 />
                             </div>
@@ -347,8 +347,8 @@
 
                     <!-- Diagnostic / Debug Export Section -->
                     <section class="space-y-6">
-                        <h3 class="text-lg font-medium text-accent/80 flex items-center gap-2">
-                            <span class="material-icons text-accent/70">bug_report</span>
+                        <h3 class="text-lg font-medium text-primary/80 flex items-center gap-2">
+                            <span class="material-icons text-primary/70">bug_report</span>
                             Diagnostic Tools
                         </h3>
                         <div class="space-y-4">
@@ -393,7 +393,7 @@
                         Cancel
                     </button>
                     <button
-                        class="px-6 py-2 bg-accent text-sky-dark rounded-lg font-medium transition-all duration-200 hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="px-6 py-2 bg-primary text-sky-dark rounded-lg font-medium transition-all duration-200 hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
                         on:click={saveSettings}
                         disabled={!isValid}
                     >
