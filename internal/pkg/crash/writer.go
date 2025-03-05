@@ -114,7 +114,7 @@ func writeReportContent(
 	}
 	fmt.Fprintln(w, "==================")
 	fmt.Fprintln(w, "This file has syntax highlighting through ANSI escape codes and is best viewed")
-	fmt.Fprintln(w, "in a terminal using 'cat'.\n")
+	fmt.Fprintln(w, "in a terminal using 'cat'.")
 	fmt.Fprintf(w, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
 
 	// 2. Basic app info
@@ -155,7 +155,7 @@ func writeReportContent(
 		fmt.Fprintln(w, "===========")
 		fmt.Fprintf(w, "%s\n\n", string(debug.Stack()))
 	} else {
-		fmt.Fprintln(w, "User-triggered debug report.\n")
+		fmt.Fprintln(w, "User-triggered debug report.")
 	}
 
 	// 5. Crash reporter scopes (if any)
@@ -187,7 +187,7 @@ func writeReportContent(
 
 	// 7. System / runtime info
 	fmt.Fprintln(w, "RUNTIME INFORMATION")
-	fmt.Fprintln(w, "==================\n")
+	fmt.Fprintln(w, "==================")
 	fmt.Fprintln(w, NewRuntimeInfo().String())
 
 	// 8. Environment
@@ -203,7 +203,7 @@ func writeReportContent(
 	sanitizedSettings.APIKeys.Replicate = MaskAPIKey(settings.APIKeys.Replicate)
 	sanitizedSettings.APIKeys.AssemblyAI = MaskAPIKey(settings.APIKeys.AssemblyAI)
 	sanitizedSettings.APIKeys.ElevenLabs = MaskAPIKey(settings.APIKeys.ElevenLabs)
-	fmt.Fprintln(w, pp.Sprint(sanitizedSettings), "\n")
+	fmt.Fprintln(w, pp.Sprint(sanitizedSettings))
 
 	// 10. Log history
 	fmt.Fprintln(w, "LOG HISTORY")

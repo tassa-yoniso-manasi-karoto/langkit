@@ -15,6 +15,7 @@ import (
 	"github.com/gookit/color"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
@@ -48,6 +49,16 @@ type Task struct {
 	Handler              MessageHandler
 	Meta                 Meta
 	Mode                 Mode
+	
+	// Injected services for testability
+	LanguageDetector     LanguageDetector
+	MediaInfoProvider    MediaInfoProvider
+	SubtitleProvider     SubtitleProvider
+	TrackSelector        TrackSelector
+	WorkerPool           WorkerPool
+	ResumptionService    ResumptionService
+	PathService          PathService
+	ProgressTracker      ProgressTracker
 	
 	// Language settings
 	OriginalLang         string // FIXME what for?
@@ -109,9 +120,25 @@ type Task struct {
 }
 
 func NewTask(handler MessageHandler) (tsk *Task) {
+	// Initialize task with default services
+	fileScanner := NewFileScanner(handler)
+	pathSanitizer := NewPathSanitizer()
+	
 	tsk = &Task{
 		Handler: handler,
 		Meta: Meta { WorkersMax: runtime.NumCPU()-1 },
+		
+		// Initialize service interfaces with default implementations
+		LanguageDetector:  NewLanguageDetector(),
+		MediaInfoProvider: NewMediaInfoProvider("mediainfo", crash.Reporter), // Use crash.Reporter as it implements Reporter interface
+		SubtitleProvider:  NewSubtitleProvider(handler),
+		TrackSelector:     NewTrackSelector(handler),
+		PathService:       NewPathService(pathSanitizer),
+		ProgressTracker:   NewProgressTracker(handler, "item-bar"),
+		ResumptionService: NewResumptionService(fileScanner, "\t", handler),
+		// WorkerPool is created on demand with task-specific configuration
+		
+		// Default task settings
 		UseAudiotrack: -1,
 		TargetChan: 2,
 		VoiceBoost: 13,

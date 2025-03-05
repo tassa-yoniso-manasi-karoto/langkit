@@ -1,4 +1,19 @@
+
+- crash reports add snapshots of tsk throughout code
+- break large functions (Execute and ProcessItem) and write some tests.
+
+
+
+
+
+
+
+
+
+
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
+
+- use remaining o1 prompts to write tests in translitkit
 
   - 😎😎😎 ichiran: add database corrupted warning
 - update subtitle exclusion for translit, tokenized, selective
@@ -11,23 +26,22 @@
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion
 
-translitkit
-   - 🤯🤯😎 gojieba + go-pinyin	<== O1
 
-
+- with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 
 
 - crash reports add snapshots of tsk throughout code
   - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
-   - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
 
-- break large functions (Execute and ProcessItem) and write some tests.
+
 - Add tests
    
    - fix directory tree: branches off center
    - fix newlines in builtin documentation
    
+- consistent usage of IntegrateProviderTokens in translitkit (right now only tha, zho)
+
 
 *in progress:*
 - add subtitle transliteration? remote API is difficult but so is shipping python with NLP libs. 🤔
@@ -51,8 +65,8 @@ https://go.libhunt.com/
 
 *later:*
 
+   - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
 
-- with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 
 *might:*
 

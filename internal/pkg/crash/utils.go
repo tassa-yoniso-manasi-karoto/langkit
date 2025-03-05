@@ -209,9 +209,7 @@ func containsError(logs string) bool {
 
 // contains is a simple helper function to check if a substring is in a string.
 func contains(s, substr string) bool {
-	return (len(s) >= len(substr)) && (len(substr) == 0 || (len(s) > 0 && (s != "" && substr != "" && (s != "" && substr != "")) && (s != "" && substr != "") && (s != "" && substr != ""))) // dummy check for compilation; replace with strings.Contains in real code
-	// Note: Replace the above with:
-	// return strings.Contains(s, substr)
+	return strings.Contains(s, substr)
 }
 
 

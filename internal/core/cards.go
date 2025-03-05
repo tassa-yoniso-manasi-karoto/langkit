@@ -1,33 +1,33 @@
 package core
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path"
-	"strings"
-	"strconv"
 	"path/filepath"
 	"slices"
-	"bufio"
-	"context"
+	"strconv"
+	"strings"
 
-	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	//"github.com/rs/zerolog"
+	"github.com/k0kubun/pp"
 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
 
 var AstisubSupportedExt = []string{".srt", ".ass", ".ssa", "vtt", ".stl", ".ttml"}
 
+// Path utility functions
 func (tsk *Task) outputBase() string {
 	base := strings.TrimSuffix(path.Base(tsk.TargSubFile), path.Ext(tsk.TargSubFile))
 	return strings.ReplaceAll(base, "'", " ")
 }
 
 func (tsk *Task) outputFile() string {
-	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase() + tsk.OutputFileExtension)
+	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase()+tsk.OutputFileExtension)
 }
 
 func (tsk *Task) mediaOutputDir() string {
@@ -39,189 +39,96 @@ func (tsk *Task) audioBase() string {
 	return base
 }
 
-
+// Execute is the main entry point for processing a task
 // TODO Wait for Claude 4 release to break large functions and write some tests.
 func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
-	var err error // compiler shenanigans FIXME rm later
-	
+	// Initialize reporter for crash diagnostics
 	reporter := crash.Reporter
 	reporter.ClearExecutionRecords()
-	
 	reporter.SaveSnapshot("Starting execution", tsk.DebugVals())
 	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 		es.ParentDirPath = path.Dir(tsk.MediaSourceFile)
 	})
-	
-	// "'" in filename will break the format that ffmpeg's concat filter requires.
-	// in their file format, no escaping is supported → must be trimmed from mediaPrefix.
-	if strings.Contains(filepath.Dir(tsk.TargSubFile), "'") {
-		return tsk.Handler.Log(Error, AbortTask,
-			"Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe (')." +
-				"Apostrophe in the names of the files themselves are supported using a workaround.")
+
+	// Validate basic requirements
+	if procErr := tsk.validateBasicRequirements(); procErr != nil {
+		return procErr
 	}
-	
-	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
-		return tsk.Handler.Log(Error, AbortAllTasks,
-			"Neither languages and nor subtitle files were specified.")
+
+	// Handle subtitle detection and language determination
+	if procErr := tsk.setupSubtitles(ctx, reporter); procErr != nil {
+		return procErr
 	}
-	if tsk.TargSubFile == "" {
-		reporter.SaveSnapshot("Running Autosub", tsk.DebugVals())
-		if procErr:= tsk.Autosub(); procErr != nil {
-			reporter.SaveSnapshot("Autosub failed", tsk.DebugVals())
+
+	// Special handling for Enhance and Translit modes
+	if tsk.Mode == Enhance || tsk.Mode == Translit {
+		if procErr := tsk.processMediaInfo(); procErr != nil {
 			return procErr
 		}
-	} else {
-		// in the CLI case where subs where specified explicitly
-		if len(tsk.Langs) == 0 {
-			tsk.Handler.ZeroLog().Trace().
-				Str("Targ", tsk.Targ.String()).
-				Str("Native", tsk.Native.String()).
-				Msg("No language flag passed. Attempted to guess language from filename.")
-		}
-		tsk.Targ, err = GuessLangFromFilename(tsk.TargSubFile)
-		if err != nil {
-                       tsk.Handler.ZeroLog().Warn().Err(err).
-                               Str("TargSubFile", tsk.TargSubFile).
-                               Msg("Couldn't guess the language of foreign subtitle file")
-		}
-		// NOTE: Native subtitle declared in CLI must trail foreign subtitle declaration,
-		// thus if the native subtitle's lang needs guessing, TargSubFile can't be empty
-		// = no need for a new if
-		tsk.Native, err = GuessLangFromFilename(tsk.NativeSubFile)
-		if tsk.NativeSubFile != "" && err != nil {
-                       tsk.Handler.ZeroLog().Warn().Err(err).
-                               Str("NativeSubFile", tsk.NativeSubFile).
-                               Msg("Couldn't guess the language of native subtitle file")
-		}
-	}
-	var outStream *os.File
-	tsk.TargSubs, err = subs.OpenFile(tsk.TargSubFile, false)
-	if err != nil {
-		return tsk.Handler.LogErr(err, AbortTask, "can't read foreign subtitles")
-	}
-	switch tsk.Mode { // TODO remove when I rewrite Execute with proper functions
-	case Enhance, Translit:
-		goto ResumeEnhance
-	}
-	// if not in bulk mode then it wasn't assigned yet
-	if totalItems == 0 {
-		totalItems = len(tsk.TargSubs.Items)
-	}
-	if tsk.Mode == Subs2Cards {
-		if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
-			return tsk.Handler.LogErr(err, AbortTask, "Neither native language and nor native subtitle file was specified.")
-		}
-		if tsk.NativeSubFile == "" { // FIXME maybe redundant
-			tsk.Handler.ZeroLog().Warn().
-				Str("video", path.Base(tsk.MediaSourceFile)).
-				Msg("No sub file for any of the desired reference language(s) were found")
-		}
-	}
-	if tsk.NativeSubFile != "" {
-		tsk.NativeSubs, err = subs.OpenFile(tsk.NativeSubFile, false)
-		if err != nil {
-			return tsk.Handler.LogErr(err, AbortTask, "can't read native subtitles")
-		}
-	}
-	outStream, err = os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
-	if err != nil {
-		return tsk.Handler.LogErr(err, AbortTask,
-			fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
-	} else {
-		tsk.Handler.ZeroLog().Debug().
-			Str("outStream", tsk.outputFile()).
-			Msg("outStream file successfully open")
-	}
-	defer outStream.Close()
-
-	if err := os.MkdirAll(tsk.mediaOutputDir(), os.ModePerm); err != nil {
-		return tsk.Handler.LogErr(err, AbortTask,
-			fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
-	}
-	tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
-ResumeEnhance:
-	tsk.Meta.MediaInfo = Mediainfo(tsk.MediaSourceFile)
-	/* MediaInfo // FIXME use this to cancel susb2dubs if *tsk.Targ == *tsk.OriginalLang
-	for _, track := range tsk.Meta.AudioTracks {
-		if strings.Contains(strings.ToLower(track.Title), "original") {
-			tsk.OriginalLang = track.Language
-		}
-	}
-	if tsk.OriginalLang != "" {
-		tsk.Handler.ZeroLog().Info().Msg("Detected original lang:"+ tsk.OriginalLang)
-	}*/
-
-	if tsk.Mode != Translit {
-		for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
-			if err := tsk.ChooseAudio(fn); err != nil {
-				return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
+		
+		// Processing for specific modes
+		if tsk.WantTranslit {
+			if err := tsk.processTransliteration(ctx, tsk.TargSubFile); err != nil {
+				return err
 			}
 		}
-		tsk.Handler.ZeroLog().Debug().
-			Int("UseAudiotrack", tsk.UseAudiotrack).
-			Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
-			Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
-	}
-	
-	if tsk.Mode != Enhance {
-		if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
-			tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
-			tsk.TargSubs.TrimCC2Dubs()
-		} else {
-			tsk.Handler.ZeroLog().Debug().Msg("Foreign subs are NOT detected as closed captions.")
-		}
-	}
-	// FIXME this warning won't occur if the sub file are passed as arg
-	// FIXME HANDLE GUI
-	if tsk.IsCCorDubs && tsk.STT != "" && tsk.Handler.IsCLI() {
-		tsk.Handler.ZeroLog().Warn().Msg("Speech-to-Text is requested but closed captions or dubtitles are available for the target language," +
-			" which are usually reliable transcriptions of dubbings.")
-		if !userConfirmed() {
-			os.Exit(0)
-		}	
-	}
-	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
-		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
-			return err
-		}
-	}
-	
-	// subs is the path of the reference subtitle/dubtitle file to use when transliterating
-	subs := tsk.TargSubFile
-	if tsk.STT != "" && tsk.WantDubs {
-		// Subs2Dubs uses the TSV file containing transcriptions to
-		// transform the subtitles into dubtitles in place
-		err = tsk.TargSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
-		if err != nil {
-			return tsk.Handler.LogErr(err, AbortTask, "making dubtitles")
-		}
-		subs = strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
-		subs = strings.TrimSuffix(subs, ".tsv")
-		subs = subs + langkitMadeDubtitlesMarker(tsk.STT) + filepath.Ext(tsk.TargSubFile)
 		
-		if err = tsk.TargSubs.Write(subs); err != nil {
-			return tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
+		if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
+			return procErr
 		}
+		
+		tsk.Handler.ZeroLog().Info().Msg("Processing completed")
+		return nil
 	}
-	if tsk.WantTranslit {
-		// TODO: find a way to provide transliteration in the TSV as well
-		if err := tsk.Transliterate(ctx, subs); err != nil {
-			return err
-		}
+
+	// Prepare output files and directories
+	outStream, procErr := tsk.prepareOutputDirectory()
+	if procErr != nil {
+		return procErr
 	}
-	if tsk.SeparationLib != "" {
-		if err := tsk.enhance(ctx); err != nil {
-			return err
-		}
-	} else if tsk.Mode == Enhance {
-		tsk.Handler.ZeroLog().Error().Msg("No separation API to isolate the voice's audio was specified.")
+	if outStream != nil {
+		defer outStream.Close()
+	}
+
+	// Media and audio track processing
+	if procErr := tsk.processMediaInfo(); procErr != nil {
+		return procErr
+	}
+
+	// Process closed captions if needed
+	tsk.processClosedCaptions()
+
+	// Handle user confirmation for CLI mode
+	if procErr := tsk.handleUserConfirmation(); procErr != nil {
+		return procErr
+	}
+
+	// Process based on specific mode (Subs2Cards, Subs2Dubs)
+	if procErr := tsk.processModeSpecific(ctx, outStream); procErr != nil {
+		return procErr
+	}
+
+	// Handle STT and dubtitles generation
+	subsPath, procErr := tsk.processDubtitles(ctx)
+	if procErr != nil {
+		return procErr
+	}
+
+	// Handle transliteration if requested
+	if procErr := tsk.processTransliteration(ctx, subsPath); procErr != nil {
+		return procErr
+	}
+
+	// Handle audio enhancement if requested
+	if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
+		return procErr
 	}
 	
 	tsk.Handler.ZeroLog().Info().Msg("Processing completed")
 	return nil
 }
 
-
+// Autosub automatically discovers subtitle files based on the media filename
 func (tsk *Task) Autosub() *ProcessingError {
 	files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
 	if err != nil {
@@ -273,7 +180,7 @@ func (tsk *Task) Autosub() *ProcessingError {
 	return nil
 }
 
-
+// writer function for processed items
 func write(outStream *os.File, item *ProcessedItem) {
 	fmt.Fprintf(outStream, "%s\t", escape(item.Sound))
 	fmt.Fprintf(outStream, "%s\t", escape(item.Time))
@@ -287,7 +194,7 @@ func write(outStream *os.File, item *ProcessedItem) {
 	fmt.Fprintf(outStream, "%s\n", escape(item.NativeNext))
 }
 
-
+// Audio track selection functions
 func (tsk *Task) ChooseAudio(helper func(tsk *Task, i int, track AudioTrack) error) (err error) {
 	if tsk.UseAudiotrack < 0 {
 		for i, track := range tsk.Meta.MediaInfo.AudioTracks {
@@ -298,7 +205,6 @@ func (tsk *Task) ChooseAudio(helper func(tsk *Task, i int, track AudioTrack) err
 	}
 	return
 }
-
 
 type SelectionHelper func(*Task, int, AudioTrack) error
 
@@ -343,7 +249,7 @@ func getFirstTrack(tsk *Task, i int, track AudioTrack) error {
 	return nil
 }
 
-
+// Utility functions
 func Base2Absolute(s, dir string) string {
 	if s != "" {
 		return path.Join(dir, s)
@@ -382,7 +288,6 @@ func userConfirmed() bool {
 	}
 }
 
-
 func escape(s string) string {
 	// https://datatracker.ietf.org/doc/html/rfc4180.html#section-2
 	if strings.Contains(s, `"`) || strings.Contains(s, "\t") || strings.Contains(s, "\n") {
@@ -390,6 +295,242 @@ func escape(s string) string {
 		return fmt.Sprintf(`"%s"`, quoted)
 	}
 	return s
+}
+
+// Helper functions for testability
+
+// validateBasicRequirements validates the basic requirements for task execution
+func (tsk *Task) validateBasicRequirements() *ProcessingError {
+	// Check for apostrophe in directory path (ffmpeg limitation)
+	if strings.Contains(filepath.Dir(tsk.TargSubFile), "'") {
+		return tsk.Handler.Log(Error, AbortTask,
+			"Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). "+
+				"Apostrophe in the names of the files themselves are supported using a workaround.")
+	}
+
+	// Ensure either languages or subtitle files are specified
+	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
+		return tsk.Handler.Log(Error, AbortAllTasks,
+			"Neither languages and nor subtitle files were specified.")
+	}
+
+	return nil
+}
+
+// setupSubtitles handles finding and loading subtitle files
+func (tsk *Task) setupSubtitles(ctx context.Context, reporter *crash.ReporterInstance) *ProcessingError {
+	var err error
+
+	// If no subtitle file was specified, try to find one automatically
+	if tsk.TargSubFile == "" {
+		reporter.SaveSnapshot("Running Autosub", tsk.DebugVals())
+		if procErr := tsk.Autosub(); procErr != nil {
+			reporter.SaveSnapshot("Autosub failed", tsk.DebugVals())
+			return procErr
+		}
+	} else {
+		// When subtitle file is specified explicitly, try to guess languages
+		if len(tsk.Langs) == 0 {
+			tsk.Handler.ZeroLog().Trace().
+				Str("Targ", tsk.Targ.String()).
+				Str("Native", tsk.Native.String()).
+				Msg("No language flag passed. Attempted to guess language from filename.")
+		}
+
+		// Try to guess target language from filename
+		tsk.Targ, err = GuessLangFromFilename(tsk.TargSubFile)
+		if err != nil {
+			tsk.Handler.ZeroLog().Warn().Err(err).
+				Str("TargSubFile", tsk.TargSubFile).
+				Msg("Couldn't guess the language of foreign subtitle file")
+		}
+
+		// Try to guess native language from filename if available
+		tsk.Native, err = GuessLangFromFilename(tsk.NativeSubFile)
+		if tsk.NativeSubFile != "" && err != nil {
+			tsk.Handler.ZeroLog().Warn().Err(err).
+				Str("NativeSubFile", tsk.NativeSubFile).
+				Msg("Couldn't guess the language of native subtitle file")
+		}
+	}
+
+	// Open target subtitle file
+	tsk.TargSubs, err = subs.OpenFile(tsk.TargSubFile, false)
+	if err != nil {
+		return tsk.Handler.LogErr(err, AbortTask, "can't read foreign subtitles")
+	}
+
+	return nil
+}
+
+// prepareOutputDirectory creates necessary output directories and files
+func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
+	var err error
+	var outStream *os.File
+	
+	// Skip for Enhance or Translit modes
+	if tsk.Mode == Enhance || tsk.Mode == Translit {
+		return nil, nil
+	}
+	
+	// Set totalItems if not in bulk mode
+	if totalItems == 0 {
+		totalItems = len(tsk.TargSubs.Items)
+	}
+	
+	// Validate requirements for Subs2Cards mode
+	if tsk.Mode == Subs2Cards {
+		if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
+			return nil, tsk.Handler.LogErr(err, AbortTask, "Neither native language and nor native subtitle file was specified.")
+		}
+		if tsk.NativeSubFile == "" {
+			tsk.Handler.ZeroLog().Warn().
+				Str("video", path.Base(tsk.MediaSourceFile)).
+				Msg("No sub file for any of the desired reference language(s) were found")
+		}
+	}
+	
+	// Load native subtitles if available
+	if tsk.NativeSubFile != "" {
+		tsk.NativeSubs, err = subs.OpenFile(tsk.NativeSubFile, false)
+		if err != nil {
+			return nil, tsk.Handler.LogErr(err, AbortTask, "can't read native subtitles")
+		}
+	}
+
+	// Create output file
+	outStream, err = os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
+	if err != nil {
+		return nil, tsk.Handler.LogErr(err, AbortTask,
+			fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
+	}
+	
+	tsk.Handler.ZeroLog().Debug().
+		Str("outStream", tsk.outputFile()).
+		Msg("outStream file successfully open")
+
+	// Create media output directory
+	if err := os.MkdirAll(tsk.mediaOutputDir(), os.ModePerm); err != nil {
+		return nil, tsk.Handler.LogErr(err, AbortTask,
+			fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
+	}
+
+	// Set media prefix for file output
+	tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
+	
+	return outStream, nil
+}
+
+// processMediaInfo handles media info extraction and audio track selection
+func (tsk *Task) processMediaInfo() *ProcessingError {
+	// Extract media info
+	tsk.Meta.MediaInfo = Mediainfo(tsk.MediaSourceFile)
+
+	// Skip audio track selection for Translit mode
+	if tsk.Mode == Translit {
+		return nil
+	}
+
+	// Select appropriate audio track using selection helpers
+	for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
+		if err := tsk.ChooseAudio(fn); err != nil {
+			return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
+		}
+	}
+
+	// Log selected audio track details
+	tsk.Handler.ZeroLog().Debug().
+		Int("UseAudiotrack", tsk.UseAudiotrack).
+		Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
+		Str("chanNum", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Channels).Msg("")
+
+	return nil
+}
+
+// processClosedCaptions handles closed caption detection and processing
+func (tsk *Task) processClosedCaptions() {
+	// Skip for Enhance mode
+	if tsk.Mode == Enhance {
+		return
+	}
+
+	// Check if subtitles are closed captions and process accordingly
+	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
+		tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
+		tsk.TargSubs.TrimCC2Dubs()
+	} else {
+		tsk.Handler.ZeroLog().Debug().Msg("Foreign subs are NOT detected as closed captions.")
+	}
+}
+
+// handleUserConfirmation prompts the user for confirmation in specific cases
+func (tsk *Task) handleUserConfirmation() *ProcessingError {
+	if tsk.IsCCorDubs && tsk.STT != "" && tsk.Handler.IsCLI() {
+		tsk.Handler.ZeroLog().Warn().Msg("Speech-to-Text is requested but closed captions or dubtitles are available for the target language," +
+			" which are usually reliable transcriptions of dubbings.")
+		if !userConfirmed() {
+			os.Exit(0)
+		}
+	}
+	return nil
+}
+
+// processModeSpecific handles the mode-specific processing
+func (tsk *Task) processModeSpecific(ctx context.Context, outStream *os.File) *ProcessingError {
+	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
+		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// processDubtitles handles the generation of dubtitles from STT results
+func (tsk *Task) processDubtitles(ctx context.Context) (string, *ProcessingError) {
+	// Default to the target subtitle file
+	subs := tsk.TargSubFile
+	
+	if tsk.STT == "" || !tsk.WantDubs {
+		return subs, nil
+	}
+
+	// Create dubtitles from TSV
+	err := tsk.TargSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
+	if err != nil {
+		return subs, tsk.Handler.LogErr(err, AbortTask, "making dubtitles")
+	}
+
+	// Generate output file path
+	subsPath := strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
+	subsPath = strings.TrimSuffix(subsPath, ".tsv")
+	subsPath = subsPath + langkitMadeDubtitlesMarker(tsk.STT) + filepath.Ext(tsk.TargSubFile)
+
+	// Write dubtitles to file
+	if err = tsk.TargSubs.Write(subsPath); err != nil {
+		return subs, tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
+	}
+
+	return subsPath, nil
+}
+
+// processTransliteration handles transliteration of subtitles
+func (tsk *Task) processTransliteration(ctx context.Context, subsPath string) *ProcessingError {
+	if !tsk.WantTranslit {
+		return nil
+	}
+	
+	// TODO: find a way to provide transliteration in the TSV as well
+	return tsk.Transliterate(ctx, subsPath)
+}
+
+// processAudioEnhancement handles audio enhancement if requested
+func (tsk *Task) processAudioEnhancement(ctx context.Context) *ProcessingError {
+	if tsk.SeparationLib != "" {
+		return tsk.enhance(ctx)
+	} else if tsk.Mode == Enhance {
+		tsk.Handler.ZeroLog().Error().Msg("No separation API to isolate the voice's audio was specified.")
+	}
+	return nil
 }
 
 func placeholder() {

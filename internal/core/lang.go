@@ -17,10 +17,10 @@ import (
 
 
 const (
-	StrippedSDH = iota
-	Sub
-	Dub
-	CC
+	Sub = iota  // Regular subtitles (lowest priority)
+	Dub         // Dubtitles
+	CC          // Closed captions
+	StrippedSDH // Stripped SDH (highest priority)
 )
 
 const unknownLang = "und" // = undetermined, special code part of the ISO639 spec

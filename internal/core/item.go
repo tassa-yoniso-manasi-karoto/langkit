@@ -33,6 +33,7 @@ type ProcessedItem struct {
 	NativePrev  string
 	ForeignNext string
 	NativeNext  string
+	StartTime   time.Duration // Used for tracking when the subtitle starts
 }
 
 func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (item ProcessedItem, procErr *ProcessingError) {
