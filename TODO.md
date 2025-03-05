@@ -1,21 +1,12 @@
 
 - crash reports add snapshots of tsk throughout code
-- break large functions (Execute and ProcessItem) and write some tests.
 
-
-
-
-
-
-
-
-
+- feature interpoling in gui
 
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
 - use remaining o1 prompts to write tests in translitkit
 
-  - 😎😎😎 ichiran: add database corrupted warning
 - update subtitle exclusion for translit, tokenized, selective
 - PROGRESS BAR  for other features (translit, etc)
 - proper routing translit for selective
@@ -29,9 +20,7 @@
 
 - with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 
-
-- crash reports add snapshots of tsk throughout code
-  - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
+- hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
 
 
@@ -39,8 +28,6 @@
    
    - fix directory tree: branches off center
    - fix newlines in builtin documentation
-   
-- consistent usage of IntegrateProviderTokens in translitkit (right now only tha, zho)
 
 
 *in progress:*

@@ -10,13 +10,15 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 )
 
+const name = "langkit"
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
-//TODO go:embed build/appicon.png
+//go:embed frontend/icon/appicon.png
 var icon []byte
 
 func Run() {
@@ -28,7 +30,7 @@ func Run() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:             "langkit",
+		Title:             name,
 		/*Width:             1024,
 		Height:            768,
 		MinWidth:          1024,
@@ -59,7 +61,7 @@ func Run() {
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
-			DisableWindowIcon:    false,
+			DisableWindowIcon:    true,
 			BackdropType:         windows.Auto,
 			Theme:	              windows.Dark,
 			WebviewUserDataPath:  "",
@@ -79,10 +81,16 @@ func Run() {
 			WebviewIsTransparent: true,
 			WindowIsTranslucent:  true,
 			About: &mac.AboutInfo{
-				Title:   "langkit",
+				Title:   name,
 				Message: "",
 				Icon:    icon,
 			},
+		},
+		Linux: &linux.Options{
+		    Icon: icon,
+		    WindowIsTranslucent: false,
+		    WebviewGpuPolicy: linux.WebviewGpuPolicyAlways,
+		    ProgramName: name,
 		},
 	})
 	
