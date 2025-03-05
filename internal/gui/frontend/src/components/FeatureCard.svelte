@@ -208,7 +208,7 @@
                     ? 'cursor-not-allowed' : ''}">
             <input
                 type="checkbox"
-                class="w-4 h-4 accent-primary"
+                class="w-4 h-4 accent-accent/70 hover:accent-accent"
                 bind:checked={enabled}
                 disabled={((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
                            (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))}
