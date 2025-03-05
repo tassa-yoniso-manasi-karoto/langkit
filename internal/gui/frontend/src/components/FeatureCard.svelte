@@ -33,6 +33,7 @@
     let optionsWrapper: HTMLElement;
     let optionsHeight = 0;
     let animating = false;
+    let showNonJpnMessage = false;
     
     onMount(() => {
         // Initial measurement of the options height if enabled
@@ -66,13 +67,23 @@
         if (optionsEl && (optionsEl.contains(targetEl) || targetEl.tagName === 'INPUT')) {
             return;
         }
-        
         // Check if the feature is unavailable based on language requirements
-        const isFeatureUnavailable = 
-            (feature.id === 'subtitleRomanization' && !isRomanizationAvailable) || 
+        const isFeatureUnavailable =
+            (feature.id === 'subtitleRomanization' && !isRomanizationAvailable) ||
             (feature.id === 'selectiveTransliteration' && (standardTag !== 'jpn'));
         
+        
         if (isFeatureUnavailable) {
+            // If the user tries to enable selectiveTransliteration but standardTag != 'jpn',
+            // show a 10-second message and do the shake animation, but do NOT enable.
+            if (feature.id === 'selectiveTransliteration' && standardTag !== 'jpn') {
+                showNonJpnMessage = true;
+                setTimeout(() => {
+                    showNonJpnMessage = false;
+                }, 5000);
+            }
+            
+            // Trigger shake animation
             const element = event.currentTarget as HTMLElement;
             element.classList.remove('shake-animation');
             void element.offsetWidth; // Force reflow to restart animation
@@ -271,7 +282,7 @@
                 <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
                     Please select a language to proceed.
                 </div>
-            {:else if standardTag !== 'jpn'}
+            {:else if standardTag !== 'jpn' && showNonJpnMessage}
                 <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
                     Sorry, selective transliteration is currently only available for Japanese Kanji transliteration!
                 </div>
