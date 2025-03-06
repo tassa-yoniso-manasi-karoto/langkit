@@ -51,20 +51,20 @@
             placeholder="e.g. ja, zh-Hans"
             class="w-24 bg-sky-dark/50 border border-secondary/30 rounded px-2 py-2
                    focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary
-                   transition-colors duration-200 text-xs font-medium"
+                   transition-colors duration-200 text-xs font-bold"
             on:input={updateLanguageTag}
         />
         {#if isChecking}
-            <span class="absolute right-2 material-icons animate-spin text-secondary/70 text-sm">
+            <span class="absolute right-2 material-icons animate-spin text-secondary/70 text-sm" style="font-size: 1.4rem;">
                 refresh
             </span>
         {:else if isValidLanguage === false}
-            <span class="absolute right-2 material-icons text-red-500 text-sm"
+            <span class="absolute right-2 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
                   title={validationError}>
                 error
             </span>
         {:else if isValidLanguage === true}
-            <span class="absolute right-2 material-icons text-pale-green text-sm">
+            <span class="absolute right-2 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
                 check_circle
             </span>
         {/if}

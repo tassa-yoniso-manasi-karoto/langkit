@@ -201,14 +201,14 @@
      class:opacity-30={anyFeatureSelected && !enabled}
      on:click={handleFeatureClick}
 >
-    <div class="p-4 border-b border-white/10">
+    <div class="p-4 border-b border-accent-300/30">
         <div class="flex items-center gap-3 cursor-pointer group
                   {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
                     (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))
                     ? 'cursor-not-allowed' : ''}">
             <input
                 type="checkbox"
-                class="w-4 h-4 accent-accent/70 hover:accent-accent"
+                class="w-4 h-4 accent-primary/90 hover:accent-primary"
                 bind:checked={enabled}
                 disabled={((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
                            (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))}

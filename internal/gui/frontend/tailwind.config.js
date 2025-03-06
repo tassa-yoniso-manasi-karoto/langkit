@@ -1,27 +1,49 @@
 /** @type {import('tailwindcss').Config} */
+
+import colors from 'tailwindcss/colors';
+
+const violet = '#9f6ef7'
+const red = colors.red[500]
+const orange = colors.yellow[500]
+const green = colors.green[200]
+const yellow = '#fff38e'
+
 export default {
   darkMode: 'class',
   content: ['./src/**/*.{html,js,svelte,ts}'],
   theme: {
     extend: {
       colors: {
-        accent: '#9f6ef7',  // soft violet
-        bg: '#1a1a1a',      // classic dark gray
-        'error-task': '#f97316', // Orange for task errors
-        'error-all': '#ef4444',  // Red for critical errors
+      	text: colors.gray[300],
+        unobtrusive: colors.gray[400],
+        bg: '#1a1a1a',        // classic dark gray
+        
+        primary: violet,      // soft violet
+        secondary: '#7851a9', // royal purple, darker than soft violet
+        accent: {
+          50: '#fffce5',
+          100: '#fffacc',
+          200: '#fff599',
+          300: '#fff066',
+          400: '#ffeb33',
+          500: '#ffe500',
+          600: '#ccb800',
+          700: '#998a00',
+          800: '#665c00',
+          900: '#332e00',
+          950: '#1a1700',
+         },
+        'pale-green': green,
+        
+        'log-trace': violet,
+        'log-debug': colors.blue[400],
+        'log-info': green,
+        'log-warn': yellow,
+        'log-error': red,
+        
+        'error-task': yellow,     // Orange for task errors
+        'error-all': red,         // Red for critical errors
         'user-cancel': '#6b7280', // Gray for user cancellations
-        primary: {
-          50: '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#9f6ef7',
-          700: '#7c3aed',
-          800: '#6d28d9',
-          900: '#5b21b6',
-        },
       },
       fontFamily: {
         sans: ['"DM Sans"', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
