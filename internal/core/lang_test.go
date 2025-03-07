@@ -2,7 +2,9 @@ package core
 
 import (
 	"testing"
+	"io"
 	
+	"github.com/rs/zerolog"
 	iso "github.com/barbashov/iso639-3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -381,10 +383,10 @@ func TestSetPreferredLang(t *testing.T) {
 			expected: true,
 		},
 	}
-	
+	logger := zerolog.New(io.Discard).With().Timestamp().Logger()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := setPreferredLang(tc.prefLangs, tc.lang, tc.current)
+			result := setPreferredLang(tc.prefLangs, tc.lang, tc.current, &logger)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -430,9 +432,10 @@ func TestIsPreferredSubtypeOver(t *testing.T) {
 		},
 	}
 	
+	logger := zerolog.New(io.Discard).With().Timestamp().Logger()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := isPreferredSubtypeOver(tc.current, tc.candidate)
+			result := isPreferredSubtypeOver(tc.current, tc.candidate, &logger)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

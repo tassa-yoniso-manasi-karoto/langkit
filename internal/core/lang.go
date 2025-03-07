@@ -9,6 +9,7 @@ import (
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 	iso "github.com/barbashov/iso639-3"
+	"github.com/rs/zerolog"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
@@ -17,10 +18,11 @@ import (
 
 
 const (
+	// for now the only ranking requirement is to have Sub at the bottom
 	Sub = iota  // Regular subtitles (lowest priority)
+	StrippedSDH // Stripped SDH
 	Dub         // Dubtitles
 	CC          // Closed captions
-	StrippedSDH // Stripped SDH (highest priority)
 )
 
 const unknownLang = "und" // = undetermined, special code part of the ISO639 spec
@@ -114,11 +116,13 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 }
 
 func (tsk *Task) SetPreferred(langs []Lang, l, atm Lang, filename string, out *string, Native *Lang) bool {
-	isPreferredLang := setPreferredLang(langs, l, atm)
-	isPreferredSubtype := isPreferredSubtypeOver(*out, filename)
+	logger := tsk.Handler.ZeroLog()
+	
+	isPreferredLang := setPreferredLang(langs, l, atm, logger)
+	isPreferredSubtype := isPreferredSubtypeOver(*out, filename, logger)
 	isPreferred := isPreferredLang && isPreferredSubtype
 	
-	tsk.Handler.ZeroLog().Trace().
+	logger.Trace().
 		Str("File", filename).
 		Str("lang_currently_selected", atm.Part3).
 		Bool("isPreferredLang", isPreferredLang).
@@ -258,14 +262,15 @@ func stripCommonSubsMention(s string) string {
 }
 
 
-func setPreferredLang(langs []Lang, l, atm Lang) (b bool) {
-	// i, ok1 := getIdx(langs, l)
-	// println(l.Part1, l.Subtag, "l idx", i, ok1)
-	// j, ok2 := getIdx(langs, atm)
-	// println(atm.Part1, atm.Subtag, "atm idx", j, ok2)
+func setPreferredLang(langs []Lang, l, atm Lang, logger *zerolog.Logger) (b bool) {
 	langIdx, langIsDesired := getIdx(langs, l)
 	atmIdx, _ := getIdx(langs, atm)
-	// color.Greenln("langIsDesired", langIsDesired, "MorePreferredLang", langIdx, "<=", atmIdx, "? →", langIdx <= atmIdx)
+	
+	logger.Trace().
+		Bool("lang_is_desired", langIsDesired).
+		Bool("is_preferred_over_current", langIdx <= atmIdx).
+		Msgf("evaluating candidate '%s' against current '%s'", l.Part3, atm.Part3)
+	
 	// idx = idx in the row of lang sorted by preference the user has passed
 	if langIsDesired && langIdx <= atmIdx {
 		b = true
@@ -292,11 +297,20 @@ func getIdx(langs []Lang, candidate Lang) (int, bool) {
 }
 
 // compare subtitles filenames
-func isPreferredSubtypeOver(curr, candidate string) bool {
+func isPreferredSubtypeOver(curr, candidate string, logger *zerolog.Logger) bool {
 	currVal := subtypeMatcher(curr)
 	candidateVal := subtypeMatcher(candidate)
-	//println(candidateval, ">", currVal, "IS", candidateval > currVal)
-	return candidateVal > currVal
+	
+	eval := candidateVal >= currVal
+	
+	logger.Trace().
+		Str("currently_select_filename", curr).
+		Int("currently_select_subtype", currVal).
+		Str("candidate_filename", candidate).
+		Int("candidate_subtype", candidateVal).
+		Msgf("candidate subs's subtype is preferred? %t", eval)
+	
+	return eval
 }
 
 func subtypeMatcher(s string) int {
