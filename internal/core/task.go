@@ -302,14 +302,24 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 	return nil
 }
 
-// DebugVals returns a string representation of a sanitized copy of the Task.
-// It makes a shallow copy of the Task, sets the Handler field to nil (to avoid clutter),
-// and then uses pp.Sprintln to generate the debug string.
-// Note: This shallow copy approach should work fine with the pp package, but any pointer
-// fields (other than Handler) will still reference the original underlying data.
+// DebugVals returns a string representation of a sanitized copy of the Task for crash reporting.
+// It makes a shallow copy of the Task and sets all interface fields to nil before pretty printing.
+// This prevents memory leaks that can occur when large interface implementations or circular 
+// references are included in the pretty-printed output. The returned string contains all primitive
+// values and configuration settings while excluding potentially problematic service references.
 func (tsk *Task) DebugVals() string {
 	cp := *tsk // shallow copy
+	
 	cp.Handler = nil
+	cp.LanguageDetector = nil
+	cp.MediaInfoProvider = nil
+	cp.SubtitleProvider = nil
+	cp.TrackSelector = nil
+	cp.WorkerPool = nil
+	cp.ResumptionService = nil
+	cp.PathService = nil
+	cp.ProgressTracker = nil
+	
 	return pp.Sprintln(cp)
 }
 

@@ -7,6 +7,9 @@ import (
 	"sync"
 	"strings"
 	"time"
+	
+	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
 )
 
 var (
@@ -181,4 +184,10 @@ func (r *ReporterInstance) GetUptime() time.Duration {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return time.Since(r.startTime)
+}
+
+
+func placeholder45654() {
+	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }

@@ -139,7 +139,7 @@ func (tsk *Task) Autosub() *ProcessingError {
 	for _, file := range files {
 		ext := strings.ToLower(filepath.Ext(file.Name()))
 		trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
-		if isLangkitMadeDubtitles(s) || isLangkitMadeTranslit(s) ||
+		if isLangkitMadeDubtitles(file.Name()) || isLangkitMadeTranslit(file.Name()) ||
 			!slices.Contains(AstisubSupportedExt, ext) ||
 				strings.Contains(strings.ToLower(trimmed), "forced") ||
 					!strings.HasPrefix(trimmed, trimmedMedia) ||
