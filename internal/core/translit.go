@@ -8,7 +8,6 @@ import (
 	"os"
 	"errors"
 	"path/filepath"
-	"runtime/pprof"
 	"time"
 	
 	"github.com/asticode/go-astisub"
@@ -20,7 +19,7 @@ import (
 	common "github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
 	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
 )
 
 var (
@@ -29,66 +28,6 @@ var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
 
-// getPprofDir creates and returns a directory for storing pprof data
-func getPprofDir() (string, error) {
-	configDir, err := config.GetConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get config directory: %w", err)
-	}
-	
-	// Create a dedicated pprof directory
-	pprofDir := filepath.Join(configDir, "pprof")
-	if err := os.MkdirAll(pprofDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create pprof directory: %w", err)
-	}
-	
-	return pprofDir, nil
-}
-
-// IsProfiling returns true if CPU profiling is enabled via environment variable
-func IsProfiling() bool {
-	return os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "1" || 
-	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "true" ||
-	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "yes"
-}
-
-// startCPUProfile starts CPU profiling and returns the file and error
-// CPU profiling only starts if LANGKIT_PROFILE_TRANSLIT environment variable is set
-func startCPUProfile(langCode string) (*os.File, error) {
-	// Check if profiling is enabled via environment variable
-	if !IsProfiling() {
-		return nil, nil
-	}
-	
-	pprofDir, err := getPprofDir()
-	if err != nil {
-		return nil, err
-	}
-	
-	// Create a timestamped filename for the profile
-	timestamp := time.Now().Format("20060102-150405")
-	filename := filepath.Join(pprofDir, fmt.Sprintf("cpu_translit_%s_%s.pprof", langCode, timestamp))
-	
-	f, err := os.Create(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CPU profile file: %w", err)
-	}
-	
-	if err := pprof.StartCPUProfile(f); err != nil {
-		f.Close()
-		return nil, fmt.Errorf("failed to start CPU profile: %w", err)
-	}
-	
-	return f, nil
-}
-
-// stopCPUProfile stops CPU profiling and closes the file
-func stopCPUProfile(f *os.File) {
-	if f != nil {
-		pprof.StopCPUProfile()
-		f.Close()
-	}
-}
 
 // TranslitProvider defines an interface for transliteration providers
 // translitkit already acts a layer of abstraction but for selective transliteration
@@ -101,20 +40,21 @@ type TranslitProvider interface {
 	ProviderName() string
 }
 
+
 func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *ProcessingError {
 	langCode := tsk.Targ.Language.Part3
 	
 	// Start CPU profiling if enabled via environment variable
 	var profileFile *os.File
-	if IsProfiling() {
+	if WantCPUProfiling() {
 		var err error
-		profileFile, err = startCPUProfile(langCode)
+		profileFile, err = profiling.StartCPUProfile("translit_" + langCode)
 		if err != nil {
 			// Log error but continue with transliteration
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to start CPU profiling for transliteration")
 		} else if profileFile != nil {
 			tsk.Handler.ZeroLog().Info().Msg("CPU profiling enabled for transliteration")
-			defer stopCPUProfile(profileFile)
+			defer profiling.StopCPUProfile(profileFile)
 		}
 	}
 	
@@ -322,8 +262,8 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 		Msg("Transliteration performance metrics")
 	
 	// Create a performance summary text file if profiling is enabled
-	if IsProfiling() {
-		pprofDir, err := getPprofDir()
+	if WantCPUProfiling() || profiling.IsCPUProfilingEnabled() {
+		pprofDir, err := profiling.GetPprofDir()
 		if err == nil {
 			timestamp := time.Now().Format("20060102-150405")
 			summaryFile, err := os.Create(filepath.Join(pprofDir, fmt.Sprintf("translit_summary_%s_%s.txt", langCode, timestamp)))
@@ -356,6 +296,13 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 				fmt.Fprintf(summaryFile, "\nToken processing rate: %.2f tokens/second\n", float64(len(tokenizeds))/totalDuration.Seconds())
 			}
 		}
+		
+		// Also write a memory profile if memory profiling is enabled
+		if profiling.IsMemoryProfilingEnabled() {
+			if err := profiling.WriteMemoryProfile("translit_" + langCode); err != nil {
+				tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write memory profile")
+			}
+		}
 	}
 	
 	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
@@ -374,6 +321,15 @@ func Subs2StringBlock(subs *astisub.Subtitles) (mergedSubsStr string, subSlice [
 	return
 }
 
+
+
+// WantCPUProfiling returns true if CPU profiling is enabled for transliteration
+// Kept for backward compatibility
+func WantCPUProfiling() bool {
+	return os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "1" || 
+	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "true" ||
+	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "yes"
+}
 
 
 // GenericProvider implements the transliteration for most languages

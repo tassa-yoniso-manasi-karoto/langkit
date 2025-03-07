@@ -8,6 +8,7 @@ import (
 	"io"
 	"context"
 	"errors"
+	"time"
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -16,15 +17,45 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
 )
 
 
 var (
 	itembar *progressbar.ProgressBar
 	totalItems int
+	memoryProfilerDone chan struct{} // Channel to stop memory profiler goroutine
 )
 
 func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
+	// Start memory profiler if enabled (30 second interval)
+	if profiling.IsMemoryProfilingEnabled() {
+		memoryProfilerDone = profiling.StartMemoryProfiler("routing", 30*time.Second)
+		tsk.Handler.ZeroLog().Info().Msg("Memory profiling enabled (30s interval)")
+		
+		// Make sure to stop the profiler when we're done
+		defer func() {
+			if memoryProfilerDone != nil {
+				close(memoryProfilerDone)
+				memoryProfilerDone = nil
+				tsk.Handler.ZeroLog().Info().Msg("Memory profiler stopped")
+			}
+		}()
+	}
+	
+	// Start CPU profiling if enabled
+	var cpuProfileFile *os.File
+	if profiling.IsCPUProfilingEnabled() {
+		var err error
+		cpuProfileFile, err = profiling.StartCPUProfile("routing")
+		if err != nil {
+			tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to start CPU profiling")
+		} else if cpuProfileFile != nil {
+			tsk.Handler.ZeroLog().Info().Msg("CPU profiling enabled")
+			defer profiling.StopCPUProfile(cpuProfileFile)
+		}
+	}
+	
 	version, err := media.GetFFmpegVersion()
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to access FFmpeg binary")
