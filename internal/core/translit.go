@@ -29,6 +29,22 @@ var (
 )
 
 
+type TranslitType int
+
+const (
+	Tokenize  TranslitType = iota
+	Romanize
+	Selective
+)
+
+func (m TranslitType) String() string{
+	return []string{"tokenized", "romanized", "selective"}[m]
+}
+
+func (m TranslitType) ToSuffix() string {
+	return "_" + m.String() + ".srt"
+}
+
 // TranslitProvider defines an interface for transliteration providers
 // translitkit already acts a layer of abstraction but for selective transliteration
 // it is better to access the dedicated lib for a given language directly.
@@ -62,8 +78,11 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	startTime := time.Now()
 	
 	common.BrowserAccessURL = tsk.BrowserAccessURL
-	subsFilepathTokenized := strings.TrimSuffix(subsFilepath, ".srt") + "_tokenized.srt"
-	subsFilepathTranslit := strings.TrimSuffix(subsFilepath, ".srt") + "_translit.srt"
+	base := strings.TrimSuffix(subsFilepath, ".srt")
+
+	subsFilepathTokenized := base + Tokenize.ToSuffix()
+	subsFilepathTranslit  := base + Romanize.ToSuffix()
+	subsFilepathSelective := base + Selective.ToSuffix()
 	
 	// Check if transliteration already exists
 	if alreadyDone, err := fileExistsAndNotEmpty(subsFilepathTranslit); err != nil {
@@ -238,9 +257,7 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	}
 	
 	// Write selective transliteration for Japanese if needed
-	var subsFilepathSelective string
 	if langCode == "jpn" && tsk.KanjiThreshold > -1 && SubSelective != nil {
-		subsFilepathSelective = strings.TrimSuffix(subsFilepath, ".srt") + "_selective.srt"
 		if err := SubSelective.Write(subsFilepathSelective); err != nil {
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write selectively transliterated subtitles")
 		}

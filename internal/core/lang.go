@@ -10,8 +10,6 @@ import (
 	"github.com/k0kubun/pp"
 	iso "github.com/barbashov/iso639-3"
 	"github.com/rs/zerolog"
-	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 // TODO May make sense to move some functions to translitkit/pkg
@@ -316,12 +314,6 @@ func isPreferredSubtypeOver(curr, candidate string, logger *zerolog.Logger) bool
 func subtypeMatcher(s string) int {
 	if s == "" {
 		return 0
-	}
-	// dismiss dubtitles previously made by langkit
-	for _ , model := range voice.STTModels {
-		if strings.Contains(s, langkitMadeDubtitlesMarker(model)) {
-			return 0
-		}
 	}
 	
 	for subtype, v := range refmatch {

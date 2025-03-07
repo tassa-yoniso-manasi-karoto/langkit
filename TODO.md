@@ -1,24 +1,18 @@
 
 - crash reports add snapshots of tsk throughout code
 
+
 - feature interpoling in gui
 
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
-- use remaining o1 prompts to write tests in translitkit
-
-- update subtitle exclusion for translit, tokenized, selective
 - PROGRESS BAR  for other features (translit, etc)
 - proper routing translit for selective
 - translitkit close
 
-- UI: 
-  - 😎😎😎 homogenize colors of log level with green check mark etc, paler blue debug level
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion
 
-
-- with [libvips binding](https://github.com/h2non/bimg) fuzz trim to remove black padding if ratio is different
 
 - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 
@@ -57,6 +51,7 @@ https://go.libhunt.com/
 
 *might:*
 
+- with [libvips binding](https://github.com/h2non/bimg) or imagor: fuzz trim to remove black padding if ratio is different => REQUIRE LIBS TO BE INSTALLED
 - Make autosub local-independent: en match if en-US, no match if en-US and en-IN. Add a --stric
 - use Enhanced voice audiotrack as basis for audio clips
 - use lower bitrate opus with DRED & LBRR that were just standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)

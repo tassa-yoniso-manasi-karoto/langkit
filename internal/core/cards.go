@@ -14,6 +14,7 @@ import (
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
@@ -138,10 +139,11 @@ func (tsk *Task) Autosub() *ProcessingError {
 	for _, file := range files {
 		ext := strings.ToLower(filepath.Ext(file.Name()))
 		trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
-		if file.IsDir() ||
+		if isLangkitMadeDubtitles(s) || isLangkitMadeTranslit(s) ||
 			!slices.Contains(AstisubSupportedExt, ext) ||
-				!strings.HasPrefix(trimmed, trimmedMedia) ||
-					strings.Contains(strings.ToLower(trimmed), "forced") {
+				strings.Contains(strings.ToLower(trimmed), "forced") ||
+					!strings.HasPrefix(trimmed, trimmedMedia) ||
+						file.IsDir()  {
 						continue
 		}
 		l, err := GuessLangFromFilename(file.Name())
@@ -255,10 +257,6 @@ func Base2Absolute(s, dir string) string {
 		return path.Join(dir, s)
 	}
 	return ""
-}
-
-func langkitMadeDubtitlesMarker(STT string) string {
-	return "." + strings.ToUpper(STT)
 }
 
 func userConfirmed() bool {
@@ -511,6 +509,31 @@ func (tsk *Task) processDubtitles(ctx context.Context) (string, *ProcessingError
 	}
 
 	return subsPath, nil
+}
+
+
+func langkitMadeDubtitlesMarker(STTModel string) string {
+	return "." + strings.ToUpper(STTModel)
+}
+
+// allows rejecting those files during subfile screening (see lang.go)
+func isLangkitMadeDubtitles(s string) bool {
+	for _, STTModel := range voice.STTModels {
+		if strings.Contains(s, langkitMadeDubtitlesMarker(STTModel)) {
+			return true
+		}
+	}
+	return false
+}
+
+// allows rejecting those files during subfile screening (see lang.go)
+func isLangkitMadeTranslit(s string) bool {
+	for _, t := range []TranslitType{Tokenize, Romanize, Selective} {
+		if strings.Contains(s, t.ToSuffix()) {
+			return true
+		}
+	}
+	return false
 }
 
 // processTransliteration handles transliteration of subtitles
