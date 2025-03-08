@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 	"math"
+	"unicode/utf8"
 	
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -52,7 +53,7 @@ func (m TranslitType) ToSuffix() string {
 type TranslitProvider interface {
 	Initialize(ctx context.Context, tsk *Task) error
 	GetTokens(ctx context.Context, text string, handler MessageHandler) (tokenized []string, transliterated []string, err error)
-	GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error)
+	GetSelectiveTranslit(ctx context.Context, threshold int) (string, error)
 	PostProcess(text string) string
 	ProviderName() string
 }
@@ -127,7 +128,10 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	
 	// Get tokens - measure performance
 	tokenStartTime := time.Now()
+	
+	tsk.Handler.ZeroLog().Warn().Msgf("requesting tokens from %s, please wait...", provider.ProviderName())
 	tokenizeds, translits, err := provider.GetTokens(ctx, mergedSubsStr, tsk.Handler)
+	tsk.Handler.ZeroLog().Info().Msgf("tokens received from %s", provider.ProviderName())
 	tokenDuration := time.Since(tokenStartTime)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -151,7 +155,7 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 		SubSelective, _ = astisub.OpenFile(subsFilepath)
 		
 		selectiveStartTime := time.Now()
-		mergedSubsStrSelective, err = provider.GetSelectiveTranslit(ctx, mergedSubsStr, tsk.KanjiThreshold)
+		mergedSubsStrSelective, err = provider.GetSelectiveTranslit(ctx, tsk.KanjiThreshold)
 		selectiveDuration = time.Since(selectiveStartTime)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -267,7 +271,7 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	
 	// Log total performance statistics
 	totalDuration := time.Since(startTime)
-	tsk.Handler.ZeroLog().Info().
+	tsk.Handler.ZeroLog().Debug().
 		Str("language", langCode).
 		Dur("total_duration", totalDuration).
 		Dur("init_duration", initDuration).
@@ -341,14 +345,6 @@ func Subs2StringBlock(subs *astisub.Subtitles) (mergedSubsStr string, subSlice [
 
 
 
-// WantCPUProfiling returns true if CPU profiling is enabled for transliteration
-// Kept for backward compatibility
-func WantCPUProfiling() bool {
-	return os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "1" || 
-	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "true" ||
-	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "yes"
-}
-
 
 // GenericProvider implements the transliteration for most languages
 type GenericProvider struct {
@@ -372,32 +368,17 @@ func (p *GenericProvider) Initialize(ctx context.Context, tsk *Task) error {
 	return p.module.InitRecreate(true)
 }
 
-
-// Calculate chunk size based on text length and desired number of chunks
-func calculateChunkSize(textLength int) (int, int) {
-	// Polynomial to determine optimal number of chunks: −3.121724809540×10−6x² + 0.00681015x + 0.31876
-	x := float64(textLength)
-	desiredChunks := -3.121724809540e-6*x*x + 0.00681015*x + 0.31876
-	
-	// Round to nearest integer and ensure at least 1 chunk
-	numChunks := int(math.Round(desiredChunks))
-	if numChunks < 1 {
-		numChunks = 1
-	}
-	
-	// Calculate chunk size from desired number of chunks
-	chunkSize := textLength / numChunks
-	if chunkSize < 1 {
-		chunkSize = textLength
-	}
-	
-	return chunkSize, numChunks
-}
-
 func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
 	// Generate a unique task ID for this operation
 	taskID := fmt.Sprintf("transliteration-%d", time.Now().UnixNano())
+	m := p.module
+	nativelyUsesChunks := m.SupportsProgress()
+
+	handler.ZeroLog().Debug().
+		Bool("nativelyUsesChunks", nativelyUsesChunks).
+		Msg("")
 	
+	// Create a progress callback function
 	progressCallback := func(current, total int) {
 		handler.IncrementProgress(
 			taskID,
@@ -410,32 +391,25 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 		)
 	}
 	
-	m := p.module
-	naturallyUseChunks := m.SupportsProgress()
-	
-	handler.ZeroLog().Debug().
-		Bool("naturallyUseChunks", naturallyUseChunks).
-		Msg("")
-	
 	// Determine whether to use native progress tracking or custom chunkifier
-	if naturallyUseChunks {
-		m = p.module.WithProgressCallback(progressCallback)
-	} else {
+	if !nativelyUsesChunks {
+		// For modules without native progress support, use a custom chunkifier
 		// Calculate optimal chunk size based on text length
-		textLength := len(text)
-		maxChunkSize, numChunks := calculateChunkSize(textLength)
+		runeCount := utf8.RuneCountInString(text)
+		maxChunkSize, numChunks := calculateChunkSize(runeCount)
+	
 		handler.ZeroLog().Debug().
-			Int("textLength", textLength).
+			Int("runeCount", runeCount).
 			Int("maxChunkSize", maxChunkSize).
 			Int("numChunks", numChunks).
-			Msg("updating module with custom chunkifier")
-		
-		chunkifiedModule := p.module.WithCustomChunkifier(common.NewChunkifier(maxChunkSize))
-		
-		m = chunkifiedModule.WithProgressCallback(progressCallback)
+			Msgf("using %s with custom chunkifier", p.ProviderName())
+
+		m.WithCustomChunkifier(common.NewChunkifier(maxChunkSize))
 	}
 	
-	handler.ZeroLog().Warn().Msg("requesting tokens from provider, please wait...")
+	m.WithProgressCallback(progressCallback)
+	
+	
 	tokens, err := m.Tokens(text)
 	
 	if err != nil {
@@ -445,7 +419,8 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 	return tokens.TokenizedParts(), tokens.RomanParts(), nil
 }
 
-func (p *GenericProvider) GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error) {
+
+func (p *GenericProvider) GetSelectiveTranslit(ctx context.Context, threshold int) (string, error) {
 	// Most languages don't support selective transliteration
 	return "", nil
 }
@@ -458,11 +433,27 @@ func (p *GenericProvider) ProviderName() string {
 	return fmt.Sprintf("%s-%s", p.module.Lang, p.module.ProviderNames())
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // JapaneseProvider handles Japanese-specific transliteration
 type JapaneseProvider struct {
 	// Cache the tokens to avoid redundant Analyze calls
-	tokens  *ichiran.JSONTokens
-	text    string // Keep track of the text we've analyzed
+	tokensSlice  []*ichiran.JSONTokens
 }
 
 func NewJapaneseProvider() *JapaneseProvider {
@@ -478,43 +469,106 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, tsk *Task) error {
 	return ichiran.InitRecreate(true)
 }
 
-// analyzeText ensures we only call ichiran.Analyze once for the same text
-func (p *JapaneseProvider) analyzeText(text string) (*ichiran.JSONTokens, error) {
-	// If we've already analyzed this text, return the cached tokens
-	if p.tokens != nil && p.text == text {
-		return p.tokens, nil
+
+func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
+	// Generate a unique task ID for this operation
+	taskID := fmt.Sprintf("jp-transliteration-%d", time.Now().UnixNano())
+	
+	// Calculate optimal chunk size based on text length
+	runeCount := utf8.RuneCountInString(text)
+	maxChunkSize, numChunks := calculateChunkSize(runeCount)
+	
+	handler.ZeroLog().Debug().
+		Int("runeCount", runeCount).
+		Int("maxChunkSize", maxChunkSize).
+		Int("numChunks", numChunks).
+		Msg("using ichiran with custom chunkifier")
+	
+	// Split text into chunks using Chunkify
+	chunks, err := common.NewChunkifier(maxChunkSize).Chunkify(text)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error splitting text into chunks: %w", err)
 	}
 	
+
+	handler.ZeroLog().Trace().
+		Int("actualNumChunks", len(chunks)).
+		Msg("")
+	
+	// Initialize result variables
+	var allTokenizedParts []string
+	var allRomanParts []string
+	
+	// Process each chunk
+	for i, chunk := range chunks {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		default:
+			// Continue processing
+		}
+		handler.ZeroLog().Trace().Msgf("Analyzing chunk %d/%d", i+1, len(chunks))
+		tokens, err := p.analyzeText(chunk)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error analyzing chunk %d: %w", i+1, err)
+		}
+		
+		// Merge results
+		allTokenizedParts = append(allTokenizedParts, tokens.TokenizedParts()...)
+		allRomanParts = append(allRomanParts, tokens.RomanParts()...)
+		
+		// Update progress
+		handler.IncrementProgress(
+			taskID,
+			1,
+			len(chunks),
+			30,
+			"Transliterating",
+			fmt.Sprintf("Processing Japanese text (%d/%d)", i+1, len(chunks)),
+			"h-2",
+		)
+	}
+	
+	return allTokenizedParts, allRomanParts, nil
+}
+
+// analyzeText ensures we only call ichiran.Analyze once for the same text
+func (p *JapaneseProvider) analyzeText(text string) (*ichiran.JSONTokens, error) {
 	// Analyze the text and cache the results
 	tokens, err := ichiran.Analyze(text)
 	if err != nil {
 		return nil, err
 	}
 	
-	// Cache the tokens and text for future use
-	p.tokens = tokens
-	p.text = text
+	// Cache the tokens for future use
+	p.tokensSlice = append(p.tokensSlice, tokens)
 	
 	return tokens, nil
 }
 
-func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
-	tokens, err := p.analyzeText(text)
-	if err != nil {
-		return nil, nil, err
-	}
-	return tokens.TokenizedParts(), tokens.RomanParts(), nil
-}
 
-func (p *JapaneseProvider) GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error) {
-	if threshold > -1 {
-		tokens, err := p.analyzeText(text)
-		if err != nil {
-			return "", err
-		}
-		return tokens.SelectiveTranslit(threshold)
+func (p *JapaneseProvider) GetSelectiveTranslit(ctx context.Context, threshold int) (string, error) {
+	if threshold <= -1 || len(p.tokensSlice) == 0 {
+		return "", nil
 	}
-	return "", nil
+	
+	var result strings.Builder
+	
+	for _, tokens := range p.tokensSlice {
+		if tokens == nil {
+			continue
+		}
+		
+		transliterated, err := tokens.SelectiveTranslit(threshold)
+		if err != nil {
+			return "", fmt.Errorf("error applying selective transliteration: %w", err)
+		}
+		
+		result.WriteString(transliterated)
+	}
+	
+	return result.String(), nil
 }
 
 func (p *JapaneseProvider) PostProcess(text string) string {
@@ -535,6 +589,36 @@ func GetTranslitProvider(lang string, style string) (TranslitProvider, error) {
 	return NewGenericProvider(lang, style)
 }
 
+
+
+
+// function to determine optimal number of chunks:
+// 		-5.383057243541×10⁻⁹*x² + 0.000412359x + 0.405561
+// this one is eyeballed using desired number of steps (y-axis value)
+// of progressbar and typical rune count (x-axis) I have seen on string made from a subfile, 
+// obtained using polynominal regression @ https://www.dcode.fr/function-equation-finder
+func calculateChunkSize(runeCount int) (int, int) {
+	x := float64(runeCount)
+	desiredChunks := -5.383057243541e-9*x*x + 0.000412359*x + 0.405561
+	
+	// Round to nearest integer and ensure at least 1 chunk
+	numChunks := int(math.Round(desiredChunks))
+	if numChunks < 1 {
+		numChunks = 1
+	}
+	// plateau at 5 for performance
+	if numChunks > 5 {
+		numChunks = 5
+	}
+	
+	// Calculate chunk size from desired number of chunks
+	chunkSize := runeCount / numChunks
+	if chunkSize < 1 {
+		chunkSize = runeCount
+	}
+	
+	return chunkSize, numChunks
+}
 
 
 func fileExistsAndNotEmpty(filepath string) (bool, error) {
@@ -567,6 +651,14 @@ func fileExistsAndNotEmpty(filepath string) (bool, error) {
 
 // 	return nil
 // }
+
+
+// WantCPUProfiling returns true if CPU profiling is enabled for transliteration
+func WantCPUProfiling() bool {
+	return os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "1" || 
+	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "true" ||
+	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "yes"
+}
 
 
 func clean(s string) string{
