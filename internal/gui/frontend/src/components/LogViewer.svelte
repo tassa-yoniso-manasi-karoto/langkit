@@ -26,7 +26,7 @@ More aggressive force-scrolling:
     export let version: string = "dev";
 
     // Decide initial log filter
-    let selectedLogLevel = version === "dev" ? "TRACE" : "INFO";
+    let selectedLogLevel = version === "dev" ? "DEBUG" : "INFO";
     
     let scrollContainer: HTMLElement;
     let autoScroll = true;
@@ -36,11 +36,10 @@ More aggressive force-scrolling:
     let userScrollTimeout: number;
     
     // Log levels available
-    const logLevels = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const logLevels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
 
     // Priority map for numeric comparisons
     const logLevelPriority: Record<string, number> = {
-        'trace': 0,
         'debug': 1,
         'info': 2,
         'warn': 3,
@@ -58,8 +57,6 @@ More aggressive force-scrolling:
     // Return a Tailwind class for each log level
     function getLevelClass(level: string): string {
         switch (level.toUpperCase()) {
-            case 'TRACE':
-                return 'text-log-trace';
             case 'DEBUG':
                 return 'text-log-debug';
             case 'INFO':

@@ -1,7 +1,6 @@
 
 - crash reports add snapshots of tsk throughout code
 
-- autoscroll revoked when lots of logs created
 - feature interpoling in gui
 
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory

@@ -35,8 +35,7 @@ export default {
          },
         'pale-green': green,
         
-        'log-trace': violet,
-        'log-debug': colors.blue[400],
+        'log-debug': violet,
         'log-info': green,
         'log-warn': yellow,
         'log-error': red,

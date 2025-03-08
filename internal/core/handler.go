@@ -7,6 +7,7 @@ import (
 	"time"
 	"context"
 	"bytes"
+	"encoding/json"
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -185,7 +186,22 @@ type LogWriter struct {
 }
 
 func (w *LogWriter) Write(p []byte) (n int, err error) {
-	// Emit the raw JSON directly to frontend
+	// Parse the log message
+	var logMessage map[string]interface{}
+	if err := json.Unmarshal(p, &logMessage); err != nil {
+		return 0, err
+	}
+
+	// Check the log level
+	if level, ok := logMessage["level"]; ok {
+		// If it's TRACE (-1), don't send to frontend
+		if level == -1 {
+			// Return the original length to satisfy the Writer interface
+			return len(p), nil
+		}
+	}
+
+	// Send non-TRACE logs to the frontend
 	runtime.EventsEmit(w.ctx, "log", string(p))
 	return len(p), nil
 }
