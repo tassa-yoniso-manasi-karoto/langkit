@@ -50,7 +50,7 @@ func (m TranslitType) ToSuffix() string {
 // it is better to access the dedicated lib for a given language directly.
 type TranslitProvider interface {
 	Initialize(ctx context.Context, tsk *Task) error
-	GetTokens(ctx context.Context, text string) (tokenized []string, transliterated []string, err error)
+	GetTokens(ctx context.Context, text string, handler MessageHandler) (tokenized []string, transliterated []string, err error)
 	GetSelectiveTranslit(ctx context.Context, text string, threshold int) (string, error)
 	PostProcess(text string) string
 	ProviderName() string
@@ -126,7 +126,7 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	
 	// Get tokens - measure performance
 	tokenStartTime := time.Now()
-	tokenizeds, translits, err := provider.GetTokens(ctx, mergedSubsStr)
+	tokenizeds, translits, err := provider.GetTokens(ctx, mergedSubsStr, tsk.Handler)
 	tokenDuration := time.Since(tokenStartTime)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -371,11 +371,32 @@ func (p *GenericProvider) Initialize(ctx context.Context, tsk *Task) error {
 	return p.module.InitRecreate(true)
 }
 
-func (p *GenericProvider) GetTokens(ctx context.Context, text string) ([]string, []string, error) {
-	tokens, err := p.module.Tokens(text)
+func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
+	var tokens common.AnyTokenSliceWrapper
+	var err error
+	
+	if p.module.SupportsProgress() {
+		// Generate a unique task ID for this operation
+		taskID := fmt.Sprintf("transliteration-%d", time.Now().UnixNano())
+		
+		// Define the progress callback function
+		progressCallback := func(current, total int) {
+			// Emit progress to the progress bar
+			// Using a small increment of 1 since the callback gives us the absolute position
+			handler.IncrementProgress(taskID, 1, total, 30, "Transliterating", "Processing chunks...", "h-2")
+		}
+		
+		// Call Tokens with the progress callback
+		tokens, err = p.module.WithProgressCallback(progressCallback).Tokens(text)
+	} else {
+		// If progress tracking is not supported, just call Tokens directly
+		tokens, err = p.module.Tokens(text)
+	}
+	
 	if err != nil {
 		return nil, nil, err
 	}
+	
 	return tokens.TokenizedParts(), tokens.RomanParts(), nil
 }
 
@@ -432,7 +453,7 @@ func (p *JapaneseProvider) analyzeText(text string) (*ichiran.JSONTokens, error)
 	return tokens, nil
 }
 
-func (p *JapaneseProvider) GetTokens(ctx context.Context, text string) ([]string, []string, error) {
+func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
 	tokens, err := p.analyzeText(text)
 	if err != nil {
 		return nil, nil, err

@@ -11,6 +11,7 @@ require (
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/failsafe-go/failsafe-go v0.6.9
+	github.com/google/go-cmp v0.7.0
 	github.com/gookit/color v1.5.4
 	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/klauspost/compress v1.17.11
@@ -20,13 +21,14 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/shirou/gopsutil/v3 v3.24.5
+	github.com/spf13/afero v1.12.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250222130553-4736132089a9
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250227035935-60d1ec1be412
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250222132106-0aae9f68d384
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-20250304080038-7d86df5c2dc4
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250307142953-39ca3a30cd56
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.10.0
 )
@@ -115,7 +117,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -173,8 +174,11 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/mozillazg/go-pinyin v0.20.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/onsi/ginkgo/v2 v2.22.1 // indirect
+	github.com/onsi/gomega v1.36.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
@@ -204,9 +208,9 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
-	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250222130736-c9e6da206ea6 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
@@ -230,6 +234,7 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	github.com/yanyiwu/gojieba v1.4.5 // indirect
 	github.com/ysmood/fetchup v0.2.4 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
 	github.com/ysmood/got v0.40.0 // indirect
