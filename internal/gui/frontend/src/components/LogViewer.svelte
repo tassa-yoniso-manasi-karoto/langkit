@@ -1,5 +1,24 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+/* Large number of logs are a challenge for the web engine to handle.
+Accordingly, the implementation is currently as follows:
+
+Triple-layered auto-scroll mechanism:
+	Normal reactive updates trigger scrolling
+	A mutation observer watches for DOM changes and triggers scrolling
+	A periodic interval check ensures we stay at the bottom even if the other mechanisms fail
+
+
+Complete isolation of user vs. programmatic scrolling:
+	User scrolling is tracked with its own flag and timeout
+	Programmatic scrolling uses a separate timer and doesn't interfere with user actions
+
+
+More aggressive force-scrolling:
+	Uses both setTimeout and requestAnimationFrame for maximum reliability
+	Adds higher timeouts to ensure operations complete
+*/
+
+    import { onMount, onDestroy } from 'svelte';
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
 
@@ -11,9 +30,11 @@
     
     let scrollContainer: HTMLElement;
     let autoScroll = true;
-    let isScrolling = false;
-    let scrollTimeout: number;
-
+    let scrollTimer: number | null = null;
+    let mutationObserver: MutationObserver | null = null;
+    let isUserScrolling = false;
+    let userScrollTimeout: number;
+    
     // Log levels available
     const logLevels = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
 
@@ -80,54 +101,130 @@
         logLevelPriority[log.level.toLowerCase()] >= logLevelPriority[selectedLogLevel.toLowerCase()]
     );
 
-    // Scroll management
-    function handleScroll(e: Event) {
-        if (isScrolling) return;
+    // A separate function to handle manual user scrolling
+    function handleUserScroll() {
+        // If we're scrolling programmatically, don't interfere
+        if (scrollTimer !== null) return;
+
+        // Set a flag that user is actively scrolling
+        isUserScrolling = true;
         
-        const target = e.currentTarget as HTMLElement;
-        const isAtBottom = Math.abs(
-            target.scrollHeight - target.clientHeight - target.scrollTop
-        ) < 1;
+        // Clear any existing timeout
+        clearTimeout(userScrollTimeout);
         
-        if (!isScrolling) {
-            autoScroll = isAtBottom;
+        // Set a timeout to check if we should re-enable auto-scroll
+        userScrollTimeout = window.setTimeout(() => {
+            const atBottom = isScrolledToBottom();
+            if (atBottom) {
+                // If user scrolled to bottom, re-enable auto-scroll
+                autoScroll = true;
+            }
+            isUserScrolling = false;
+        }, 250);
+    }
+
+    // Function to check if scrolled to bottom with some tolerance
+    function isScrolledToBottom(tolerance = 50): boolean {
+        if (!scrollContainer) return true;
+        
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+        return scrollHeight - scrollTop - clientHeight <= tolerance;
+    }
+
+    // Completely separate function for programmatic scrolling
+    function forceScrollToBottom() {
+        if (!scrollContainer || !autoScroll || isUserScrolling) return;
+        
+        // Cancel any existing scroll operation
+        if (scrollTimer !== null) {
+            clearTimeout(scrollTimer);
         }
-
-        clearTimeout(scrollTimeout);
-        scrollTimeout = window.setTimeout(() => {
-            isScrolling = false;
-        }, 150);
-    }
-
-    function scrollToBottom() {
-        if (!scrollContainer || !autoScroll) return;
         
-        isScrolling = true;
-        requestAnimationFrame(() => {
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
-            setTimeout(() => {
-                isScrolling = false;
-            }, 50);
-        });
+        // Use both requestAnimationFrame and setTimeout for maximum reliability
+        scrollTimer = window.setTimeout(() => {
+            requestAnimationFrame(() => {
+                if (scrollContainer && autoScroll) {
+                    // Force scroll with larger timeout for completion
+                    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                    
+                    // Clear the timer after a delay
+                    setTimeout(() => {
+                        scrollTimer = null;
+                    }, 200);
+                }
+            });
+        }, 10);
     }
 
+    // Function to toggle auto-scroll
     function toggleAutoScroll(value: boolean) {
         autoScroll = value;
         if (autoScroll) {
-            scrollToBottom();
+            forceScrollToBottom();
         }
     }
 
-    // If logs update while we are auto-scrolling, scroll down
-    $: if (filteredLogs.length && autoScroll) {
-        scrollToBottom();
-    }
-
+    // Setup observers and listeners on mount
     onMount(() => {
+        // Initial scroll
         if (autoScroll) {
-            scrollToBottom();
+            setTimeout(forceScrollToBottom, 100);
+        }
+        
+        // Set up a mutation observer to detect when logs are added to the DOM
+        if (scrollContainer) {
+            mutationObserver = new MutationObserver((mutations) => {
+                let logAdded = false;
+                
+                for (const mutation of mutations) {
+                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                        logAdded = true;
+                        break;
+                    }
+                }
+                
+                if (logAdded && autoScroll) {
+                    forceScrollToBottom();
+                }
+            });
+            
+            mutationObserver.observe(scrollContainer, { 
+                childList: true, 
+                subtree: true 
+            });
+        }
+        
+        // Additional interval to periodically check and force scroll if needed
+        const scrollCheckInterval = setInterval(() => {
+            if (autoScroll && !isUserScrolling && !isScrolledToBottom()) {
+                forceScrollToBottom();
+            }
+        }, 1000);
+        
+        return () => {
+            clearInterval(scrollCheckInterval);
+            if (mutationObserver) {
+                mutationObserver.disconnect();
+            }
+        };
+    });
+
+    onDestroy(() => {
+        if (scrollTimer !== null) {
+            clearTimeout(scrollTimer);
+        }
+        clearTimeout(userScrollTimeout);
+        if (mutationObserver) {
+            mutationObserver.disconnect();
         }
     });
+    
+    // Also force scroll when log store updates
+    $: {
+        if (filteredLogs.length > 0 && autoScroll) {
+            forceScrollToBottom();
+        }
+    }
 </script>
 
 <!-- Main container for the log viewer -->
@@ -187,7 +284,7 @@
         <div 
             class="flex-1 overflow-y-auto min-h-0"
             bind:this={scrollContainer}
-            on:scroll={handleScroll}
+            on:scroll={handleUserScroll}
         >
             {#if filteredLogs.length === 0}
                 <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center text-gray-600 italic text-sm">
@@ -196,8 +293,9 @@
             {:else}
                 {#each filteredLogs as log}
                     <div 
-                    <div class="{log.behavior ? behaviorColors[log.behavior] : 'text-[#c1c1c1]'} py-1 px-3 border-b border-[#2a2a2a] whitespace-pre-wrap break-words leading-snug flex items-baseline justify-start text-left w-full hover:bg-[rgba(255,255,255,0.02)]"
-                        on:click={() => handleLogBehavior(log)}
+                    <div class="{log.behavior ? behaviorColors[log.behavior] : 'text-[#c1c1c1]'}
+                    py-1 px-3 border-b border-[#2a2a2a] whitespace-pre-wrap break-words leading-snug
+                    flex items-baseline justify-start text-left w-full hover:bg-[rgba(255,255,255,0.02)]"
                     >
                         <span class="text-[#888] mr-2 text-xs flex-shrink-0">
                             {log.time}
