@@ -108,12 +108,14 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			if ok := tsk.checkIntegrity(); !ok  {
 				return nil
 			}
-			tsk.Autosub()
+			if procErr := tsk.Autosub(); procErr != nil {
+				return nil // don't return err, other files may be processable
+			}
 			foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 			if err != nil {
 				tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
 			}
-			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L162
+			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L457
 				foreignSubs.TrimCC2Dubs()
 			}
 			totalItems += len(foreignSubs.Items)
@@ -125,16 +127,6 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		}
 		//mediabar := mkMediabar(len(tasks))
 		for idx, tsk := range tasks {
-			//mediabar.Add(1)
-			tsk.Handler.IncrementProgress(
-				"media-bar",
-				1,
-				len(tasks),
-				10,
-				"Processing",
-				"Total media files done...",
-				"h-4",
-			)
 			// trick to have a new line without the log prefix
 			tsk.Handler.ZeroLog().Info().Msg("\r             \n")//+mediabar.String())
 			tsk.Handler.ZeroLog().Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
@@ -157,6 +149,15 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				tsk.Handler.ZeroLog().Debug().Msg("Aborting processing")
 				return
 			}
+			tsk.Handler.IncrementProgress(
+				"media-bar",
+				1,
+				len(tasks),
+				10,
+				"Processing",
+				"Total media files done...",
+				"h-4",
+			)
 		}
 	}
 	tsk.Handler.ZeroLog().Debug().Msg("Routing completed successfully")

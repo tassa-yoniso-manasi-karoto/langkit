@@ -166,10 +166,9 @@ func (tsk *Task) Autosub() *ProcessingError {
 	tsk.Handler.ZeroLog().Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
 	tsk.NativeSubFile  = Base2Absolute(tsk.NativeSubFile, path.Dir(tsk.MediaSourceFile))
 	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
-	if tsk.TargSubFile == "" {
-		return tsk.Handler.LogFields(Error, AbortTask,
-				"autosub: no sub file for desired target language was found",
-					map[string]interface{}{"video": path.Base(tsk.MediaSourceFile)})
+	if tsk.Mode != Enhance && tsk.TargSubFile == "" {
+		return tsk.Handler.LogErrFields(fmt.Errorf("no subtitle file in %s was found", tsk.Targ.Name), AbortTask,
+			"autosubs failed", map[string]interface{}{"video": path.Base(tsk.MediaSourceFile)})
 	}
 	if tsk.Mode != Subs2Cards {
 		return nil
