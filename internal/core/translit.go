@@ -9,6 +9,7 @@ import (
 	"errors"
 	"path/filepath"
 	"time"
+	"math"
 	
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -371,30 +372,74 @@ func (p *GenericProvider) Initialize(ctx context.Context, tsk *Task) error {
 	return p.module.InitRecreate(true)
 }
 
-func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
-	var tokens common.AnyTokenSliceWrapper
-	var err error
+
+// Calculate chunk size based on text length and desired number of chunks
+func calculateChunkSize(textLength int) (int, int) {
+	// Polynomial to determine optimal number of chunks: −3.121724809540×10−6x² + 0.00681015x + 0.31876
+	x := float64(textLength)
+	desiredChunks := -3.121724809540e-6*x*x + 0.00681015*x + 0.31876
 	
-	if p.module.SupportsProgress() {
-		// Generate a unique task ID for this operation
-		taskID := fmt.Sprintf("transliteration-%d", time.Now().UnixNano())
-		
-		// Define the progress callback function
-		progressCallback := func(current, total int) {
-			// Emit progress to the progress bar
-			// Using a small increment of 1 since the callback gives us the absolute position
-			handler.IncrementProgress(taskID, 1, total, 30, "Transliterating", "Processing chunks...", "h-2")
-		}
-		
-		// Call Tokens with the progress callback
-		tokens, err = p.module.WithProgressCallback(progressCallback).Tokens(text)
-	} else {
-		// If progress tracking is not supported, just call Tokens directly
-		tokens, err = p.module.Tokens(text)
+	// Round to nearest integer and ensure at least 1 chunk
+	numChunks := int(math.Round(desiredChunks))
+	if numChunks < 1 {
+		numChunks = 1
 	}
 	
+	// Calculate chunk size from desired number of chunks
+	chunkSize := textLength / numChunks
+	if chunkSize < 1 {
+		chunkSize = textLength
+	}
+	
+	return chunkSize, numChunks
+}
+
+func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
+	// Generate a unique task ID for this operation
+	taskID := fmt.Sprintf("transliteration-%d", time.Now().UnixNano())
+	
+	progressCallback := func(current, total int) {
+		handler.IncrementProgress(
+			taskID,
+			1,
+			total,
+			30,
+			"Transliterating",
+			fmt.Sprintf("Processing text (%d/%d)", current+1, total),
+			"h-2",
+		)
+	}
+	
+	m := p.module
+	naturallyUseChunks := m.SupportsProgress()
+	
+	handler.ZeroLog().Debug().
+		Bool("naturallyUseChunks", naturallyUseChunks).
+		Msg("")
+	
+	// Determine whether to use native progress tracking or custom chunkifier
+	if naturallyUseChunks {
+		m = p.module.WithProgressCallback(progressCallback)
+	} else {
+		// Calculate optimal chunk size based on text length
+		textLength := len(text)
+		maxChunkSize, numChunks := calculateChunkSize(textLength)
+		handler.ZeroLog().Debug().
+			Int("textLength", textLength).
+			Int("maxChunkSize", maxChunkSize).
+			Int("numChunks", numChunks).
+			Msg("updating module with custom chunkifier")
+		
+		chunkifiedModule := p.module.WithCustomChunkifier(common.NewChunkifier(maxChunkSize))
+		
+		m = chunkifiedModule.WithProgressCallback(progressCallback)
+	}
+	
+	handler.ZeroLog().Warn().Msg("requesting tokens from provider, please wait...")
+	tokens, err := m.Tokens(text)
+	
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("error processing text: %w", err)
 	}
 	
 	return tokens.TokenizedParts(), tokens.RomanParts(), nil

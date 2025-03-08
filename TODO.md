@@ -5,7 +5,6 @@
 
 - catch when no subs for targlang: can't read foreign subtitles error="astisub: opening  failed: open : no such file or directory
 
-- PROGRESS BAR  for other features (translit, etc)
 - proper routing translit for selective
 - translitkit close
 
