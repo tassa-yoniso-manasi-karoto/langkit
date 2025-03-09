@@ -194,20 +194,34 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 	}
 	
 	if settings, err := config.LoadSettings(); err == nil {
-		tsk.MaxAPIRetries = settings.MaxAPIRetries
+		tsk.ApplyConfig(settings)
+	} else {
+		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to load settings")
 	}
 	
 	return tsk
 }
 
-func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
-	settings, err := config.LoadSettings()
-	if err != nil {
-		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to load settings")
+func (tsk *Task) ApplyConfig(settings config.Settings) {
+	if settings.MaxAPIRetries > 0 {
+		tsk.MaxAPIRetries = settings.MaxAPIRetries
 	}
-
-	tsk.applyConfigSettings(settings)
 	
+	if settings.MaxWorkers > 0 {
+		tsk.Meta.WorkersMax = settings.MaxWorkers
+	}
+	
+	// FIXME CLI wasn't designed with a default language in config in mind → unknown behavior down the line
+	if settings.TargetLanguage != "" {
+		tsk.Langs = []string{settings.TargetLanguage}
+		if settings.NativeLanguages != "" {
+			tsk.Langs = append(tsk.Langs, TagsStr2TagsArr(settings.NativeLanguages)...)
+		}
+	}
+}
+
+
+func (tsk *Task) ApplyCLIFlags(cmd *cobra.Command) *ProcessingError {
 	// override config settings if specified
 	tsk.applyCLIFlags(cmd)
 	
@@ -237,23 +251,6 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 	return nil
 }
 
-func (tsk *Task) applyConfigSettings(settings config.Settings) {
-	if settings.MaxAPIRetries > 0 {
-		tsk.MaxAPIRetries = settings.MaxAPIRetries
-	}
-	
-	if settings.MaxWorkers > 0 {
-		tsk.Meta.WorkersMax = settings.MaxWorkers
-	}
-	
-	// FIXME CLI wasn't designed with a default language in config in mind → undefined behavior down the line
-	if settings.TargetLanguage != "" {
-		tsk.Langs = []string{settings.TargetLanguage}
-		if settings.NativeLanguages != "" {
-			tsk.Langs = append(tsk.Langs, TagsStr2TagsArr(settings.NativeLanguages)...)
-		}
-	}
-}
 
 // applyCLIFlags applies settings from command line flags
 func (tsk *Task) applyCLIFlags(cmd *cobra.Command) {

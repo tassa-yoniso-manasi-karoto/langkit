@@ -23,7 +23,7 @@ func translit(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []st
 	if len(args) == 0 {
 		return tsk.Handler.Log(core.Error, "", "this command requires one argument: the path to the subtitle file to be processed")
 	}
-	tsk.ApplyFlags(cmd)
+	tsk.ApplyCLIFlags(cmd)
 	tsk.TargSubFile = args[0]
 	
 	tsk.WantTranslit = true

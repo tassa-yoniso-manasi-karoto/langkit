@@ -22,7 +22,7 @@ func enhance(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []str
 	if len(args) == 0 {
 		return tsk.Handler.Log(core.Error, "", "this command requires at least one argument: the path to the media file to be processed")
 	}
-	tsk.ApplyFlags(cmd)
+	tsk.ApplyCLIFlags(cmd)
 	tsk.MediaSourceFile = args[0]
 	
 	tsk.Mode = core.Enhance

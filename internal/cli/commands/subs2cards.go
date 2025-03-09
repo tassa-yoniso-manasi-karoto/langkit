@@ -30,7 +30,7 @@ func subs2cards(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []
 		return tsk.Handler.Log(core.Error, "", "this command requires at least one argument: the path to the media file/directory to be processed")
 	}
 
-	tsk.ApplyFlags(cmd)
+	tsk.ApplyCLIFlags(cmd)
 	
 	tsk.MediaSourceFile = args[0]
 	if len(args) > 1 {

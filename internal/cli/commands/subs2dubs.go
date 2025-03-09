@@ -21,7 +21,7 @@ func subs2dubs(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []s
 	if len(args) < 1 {
 		return tsk.Handler.Log(core.Error, "", "this command requires at least 1 argument: the path to the media file to be processed")
 	}
-	tsk.ApplyFlags(cmd)
+	tsk.ApplyCLIFlags(cmd)
 	tsk.MediaSourceFile = args[0]
 	if len(args) > 1 {
 		tsk.TargSubFile = args[1]
