@@ -11,7 +11,7 @@
     
     let dragOver = false;
     let isDirectory = false;
-    const MAX_VISIBLE_FILES = 4;
+    const VISIBLE_HEIGHT_VIDEOS = 4; // Number of videos visible without scrolling
 
     async function handleDirectorySelect() {
         try {
@@ -55,11 +55,15 @@
         if (files.length !== 1) return;
 
         const file = files[0];
+        
+        // The path property isn't standard in browsers but is available in desktop contexts
+        const filePath = file.path || (file as any).webkitRelativePath;
+        
         if (file.type.startsWith('video/')) {
             isDirectory = false;
             mediaSource = {
                 name: file.name,
-                path: file.path
+                path: filePath || file.name
             };
             previewFiles = [];
         } else {
@@ -67,14 +71,20 @@
                 isDirectory = true;
                 mediaSource = {
                     name: file.name,
-                    path: file.path
+                    path: filePath || file.name
                 };
-                const videos = await GetVideosInDirectory(file.path);
-                previewFiles = videos.map(v => ({
-                    name: v.name,
-                    path: v.path,
-                    size: v.size
-                }));
+                // Only attempt to get videos in directory if we have a valid path
+                if (filePath) {
+                    const videos = await GetVideosInDirectory(filePath);
+                    previewFiles = videos.map(v => ({
+                        name: v.name,
+                        path: v.path,
+                        size: v.size
+                    }));
+                } else {
+                    previewFiles = [];
+                    console.error('Cannot get directory contents from drag and drop: path unavailable');
+                }
             } catch (error) {
                 console.error('Error handling directory drop:', error);
             }
@@ -84,6 +94,7 @@
     function resetSelection() {
         mediaSource = null;
         isDirectory = false;
+        previewFiles = [];
     }
 
     function preventDefaults(e: Event) {
@@ -106,11 +117,7 @@
             dragOver = false;
         }
     }
-
-    $: visibleFiles = previewFiles.slice(0, MAX_VISIBLE_FILES);
-    $: remainingFiles = previewFiles.length - MAX_VISIBLE_FILES;
 </script>
-
 
 <div class="relative" role="presentation">
     <div
@@ -118,106 +125,97 @@
         class="relative border-2 border-dashed border-primary/30 rounded-lg p-4 text-center
                transition-all duration-200 ease-out bg-white/5
                hover:border-primary/50 hover:bg-white/10
-               {dragOver ? 'border-primary bg-primary/10' : ''}
-               {mediaSource ? 'opacity-90' : ''}"
+               {dragOver ? 'border-primary bg-primary/10 scale-[1.01]' : ''}
+               {mediaSource ? 'opacity-95' : ''}"
         on:dragenter={handleDragEnter}
         on:dragleave={handleDragLeave}
         on:dragover={preventDefaults}
         on:drop={handleDrop}
     >
         {#if !mediaSource}
-            <div class="text-primary/70">
-                <span class="material-icons text-2xl mb-1">upload_file</span>
-                <p class="text-sm leading-none">
-                    Select
+            <!-- No media selected state -->
+            <div class="text-primary/80 flex flex-col items-center justify-center gap-2 py-1">
+                <span class="material-icons text-2xl">file_upload</span>
+                <div class="flex items-center flex-wrap justify-center gap-1 text-sm text-gray-300">
+                    <span>Drag &amp; drop here or select</span>
                     <button 
-                        class="text-primary hover:text-primary-2 underline decoration-dotted
-                               leading-none inline hover:-translate-y-0.5
-                               transition-all duration-200"
+                        class="px-2 py-0.5 mx-1 text-sm font-medium rounded-md bg-primary/20 text-primary
+                               hover:bg-primary/30 hover:shadow-md hover:-translate-y-0.5
+                               transition-all duration-200 inline-flex items-center gap-1"
                         on:click={handleDirectorySelect}
-                    >a directory</button>
-                    or
+                    >
+                        <span class="material-icons text-sm">folder</span>
+                        <span>directory</span>
+                    </button>
+                    <span>/</span>
                     <button 
-                        class="text-primary hover:text-primary-2 underline decoration-dotted
-                               leading-none inline hover:-translate-y-0.5
-                               transition-all duration-200"
+                        class="px-2 py-0.5 mx-1 text-sm font-medium rounded-md bg-primary/20 text-primary
+                               hover:bg-primary/30 hover:shadow-md hover:-translate-y-0.5
+                               transition-all duration-200 inline-flex items-center gap-1"
                         on:click={handleVideoSelect}
-                    >a video</button>
-                    to process
-                </p>
+                    >
+                        <span class="material-icons text-sm">movie</span>
+                        <span>video</span>
+                    </button>
+                </div>
             </div>
         {:else}
+            <!-- Media selected state -->
             <div class="text-left">
                 <div class="space-y-2">
-                    {#if isDirectory}
-                        <div class="flex items-center justify-between gap-1 p-1.5 bg-primary/10 rounded text-sm">
-                            <div class="flex items-center gap-1 min-w-0">
-                                <span class="material-icons text-primary text-sm flex-shrink-0">folder</span>
-                                <span class="truncate">{mediaSource.path}</span>
-                            </div>
-                            <button 
-                                class="flex-shrink-0 flex-grow-0 text-red-400/70 hover:text-red-400 
-                                       transition-colors duration-200 
-                                       aspect-square w-1 min-w-[8px] max-w-[8px]
-                                       inline-flex items-center justify-center"
-                                on:click={resetSelection}
-                            >
-                                <span class="material-icons text-[14px]">close</span>
-                            </button>
+                    <!-- Selected source display -->
+                    <div class="flex items-center justify-between gap-1 p-2 bg-primary/10 rounded text-sm border border-primary/20 hover:border-primary/40 transition-colors duration-200">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="material-icons text-primary flex-shrink-0">
+                                {isDirectory ? 'folder' : 'movie'}
+                            </span>
+                            <span class="truncate font-medium">{mediaSource.path}</span>
                         </div>
-                        <div class="pl-8 space-y-1">
-                            {#each visibleFiles as file, i}
-                                <div class="flex text-sm">
-                                    <!-- Tree connection lines container -->
-                                    <div class="relative w-6 flex-shrink-0">
-                                        {#if i !== visibleFiles.length - 1 || remainingFiles > 0}
-                                            <!-- Regular item: vertical + horizontal lines -->
-                                            <div class="absolute left-0 top-[-4px] bottom-[-4px] tree-line border-l"></div>
-                                            <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
-                                        {:else}
-                                            <!-- Last item: L-shaped connector with 1px overlap -->
-                                            <div class="absolute left-0 top-[-4px] h-[calc(0.7em_+_3px)] tree-line border-l"></div>
-                                            <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
-                                        {/if}
-                                    </div>
-                                    <!-- Content -->
-                                    <div class="flex items-center gap-2 min-w-0">
-                                        <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
-                                        <span class="truncate">{file.name}</span>
-                                    </div>
-                                </div>
-                            {/each}
-                            {#if remainingFiles > 0}
-                                <div class="flex text-sm text-white/40">
-                                    <!-- Tree connection lines container -->
-                                    <div class="relative w-6 flex-shrink-0">
-                                        <!-- Last item: L-shaped connector with 1px overlap -->
-                                        <div class="absolute left-0 top-[-4px] h-[0.1em] tree-line border-l"></div>
-                                        <div class="absolute left-0 top-[0.1em] w-full tree-line border-t"></div>
-                                    </div>
-                                    <!-- Content -->
-                                    <div class="flex items-center gap-2">
-                                        <span class="material-icons text-sm flex-shrink-0">more_horiz</span>
-                                        <span>+{remainingFiles} more video{remainingFiles === 1 ? '' : 's'}</span>
-                                    </div>
-                                </div>
-                            {/if}
-                        </div>
-                    {:else}
-                        <div class="flex items-center justify-between gap-1 p-1.5 bg-primary/10 rounded text-sm">
-                            <div class="flex items-center gap-1 min-w-0">
-                                <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
-                                <span class="truncate">{mediaSource.path}</span>
+                        <button 
+                            class="flex-shrink-0 text-red-400/70 hover:text-red-400 hover:bg-white/10
+                                   p-1 rounded-md transition-all duration-200
+                                   inline-flex items-center justify-center"
+                            on:click={resetSelection}
+                            title="Remove selection"
+                        >
+                            <span class="material-icons text-[16px]">close</span>
+                        </button>
+                    </div>
+
+                    {#if isDirectory && previewFiles.length > 0}
+                        <!-- Directory content preview with tree structure -->
+                        <div class="bg-white/5 p-2 rounded-md">
+                            <!-- Header with total count -->
+                            <div class="flex justify-between items-center mb-1 text-xs text-gray-300">
+                                <span class="font-medium">Directory contents:</span>
+                                <span>{previewFiles.length} video{previewFiles.length === 1 ? '' : 's'} in total</span>
                             </div>
-                            <button 
-                                class="flex-shrink-0 flex-grow-0 text-red-400/70 hover:text-red-400 
-                                       transition-colors duration-200 
-                                       aspect-square w-1 min-w-[8px] max-w-[8px]
-                                       inline-flex items-center justify-center"
-                                on:click={resetSelection}
-                            >
-                                <span class="material-icons text-[14px]">close</span>
-                            </button>
+                            
+                            <!-- Scrollable file list with tree structure -->
+                            <div class="pl-2 space-y-0.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
+                                {#each previewFiles as file, i}
+                                    <div class="flex text-xs">
+                                        <!-- Tree connection lines container -->
+                                        <div class="relative w-6 flex-shrink-0">
+                                            {#if i !== previewFiles.length - 1}
+                                                <!-- Regular item: vertical + horizontal lines -->
+                                                <div class="absolute left-0 top-[-4px] bottom-[-4px] tree-line border-l"></div>
+                                                <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
+                                            {:else}
+                                                <!-- Last item: L-shaped connector -->
+                                                <div class="absolute left-0 top-[-4px] h-[calc(0.7em_+_3px)] tree-line border-l"></div>
+                                                <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
+                                            {/if}
+                                        </div>
+                                        
+                                        <!-- File content -->
+                                        <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/5 rounded pl-1 pr-2 transition-colors duration-150">
+                                            <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
+                                            <span class="truncate text-gray-300 hover:text-white">{file.name}</span>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
                         </div>
                     {/if}
                 </div>
@@ -227,8 +225,34 @@
 </div>
 
 <style>
+    /* Custom hover effects for the buttons */
+    button:active {
+        transform: translateY(0) !important;
+        transition-duration: 50ms;
+    }
+    
+    /* Tree line styling */
     .tree-line {
-        border-width: 2px;
-        border-color: rgb(255 255 255);
+        border-color: rgba(255, 255, 255, 0.2);
+        border-width: 1px;
+    }
+    
+    /* Custom scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 3px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
     }
 </style>
