@@ -3,7 +3,6 @@ package commands
 
 import (
 	"fmt"
-	"strings"
 	"context"
 	
 	"github.com/spf13/cobra"
@@ -93,17 +92,17 @@ func init() {
 func initCommandsWithSettings() {
 	// Initialize flags with values from config or defaults if config loading failed
 	
-	// TODO Convert languages to string slice for flag default
-	/*langs := []string{}
+	// Convert languages to string slice for flag default
+	langs := []string{}
 	if settings.TargetLanguage != "" {
 		langs = append(langs, settings.TargetLanguage)
 		if settings.NativeLanguages != "" {
-			langs = append(langs, convertLanguagesString(settings.NativeLanguages)...)
+			langs = append(langs, core.TagsStr2TagsArr(settings.NativeLanguages)...)
 		}
-	}*/
+	}
 	
 	// Set flags with proper defaults
-	RootCmd.PersistentFlags().StringSliceP("langs", "l", /*TODO*/ nil,
+	RootCmd.PersistentFlags().StringSliceP("langs", "l", langs,
 		"ISO-639-1/3 codes of target language followed by\n" +
 		"reference language(s) sorted by preference\n" +
 		"(i.e. learning spanish from english → \"es,en\").\n\n" +
@@ -138,17 +137,6 @@ func initCommandsWithSettings() {
 	RootCmd.AddCommand(subs2dubsCmd)
 	RootCmd.AddCommand(subs2cardsCmd)
 	RootCmd.AddCommand(translitCmd)
-}
-
-// TODO Helper function to convert comma-separated languages string to slice
-func convertLanguagesString(langsStr string) []string {
-	if langsStr == "" {
-		return []string{}
-	}
-	
-	// This would use TagsStr2TagsArr from your existing code
-	// For the sake of this example:
-	return strings.Split(langsStr, ",")
 }
 
 func initConfig() {
