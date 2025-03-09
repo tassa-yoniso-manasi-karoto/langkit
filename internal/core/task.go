@@ -126,7 +126,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 	
 	tsk = &Task{
 		Handler: handler,
-		Meta: Meta { WorkersMax: runtime.NumCPU()-1 },
+		Meta: Meta { WorkersMax: runtime.NumCPU()-2 },
 		
 		// Initialize service interfaces with default implementations
 		LanguageDetector:  NewLanguageDetector(),
@@ -240,6 +240,10 @@ func (tsk *Task) ApplyFlags(cmd *cobra.Command) *ProcessingError {
 func (tsk *Task) applyConfigSettings(settings config.Settings) {
 	if settings.MaxAPIRetries > 0 {
 		tsk.MaxAPIRetries = settings.MaxAPIRetries
+	}
+	
+	if settings.MaxWorkers > 0 {
+		tsk.Meta.WorkersMax = settings.MaxWorkers
 	}
 	
 	// FIXME CLI wasn't designed with a default language in config in mind → undefined behavior down the line

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strings"
+	"runtime"
 	"path/filepath"
 	
 	"github.com/spf13/viper"
@@ -23,6 +24,7 @@ type Settings struct {
 	ShowLogViewerByDefault bool   `json:"showLogViewerByDefault" mapstructure:"show_log_viewer_default"`
 	MaxLogEntries          int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
 	MaxAPIRetries          int    `json:"maxAPIRetries" mapstructure:"max_api_retries"`
+	MaxWorkers             int    `json:"maxWorkers" mapstructure:"max_workers"`
 }
 
 
@@ -65,6 +67,7 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("show_log_viewer_default", false)
 	viper.SetDefault("max_log_entries", 10000)
 	viper.SetDefault("max_api_retries", 10)
+	viper.SetDefault("max_workers", runtime.NumCPU()-2)
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -92,6 +95,7 @@ func SaveSettings(settings Settings) error {
 	viper.Set("show_log_viewer_default", settings.ShowLogViewerByDefault)
 	viper.Set("max_log_entries", settings.MaxLogEntries)
 	viper.Set("max_api_retries", settings.MaxAPIRetries)
+	viper.Set("max_workers", settings.MaxWorkers)
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()

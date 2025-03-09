@@ -12,8 +12,10 @@ type Settings = {
     showLogViewerByDefault: boolean;
     maxLogEntries: number;
     maxAPIRetries: number;
+    maxWorkers: number;
 };
 
+/* these values are irrelevant, only the default values of the backend matter */
 const initSettings: Settings = {
     apiKeys: {
         replicate: '',
@@ -26,6 +28,7 @@ const initSettings: Settings = {
     showLogViewerByDefault: false,
     maxLogEntries: 10000,
     maxAPIRetries: 10,
+    maxWorkers: 1,
 };
 
 type showSettings = boolean;

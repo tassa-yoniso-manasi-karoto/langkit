@@ -23,7 +23,8 @@
         enableGlow: true,
         showLogViewerByDefault: false,
         maxAPIRetries: 10,
-        maxLogEntries: 10000
+        maxLogEntries: 10000,
+        maxWorkers: 1
     };
 
     let targetLangValid = false;
@@ -291,6 +292,29 @@
                                 type="number"
                                 bind:value={currentSettings.maxAPIRetries}
                                 min="1"
+                                class="w-32 bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2 pl-4
+                                       hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
+                                       focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
+                                       transition-all duration-200"
+                            />
+                        </div>
+                    </section>
+
+                    <!-- Worker Pool Settings -->
+                    <section class="space-y-6">
+                        <h3 class="text-lg font-medium text-primary/80 flex items-center gap-2">
+                            <span class="material-icons text-primary/70">speed</span>
+                            Worker Pool Settings
+                        </h3>
+                        <div class="flex items-center gap-4">
+                            <label class="text-sm text-gray-300 whitespace-nowrap">
+                                Maximum Workers:
+                            </label>
+                            <input
+                                type="number"
+                                bind:value={currentSettings.maxWorkers}
+                                min="1"
+                                step="1"
                                 class="w-32 bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2 pl-4
                                        hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
                                        focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50

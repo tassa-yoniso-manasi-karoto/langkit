@@ -119,6 +119,7 @@ func initCommandsWithSettings() {
 	)
 	RootCmd.PersistentFlags().String("ffmpeg", "ffmpeg", "override for the path to FFmpeg binary\n")
 	RootCmd.PersistentFlags().String("mediainfo", "mediainfo", "override for the path to Mediainfo binary\n")
+	RootCmd.PersistentFlags().Int("workers", settings.MaxWorkers, "max concurrent workers to use for bulk processing")
 
 	RootCmd.PersistentFlags().StringP("sep", "s", "", "separation API to use for voice isolation")
 	RootCmd.PersistentFlags().Int("sep-to", 15*60, "timeout in seconds for the voice separation request")
