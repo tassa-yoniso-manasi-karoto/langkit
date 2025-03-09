@@ -3,8 +3,7 @@ package commands
 
 import (
 	"fmt"
-	"os"
-	"runtime"
+	"strings"
 	"context"
 	
 	"github.com/spf13/cobra"
@@ -66,31 +65,60 @@ func exitOnError(tsk *core.Task, mainErr error) {
 }
 
 
-var cfgFile string
+// Early load the settings before flag initialization
+var settings config.Settings
 
 func init() {
-	cobra.OnInitialize(initConfig)
-	// FIXME ↓
-	RootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.config/langkit/config.yaml)")
+	// Load settings first, before initializing flags
+	var err error
+	// Initialize config with empty path (use default)
+	if err := config.InitConfig(""); err != nil {
+		fmt.Printf("Warning: Could not initialize config: %v\n", err)
+	}
 	
-	// TODO Keep existing flags but don't set defaults - they'll come from config
-	RootCmd.PersistentFlags().StringSliceP("langs", "l", nil,
+	// Load settings for flag defaults
+	settings, err = config.LoadSettings()
+	if err != nil {
+		fmt.Printf("Warning: Could not load settings: %v\n", err)
+	}
+	
+	// Initialize cobra with our loaded settings
+	initCommandsWithSettings()
+	
+	// Setup config load during command execution
+	cobra.OnInitialize(initConfig)
+}
+
+// initCommandsWithSettings initializes commands using settings from config
+func initCommandsWithSettings() {
+	// Initialize flags with values from config or defaults if config loading failed
+	
+	// TODO Convert languages to string slice for flag default
+	/*langs := []string{}
+	if settings.TargetLanguage != "" {
+		langs = append(langs, settings.TargetLanguage)
+		if settings.NativeLanguages != "" {
+			langs = append(langs, convertLanguagesString(settings.NativeLanguages)...)
+		}
+	}*/
+	
+	// Set flags with proper defaults
+	RootCmd.PersistentFlags().StringSliceP("langs", "l", /*TODO*/ nil,
 		"ISO-639-1/3 codes of target language followed by\n" +
-			"reference language(s) sorted by preference\n" +
-				"(i.e. learning spanish from english → \"es,en\").\n\n" +
-					"For each language one subtag can be specified\n" +
-						"after a hyphen \"-\" (i.e. pt-BR or zh-Hant).",
+		"reference language(s) sorted by preference\n" +
+		"(i.e. learning spanish from english → \"es,en\").\n\n" +
+		"For each language one subtag can be specified\n" +
+		"after a hyphen \"-\" (i.e. pt-BR or zh-Hant).",
 	)
 	RootCmd.PersistentFlags().Int("chan", 2, "prefer audiotracks with this number of channels\n")
 	RootCmd.PersistentFlags().Int("a", -1,
 		"force selection of the audiotrack at this index.\n" +
-			"Useful for audiotracks missing a language tag.\n" +
-				"Overrides --chan and -l flag.\n" +
-					"Indexing of audiotracks start at 1.",
+		"Useful for audiotracks missing a language tag.\n" +
+		"Overrides --chan and -l flag.\n" +
+		"Indexing of audiotracks start at 1.",
 	)
 	RootCmd.PersistentFlags().String("ffmpeg", "ffmpeg", "override for the path to FFmpeg binary\n")
 	RootCmd.PersistentFlags().String("mediainfo", "mediainfo", "override for the path to Mediainfo binary\n")
-	RootCmd.PersistentFlags().Int("workers", runtime.NumCPU()-1, "max concurrent workers to use for bulk processing")
 
 	RootCmd.PersistentFlags().StringP("sep", "s", "", "separation API to use for voice isolation")
 	RootCmd.PersistentFlags().Int("sep-to", 15*60, "timeout in seconds for the voice separation request")
@@ -111,13 +139,19 @@ func init() {
 	RootCmd.AddCommand(translitCmd)
 }
 
-func initConfig() {
-	if err := config.InitConfig(cfgFile); err != nil {
-		fmt.Println("Error initializing config:", err)
-		os.Exit(1)
+// TODO Helper function to convert comma-separated languages string to slice
+func convertLanguagesString(langsStr string) []string {
+	if langsStr == "" {
+		return []string{}
 	}
+	
+	// This would use TagsStr2TagsArr from your existing code
+	// For the sake of this example:
+	return strings.Split(langsStr, ",")
+}
 
-	// Bind environment variables
+func initConfig() {
+	// Setup environment variables
 	viper.SetEnvPrefix("LANGKIT")
 	viper.AutomaticEnv()
 	
@@ -126,8 +160,6 @@ func initConfig() {
 		"REPLICATE_API_KEY": "api_keys.replicate",
 		"ASSEMBLYAI_API_KEY": "api_keys.assemblyai",
 		"ELEVENLABS_API_KEY": "api_keys.elevenlabs",
-		"TARGET_LANG": "target_language",
-		"NATIVE_LANG": "native_language",
 	}
 
 	for env, conf := range envBindings {
