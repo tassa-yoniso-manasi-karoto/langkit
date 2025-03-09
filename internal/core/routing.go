@@ -125,6 +125,16 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		if err != nil {
 			return
 		}
+		
+		tsk.Handler.IncrementProgress(
+			"media-bar",
+			0,
+			len(tasks),
+			10,
+			"Processing",
+			"Total media files done...",
+			"h-5",
+		)
 		//mediabar := mkMediabar(len(tasks))
 		for idx, tsk := range tasks {
 			// trick to have a new line without the log prefix
@@ -156,7 +166,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				10,
 				"Processing",
 				"Total media files done...",
-				"h-4",
+				"h-5",
 			)
 		}
 	}

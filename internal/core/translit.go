@@ -382,7 +382,7 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 	progressCallback := func(current, total int) {
 		handler.IncrementProgress(
 			taskID,
-			1,
+			0,
 			total,
 			30,
 			"Transliterating",

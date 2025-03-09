@@ -315,8 +315,6 @@ func (h *GUIHandler) IncrementProgress(
 	increment, total, priority int, 
 	operation, descr, size string,
 ) {
-	fmt.Println("DEBUG: Emitting progress event for taskID:", taskID, " ...")
-	// Bump up the current count for that task
 	h.progressMap[taskID] += increment
 	current := h.progressMap[taskID]
 
@@ -343,11 +341,8 @@ func (h *GUIHandler) IncrementProgress(
 	}
 	runtime.EventsEmit(h.ctx, "progress", payload)
 
-	// If we reached or exceeded total, optionally remove from the map
 	if total > 0 && current >= total {
 		delete(h.progressMap, taskID)
-		// If you want to signal "done" or auto-remove the bar on the front-end:
-		// runtime.EventsEmit(h.ctx, "progress-remove", taskID)
 	}
 }
 

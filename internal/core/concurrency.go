@@ -39,18 +39,17 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("Error checking strings in file")
 		}
 	}()
-
-					/*updateBar := func(item *ProcessedItem) {
-						// Only update progress for items that were not already done.
-						if !item.AlreadyDone {
-							if itembar == nil {
-								itembar = mkItemBar(totalItems, tsk.descrBar())
-							} else if itembar.GetMax() != totalItems {
-								itembar.ChangeMax(totalItems)
-							}
-							itembar.Add(1)
-						}
-					}*/
+	
+	// init progress  bar
+	tsk.Handler.IncrementProgress(
+		"item-bar",
+		0,
+		totalItems,
+		20,
+		"Subtitle lines processed (all files)...",
+		tsk.descrBar(),
+		"h-3",
+	)
 	updateBar := func(item *ProcessedItem) {
 		if !item.AlreadyDone {
 			tsk.Handler.IncrementProgress(
@@ -58,9 +57,9 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 				1,
 				totalItems,
 				20,
-				"Subtitle lines processed (combined total)...", 
+				"Subtitle lines processed (all files)...",
 				tsk.descrBar(),
-				"h-2",
+				"h-3",
 			)
 		}
 	}
