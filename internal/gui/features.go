@@ -13,7 +13,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
-func (a *App) SendProcessingRequest(request ProcessRequest) {
+func (a *App) SendProcessingRequest(req ProcessRequest) {
 	defer func() {
 		if r := recover(); r != nil {
 			exitOnError(fmt.Errorf("panic in SendProcessingRequest: %v", r))
@@ -26,16 +26,37 @@ func (a *App) SendProcessingRequest(request ProcessRequest) {
 
 	tsk := core.NewTask(handler)
 	
-	a.configureTask(tsk, request)
+	a.translateReq2Tsk(req, tsk)
 	
-	tsk.MediaSourceFile = request.Path
+	// FIXME will be problematic if enhance include as sub-task related to subs like translit
+	if tsk.Mode != core.Enhance {
+		settings, err := config.LoadSettings()
+		if err != nil {
+			tsk.Handler.LogErr(err, core.AbortAllTasks, "failed to load settings")
+			return
+		}
+		
+		if req.LanguageCode == "" || settings.NativeLanguages == "" {
+			tsk.Handler.Log(core.Error, core.AbortAllTasks,
+				"No target language was passed or no native languages is configured in settings")
+			return
+		}
+		tsk.Langs = append([]string{req.LanguageCode}, core.TagsStr2TagsArr(settings.NativeLanguages)...)
+		if procErr := tsk.PrepareLangs(); procErr != nil {
+			tsk.Handler.ZeroLog().Error().Err(procErr.Err).
+				Msg("PrepareLangs failed")
+			return
+		}
+	}
+	
+	tsk.MediaSourceFile = req.Path
 	
 	tsk.Handler.ZeroLog().Info().
 		Str("file", tsk.MediaSourceFile).
 		Str("mode", string(tsk.Mode)).
 		Msg("Starting processing")
 
-	pp.Println(request)
+	pp.Println(req)
 	
 	tsk.Routing(processCtx)
 }
@@ -64,28 +85,7 @@ type FeatureOptions struct {
 
 
 
-func (a *App) configureTask(tsk *core.Task, request ProcessRequest) {
-	settings, err := config.LoadSettings()
-	if err != nil {
-		tsk.Handler.LogErr(err, core.AbortAllTasks, "failed to load settings")
-		return
-	}
-
-	if request.LanguageCode != "" {
-		tsk.Langs = []string{request.LanguageCode}
-		if settings.NativeLanguages != "" {
-			tsk.Langs = append(tsk.Langs, core.TagsStr2TagsArr(settings.NativeLanguages)...)
-		} else {
-			tsk.Handler.Log(core.Error, core.AbortAllTasks, "No native languages configured in settings")
-			return
-		}
-	}
-	
-	if procErr := tsk.PrepareLangs(); procErr != nil {
-		tsk.Handler.ZeroLog().Error().Err(procErr.Err).
-			Msg("PrepareLangs failed")
-	}
-	
+func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 	// Configure based on selected features starting from the most specific,
 	// restricted processing mode to the most general, multipurpose in order to
 	// have the correct tsk.Mode at the end to pass on downstream.
