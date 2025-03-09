@@ -201,7 +201,7 @@
      class:opacity-30={anyFeatureSelected && !enabled}
      on:click={handleFeatureClick}
 >
-    <div class="p-4 border-b border-accent-300/30">
+    <div class="p-4 border-b border-white/10">
         <div class="flex items-center gap-3 cursor-pointer group
                   {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
                     (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))

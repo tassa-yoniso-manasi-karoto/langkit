@@ -5,7 +5,7 @@ import colors from 'tailwindcss/colors';
 const violet = '#9f6ef7'
 const red = colors.red[500]
 const orange = colors.yellow[500]
-const green = colors.green[200]
+const green = '#68e796'
 const yellow = '#fff38e'
 
 export default {
