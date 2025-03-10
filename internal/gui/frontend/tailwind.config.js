@@ -4,9 +4,10 @@ import colors from 'tailwindcss/colors';
 
 const violet = '#9f6ef7'
 const red = colors.red[500]
-const orange = colors.yellow[500]
+const orange = colors.orange[500] // Changed from yellow to orange
 const green = '#68e796'
 const yellow = '#fff38e'
+const pink = '#ff6ec7'
 
 export default {
   darkMode: 'class',
@@ -20,6 +21,7 @@ export default {
         
         primary: violet,      // soft violet
         secondary: '#7851a9', // royal purple, darker than soft violet
+        pink: pink,           // complementary pink for gradients
         accent: {
           50: '#fffce5',
           100: '#fffacc',
@@ -40,7 +42,7 @@ export default {
         'log-warn': yellow,
         'log-error': red,
         
-        'error-task': yellow,     // Orange for task errors
+        'error-task': orange,     // Orange for task errors (changed from yellow)
         'error-all': red,         // Red for critical errors
         'user-cancel': '#6b7280', // Gray for user cancellations
       },

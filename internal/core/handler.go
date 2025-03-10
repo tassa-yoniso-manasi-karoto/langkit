@@ -41,7 +41,7 @@ type MessageHandler interface {
 	HandleStatus(status string) //TODO
 	
 	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
-
+	ResetProgress()
 }
 
 // #############################################################################
@@ -120,6 +120,12 @@ func (h *CLIHandler) ZeroLog() *zerolog.Logger {
 func (h *CLIHandler) HandleStatus(status string) {
 	h.logger.Info().Msg(status)
 }
+
+
+func (h *CLIHandler) ResetProgress() {
+}
+
+
 
 func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, desc, size string) {
 	if h.progressBars == nil {
@@ -289,26 +295,15 @@ func (h *GUIHandler) ZeroLog() *zerolog.Logger {
 	return h.logger
 }
 
-func (h *GUIHandler) DestroyProgressBar(id string) {
-	runtime.EventsEmit(h.ctx, "progress-remove", id)
+// ResetProgress clears all progress bars and resets the progress tracking map
+func (h *GUIHandler) ResetProgress() {
+	// Clear the progress map
+	h.progressMap = make(map[string]int)
+	
+	// Emit event to frontend to reset all progress bars
+	runtime.EventsEmit(h.ctx, "progress-reset", true)
 }
 
-
-// TODO Possibly a helper function for "error" state:
-func (h *GUIHandler) MarkProgressError(id string, description string) {
-	// Just re-emit the same bar but with color=red and optionally set progress=100
-	payload := map[string]interface{}{
-		"id":          id,
-		"progress":    100,
-		"operation":   "Error",
-		"description": description,
-		"color":       "red",
-		"size":        "sm",
-		"striped":     true,
-		"animated":    true,
-	}
-	runtime.EventsEmit(h.ctx, "progress", payload)
-}
 
 func (h *GUIHandler) IncrementProgress(
 	taskID string, 

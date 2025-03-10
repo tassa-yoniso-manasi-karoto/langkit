@@ -7,7 +7,7 @@
     import { settings, showSettings } from './lib/stores';
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
-    import { updateProgressBar, removeProgressBar } from './lib/progressBarsStore';
+    import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
 
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -118,6 +118,10 @@
         isProcessing = true;
         showLogViewer = true;
         progress = 0;
+        
+        // Completely clear all progress bars when starting a new process
+        // This ensures we don't have lingering error states from previous runs
+        progressBars.set([]);
 
         // Use the quick access language tag if it differs from the default
         const effectiveLanguageCode = quickAccessLangTag && quickAccessLangTag !== defaultTargetLanguage
@@ -158,6 +162,14 @@
                 message: "Processing cancelled by user",
                 severity: "info",
                 dismissible: true
+            });
+            
+            // Mark all current progress bars as cancelled
+            progressBars.update(bars => {
+                return bars.map(bar => ({
+                    ...bar,
+                    errorState: 'user_cancel'
+                }));
             });
         } catch (error) {
             console.error("Failed to cancel processing:", error);
@@ -254,6 +266,11 @@
             removeProgressBar(barID);
         });
         
+        // Reset all progress bars
+        EventsOn("progress-reset", () => {
+            resetAllProgressBars();
+        });
+        
         checkDockerAvailability();
     });
 
@@ -330,7 +347,7 @@
                 <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
                     <!-- Progress Manager with minimal spacing -->
                     <div class="mb-2">
-                        <ProgressManager />
+                        <ProgressManager {isProcessing}/>
                     </div>
                     
                     <!-- Process Button Row with no bottom padding -->

@@ -23,6 +23,8 @@ func (a *App) SendProcessingRequest(req ProcessRequest) {
 	processCtx, cancel := context.WithCancel(a.ctx)
 	a.procCancel = cancel
 	defer cancel()
+	
+	handler.ResetProgress()
 
 	tsk := core.NewTask(handler)
 	
