@@ -1,7 +1,6 @@
 
 - SMALL UI TWEAKS
   - similar to Mediainput button hover: border-primary
-  - faint feature card glow on hover
   - balance cards bg color
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion

@@ -106,9 +106,31 @@
             return; // Don't allow toggling unavailable features
         }
 
+        // Add ripple effect on click for available features
+        addRippleEffect(event);
+
         // Toggle the feature if it's available
         enabled = !enabled;
         dispatch('enabledChange', { id: feature.id, enabled });
+    }
+    
+    // Add material design ripple effect on click
+    function addRippleEffect(event: MouseEvent) {
+        const element = event.currentTarget as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        const ripple = document.createElement('span');
+        ripple.classList.add('ripple-element');
+        ripple.style.left = `${x}px`;
+        ripple.style.top = `${y}px`;
+        
+        element.appendChild(ripple);
+        
+        setTimeout(() => {
+            ripple.remove();
+        }, 600);
     }
     
     // Check if option should be shown based on conditions
@@ -213,38 +235,43 @@
     $: displayLabel = feature.id === 'selectiveTransliteration' && standardTag === 'jpn' 
     ? 'Selective Kanji Transliteration' 
     : feature.label;
+
+    // Determine if feature is disabled
+    $: isFeatureDisabled = ((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
+                           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
+                           (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)));
 </script>
 
-<div class="bg-white/5 rounded-lg
-           transition-all duration-300 ease-out transform
-           hover:translate-y-[-2px]
-         {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
-           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
-           (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)))
-            ? 'opacity-50 cursor-not-allowed' 
-            : 'hover:translate-y-[-2px]'}"
+<div class="feature-card bg-white/5 rounded-lg
+           transition-all duration-300 ease-out transform ripple
+           relative overflow-hidden
+           {isFeatureDisabled ? 'disabled opacity-50 cursor-not-allowed' : 'hover:shadow-glow-hover'}"
      class:shadow-glow-strong={enabled && !anyFeatureSelected}
      class:shadow-glow={enabled}
-     class:hover:shadow-glow-hover={!enabled && 
-                                   ((feature.id !== 'subtitleRomanization' || isRomanizationAvailable) && 
-                                    (feature.id !== 'selectiveTransliteration' || standardTag === 'jpn') &&
-                                    (feature.id !== 'subtitleTokenization' || (tokenizationAllowed && isRomanizationAvailable)))}
      class:opacity-30={anyFeatureSelected && !enabled}
+     tabindex="0"
+     role="region"
+     aria-expanded={enabled}
+     aria-labelledby={`feature-heading-${feature.id}`}
+     aria-checked={enabled}
+     on:keydown={(e) => {
+         if (e.key === 'Enter' || e.key === ' ') {
+             e.preventDefault();
+             if (!isFeatureDisabled) {
+                 handleFeatureClick(e);
+             }
+         }
+     }}
      on:click={handleFeatureClick}
 >
     <div class="p-4 border-b border-white/10">
         <div class="flex items-center gap-3 cursor-pointer group
-                  {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
-                    (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
-                    (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)))
-                    ? 'cursor-not-allowed' : ''}">
+                  {isFeatureDisabled ? 'cursor-not-allowed' : ''}">
             <input
                 type="checkbox"
-                class="w-4 h-4 accent-primary/90 hover:accent-primary"
+                class="w-4 h-4 accent-primary/90 hover:accent-primary transition-colors duration-200"
                 bind:checked={enabled}
-                disabled={((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
-                           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
-                           (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)))}
+                disabled={isFeatureDisabled}
                 on:change={(e) => {
                     e.stopPropagation();
                     dispatch('enabledChange', { id: feature.id, enabled });
@@ -344,7 +371,12 @@
     
     <!-- Options drawer with slide animation - only displayed if the feature has visible options -->
     {#if hasVisibleOptions()}
-    <div bind:this={optionsContainer} class="overflow-hidden" style="height: 0px; transition: height 350ms cubic-bezier(0.25, 1, 0.5, 1)">
+    <div
+    bind:this={optionsContainer} 
+    class="overflow-hidden" 
+    style="height: {optionsHeight}px; transition: height 350ms cubic-bezier(0.25, 1, 0.5, 1)"
+    hidden={!enabled}
+    >
         <div bind:this={optionsWrapper} class="p-4">
             <div class="grid grid-cols-[1fr,1.5fr] gap-x-6 gap-y-3">
                 {#each getVisibleOptions() as optionId}
@@ -463,6 +495,32 @@
         </div>
     </div>
     {/if}
+
+    <!-- Ripple effect container -->
+    <style>
+        .ripple-element {
+            position: absolute;
+            border-radius: 50%;
+            background-color: rgba(159, 110, 247, 0.1);
+            width: 100px;
+            height: 100px;
+            margin-top: -50px;
+            margin-left: -50px;
+            animation: ripple 0.6s linear;
+            pointer-events: none;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+    </style>
 </div>
 
 <style>
