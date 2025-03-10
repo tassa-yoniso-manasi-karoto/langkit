@@ -3,7 +3,6 @@
     import { createEventDispatcher } from 'svelte';
     import Hovertip from './Hovertip.svelte';
     import NumericInput from './NumericInput.svelte';
-    import TextInput from './TextInput.svelte';
     
     // Props
     export let languageTag = '';
@@ -45,14 +44,14 @@
         <span class="text-unobtrusive text-sm whitespace-nowrap">
             Target Language
         </span>
-
-        <TextInput
+        <input
+            type="text"
             bind:value={languageTag}
-            maxLength={9}
+            maxlength="9"
             placeholder="e.g. ja, zh-Hans"
-            className="w-24 bg-sky-dark/50 border border-secondary/30 rounded px-2 py-2
-                       focus:border-secondary focus:ring-1 focus:ring-secondary
-                       transition-colors duration-200 text-xs font-bold pr-8"
+            class="w-24 bg-sky-dark/50 border border-secondary/30 rounded px-2 py-2
+                   hover:border-secondary/90 focus:border-secondary focus:ring-1 focus:ring-secondary
+                   focus:outline-none transition-colors duration-200 text-xs font-bold"
             on:input={updateLanguageTag}
         />
         {#if isChecking}
