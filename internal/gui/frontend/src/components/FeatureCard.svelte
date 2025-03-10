@@ -9,6 +9,7 @@
     import Dropdown from './Dropdown.svelte';
     import Hovertip from './Hovertip.svelte';
     import NumericInput from './NumericInput.svelte';
+    import TextInput from './TextInput.svelte';
     import ExternalLink from './ExternalLink.svelte';
     
     export let feature: FeatureDefinition;
@@ -348,23 +349,26 @@
                             {#if optionId === 'initialPrompt'}
                                 <textarea
                                     bind:value={options[optionId]}
-                                    class="w-full bg-sky-dark/50 border border-primary/30 rounded px-3 py-2 text-sm font-medium 
-                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary
-                                           transition-colors duration-200 placeholder:text-gray-500"
+                                    class="w-full bg-sky-dark/50 border-2 border-primary/30 rounded-md px-3 py-2 text-sm font-medium
+                                           focus:border-primary focus:ring-2 focus:ring-primary/30 hover:border-primary/50 focus:outline-none
+                                           transition-all duration-200 placeholder:text-gray-500"
                                     rows="3"
                                     maxlength="850"
                                     placeholder={optionDef.placeholder}
                                     on:input={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
                                 />
                             {:else}
-                                <input 
-                                    type="text"
+                                <TextInput
                                     bind:value={options[optionId]}
-                                    class="w-full bg-sky-dark/50 border border-primary/30 rounded px-3 py-1
-                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary
-                                           transition-colors duration-200 text-sm font-medium placeholder:text-gray-500"
                                     placeholder={optionDef.placeholder}
-                                    on:input={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
+                                    className="text-sm placeholder:text-gray-500"
+                                    on:input={() =>
+                                        dispatch('optionChange', {
+                                            featureId: feature.id,
+                                            optionId,
+                                            value: options[optionId]
+                                        })
+                                    }
                                 />
                             {/if}
                         {:else if optionDef.type === 'romanizationDropdown'}

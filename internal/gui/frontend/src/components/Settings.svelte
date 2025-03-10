@@ -4,6 +4,9 @@
     import { settings, showSettings } from '../lib/stores';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
     import { ExportDebugReport } from '../../wailsjs/go/gui/App';
+    
+    import TextInput from './TextInput.svelte';
+    import NumericInput from './NumericInput.svelte';
 
     export let onClose: () => void;
 
@@ -174,15 +177,13 @@
                                     Target Language
                                 </label>
                                 <div class="relative">
-                                    <input
-                                        type="text"
+                                    <TextInput
                                         bind:value={currentSettings.targetLanguage}
-                                        maxlength="9"
-                                        class="w-full bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2.5
-                                               hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
-                                               focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
-                                               transition-all duration-200 placeholder:text-white/30"
+                                        maxLength={9}
                                         placeholder="e.g. es, yue or pt-BR"
+                                        className="px-3 py-2.5 hover:border-primary/55 hover:shadow-sm
+                                                   hover:shadow-primary/30 focus:border-primary focus:ring-1
+                                                   focus:ring-primary/50 placeholder:text-white/30 pr-10"
                                     />
                                     {#if targetLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
@@ -205,14 +206,12 @@
                                     Native Language(s)
                                 </label>
                                 <div class="relative">
-                                    <input
-                                        type="text"
+                                    <TextInput
                                         bind:value={currentSettings.nativeLanguages}
-                                        class="w-full bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2.5
-                                               hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
-                                               focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
-                                               transition-all duration-200 placeholder:text-white/30"
                                         placeholder="e.g. en, fr, es"
+                                        className="px-3 py-2.5 hover:border-primary/55 hover:shadow-sm
+                                                   hover:shadow-primary/30 focus:border-primary focus:ring-1
+                                                   focus:ring-primary/50 placeholder:text-white/30 pr-10"
                                     />
                                     {#if nativeLangValid}
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2
@@ -288,14 +287,15 @@
                             <label class="text-sm text-gray-300 whitespace-nowrap">
                                 Maximum API retries:
                             </label>
-                            <input
-                                type="number"
+                            <NumericInput
                                 bind:value={currentSettings.maxAPIRetries}
-                                min="1"
-                                class="w-32 bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2 pl-4
-                                       hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
-                                       focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
-                                       transition-all duration-200"
+                                min={1}
+                                step={1}
+                                className="w-32 px-3 py-2 pl-4 hover:border-primary/55
+                                           hover:shadow-sm hover:shadow-primary/30
+                                           focus:border-primary focus:ring-1
+                                           focus:ring-primary/50 transition-all
+                                           duration-200"
                             />
                         </div>
                     </section>
@@ -310,15 +310,15 @@
                             <label class="text-sm text-gray-300 whitespace-nowrap">
                                 Maximum Workers:
                             </label>
-                            <input
-                                type="number"
+                            <NumericInput
                                 bind:value={currentSettings.maxWorkers}
-                                min="1"
-                                step="1"
-                                class="w-32 bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2 pl-4
-                                       hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
-                                       focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
-                                       transition-all duration-200"
+                                min={1}
+                                step={1}
+                                className="w-32 px-3 py-2 pl-4 hover:border-primary/55
+                                           hover:shadow-sm hover:shadow-primary/30
+                                           focus:border-primary focus:ring-1
+                                           focus:ring-primary/50 transition-all
+                                           duration-200"
                             />
                         </div>
                     </section>
@@ -354,16 +354,15 @@
                                 <label class="text-sm text-gray-300 whitespace-nowrap">
                                     Maximum log entries:
                                 </label>
-                                <input
-                                    type="number"
+                                <NumericInput
                                     bind:value={currentSettings.maxLogEntries}
-                                    min="100"
-                                    max="10000"
-                                    step="100"
-                                    class="w-32 bg-sky-dark/50 border border-primary/30 rounded-lg px-3 py-2 pl-4
-                                           hover:border-primary/55 hover:shadow-sm hover:shadow-primary/30
-                                           focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
-                                           transition-all duration-200"
+                                    min={100}
+                                    step={100}
+                                    className="w-32 px-3 py-2 pl-4 hover:border-primary/55
+                                               hover:shadow-sm hover:shadow-primary/30
+                                               focus:border-primary focus:ring-1
+                                               focus:ring-primary/50 transition-all
+                                               duration-200"
                                 />
                             </div>
                         </div>
