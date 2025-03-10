@@ -17,7 +17,8 @@
     import { 
         GetRomanizationStyles, 
         ValidateLanguageTag, 
-        CheckMediaLanguageTags 
+        CheckMediaLanguageTags,
+        NeedsTokenization
     } from '../../wailsjs/go/gui/App';
     
     import FeatureCard from './FeatureCard.svelte';
@@ -29,7 +30,8 @@
         dubtitles: false,
         voiceEnhancing: false,
         subtitleRomanization: false,
-        selectiveTransliteration: false
+        selectiveTransliteration: false,
+        subtitleTokenization: false
     };
     export let quickAccessLangTag = '';
     export let showLogViewer: boolean;
@@ -40,6 +42,7 @@
     let currentFeatureOptions = createDefaultOptions();
     
     let isValidLanguage: boolean | null = null;
+    let tokenizationAllowed = false;
     let isChecking = false;
     let standardTag = '';
     let validationError = '';
@@ -56,6 +59,11 @@
     let showAudioTrackIndex = false;
     let audioTrackIndex = 0;
     let hasLanguageTags = true;
+
+    // Provider group tracking
+    let providerGroups: Record<string, string[]> = {
+        subtitle: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
+    };
 
     const dispatch = createEventDispatcher();
     
@@ -231,6 +239,22 @@
         selectedFeatures[id] = enabled;
         updateProviderWarnings();
         
+        // Handle provider group features
+        const featureDef = features.find(f => f.id === id);
+        if (featureDef?.providerGroup) {
+            // If this feature is part of a provider group, check if any feature in the group is enabled
+            const groupFeatures = providerGroups[featureDef.providerGroup] || [];
+            const isAnyGroupFeatureEnabled = groupFeatures.some(fId => selectedFeatures[fId]);
+            
+            // Add subtitleProviderSettings to visible features if any subtitle feature is enabled
+            if (featureDef.providerGroup === 'subtitle') {
+                // Find the subtitleProviderSettings feature for conditions
+                if (isAnyGroupFeatureEnabled && !visibleFeatures.includes('subtitleProviderSettings')) {
+                    visibleFeatures = [...visibleFeatures, 'subtitleProviderSettings'];
+                }
+            }
+        }
+        
         // If a feature was enabled, scroll it into view after a small delay
         // to allow UI to update and expand the feature card options
         if (enabled) {
@@ -271,8 +295,47 @@
     
     function handleOptionChange(event: CustomEvent) {
         const { featureId, optionId, value } = event.detail;
-        currentFeatureOptions[featureId][optionId] = value;
-        updateProviderWarnings();
+        
+        // Check if this is a provider-related option
+        const isProviderOption = optionId === 'style' || optionId === 'provider' || 
+                optionId === 'dockerRecreate' || optionId === 'browserAccessURL';
+        
+        // Check if this belongs to a provider group
+        const feature = features.find(f => f.id === featureId);
+        const isInProviderGroup = feature && feature.providerGroup;
+        
+        // Handle provider group options
+        if (isInProviderGroup && isProviderOption) {
+            // Get all features in the same provider group
+            const groupFeatures = providerGroups[feature.providerGroup] || [];
+            
+            // Propagate provider-related changes to all features in the group
+            groupFeatures.forEach(groupFeatureId => {
+                // Create the options object if it doesn't exist
+                if (!currentFeatureOptions[groupFeatureId]) {
+                    currentFeatureOptions[groupFeatureId] = {};
+                }
+                
+                // Copy the provider-related option
+                currentFeatureOptions[groupFeatureId][optionId] = value;
+            });
+            
+            // Special handling for romanization style changes
+            if (optionId === 'style') {
+                const selectedScheme = romanizationSchemes.find(s => s.name === value);
+                if (selectedScheme) {
+                    const providerValue = selectedScheme.provider;
+                    // Update provider for all features in the group
+                    groupFeatures.forEach(groupFeatureId => {
+                        currentFeatureOptions[groupFeatureId]['provider'] = providerValue;
+                    });
+                }
+            }
+        } else {
+            // For non-provider options or features not in a provider group, just update directly
+            currentFeatureOptions[featureId][optionId] = value;
+        }
+
         dispatch('optionsChange', currentFeatureOptions);
     }
     
@@ -285,7 +348,53 @@
         showAudioTrackIndex = event.detail.showAudioTrackIndex;
         audioTrackIndex = event.detail.audioTrackIndex;
     }
+    
+    function shouldShowFeature(featureDef: any): boolean {
+        if (!featureDef.showCondition) return true;
+        
+        try {
+            // Replace context variables with their values
+            const prepared = featureDef.showCondition
+                .replace(/context\.([a-zA-Z0-9_]+)/g, (_, prop) => {
+                    return JSON.stringify(context[prop]);
+                });
+            
+            // Use Function constructor to evaluate the expression
+            return new Function('return ' + prepared)();
+        } catch (error) {
+            console.error('Error evaluating feature condition:', featureDef.showCondition, error);
+            return false;
+        }
+    }
+    
+    async function checkTokenization(code: string) {
+        try {
+            tokenizationAllowed = await NeedsTokenization(code);
+            console.log("NeedsTokenization returned:", tokenizationAllowed);
+        } catch (err) {
+            console.error("NeedsTokenization failed:", err);
+            tokenizationAllowed = false;
+        }
+    }
 
+    // Prepare context for conditions
+    let context = {
+        standardTag: '',
+        needsDocker: false,
+        needsScraper: false,
+        romanizationSchemes: [],
+        selectedFeatures: {}
+    };
+    
+    // Update context when dependencies change
+    $: context = {
+        standardTag,
+        needsDocker,
+        needsScraper,
+        romanizationSchemes,
+        selectedFeatures
+    };
+    
     // Reactive statements
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
 
@@ -293,6 +402,7 @@
         needsDocker = false;
         needsScraper = false;
         validateLanguageTag(quickAccessLangTag, true);
+        checkTokenization(quickAccessLangTag)
         
         if (!quickAccessLangTag) {
             isRomanizationAvailable = false;
@@ -396,6 +506,7 @@
         if (currentSettings?.targetLanguage) {
             quickAccessLangTag = currentSettings.targetLanguage;
             await validateLanguageTag(currentSettings.targetLanguage, true);
+            await checkTokenization(quickAccessLangTag);
         }
         updateProviderWarnings();
         
@@ -451,7 +562,7 @@
     </div>
     
     <div class="space-y-4">
-        {#each features.filter(f => visibleFeatures.includes(f.id)) as feature, i (feature.id)}
+        {#each features.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
             <div in:fly={{ 
                 x: 300, 
                 duration: 400 - (i * 20),
@@ -466,12 +577,15 @@
                         {anyFeatureSelected}
                         {romanizationSchemes}
                         {isRomanizationAvailable}
+                        {tokenizationAllowed}
                         {needsDocker}
                         {dockerUnreachable}
                         {dockerEngine}
                         {needsScraper}
                         {standardTag}
                         {providerGithubUrls}
+                        {selectedFeatures}
+                        {providerGroups}
                         on:enabledChange={handleFeatureEnabledChange}
                         on:optionChange={handleOptionChange}
                     />

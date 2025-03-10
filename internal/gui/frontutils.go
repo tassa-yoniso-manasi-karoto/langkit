@@ -14,7 +14,7 @@ import (
 
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	
-	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
+	"github.com/tassa-yoniso-manasi-karoto/translitkit"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
@@ -27,6 +27,12 @@ func (a *App) OpenURL(url string) {
 
 func (a *App) GetVersion() version.Info {
 	return version.GetInfo()
+}
+
+
+func (a *App) NeedsTokenization(language string) bool {
+	b, _ := translitkit.NeedsTokenization(language)
+	return b
 }
 
 

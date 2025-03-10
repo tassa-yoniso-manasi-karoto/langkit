@@ -53,7 +53,8 @@
         dubtitles: false,
         voiceEnhancing: false,
         subtitleRomanization: false,
-        selectiveTransliteration: false
+        selectiveTransliteration: false,
+        subtitleTokenization: false
     };
     let currentFeatureOptions: FeatureOptions | undefined;
     let isProcessing = false;

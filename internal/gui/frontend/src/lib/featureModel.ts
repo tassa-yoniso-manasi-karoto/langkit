@@ -23,6 +23,8 @@ export interface FeatureDefinition {
     requiresScraper?: boolean;
     requiresLanguage?: boolean;
     availableLanguages?: string[]; // Languages where this feature is available
+    providerGroup?: string; // Used to group features sharing the same provider
+    showCondition?: string; // Expression to determine if this feature should be shown
 }
 
 export interface RomanizationScheme {
@@ -143,7 +145,7 @@ export const features: FeatureDefinition[] = [
         },
         requiresToken: ['demucs', 'spleeter']
     },
-    {
+        {
         id: 'subtitleRomanization',
         label: 'Subtitle Romanization',
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
@@ -177,17 +179,18 @@ export const features: FeatureDefinition[] = [
         },
         requiresLanguage: true,
         requiresDocker: true,
-        requiresScraper: true
+        requiresScraper: true,
+        providerGroup: 'subtitle'
     },
     {
         id: 'selectiveTransliteration',
         label: 'Selective Transliteration',
         options: {
-            provider: {
-                type: 'provider',
-                label: 'Provider',
-                default: 'ichiran',
-                showCondition: "context.standardTag === 'jpn'"
+            tokenizeOutput: {
+                type: 'boolean',
+                label: 'Tokenize words',
+                default: true,
+                hovertip: "If enabled, the transliterated text will have spaces between words for easier reading."
             },
             kanjiFrequencyThreshold: {
                 type: 'number',
@@ -198,18 +201,41 @@ export const features: FeatureDefinition[] = [
                 hovertip: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana.",
                 placeholder: "Enter threshold (e.g., 100)",
                 showCondition: "context.standardTag === 'jpn'"
+            }
+        },
+        requiresLanguage: true,
+        availableLanguages: ['jpn'],
+        providerGroup: 'subtitle'
+    },
+    {
+        id: 'subtitleTokenization',
+        label: 'Subtitle Tokenization',
+        options: {
+            provider: {
+                type: 'provider',
+                label: 'Provider',
+                default: '',
+                showCondition: "context.romanizationSchemes.length > 0 && !context.selectedFeatures.subtitleRomanization"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.needsDocker"
+                showCondition: "context.needsDocker && !context.selectedFeatures.subtitleRomanization"
+            },
+            browserAccessURL: {
+                type: 'string',
+                label: 'Browser access URL',
+                default: '',
+                placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxx",
+                showCondition: "context.needsScraper && !context.selectedFeatures.subtitleRomanization"
             }
         },
         requiresLanguage: true,
         requiresDocker: true,
-        availableLanguages: ['jpn']
+        requiresScraper: true,
+        providerGroup: 'subtitle'
     }
 ];
 

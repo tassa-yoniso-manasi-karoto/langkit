@@ -18,6 +18,7 @@
     export let anyFeatureSelected = false;
     
     export let romanizationSchemes = [];
+    export let tokenizationAllowed = false;
     export let isRomanizationAvailable = true;
     export let needsDocker = false;
     export let dockerUnreachable = false;
@@ -26,6 +27,8 @@
     export let standardTag = '';
     
     export let providerGithubUrls = {};
+    export let selectedFeatures = {};
+    export let providerGroups = {};
 
     const dispatch = createEventDispatcher();
     
@@ -35,6 +38,7 @@
     let optionsHeight = 0;
     let animating = false;
     let showNonJpnMessage = false;
+    let showNotAvailableMessage = false;
     
     onMount(() => {
         // Initial measurement of the options height if enabled
@@ -68,20 +72,29 @@
         if (optionsEl && (optionsEl.contains(targetEl) || targetEl.tagName === 'INPUT')) {
             return;
         }
-        // Check if the feature is unavailable based on language requirements
-        const isFeatureUnavailable =
-            (feature.id === 'subtitleRomanization' && !isRomanizationAvailable) ||
-            (feature.id === 'selectiveTransliteration' && (standardTag !== 'jpn'));
+
+        // Define feature availability conditions
+        const isRomanizationUnavailable = feature.id === 'subtitleRomanization' && !isRomanizationAvailable;
+        const isSelectiveTransliterationUnavailable = feature.id === 'selectiveTransliteration' && standardTag !== 'jpn';
+        // For tokenization, it's unavailable if:
+        // 1. The language doesn't need tokenization (tokenizationAllowed is false) OR
+        // 2. No romanization scheme is available (needed for the provider)
+        const isTokenizationUnavailable = feature.id === 'subtitleTokenization' && 
+                                         (!tokenizationAllowed || !isRomanizationAvailable);
         
+        // Check if this feature is unavailable
+        const isFeatureUnavailable = isRomanizationUnavailable || 
+                                     isSelectiveTransliterationUnavailable ||
+                                     isTokenizationUnavailable;
         
         if (isFeatureUnavailable) {
-            // If the user tries to enable selectiveTransliteration but standardTag != 'jpn',
-            // show a 10-second message and do the shake animation, but do NOT enable.
-            if (feature.id === 'selectiveTransliteration' && standardTag !== 'jpn') {
+            // Show appropriate message based on the feature
+            if (isSelectiveTransliterationUnavailable) {
                 showNonJpnMessage = true;
-                setTimeout(() => {
-                    showNonJpnMessage = false;
-                }, 5000);
+                setTimeout(() => showNonJpnMessage = false, 5000);
+            } else if (isTokenizationUnavailable) {
+                showNotAvailableMessage = true;
+                setTimeout(() => showNotAvailableMessage = false, 5000);
             }
             
             // Trigger shake animation
@@ -89,10 +102,11 @@
             element.classList.remove('shake-animation');
             void element.offsetWidth; // Force reflow to restart animation
             element.classList.add('shake-animation');
-            return; // Don't allow toggling disabled features
+            
+            return; // Don't allow toggling unavailable features
         }
-        
-        // Toggle the feature directly
+
+        // Toggle the feature if it's available
         enabled = !enabled;
         dispatch('enabledChange', { id: feature.id, enabled });
     }
@@ -105,8 +119,9 @@
         const context = {
             standardTag,
             needsDocker,
-            needsScraper, 
-            romanizationSchemes
+            needsScraper,
+            romanizationSchemes,
+            selectedFeatures
         };
         
         // Feature options reference for conditions 
@@ -152,33 +167,45 @@
         );
     }
     
+    // Check if the feature has any visible options
+    function hasVisibleOptions(): boolean {
+        return getVisibleOptions().length > 0;
+    }
+    
     // When enabled status changes, animate the height
     $: {
         if (optionsContainer) {
-            animating = true;
-            
-            if (enabled) {
-                // Opening animation
-                // First measure height of the content
-                if (optionsWrapper) {
-                    setTimeout(() => {
-                        optionsHeight = optionsWrapper.offsetHeight;
-                        optionsContainer.style.height = optionsHeight + 'px';
-                        
-                        // Animation complete
+            // Only animate if there are visible options
+            if (hasVisibleOptions()) {
+                animating = true;
+                
+                if (enabled) {
+                    // Opening animation
+                    // First measure height of the content
+                    if (optionsWrapper) {
                         setTimeout(() => {
-                            animating = false;
-                        }, 350);
-                    }, 10);
+                            optionsHeight = optionsWrapper.offsetHeight;
+                            optionsContainer.style.height = optionsHeight + 'px';
+                            
+                            // Animation complete
+                            setTimeout(() => {
+                                animating = false;
+                            }, 350);
+                        }, 10);
+                    }
+                } else {
+                    // Closing animation
+                    optionsContainer.style.height = '0px';
+                    
+                    // Animation complete
+                    setTimeout(() => {
+                        animating = false;
+                    }, 350);
                 }
             } else {
-                // Closing animation
+                // No options to show, keep container closed
                 optionsContainer.style.height = '0px';
-                
-                // Animation complete
-                setTimeout(() => {
-                    animating = false;
-                }, 350);
+                animating = false;
             }
         }
     }
@@ -192,27 +219,32 @@
            transition-all duration-300 ease-out transform
            hover:translate-y-[-2px]
          {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
-           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))
+           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
+           (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)))
             ? 'opacity-50 cursor-not-allowed' 
             : 'hover:translate-y-[-2px]'}"
      class:shadow-glow-strong={enabled && !anyFeatureSelected}
      class:shadow-glow={enabled}
-     class:hover:shadow-glow-hover={!enabled && ((feature.id !== 'subtitleRomanization' || isRomanizationAvailable) && 
-                                                (feature.id !== 'selectiveTransliteration' || standardTag === 'jpn'))}
+     class:hover:shadow-glow-hover={!enabled && 
+                                   ((feature.id !== 'subtitleRomanization' || isRomanizationAvailable) && 
+                                    (feature.id !== 'selectiveTransliteration' || standardTag === 'jpn') &&
+                                    (feature.id !== 'subtitleTokenization' || (tokenizationAllowed && isRomanizationAvailable)))}
      class:opacity-30={anyFeatureSelected && !enabled}
      on:click={handleFeatureClick}
 >
     <div class="p-4 border-b border-white/10">
         <div class="flex items-center gap-3 cursor-pointer group
                   {((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
-                    (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))
+                    (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
+                    (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)))
                     ? 'cursor-not-allowed' : ''}">
             <input
                 type="checkbox"
                 class="w-4 h-4 accent-primary/90 hover:accent-primary"
                 bind:checked={enabled}
                 disabled={((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
-                           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration'))}
+                           (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
+                           (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)))}
                 on:change={(e) => {
                     e.stopPropagation();
                     dispatch('enabledChange', { id: feature.id, enabled });
@@ -240,9 +272,10 @@
             </div>
         {/if}
         
-        <!-- Specific messages for subtitleRomanization feature -->
+        <!-- Feature-specific messages -->
         {#if feature.id === 'subtitleRomanization'}
-            {#if enabled && needsDocker && !dockerUnreachable}
+            <!-- Only show Docker status if this feature is showing provider options -->
+            {#if enabled && hasVisibleOptions() && needsDocker && !dockerUnreachable}
                 <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
                     🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
                 </div>
@@ -270,7 +303,8 @@
                 </div>
             {/if}
         {:else if feature.id === 'selectiveTransliteration'}
-            {#if enabled && needsDocker && !dockerUnreachable}
+            <!-- Only show Docker status if this feature is showing provider options -->
+            {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
                 <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
                     🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
                 </div>
@@ -288,10 +322,28 @@
                     Sorry, selective transliteration is currently only available for Japanese Kanji transliteration!
                 </div>
             {/if}
+        {:else if feature.id === 'subtitleTokenization'}
+            <!-- Only show Docker status if this feature is showing provider options -->
+            {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
+                <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
+                    🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
+                </div>
+            {/if}
+            {#if needsDocker && dockerUnreachable}
+                <div class="mt-2 flex items-left text-xs font-bold text-red-500 pl-7">
+                    🔴 {dockerEngine} is required but not reachable. Please make sure it is installed and running.
+                </div>
+            {/if}
+            {#if showNotAvailableMessage}
+                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
+                    Sorry, no tokenizer is implemented for this language at this time!
+                </div>
+            {/if}
         {/if}
     </div>
     
-    <!-- Options drawer with slide animation -->
+    <!-- Options drawer with slide animation - only displayed if the feature has visible options -->
+    {#if hasVisibleOptions()}
     <div bind:this={optionsContainer} class="overflow-hidden" style="height: 0px; transition: height 350ms cubic-bezier(0.25, 1, 0.5, 1)">
         <div bind:this={optionsWrapper} class="p-4">
             <div class="grid grid-cols-[1fr,1.5fr] gap-x-6 gap-y-3">
@@ -410,6 +462,7 @@
             </div>
         </div>
     </div>
+    {/if}
 </div>
 
 <style>
