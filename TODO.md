@@ -1,13 +1,28 @@
 
-- crash reports add snapshots of tsk throughout code
-
-- feature interpoling in gui
-
-- proper routing translit for selective
-- translitkit close
-
+- SMALL UI TWEAKS
+  - similar to Mediainput:
+     - text input field hover: border-primary
+     - button hover: border-primary
+  - faint feature card glow on hover
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion
+- proper routing translit for selective
+- make sure API retries are subject to ctx cancelation
+
+- FEATURE INTERPOLING
+  - mv VideoMerging as postprocessing that encompasses all features
+  - add GUI elements
+
+- REFACTOR
+
+
+- ask 4.5 about tokenized selective translit
+
+
+- crash reports add snapshots of tsk throughout code
+
+- translitkit close
+
 
 
 - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)

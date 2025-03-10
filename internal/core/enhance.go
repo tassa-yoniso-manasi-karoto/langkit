@@ -123,7 +123,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	// and webm accepts only VP8/VP9/AV1 so must use mp4 by default // FIXME add flag to choose video fmt
 	ext := "mp4"
 	MergedVideo := audioPrefix + ".MERGED." + ext
-	if _, err = os.Stat(MergedVideo); errors.Is(err, os.ErrNotExist) {
+	if _, err = os.Stat(MergedVideo); errors.Is(err, os.ErrNotExist)  && false {
 		tsk.Handler.ZeroLog().Debug().Msg("Merging newly created audiotrack with the video...")
 		c := tsk.buildVideoMergingCmd(MergedFile, MergedVideo, ext)
 		err = media.FFmpeg(c...)

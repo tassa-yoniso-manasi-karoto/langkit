@@ -70,9 +70,20 @@
                   {isComplete && !hasError ? 'animate-pulse-soft' : ''}"
             style="width: {$progress}%; {!hasError ? `--gradient-position: ${gradientPosition}%` : ''}"
         >
-            <!-- Direct simple progress bar animation -->
+            <!-- Tailwind-based sweeping gradient animation -->
             {#if $progress < 100 && !hasError && isProcessing}
-                <div class="progress-bar-animation absolute inset-0" style="width: {$progress}%;"></div>
+                <div class="absolute h-full w-full overflow-hidden">
+                    <!-- Main progress fill clipping container -->
+                    <div class="absolute inset-0 overflow-hidden" style="width: {$progress}%">
+                        <!-- Fixed-width gradient container that doesn't resize with progress changes -->
+                        <div class="absolute inset-0" style="width: 500px;">
+                            <!-- Sweeping gradient that maintains consistent width -->
+                            <div id="gradient-{bar.id}" class="animate-sweep-gradient absolute inset-0 w-full h-full bg-sweep-gradient" style="opacity: var(--sweep-opacity, 0.5)"></div>
+                        </div>
+                    </div>
+                    <!-- Subtle edge glow at progress boundary -->
+                    <div class="absolute top-0 bottom-0 w-[1px] shadow-progress-edge" style="left: {$progress}%"></div>
+                </div>
             {/if}
         </div>
     </div>
@@ -97,44 +108,6 @@
         background-position: calc(100% - var(--gradient-position, 0%)) 0;
         transition: background-position 0.4s ease, width 0.4s ease;
         box-shadow: 0 0 8px rgba(159, 110, 247, 0.6);
-    }
-    
-    /* Shimmer effect overlay */
-    .shimmer-overlay {
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-        animation: shimmer 1.5s infinite;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-    }
-    
-    @keyframes shimmer {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
-    }
-    
-    /* Simple progress bar animation */
-    .progress-bar-animation {
-        background-image: linear-gradient(
-            -45deg, 
-            rgba(255, 255, 255, 0.2) 25%, 
-            transparent 25%, 
-            transparent 50%, 
-            rgba(255, 255, 255, 0.2) 50%, 
-            rgba(255, 255, 255, 0.2) 75%, 
-            transparent 75%, 
-            transparent
-        );
-        background-size: 30px 30px;
-        animation: move-stripes 2s linear infinite;
-        z-index: 1;
-        border-radius: inherit;
-    }
-    
-    @keyframes move-stripes {
-        0% { background-position: 0 0; }
-        100% { background-position: 60px 0; }
     }
     
     /* Custom pulse animation for completed state */

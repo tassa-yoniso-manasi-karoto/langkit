@@ -8,6 +8,7 @@ import (
 	"io"
 	"context"
 	"errors"
+	"math/rand"
 	"time"
 	
 	"github.com/k0kubun/pp"
@@ -205,7 +206,26 @@ func mkMediabar(i int) *progressbar.ProgressBar {
 	)
 }
 
+// for debugging GUI bars
+func waitRandomWithContext(ctx context.Context) error {
+	rand.Seed(time.Now().UnixNano())
+	waitTime := time.Duration(3+rand.Float64()*2) * time.Second
 
+	fmt.Printf("Waiting for %v...\n", waitTime)
+
+	// Create a timer that will fire after waitTime
+	timer := time.NewTimer(waitTime)
+	defer timer.Stop() // Ensure the timer is cleaned up
+
+	select {
+	case <-timer.C: // Timer expired, meaning the wait is complete
+		fmt.Println("Done waiting!")
+		return nil
+	case <-ctx.Done(): // Context was canceled
+		fmt.Println("Context canceled before timeout:", ctx.Err())
+		return ctx.Err()
+	}
+}
 
 
 func placeholder23456345467() {

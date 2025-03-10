@@ -12,6 +12,17 @@
     --error-task-color: theme('colors.error-task');
     --error-all-color: theme('colors.error-all');
     --user-cancel-color: theme('colors.user-cancel');
+    
+    /* Progress bar animation customization variables */
+    --sweep-edge-opacity: 0.15;  /* Opacity of the edge parts of the sweep gradient */
+    --sweep-peak-opacity: 0.6;   /* Opacity of the center/peak of the sweep gradient */
+    --sweep-duration: 1.5s;        /* Duration of one complete sweep animation cycle */
+    --sweep-opacity: 0.85;        /* Overall opacity of the sweep effect */
+    
+    /* Progress edge glow customization */
+    --progress-edge-blur: 8px;   /* Blur radius of the edge glow */
+    --progress-edge-spread: 2px; /* Spread distance of the edge glow */
+    --progress-edge-opacity: 0.4; /* Opacity of the edge glow */
 }
 
 /* Progress bar animations */
@@ -30,23 +41,10 @@
   100% { background-color: var(--user-cancel-color); }
 }
 
-/* Generic shimmer animation */
-@keyframes shimmer {
+/* Sweeping gradient animation for progress bars */
+@keyframes sweep {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
-}
-
-/* Moving stripes animation for progress bars */
-@keyframes move-stripes {
-  0% { background-position: 0 0; }
-  100% { background-position: 60px 0; }
-}
-
-/* Pulse animation for completed states */
-@keyframes pulse-soft {
-  0% { box-shadow: 0 0 5px rgba(159, 110, 247, 0.5); }
-  50% { box-shadow: 0 0 12px rgba(255, 110, 199, 0.8); }
-  100% { box-shadow: 0 0 5px rgba(159, 110, 247, 0.5); }
 }
 
 :root {
