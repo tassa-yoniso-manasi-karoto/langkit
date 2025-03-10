@@ -111,8 +111,9 @@ type Task struct {
 	WantDubs             bool // controls whether dubtitle file should be made too when using STT for subs2cards
 	InitialPrompt        string
 	
-	// Romanization options
+	// Subtitle processing options
 	WantTranslit         bool
+	TranslitTypes        []TranslitType
 	RomanizationStyle    string
 	KanjiThreshold       int
 	BrowserAccessURL     string

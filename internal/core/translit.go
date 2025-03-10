@@ -11,6 +11,7 @@ import (
 	"time"
 	"math"
 	"unicode/utf8"
+	"slices"
 	
 	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
@@ -254,19 +255,39 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	
 	// Write output files - measure performance
 	writeStartTime := time.Now()
-	if err := SubTokenized.Write(subsFilepathTokenized); err != nil {
-		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write tokenized subtitles")
-	}
-	if err := SubTranslit.Write(subsFilepathTranslit); err != nil {
-		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write transliterated subtitles")
-	}
 	
-	// Write selective transliteration for Japanese if needed
-	if langCode == "jpn" && tsk.KanjiThreshold > -1 && SubSelective != nil {
-		if err := SubSelective.Write(subsFilepathSelective); err != nil {
-			tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write selectively transliterated subtitles")
+	for _, out := range []struct {
+		ttype TranslitType
+		subs  *astisub.Subtitles
+		path  string
+	}{
+		{Tokenize,  SubTokenized, subsFilepathTokenized},
+		{Romanize,  SubTranslit,  subsFilepathTranslit},
+		{Selective, SubSelective, subsFilepathSelective},
+	} {
+		// Only proceed if user selected this translit type
+		if !slices.Contains(tsk.TranslitTypes, out.ttype) {
+			continue
+		}
+
+		// For selective transliteration, skip if not Japanese or threshold < 0
+		if out.ttype == Selective && (langCode != "jpn" || tsk.KanjiThreshold < 0) {
+			continue
+		}
+
+		// Attempt writing
+		if err := out.subs.Write(out.path); err != nil {
+			tsk.Handler.ZeroLog().
+				Error().
+				Err(err).
+				Msgf("Failed to write %s subtitles", out.ttype.String())
+		} else {
+			tsk.Handler.ZeroLog().
+				Info().
+				Msgf("Created %s subtitles", out.ttype.String())
 		}
 	}
+
 	writeDuration := time.Since(writeStartTime)
 	
 	// Log total performance statistics

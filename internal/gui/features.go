@@ -103,91 +103,113 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 			Msg("Set audio track index")
 	}
 	
-	
 
-	// Get options from the dynamically structured feature options
-	if request.SelectedFeatures["selectiveTransliteration"] {
-		tsk.Mode = core.Translit
-		tsk.WantTranslit = true
-		
-		featureOpts, ok := request.Options.Options["selectiveTransliteration"]
-		if !ok {
-			tsk.Handler.Log(core.Error, core.AbortTask, "selectiveTransliteration options not found")
-			return
-		}
-		
-		if kanjiThreshold, ok := featureOpts["kanjiFrequencyThreshold"]; ok {
-			if threshold, ok := kanjiThreshold.(float64); ok {
-				tsk.KanjiThreshold = int(threshold)
-			}
-		}
-		
-		if provider, ok := featureOpts["provider"]; ok {
-			if providerStr, ok := provider.(string); ok && providerStr != "" {
-				// Use provider if needed
-			}
-		}
-		
-		if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
-			if recreate, ok := dockerRecreate.(bool); ok {
-				tsk.DockerRecreate = recreate
-			}
-		}
-		
-		tsk.Handler.ZeroLog().Debug().
-			Interface("selective_transliteration_options", featureOpts).
-			Int("kanji_threshold", tsk.KanjiThreshold).
-			Msg("Configured Selective Transliteration")
-	}
-	
 
-	//######################################################################
-	
-
+	// Initialize subtitle processing options
+	// We'll capture all transliteration-related features first
+	var subtitleFeatures []string
 	if request.SelectedFeatures["subtitleRomanization"] {
-		featureOpts, ok := request.Options.Options["subtitleRomanization"]
-		if !ok {
-			tsk.Handler.Log(core.Error, core.AbortTask, "subtitleRomanization options not found")
-			return
-		}
-		
+		subtitleFeatures = append(subtitleFeatures, "subtitleRomanization")
+	}
+	if request.SelectedFeatures["selectiveTransliteration"] {
+		subtitleFeatures = append(subtitleFeatures, "selectiveTransliteration")
+	}
+	if request.SelectedFeatures["subtitleTokenization"] {
+		subtitleFeatures = append(subtitleFeatures, "subtitleTokenization")
+	}
+	
+	// If any subtitle feature is selected, set up the transliteration mode
+	if len(subtitleFeatures) > 0 {
 		tsk.Mode = core.Translit
 		tsk.WantTranslit = true
 		
-		if style, ok := featureOpts["style"]; ok {
-			if styleStr, ok := style.(string); ok {
-				tsk.RomanizationStyle = styleStr
+		// Initialize TranslitTypes to ensure we know which outputs to generate
+		tsk.TranslitTypes = []core.TranslitType{}
+		
+		// Process common provider settings from subtitleRomanization
+		// (or from other features if romanization isn't selected)
+		var providerFeature string
+		if request.SelectedFeatures["subtitleRomanization"] {
+			providerFeature = "subtitleRomanization"
+		} else if request.SelectedFeatures["subtitleTokenization"] {
+			providerFeature = "subtitleTokenization"
+		} else if request.SelectedFeatures["selectiveTransliteration"] {
+			providerFeature = "selectiveTransliteration"
+		}
+		
+		if providerFeature != "" {
+			featureOpts, ok := request.Options.Options[providerFeature]
+			if !ok {
+				tsk.Handler.Log(core.Error, core.AbortTask, providerFeature + " options not found")
+				return
+			}
+			
+			// Process common provider settings
+			if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
+				if recreate, ok := dockerRecreate.(bool); ok {
+					tsk.DockerRecreate = recreate
+				}
+			}
+			
+			if browserAccessURL, ok := featureOpts["browserAccessURL"]; ok {
+				if url, ok := browserAccessURL.(string); ok {
+					tsk.BrowserAccessURL = url
+				}
+			}
+			
+			if style, ok := featureOpts["style"]; ok {
+				if styleStr, ok := style.(string); ok {
+					tsk.RomanizationStyle = styleStr
+				}
+			}
+			
+			if provider, ok := featureOpts["provider"]; ok {
+				// Provider info is captured in the style selection for romanization
+				tsk.Handler.ZeroLog().Debug().Interface("provider", provider).Msg("Provider info")
+			}
+			
+			tsk.Handler.ZeroLog().Debug().
+				Interface("subtitle_provider_options", featureOpts).
+				Bool("docker_recreate", tsk.DockerRecreate).
+				Str("browser_url", tsk.BrowserAccessURL).
+				Str("romanization_style", tsk.RomanizationStyle).
+				Msg("Configured Subtitle Provider")
+		}
+		
+		// Process feature-specific settings and add the corresponding TranslitType
+		
+		// Selective Transliteration
+		if request.SelectedFeatures["selectiveTransliteration"] {
+			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Selective)
+			
+			// Get selective transliteration specific options
+			featureOpts, ok := request.Options.Options["selectiveTransliteration"]
+			if ok {
+				if kanjiThreshold, ok := featureOpts["kanjiFrequencyThreshold"]; ok {
+					if threshold, ok := kanjiThreshold.(float64); ok {
+						tsk.KanjiThreshold = int(threshold)
+					}
+				}
+			
+				tsk.Handler.ZeroLog().Debug().
+					Interface("selective_transliteration_options", featureOpts).
+					Int("kanji_threshold", tsk.KanjiThreshold).
+					Msg("Configured Selective Transliteration")
 			}
 		}
 		
-		if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
-			if recreate, ok := dockerRecreate.(bool); ok {
-				tsk.DockerRecreate = recreate
-			}
+		// Subtitle Romanization
+		if request.SelectedFeatures["subtitleRomanization"] {
+			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Romanize)
+			tsk.Handler.ZeroLog().Debug().Msg("Subtitle Romanization enabled")
 		}
 		
-		if browserAccessURL, ok := featureOpts["browserAccessURL"]; ok {
-			if url, ok := browserAccessURL.(string); ok {
-				tsk.BrowserAccessURL = url
-			}
+		// Subtitle Tokenization
+		if request.SelectedFeatures["subtitleTokenization"] {
+			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Tokenize)
+			tsk.Handler.ZeroLog().Debug().Msg("Subtitle Tokenization enabled")
 		}
-		
-		if provider, ok := featureOpts["provider"]; ok {
-			// Provider info is captured in the style selection for romanization
-			tsk.Handler.ZeroLog().Debug().Interface("provider", provider).Msg("Provider info")
-		}
-
-		tsk.Handler.ZeroLog().Debug().
-			Interface("romanization_options", featureOpts).
-			Bool("docker_recreate", tsk.DockerRecreate).
-			Str("browser_url", tsk.BrowserAccessURL).
-			Msg("Configured Subtitle Romanization")
 	}
-	
-
-	//######################################################################
-	
-
 
 	if request.SelectedFeatures["voiceEnhancing"] {
 		featureOpts, ok := request.Options.Options["voiceEnhancing"]
@@ -234,10 +256,6 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 	}
 	
 
-	//######################################################################
-	
-
-
 	if request.SelectedFeatures["dubtitles"] {
 		featureOpts, ok := request.Options.Options["dubtitles"]
 		if !ok {
@@ -276,10 +294,6 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 			Msg("Configured Dubtitles")
 	}
 	
-
-	//######################################################################
-	
-
 
 	if request.SelectedFeatures["subs2cards"] {
 		featureOpts, ok := request.Options.Options["subs2cards"]
@@ -327,5 +341,3 @@ func placeholder3234567() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
 	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }
-
-
