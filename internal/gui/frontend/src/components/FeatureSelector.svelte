@@ -11,7 +11,7 @@
         features, 
         createDefaultOptions, 
         providerGithubUrls, 
-        providersRequiringTokens, 
+        providersRequiringTokens,
         type RomanizationScheme 
     } from '../lib/featureModel';
     import { 
@@ -63,6 +63,22 @@
     // Provider group tracking
     let providerGroups: Record<string, string[]> = {
         subtitle: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
+    };
+    
+    // Output merge group tracking
+    let outputMergeGroups: Record<string, string[]> = {
+        finalOutput: ['dubtitles', 'voiceEnhancing', 'subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
+    };
+    
+    // Active feature for showing merge options in each merge group
+    let activeMergeFeature: Record<string, string | null> = {
+        finalOutput: null
+    };
+    
+    // Store for merge option default values
+    let mergeOptionValues = {
+        mergeOutputFiles: true,
+        mergingFormat: 'mp4'
     };
 
     const dispatch = createEventDispatcher();
@@ -170,6 +186,103 @@
         }
     }
 
+    // Synchronize merge option values
+    function synchronizeMergeOptions() {
+        // This now just extracts merge option values from the active feature
+        // in each group, if available
+        
+        for (const groupName of Object.keys(activeMergeFeature)) {
+            const activeFeature = activeMergeFeature[groupName];
+            
+            if (activeFeature && 
+                selectedFeatures[activeFeature] && 
+                currentFeatureOptions[activeFeature]) {
+                
+                // Update global merge values from the active feature
+                if (currentFeatureOptions[activeFeature].mergeOutputFiles !== undefined) {
+                    mergeOptionValues.mergeOutputFiles = currentFeatureOptions[activeFeature].mergeOutputFiles;
+                }
+                if (currentFeatureOptions[activeFeature].mergingFormat !== undefined) {
+                    mergeOptionValues.mergingFormat = currentFeatureOptions[activeFeature].mergingFormat;
+                }
+            }
+        }
+    }
+    
+    // This function controls which feature shows the merge options
+    function updateMergeOptionsVisibility() {
+        let hasChanges = false;
+        
+        // For each merge group, only show merge options on one selected feature
+        for (const [groupName, groupFeatures] of Object.entries(outputMergeGroups)) {
+            // Always use the first enabled feature in the order they appear in the features array
+            // This ensures the merge options always appear on the feature that's earliest in the list
+            
+            // Find the first enabled feature based on the original feature order in features array
+            const orderedEnabledFeatures = features
+                .filter(f => 
+                    f.outputMergeGroup === groupName && 
+                    groupFeatures.includes(f.id) && 
+                    selectedFeatures[f.id]
+                )
+                .map(f => f.id);
+            
+            if (orderedEnabledFeatures.length > 0) {
+                // Always use the first enabled feature in the list
+                const firstEnabledFeature = orderedEnabledFeatures[0];
+                
+                // If the active feature has changed, update it
+                if (activeMergeFeature[groupName] !== firstEnabledFeature) {
+                    activeMergeFeature[groupName] = firstEnabledFeature;
+                    hasChanges = true;
+                }
+                
+                // Process each feature
+                for (const featureId of groupFeatures) {
+                    if (!currentFeatureOptions[featureId]) {
+                        currentFeatureOptions[featureId] = {};
+                    }
+                    
+                    // Create a shallow copy of the options object
+                    const optionsCopy = {...currentFeatureOptions[featureId]};
+                    
+                    if (featureId === firstEnabledFeature) {
+                        // This is the active feature - ensure it has merge options
+                        optionsCopy.mergeOutputFiles = mergeOptionValues.mergeOutputFiles;
+                        optionsCopy.mergingFormat = mergeOptionValues.mergingFormat;
+                    } else {
+                        // Remove merge options from inactive features
+                        if (optionsCopy.mergeOutputFiles !== undefined) {
+                            delete optionsCopy.mergeOutputFiles;
+                            hasChanges = true;
+                        }
+                        if (optionsCopy.mergingFormat !== undefined) {
+                            delete optionsCopy.mergingFormat;
+                            hasChanges = true;
+                        }
+                    }
+                    
+                    // Only update if changes were made
+                    if (JSON.stringify(optionsCopy) !== JSON.stringify(currentFeatureOptions[featureId])) {
+                        hasChanges = true;
+                        currentFeatureOptions[featureId] = optionsCopy;
+                    }
+                }
+            } else {
+                // No enabled features in this group
+                if (activeMergeFeature[groupName] !== null) {
+                    activeMergeFeature[groupName] = null;
+                    hasChanges = true;
+                }
+            }
+        }
+        
+        // Only dispatch if changes were made
+        if (hasChanges) {
+            dispatch('optionsChange', currentFeatureOptions);
+        }
+    }
+    
     // API token checking
     function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
         const tokenType = providersRequiringTokens[provider];
@@ -255,6 +368,36 @@
             }
         }
         
+        // Handle output merge group features
+        if (featureDef?.outputMergeGroup) {
+            // When a feature in a merge group is enabled or disabled, 
+            // we need to update the merge options visibility
+            
+            // If this feature was just enabled, it might need to get the merge options
+            if (enabled) {
+                // Get the group this feature belongs to
+                const groupName = featureDef.outputMergeGroup;
+                const groupFeatures = outputMergeGroups[groupName] || [];
+                
+                // Find all enabled features in this group ordered by their appearance in the features array
+                const orderedEnabledFeatures = features
+                    .filter(f => 
+                        f.outputMergeGroup === groupName && 
+                        groupFeatures.includes(f.id) && 
+                        (f.id === id || selectedFeatures[f.id]) // Include this feature as if it's already enabled
+                    )
+                    .map(f => f.id);
+                
+                // If this feature is the first enabled one in the list, it should get the merge options
+                if (orderedEnabledFeatures[0] === id) {
+                    activeMergeFeature[groupName] = id;
+                }
+            }
+            
+            // Update visibility in all cases
+            updateMergeOptionsVisibility();
+        }
+        
         // If a feature was enabled, scroll it into view after a small delay
         // to allow UI to update and expand the feature card options
         if (enabled) {
@@ -300,9 +443,13 @@
         const isProviderOption = optionId === 'style' || optionId === 'provider' || 
                 optionId === 'dockerRecreate' || optionId === 'browserAccessURL';
         
+        // Check if this is a merge-related option
+        const isMergeOption = optionId === 'mergeOutputFiles' || optionId === 'mergingFormat';
+        
         // Check if this belongs to a provider group
         const feature = features.find(f => f.id === featureId);
         const isInProviderGroup = feature && feature.providerGroup;
+        const isInMergeGroup = feature && feature.outputMergeGroup;
         
         // Handle provider group options
         if (isInProviderGroup && isProviderOption) {
@@ -331,8 +478,22 @@
                     });
                 }
             }
-        } else {
-            // For non-provider options or features not in a provider group, just update directly
+        } 
+        // Handle merge group options
+        else if (isMergeOption) {
+            // Update the global merge option value
+            mergeOptionValues[optionId] = value;
+            
+            // Update the current feature option
+            currentFeatureOptions[featureId][optionId] = value;
+            
+            // Since this is coming from a user interaction on the active feature,
+            // we don't need to run the full updateMergeOptionsVisibility
+            // Just dispatch the change
+            dispatch('optionsChange', currentFeatureOptions);
+        } 
+        else {
+            // For non-special options or features not in groups, just update directly
             currentFeatureOptions[featureId][optionId] = value;
         }
 
@@ -496,10 +657,33 @@
     }
     
     // Feature selection change
+    // Use a debounced version of update functions to reduce lag
+    const debouncedUpdateMergeOptionsVisibility = debounce(updateMergeOptionsVisibility, 100);
+    
     $: if (selectedFeatures) {
         updateProviderWarnings();
+        debouncedUpdateMergeOptionsVisibility();
     }
 
+    // Special initialization to clean up inconsistencies in feature options
+    function cleanupFeatureOptions() {
+        // Initialize all features and remove any stray merge options
+        Object.entries(outputMergeGroups).forEach(([groupName, groupFeatures]) => {
+            groupFeatures.forEach(featureId => {
+                if (!currentFeatureOptions[featureId]) {
+                    currentFeatureOptions[featureId] = {};
+                }
+                
+                // Remove merge options from all features initially
+                delete currentFeatureOptions[featureId].mergeOutputFiles;
+                delete currentFeatureOptions[featureId].mergingFormat;
+            });
+        });
+        
+        // Then run the update to add options only to the active feature
+        updateMergeOptionsVisibility();
+    }
+    
     // Component lifecycle
     onMount(async () => {
         const currentSettings = get(settings);
@@ -509,6 +693,7 @@
             await checkTokenization(quickAccessLangTag);
         }
         updateProviderWarnings();
+        cleanupFeatureOptions(); // Clean up feature options on mount
         
         let initialWait = 0;
         if (showLogViewer) {
@@ -586,6 +771,7 @@
                         {providerGithubUrls}
                         {selectedFeatures}
                         {providerGroups}
+                        {outputMergeGroups}
                         on:enabledChange={handleFeatureEnabledChange}
                         on:optionChange={handleOptionChange}
                     />

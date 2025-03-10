@@ -29,6 +29,7 @@
     export let providerGithubUrls = {};
     export let selectedFeatures = {};
     export let providerGroups = {};
+    export let outputMergeGroups = {};
 
     const dispatch = createEventDispatcher();
     
@@ -176,17 +177,37 @@
         dispatch('optionChange', { featureId: feature.id, optionId, value });
     }
     
-    // Get visible options for this feature
+    // Get visible options for this feature (excluding merge options if not active feature)
     function getVisibleOptions(): string[] {
+        // Check if this feature is in a merge group and if it's the active feature for that group
+        const isInMergeGroup = feature.outputMergeGroup;
+        const isMergeActive = isInMergeGroup && 
+                              outputMergeGroups[feature.outputMergeGroup] && 
+                              outputMergeGroups[feature.outputMergeGroup].includes(feature.id);
+                              
+        // If the feature is in a merge group but not the active feature for showing merge options,
+        // we need to filter out the merge options
+        const shouldHideMergeOptions = isInMergeGroup && !options.mergeOutputFiles && !options.mergingFormat;
+        
+        let optionList;
         if (feature.optionOrder) {
-            return feature.optionOrder.filter(optionId => 
+            optionList = feature.optionOrder.filter(optionId => 
                 feature.options[optionId] && shouldShowOption(optionId, feature.options[optionId])
+            );
+        } else {
+            optionList = Object.keys(feature.options).filter(optionId => 
+                shouldShowOption(optionId, feature.options[optionId])
             );
         }
         
-        return Object.keys(feature.options).filter(optionId => 
-            shouldShowOption(optionId, feature.options[optionId])
-        );
+        // Filter out merge options if this is not the active merge feature
+        if (shouldHideMergeOptions) {
+            optionList = optionList.filter(optionId => 
+                optionId !== 'mergeOutputFiles' && optionId !== 'mergingFormat'
+            );
+        }
+        
+        return optionList;
     }
     
     // Check if the feature has any visible options
@@ -366,6 +387,22 @@
                     Sorry, no tokenizer is implemented for this language at this time!
                 </div>
             {/if}
+        {/if}
+
+        <!-- Dependency messages when a feature depends on dubtitles -->
+        {#if feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled}
+            <div class="mt-2 flex items-left text-xs text-blue-300 pl-7">
+                <span class="material-icons text-[14px] mr-1">info</span>
+                {feature.dependencyMessage}
+            </div>
+        {/if}
+
+        <!-- Output merge group banner (shown for all features in the merge group) -->
+        {#if feature.outputMergeGroup && feature.showMergeBanner && enabled}
+            <div class="mt-2 flex items-left text-xs text-green-300 pl-7">
+                <span class="material-icons text-[14px] mr-1">merge_type</span>
+                All processed outputs will be merged in the final video
+            </div>
         {/if}
     </div>
     
