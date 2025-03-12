@@ -1,13 +1,9 @@
 
-- SMALL UI TWEAKS
+- NORMALIZE UI COLORS // SMALL UI TWEAKS
   - similar to Mediainput button hover: border-primary
   - balance cards bg color
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion
-
-- FEATURE INTERPOLING
-  - mv VideoMerging as postprocessing that encompasses all features
-  - add GUI elements
 
 - REFACTOR
 

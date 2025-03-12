@@ -96,12 +96,12 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	// because these format aren't designed to be audio tracks of videos, unlike opus.
 	MergedFile := audioPrefix + ".ENHANCED.ogg"
 	_, err := os.Stat(MergedFile)
-	if strings.ToLower(tsk.SeparationLib) != "elevenlabs" {
+	if strings.ToLower(tsk.SeparationLib) == "elevenlabs" {
 		tsk.Handler.ZeroLog().Info().Msg("No automatic merging possible with Elevenlabs. " +
 			"You may synchronize both tracks and merge them using an audio editor (ie. Audacity).")
 		return
 	}
-	if err == nil {
+	if errors.Is(err, os.ErrNotExist) {
 		tsk.Handler.ZeroLog().Debug().Msg("Merging original and separated voice track into an enhanced voice track...")
 		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
 		err := media.FFmpeg(
@@ -118,20 +118,15 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to merge original with separated voice track.")
 		}
 		tsk.Handler.ZeroLog().Trace().Msg("Audio merging success.")
+	} else {
+		tsk.Handler.ZeroLog().Debug().Msg("Using existing enhanced audio file.")
 	}
-	// CAVEAT: on my machine, HW decoder (VAAPI) doesn't accept Matrovska with Opus audio
-	// and webm accepts only VP8/VP9/AV1 so must use mp4 by default // FIXME add flag to choose video fmt
-	ext := "mp4"
-	MergedVideo := audioPrefix + ".MERGED." + ext
-	if _, err = os.Stat(MergedVideo); errors.Is(err, os.ErrNotExist)  && false {
-		tsk.Handler.ZeroLog().Debug().Msg("Merging newly created audiotrack with the video...")
-		c := tsk.buildVideoMergingCmd(MergedFile, MergedVideo, ext)
-		err = media.FFmpeg(c...)
-		if err != nil {
-			return tsk.Handler.LogErr(err, AbortTask, "Failed to merge video with merged audiotrack.")
-		}
-		tsk.Handler.ZeroLog().Trace().Msg("Video merging success.")
+	
+	// Register the enhanced audio for final output merging if merging is enabled
+	if tsk.MergeOutputFiles {
+		tsk.RegisterOutputFile(MergedFile, OutputEnhanced, tsk.Targ, "voiceEnhancing", 100)
 	}
+	
 	return nil
 }
 

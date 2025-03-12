@@ -60,6 +60,16 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	if procErr := tsk.setupSubtitles(ctx, reporter); procErr != nil {
 		return procErr
 	}
+	
+	// Register original subtitle files for merging if merging is enabled
+	if tsk.MergeOutputFiles {
+		if tsk.TargSubFile != "" {
+			tsk.RegisterOutputFile(tsk.TargSubFile, OutputSubtitle, tsk.Targ, "original", 50)
+		}
+		if tsk.NativeSubFile != "" {
+			tsk.RegisterOutputFile(tsk.NativeSubFile, OutputSubtitle, tsk.Native, "original", 50)
+		}
+	}
 
 	// Special handling for Enhance and Translit modes
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
@@ -123,6 +133,13 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	// Handle audio enhancement if requested
 	if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
 		return procErr
+	}
+	
+	// Merge all outputs if requested
+	if tsk.MergeOutputFiles && len(tsk.OutputFiles) > 0 {
+		if procErr := tsk.MergeOutputs(ctx); procErr != nil {
+			return procErr
+		}
 	}
 	
 	tsk.Handler.ZeroLog().Info().Msg("Processing completed")
@@ -506,6 +523,11 @@ func (tsk *Task) processDubtitles(ctx context.Context) (string, *ProcessingError
 	if err = tsk.TargSubs.Write(subsPath); err != nil {
 		return subs, tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
 	}
+	
+	// Register the dubtitle file for final output merging if merging is enabled
+	if tsk.MergeOutputFiles {
+		tsk.RegisterOutputFile(subsPath, OutputDubtitle, tsk.Targ, "dubtitles", 90)
+	}
 
 	return subsPath, nil
 }
@@ -548,7 +570,9 @@ func (tsk *Task) processTransliteration(ctx context.Context, subsPath string) *P
 // processAudioEnhancement handles audio enhancement if requested
 func (tsk *Task) processAudioEnhancement(ctx context.Context) *ProcessingError {
 	if tsk.SeparationLib != "" {
-		return tsk.enhance(ctx)
+		if err := tsk.enhance(ctx); err != nil {
+			return err
+		}
 	} else if tsk.Mode == Enhance {
 		tsk.Handler.ZeroLog().Error().Msg("No separation API to isolate the voice's audio was specified.")
 	}

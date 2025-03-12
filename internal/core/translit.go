@@ -260,10 +260,12 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 		ttype TranslitType
 		subs  *astisub.Subtitles
 		path  string
+		outputType MediaOutputType
+		priority int
 	}{
-		{Tokenize,  SubTokenized, subsFilepathTokenized},
-		{Romanize,  SubTranslit,  subsFilepathTranslit},
-		{Selective, SubSelective, subsFilepathSelective},
+		{Tokenize,  SubTokenized, subsFilepathTokenized, OutputTokenized, 70},
+		{Romanize,  SubTranslit,  subsFilepathTranslit,  OutputRomanized, 80},
+		{Selective, SubSelective, subsFilepathSelective, OutputTranslit,  75},
 	} {
 		// Only proceed if user selected this translit type
 		if !slices.Contains(tsk.TranslitTypes, out.ttype) {
@@ -285,6 +287,12 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 			tsk.Handler.ZeroLog().
 				Info().
 				Msgf("Created %s subtitles", out.ttype.String())
+			
+			// Register the subtitle file for final output merging if merging is enabled
+			if tsk.MergeOutputFiles {
+				feature := "subtitle" + strings.Title(out.ttype.String())
+				tsk.RegisterOutputFile(out.path, out.outputType, tsk.Targ, feature, out.priority)
+			}
 		}
 	}
 
