@@ -70,6 +70,9 @@
     // Window state tracking
     let isWindowMinimized = false;
     let isWindowMaximized = false;
+    
+    // Deferred loading state for feature selector - wait for main UI to render first
+    let showFeatureSelector = false;
 
     // Optimized reactive error management - track previous values to only update when needed
     let prevMediaSource = null;
@@ -391,7 +394,8 @@
         - Progress updates batched for efficiency
         - Animations reduced when window not visible
         - Glow effect disabled when minimized
-        - Log updates filtered when minimized`);
+        - Log updates filtered when minimized
+        - Deferred feature selector loading`);
         
         // Add to application logs
         logStore.addLog({
@@ -402,6 +406,13 @@
         
         // Check window state every 2 seconds to optimize resource usage
         windowCheckInterval = window.setInterval(checkWindowState, 2000);
+        
+        // Defer loading of the Feature Selector component until main UI has rendered
+        // This improves perceived performance and creates a nicer sequential reveal effect
+        setTimeout(() => {
+            console.log(`[${new Date().toISOString()}] 🎬 Showing feature selector component after UI shell render`);
+            showFeatureSelector = true;
+        }, 300); // 300ms gives UI shell time to render first
         
         // Initialize log listener with passive option for better performance
         EventsOn("log", (rawLog: any) => {
@@ -547,14 +558,24 @@
                             bind:previewFiles
                             class="drop-zone"
                         />
-                        <FeatureSelector
-                            bind:selectedFeatures
-                            bind:quickAccessLangTag
-                            bind:showLogViewer
-                            on:optionsChange={handleOptionsChange}
-                            {mediaSource}
-                            class="feature-selector"
-                        />
+                        
+                        <!-- Deferred loading of the FeatureSelector component -->
+                        {#if showFeatureSelector}
+                            <!-- Use fade-in animation for the feature selector -->
+                            <div in:fade={{ duration: 300 }}>
+                                <FeatureSelector
+                                    bind:selectedFeatures
+                                    bind:quickAccessLangTag
+                                    bind:showLogViewer
+                                    on:optionsChange={handleOptionsChange}
+                                    {mediaSource}
+                                    class="feature-selector"
+                                />
+                            </div>
+                        {:else}
+                            <!-- Placeholder with same height to prevent layout shift -->
+                            <div class="h-20 rounded-lg bg-white/5 border-2 border-dashed border-primary/10 animate-pulse"></div>
+                        {/if}
                     </div>
                 </div>
 
@@ -680,6 +701,17 @@
 
     .mask-fade::-webkit-scrollbar-thumb:hover {
         background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Loading animations */
+    @keyframes pulse {
+        0% { opacity: 0.5; }
+        50% { opacity: 0.2; }
+        100% { opacity: 0.5; }
+    }
+    
+    .animate-pulse {
+        animation: pulse 1.5s ease-in-out infinite;
     }
 
     :global(.settings-modal) {

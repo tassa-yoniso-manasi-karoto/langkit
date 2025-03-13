@@ -549,6 +549,9 @@
         selectedFeatures: {}
     };
     
+    // New loading state to prevent flickering during initial data loading
+    let isInitialDataLoaded = false;
+    
     // Update context when dependencies change
     $: context = {
         standardTag,
@@ -709,35 +712,82 @@
     
     // Component lifecycle
     onMount(async () => {
-        const currentSettings = get(settings);
-        if (currentSettings?.targetLanguage) {
-            quickAccessLangTag = currentSettings.targetLanguage;
-            await validateLanguageTag(currentSettings.targetLanguage, true);
-            await checkTokenization(quickAccessLangTag);
-        }
-        updateProviderWarnings();
-        cleanupFeatureOptions(); // Clean up feature options on mount
+        console.log("FeatureSelector mounting - loading data...");
         
-        // Optimize staggered animation for features
-        // Check if device has reduced motion preference
-        const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-        
-        if (prefersReducedMotion) {
-            // Respect user's motion preference - show all features at once
-            visibleFeatures = Object.keys(selectedFeatures);
-        } else {
-            // More efficient batch animation with fewer DOM updates
-            const allFeatures = Object.keys(selectedFeatures);
-            const batches = 3; // Reduce number of DOM updates by showing features in 3 batches
-            const initialWait = showLogViewer ? 100 : 0; // Much shorter initial wait
+        try {
+            // Load all necessary data before showing the component
+            // This prevents visual glitches during initialization
+            const currentSettings = get(settings);
             
-            // Add features in batches for better performance
-            for (let b = 0; b < batches; b++) {
-                const batchFeatures = allFeatures.filter((_, i) => i % batches === b);
-                setTimeout(() => {
-                    visibleFeatures = [...visibleFeatures, ...batchFeatures];
-                }, initialWait + (b * 120)); // Use fixed delay increments instead of exponential
+            if (currentSettings?.targetLanguage) {
+                quickAccessLangTag = currentSettings.targetLanguage;
+                
+                // Execute these operations sequentially to ensure consistent state
+                await validateLanguageTag(currentSettings.targetLanguage, true);
+                await checkTokenization(quickAccessLangTag);
             }
+            
+            // Prepare component by loading config and options
+            updateProviderWarnings();
+            cleanupFeatureOptions(); // Clean up feature options on mount
+            
+            // Make sure we're fully loaded before starting animations
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Mark component as ready BEFORE starting animations
+            isInitialDataLoaded = true;
+            console.log("FeatureSelector initial data loaded successfully");
+            
+            // Restore the progressive reveal animation
+            // Check if device has reduced motion preference
+            const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            
+            if (prefersReducedMotion) {
+                // Respect user's motion preference - show all features at once
+                visibleFeatures = Object.keys(selectedFeatures);
+            } else {
+                // Use proper staggered animation with timeouts
+                const allFeatures = Object.keys(selectedFeatures);
+                
+                // Clear visibleFeatures to ensure animation starts fresh
+                visibleFeatures = [];
+                
+                // Use a more dynamic animation approach based on the original features order
+                // This ensures we respect the intended UX design
+                
+                // First, ensure we're working with the original feature order from the features array
+                const orderedFeatures = features
+                    .map(f => f.id)
+                    .filter(id => allFeatures.includes(id));
+                
+                // Add features one by one with staggered delays
+                orderedFeatures.forEach((feature, index) => {
+                    // Create an exponential delay curve for a more natural feel
+                    // First items appear quickly, later items have increasing delays
+                    const baseDelay = 100;
+                    const incrementFactor = 1.2; 
+                    const delay = baseDelay * Math.pow(incrementFactor, index / 1.5);
+                    
+                    setTimeout(() => {
+                        console.log(`Revealing feature ${feature} at ${Math.round(delay)}ms`);
+                        visibleFeatures = [...visibleFeatures, feature];
+                    }, delay);
+                });
+            }
+        } catch (error) {
+            console.error("Error during FeatureSelector initialization:", error);
+            // Mark as loaded anyway to prevent endless loading state
+            isInitialDataLoaded = true;
+            
+            // In case of error, show all features at once
+            visibleFeatures = Object.keys(selectedFeatures);
+            
+            // Log the error to help with debugging
+            logStore.addLog({
+                level: 'ERROR',
+                message: `Error initializing feature selector: ${error.message}`,
+                time: new Date().toISOString()
+            });
         }
     });
     
@@ -775,41 +825,44 @@
         </div>
     </div>
     
+    <!-- Feature cards container - only rendered after data is fully loaded -->
     <div class="space-y-4">
-        {#each features.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
-            <div 
-                in:fly={{ 
-                    x: 100, // Reduced distance for better performance
-                    duration: Math.min(300, 300 - (i * 15)), // Cap min duration at 150ms
-                    easing: cubicOut,
-                    opacity: 0
-                }}
-                style="will-change: transform, opacity; contain: content;"
-            >
-                <div data-feature-id={feature.id}>
-                    <FeatureCard
-                        {feature}
-                        enabled={selectedFeatures[feature.id]}
-                        options={currentFeatureOptions[feature.id]}
-                        {anyFeatureSelected}
-                        {romanizationSchemes}
-                        {isRomanizationAvailable}
-                        {tokenizationAllowed}
-                        {needsDocker}
-                        {dockerUnreachable}
-                        {dockerEngine}
-                        {needsScraper}
-                        {standardTag}
-                        {providerGithubUrls}
-                        {selectedFeatures}
-                        {providerGroups}
-                        {outputMergeGroups}
-                        on:enabledChange={handleFeatureEnabledChange}
-                        on:optionChange={handleOptionChange}
-                    />
+        {#if isInitialDataLoaded}
+            {#each features.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
+                <div 
+                    in:fly={{ 
+                        x: 100, // Reduced distance for better performance
+                        duration: Math.min(300, 300 - (i * 15)), // Cap min duration at 150ms
+                        easing: cubicOut,
+                        opacity: 0
+                    }}
+                    style="will-change: transform, opacity; contain: content;"
+                >
+                    <div data-feature-id={feature.id}>
+                        <FeatureCard
+                            {feature}
+                            enabled={selectedFeatures[feature.id]}
+                            options={currentFeatureOptions[feature.id]}
+                            {anyFeatureSelected}
+                            {romanizationSchemes}
+                            {isRomanizationAvailable}
+                            {tokenizationAllowed}
+                            {needsDocker}
+                            {dockerUnreachable}
+                            {dockerEngine}
+                            {needsScraper}
+                            {standardTag}
+                            {providerGithubUrls}
+                            {selectedFeatures}
+                            {providerGroups}
+                            {outputMergeGroups}
+                            on:enabledChange={handleFeatureEnabledChange}
+                            on:optionChange={handleOptionChange}
+                        />
+                    </div>
                 </div>
-            </div>
-        {/each}
+            {/each}
+        {/if}
         <br>
     </div>
 </div>
