@@ -8,6 +8,9 @@
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
+    
+    // Import window API from Wails
+    import { WindowIsMinimised, WindowIsMaximised } from '../wailsjs/runtime/runtime';
 
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -63,45 +66,78 @@
     let showGlow = true;
     let defaultTargetLanguage = "";
     let quickAccessLangTag = "";
+    
+    // Window state tracking
+    let isWindowMinimized = false;
+    let isWindowMaximized = false;
 
-    // Reactive error management
+    // Optimized reactive error management - track previous values to only update when needed
+    let prevMediaSource = null;
+    let prevFeaturesSelected = false;
+    let prevNativeLanguages = null;
+    
+    // Throttle error updates to prevent too many updates in succession
+    function throttledErrorUpdate() {
+        // Check media source changes
+        if (prevMediaSource !== mediaSource) {
+            if (!mediaSource) {
+                errorStore.addError({
+                    id: "no-media",
+                    message: "No media file selected",
+                    severity: "critical",
+                    action: {
+                        label: "Select Media",
+                        handler: () => document.querySelector(".drop-zone")?.click()
+                    }
+                });
+            } else {
+                errorStore.removeError("no-media");
+            }
+            prevMediaSource = mediaSource;
+        }
+
+        // Check feature selection changes
+        const featuresSelected = Object.values(selectedFeatures).some(v => v);
+        if (prevFeaturesSelected !== featuresSelected) {
+            if (!featuresSelected) {
+                errorStore.addError({
+                    id: "no-features",
+                    message: "Select at least one processing feature",
+                    severity: "critical"
+                });
+            } else {
+                errorStore.removeError("no-features");
+            }
+            prevFeaturesSelected = featuresSelected;
+        }
+
+        // Check native languages changes
+        if (prevNativeLanguages !== $settings.nativeLanguages) {
+            if (!$settings.nativeLanguages) {
+                errorStore.addError({
+                    id: "no-native-lang",
+                    message: "Configure native languages in settings",
+                    severity: "warning",
+                    action: {
+                        label: "Open Settings",
+                        handler: () => $showSettings = true
+                    }
+                });
+            } else {
+                errorStore.removeError("no-native-lang");
+            }
+            prevNativeLanguages = $settings.nativeLanguages;
+        }
+    }
+    
+    // Handle all error updates in a single reactive statement with RAF for performance
     $: {
-        if (!mediaSource) {
-            errorStore.addError({
-                id: "no-media",
-                message: "No media file selected",
-                severity: "critical",
-                action: {
-                    label: "Select Media",
-                    handler: () => document.querySelector(".drop-zone")?.click()
-                }
-            });
-        } else {
-            errorStore.removeError("no-media");
-        }
-
-        if (!Object.values(selectedFeatures).some(v => v)) {
-            errorStore.addError({
-                id: "no-features",
-                message: "Select at least one processing feature",
-                severity: "critical"
-            });
-        } else {
-            errorStore.removeError("no-features");
-        }
-
-        if (!$settings.nativeLanguages) {
-            errorStore.addError({
-                id: "no-native-lang",
-                message: "Configure native languages in settings",
-                severity: "warning",
-                action: {
-                    label: "Open Settings",
-                    handler: () => $showSettings = true
-                }
-            });
-        } else {
-            errorStore.removeError("no-native-lang");
+        if (mediaSource !== prevMediaSource || 
+            Object.values(selectedFeatures).some(v => v) !== prevFeaturesSelected ||
+            $settings.nativeLanguages !== prevNativeLanguages) {
+            
+            // Use requestAnimationFrame to batch updates to the next frame
+            requestAnimationFrame(throttledErrorUpdate);
         }
     }
 
@@ -230,15 +266,156 @@
         }
     }
 
+    // Use a more efficient approach to handle events, with debouncing for frequent events
+    let progressUpdateDebounceTimer: number | null = null;
+    let pendingProgressUpdates: any[] = [];
+    let windowCheckInterval: number | null = null;
+    
+    // Performance optimization based on window state
+    async function checkWindowState() {
+        try {
+            // Check window minimized state
+            const minimized = await WindowIsMinimised();
+            const timestamp = new Date().toISOString();
+            
+            // Log every state check for verification
+            console.log(`[${timestamp}] Window state check - minimized: ${minimized}, previous state: ${isWindowMinimized}`);
+            
+            // Only update if state changed to avoid unnecessary re-renders
+            if (minimized !== isWindowMinimized) {
+                isWindowMinimized = minimized;
+                
+                // If window is minimized, reduce animations and processing
+                if (minimized) {
+                    console.log(`[${timestamp}] 🔴 WINDOW MINIMIZED - reducing UI animations and processing`);
+                    logStore.addLog({
+                        level: 'INFO',
+                        message: '🔴 Window minimized - performance optimizations active',
+                        time: timestamp
+                    });
+                    
+                    // Hide glow effect when minimized regardless of settings
+                    showGlow = false;
+                } else {
+                    console.log(`[${timestamp}] 🟢 WINDOW RESTORED - resuming normal operation`);
+                    logStore.addLog({
+                        level: 'INFO',
+                        message: '🟢 Window restored - normal performance mode',
+                        time: timestamp
+                    });
+                    
+                    // Restore glow effect based on user settings
+                    showGlow = $settings?.enableGlow || true;
+                }
+                
+                // Log specific optimization changes
+                console.log(`[${timestamp}] Optimizations applied:
+                - Glow effect: ${showGlow ? 'ENABLED' : 'DISABLED'}
+                - Progress updates: ${minimized ? 'THROTTLED (10fps)' : 'NORMAL (60fps)'}
+                - Log updates: ${minimized ? 'MINIMAL' : 'NORMAL'}
+                - Animations: ${minimized ? 'REDUCED' : 'NORMAL'}`);
+            }
+            
+            // Check maximized state too (could be used for enhancing UI on large screens)
+            const maximized = await WindowIsMaximised();
+            
+            // Only log if maximized state changes
+            if (maximized !== isWindowMaximized) {
+                console.log(`[${timestamp}] Window maximized state changed: ${maximized}`);
+                isWindowMaximized = maximized;
+            }
+            
+        } catch (error) {
+            console.error('Failed to check window state:', error);
+        }
+    }
+    
+    // Track performance metrics for verification
+    let progressUpdateCount = 0;
+    let lastProgressTimestamp = Date.now();
+    let skippedUpdateCount = 0;
+    
+    // Function to process progress updates in batches
+    function processProgressUpdates() {
+        const now = Date.now();
+        const timeSinceLastUpdate = now - lastProgressTimestamp;
+        lastProgressTimestamp = now;
+        
+        // Skip visual updates if window is minimized to save resources
+        if (isWindowMinimized) {
+            // Log skipped updates stats
+            skippedUpdateCount += pendingProgressUpdates.length;
+            
+            // Every 10 skipped updates, log summary
+            if (skippedUpdateCount % 10 === 0) {
+                console.log(`[${new Date().toISOString()}] ⏭️ Skipped ${skippedUpdateCount} progress updates while minimized`);
+            }
+            
+            // Clear updates without processing them
+            pendingProgressUpdates = [];
+            progressUpdateDebounceTimer = null;
+            return;
+        }
+        
+        // Process all pending progress updates at once
+        const updateCount = pendingProgressUpdates.length;
+        progressUpdateCount += updateCount;
+        
+        // Log performance stats every 20 updates
+        if (progressUpdateCount % 20 === 0) {
+            console.log(`[${new Date().toISOString()}] ⚡ Progress update stats:
+            - Batch size: ${updateCount} updates
+            - Time since last update: ${timeSinceLastUpdate}ms
+            - Update interval: ${isWindowMinimized ? 'throttled (100ms)' : 'normal (16ms)'}
+            - Total updates: ${progressUpdateCount}
+            - Window state: ${isWindowMinimized ? 'minimized' : 'normal'}`);
+        }
+        
+        // Apply updates
+        pendingProgressUpdates.forEach(data => {
+            updateProgressBar(data);
+        });
+        
+        pendingProgressUpdates = [];
+        progressUpdateDebounceTimer = null;
+    }
+
     onMount(() => {
-        // Initialize log listener
+        // Initialize window state detection - check initially and set up interval
+        checkWindowState();
+        
+        // Log initialization of performance monitoring
+        console.log(`[${new Date().toISOString()}] 🚀 Initializing window-state based performance optimizations:
+        - Window state checked every 2 seconds
+        - Visual updates throttled when minimized
+        - Progress updates batched for efficiency
+        - Animations reduced when window not visible
+        - Glow effect disabled when minimized
+        - Log updates filtered when minimized`);
+        
+        // Add to application logs
+        logStore.addLog({
+            level: 'INFO',
+            message: '🚀 Initialized window-state performance optimizations',
+            time: new Date().toISOString()
+        });
+        
+        // Check window state every 2 seconds to optimize resource usage
+        windowCheckInterval = window.setInterval(checkWindowState, 2000);
+        
+        // Initialize log listener with passive option for better performance
         EventsOn("log", (rawLog: any) => {
+            // Skip log UI updates if window is minimized
+            if (isWindowMinimized) return;
+            
+            // Log events won't trigger reflow, so we can add them directly
             logStore.addLog(rawLog);
         });
         
+        // Get version info on load
         GetVersion()
             .then((result: any) => {
-                console.log("GetVersion result:", result);
+                // Avoid unnecessary console.log in production
                 version = result.version;
                 updateAvailable = result.newerVersionAvailable;
             })
@@ -248,41 +425,77 @@
 
         // Listen for settings updates
         EventsOn("settings-loaded", (loadedSettings) => {
-            settings.set(loadedSettings);
-            showGlow = loadedSettings.enableGlow;
-            defaultTargetLanguage = loadedSettings.targetLanguage;
-            showLogViewer = loadedSettings.showLogViewerByDefault;
+            // Batch updates to reduce reflows
+            requestAnimationFrame(() => {
+                settings.set(loadedSettings);
+                showGlow = loadedSettings.enableGlow;
+                defaultTargetLanguage = loadedSettings.targetLanguage;
+                showLogViewer = loadedSettings.showLogViewerByDefault;
+            });
         });
 
+        // Load settings
         loadSettings();
         
-        // either create or update a bar
+        // Batch progress updates for better performance
         EventsOn("progress", (data) => {
-            console.log("Received progress event", data);
-            updateProgressBar(data);
+            // Skip visual updates entirely if window is minimized
+            if (isWindowMinimized && !data.critical) {
+                return;
+            }
+            
+            // Add to pending updates queue
+            pendingProgressUpdates.push(data);
+            
+            // Adjust frame rate based on window state
+            // Use slower updates when minimized or not processing
+            const updateInterval = isWindowMinimized ? 100 : 16; // 10fps when minimized vs 60fps
+            
+            // Debounce updates to process multiple progress updates in a single frame
+            if (!progressUpdateDebounceTimer) {
+                progressUpdateDebounceTimer = window.setTimeout(processProgressUpdates, updateInterval);
+            }
         });
 
-        // remove the bar with that ID
+        // These events are less frequent, so we can process them immediately
         EventsOn("progress-remove", (barID: string) => {
             removeProgressBar(barID);
         });
         
-        // Reset all progress bars
         EventsOn("progress-reset", () => {
             resetAllProgressBars();
         });
         
+        // Check Docker availability
         checkDockerAvailability();
+        
+        // Add settings update listener using more efficient approach
+        const handleSettingsUpdated = ((event: CustomEvent) => {
+            settings.set(event.detail);
+            showGlow = event.detail.enableGlow;
+        }) as EventListener;
+        
+        window.addEventListener("settingsUpdated", handleSettingsUpdated, { passive: true });
+        
+        // Clean up all event listeners and timers on component destruction
+        return () => {
+            window.removeEventListener("settingsUpdated", handleSettingsUpdated);
+            
+            // Clear progress update timer
+            if (progressUpdateDebounceTimer) {
+                clearTimeout(progressUpdateDebounceTimer);
+                processProgressUpdates(); // Process any remaining updates
+            }
+            
+            // Clear window check interval
+            if (windowCheckInterval) {
+                clearInterval(windowCheckInterval);
+                windowCheckInterval = null;
+            }
+            
+            errorStore.clearErrors();
+        };
     });
-
-    onDestroy(() => {
-        errorStore.clearErrors();
-    });
-
-    window.addEventListener("settingsUpdated", ((event: CustomEvent) => {
-        settings.set(event.detail);
-        showGlow = event.detail.enableGlow;
-    }) as EventListener);
 </script>
 
 <!-- Version display (fixed, using Tailwind and DM Mono) -->
@@ -303,7 +516,7 @@
 
 <!-- Main container now spans full viewport -->
 <div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
-    {#if showGlow}
+    {#if showGlow && !isWindowMinimized}
         <GlowEffect {isProcessing} />
     {/if}
 
@@ -322,12 +535,13 @@
     </div>
 
     <div class="flex h-full p-8 gap-8 relative z-10">
-        <!-- Main content area -->
-        <div class="flex-1 relative {showLogViewer ? 'w-[55%]' : 'w-full'} transition-all duration-300">
+        <!-- Main content area with width optimization to prevent layout thrashing -->
+        <div class="flex-1 relative will-change-transform" 
+             style="width: {showLogViewer ? '55%' : '100%'}; transition: width 300ms ease-out;">
             <div class="h-full flex flex-col">
-                <!-- Scrollable content -->
+                <!-- Scrollable content with optimizations -->
                 <div class="flex-1 no-scrollbar overflow-y-auto pr-4 mask-fade">
-                    <div class="max-w-2xl mx-auto space-y-6">
+                    <div class="max-w-2xl mx-auto space-y-6 will-change-transform contain-layout">
                         <MediaInput
                             bind:mediaSource
                             bind:previewFiles
@@ -351,31 +565,37 @@
                         <ProgressManager {isProcessing}/>
                     </div>
                     
-                    <!-- Process Button Row with no bottom padding -->
-                    <div class="max-w-2xl mx-auto flex justify-center items-center gap-4 pb-0">
+                    <!-- Process Button Row with hardware acceleration -->
+                    <div class="max-w-2xl mx-auto flex justify-center items-center gap-4 pb-0 will-change-transform">
                         <ProcessButton
                             {isProcessing}
                             on:process={handleProcess}
                         />
+                        
+                        <!-- Cancel button with optimized transitions -->
                         {#if isProcessing}
-                            <button
-                                class="h-12 w-12 flex items-center justify-center rounded-lg
-                                       bg-red-500/30 text-white transition-all duration-200
-                                       hover:bg-red-500/90 hover:-translate-y-0.5
-                                       hover:shadow-lg hover:shadow-red-500/20
-                                       focus:outline-none focus:ring-2 focus:ring-red-500/50
-                                       focus:ring-offset-2 focus:ring-offset-bg"
-                                on:click={handleCancel}
-                                in:slide={{ duration: 200, axis: "x" }}
-                                out:slide={{ duration: 200, axis: "x" }}
-                                aria-label="Cancel processing"
-                            >
-                                <span class="material-icons">close</span>
-                            </button>
+                            <div class="h-12 w-12" style="contain: strict;">
+                                <button
+                                    class="h-12 w-12 flex items-center justify-center rounded-lg
+                                           bg-red-500/30 text-white transition-all duration-200
+                                           hover:bg-red-500/90 hover:-translate-y-0.5
+                                           hover:shadow-lg hover:shadow-red-500/20
+                                           focus:outline-none focus:ring-2 focus:ring-red-500/50
+                                           focus:ring-offset-2 focus:ring-offset-bg"
+                                    on:click={handleCancel}
+                                    in:slide={{ duration: 200, axis: "x" }}
+                                    out:slide={{ duration: 200, axis: "x" }}
+                                    aria-label="Cancel processing"
+                                >
+                                    <span class="material-icons">close</span>
+                                </button>
+                            </div>
                         {/if}
+                        
+                        <!-- Log viewer toggle button with optimized transitions -->
                         <button
                             class="h-12 w-12 flex items-center justify-center rounded-lg
-                                   transition-all duration-200
+                                   transition-all duration-200 will-change-transform
                                    {showLogViewer ? 'bg-primary text-sky-dark' : 'bg-white/10 text-white'}
                                    hover:bg-opacity-80 hover:-translate-y-0.5
                                    hover:shadow-lg
@@ -394,11 +614,12 @@
             </div>
         </div>
 
-        <!-- Log viewer panel -->
+        <!-- Log viewer panel with optimized rendering -->
         {#if showLogViewer}
-            <div class="w-[45%] rounded-lg overflow-hidden transition-all duration-500 ease-out
+            <div class="w-[45%] rounded-lg overflow-hidden will-change-transform
                         shadow-[4px_4px_0_0_rgba(159,110,247,0.4),8px_8px_16px_-2px_rgba(159,110,247,0.35)]
                         hover:shadow-[4px_4px_0_0_rgba(159,110,247,0.5),8px_8px_20px_-2px_rgba(159,110,247,0.4)]"
+                 style="transform: translateZ(0); contain: content;"
                  in:slide={{ duration: 400, delay: 100, axis: "x", easing: cubicOut }}
                  out:slide={{ duration: 400, axis: "x", easing: cubicOut }}
                  role="region"

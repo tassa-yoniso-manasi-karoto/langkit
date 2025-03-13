@@ -115,28 +115,84 @@
         dispatch('enabledChange', { id: feature.id, enabled });
     }
     
-    // Add material design ripple effect on click
+    // Add material design ripple effect on click with reusable ripple elements
+    const MAX_RIPPLES = 3; // Maximum number of ripple elements to create
+    const ripplePool: HTMLSpanElement[] = [];
+    
     function addRippleEffect(event: MouseEvent) {
         const element = event.currentTarget as HTMLElement;
         const rect = element.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
         
-        const ripple = document.createElement('span');
-        ripple.classList.add('ripple-element');
+        // Reuse existing ripple or create a new one if pool isn't full
+        let ripple: HTMLSpanElement;
+        if (ripplePool.length < MAX_RIPPLES) {
+            ripple = document.createElement('span');
+            ripple.classList.add('ripple-element');
+            ripplePool.push(ripple);
+        } else {
+            // Reuse the first ripple (oldest one)
+            ripple = ripplePool[0];
+            // Move to end of array to maintain FIFO order
+            ripplePool.push(ripplePool.shift()!);
+        }
+        
+        // Position the ripple
         ripple.style.left = `${x}px`;
         ripple.style.top = `${y}px`;
+        ripple.style.transform = 'scale(0)';
+        ripple.style.opacity = '0.5';
         
-        element.appendChild(ripple);
+        // Add to DOM if not already there
+        if (!element.contains(ripple)) {
+            element.appendChild(ripple);
+        }
         
+        // Force reflow and trigger animation
+        void ripple.offsetWidth;
+        
+        // Apply animation with JS instead of CSS
+        ripple.style.transition = 'transform 0.6s linear, opacity 0.6s linear';
+        ripple.style.transform = 'scale(3)';
+        ripple.style.opacity = '0';
+        
+        // Hide but don't remove from DOM to allow reuse
         setTimeout(() => {
-            ripple.remove();
+            ripple.style.display = 'none';
         }, 600);
     }
+    
+    // Memoization cache for expensive option evaluations
+    const optionVisibilityCache = new Map<string, boolean>();
+    let lastContextHash = '';
     
     // Check if option should be shown based on conditions
     function shouldShowOption(optionId: string, optionDef: any): boolean {
         if (!optionDef.showCondition) return true;
+        
+        // Create a cache key based on the condition and current context values that affect it
+        const contextValues = {
+            standardTag,
+            needsDocker,
+            needsScraper,
+            optionValues: JSON.stringify(options),
+            selectedFeatures: JSON.stringify(selectedFeatures)
+        };
+        
+        const contextHash = JSON.stringify(contextValues);
+        const cacheKey = `${optionId}-${optionDef.showCondition}`;
+        
+        // If context changed, clear cache
+        if (lastContextHash !== contextHash) {
+            optionVisibilityCache.clear();
+            lastContextHash = contextHash;
+        }
+        
+        // Check cache first
+        if (optionVisibilityCache.has(cacheKey)) {
+            return optionVisibilityCache.get(cacheKey);
+        }
         
         // Context object for evaluating conditions
         const context = {
@@ -164,9 +220,14 @@
                 });
             
             // Use Function constructor to evaluate the expression
-            return new Function('return ' + prepared)();
+            const result = new Function('return ' + prepared)();
+            
+            // Cache the result
+            optionVisibilityCache.set(cacheKey, result);
+            return result;
         } catch (error) {
             console.error('Error evaluating condition:', optionDef.showCondition, error);
+            optionVisibilityCache.set(cacheKey, false);
             return false;
         }
     }
@@ -177,8 +238,24 @@
         dispatch('optionChange', { featureId: feature.id, optionId, value });
     }
     
+    // Cached visible options
+    let visibleOptionsCache: string[] = [];
+    let visibleOptionsDirty = true;
+    
+    // Mark cache as dirty when dependencies change
+    $: {
+        if (feature || options || standardTag || selectedFeatures || outputMergeGroups) {
+            visibleOptionsDirty = true;
+        }
+    }
+    
     // Get visible options for this feature (excluding merge options if not active feature)
     function getVisibleOptions(): string[] {
+        // Use cache if available and not dirty
+        if (!visibleOptionsDirty && visibleOptionsCache.length > 0) {
+            return visibleOptionsCache;
+        }
+        
         // Check if this feature is in a merge group and if it's the active feature for that group
         const isInMergeGroup = feature.outputMergeGroup;
         const isMergeActive = isInMergeGroup && 
@@ -207,12 +284,24 @@
             );
         }
         
+        // Update cache
+        visibleOptionsCache = optionList;
+        visibleOptionsDirty = false;
+        
         return optionList;
     }
     
+    // Memoized version of hasVisibleOptions
+    let hasVisibleOptionsCache = false;
+    
     // Check if the feature has any visible options
     function hasVisibleOptions(): boolean {
-        return getVisibleOptions().length > 0;
+        if (!visibleOptionsDirty && visibleOptionsCache.length > 0) {
+            return hasVisibleOptionsCache;
+        }
+        
+        hasVisibleOptionsCache = getVisibleOptions().length > 0;
+        return hasVisibleOptionsCache;
     }
     
     // When enabled status changes, animate the height

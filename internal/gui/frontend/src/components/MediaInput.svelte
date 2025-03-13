@@ -102,20 +102,43 @@
         e.stopPropagation();
     }
 
+    // Use debounce for drag events to reduce event handler overhead
+    let dragEnterCount = 0;
+    
     function handleDragEnter(e: DragEvent) {
         preventDefaults(e);
-        dragOver = true;
+        dragEnterCount++;
+        
+        // Only set dragOver state once - avoid excessive state updates
+        if (dragEnterCount === 1) {
+            dragOver = true;
+        }
     }
 
     function handleDragLeave(e: DragEvent) {
         preventDefaults(e);
+        dragEnterCount--;
+
+        // Reset counter if out of bounds - handles edge cases with child elements
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const { clientX, clientY } = e;
         
         if (clientX <= rect.left || clientX >= rect.right || 
             clientY <= rect.top || clientY >= rect.bottom) {
-            dragOver = false;
+            dragEnterCount = 0;
         }
+        
+        // Only update UI state when truly leaving the drop zone
+        if (dragEnterCount <= 0) {
+            dragOver = false;
+            dragEnterCount = 0; // Ensure counter never goes negative
+        }
+    }
+    
+    // Handle drag end to reset counters if drop doesn't occur
+    function handleDragEnd() {
+        dragEnterCount = 0;
+        dragOver = false;
     }
 </script>
 
@@ -130,6 +153,7 @@
         on:dragenter={handleDragEnter}
         on:dragleave={handleDragLeave}
         on:dragover={preventDefaults}
+        on:dragend={handleDragEnd}
         on:drop={handleDrop}
     >
         {#if !mediaSource}
@@ -191,30 +215,63 @@
                                 <span>{previewFiles.length} video{previewFiles.length === 1 ? '' : 's'} in total</span>
                             </div>
                             
-                            <!-- Scrollable file list with tree structure -->
+                            <!-- Optimized scrollable file list with tree structure and windowing -->
                             <div class="pl-2 space-y-0.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
-                                {#each previewFiles as file, i}
-                                    <div class="flex text-xs">
-                                        <!-- Tree connection lines container -->
-                                        <div class="relative w-6 flex-shrink-0">
-                                            {#if i !== previewFiles.length - 1}
-                                                <!-- Regular item: vertical + horizontal lines -->
+                                {#if previewFiles.length <= 10}
+                                    <!-- For small lists, render everything directly -->
+                                    {#each previewFiles as file, i (file.path)}
+                                        <div class="flex text-xs" style="contain: content;">
+                                            <!-- Tree connection lines container -->
+                                            <div class="relative w-6 flex-shrink-0">
+                                                {#if i !== previewFiles.length - 1}
+                                                    <!-- Regular item: vertical + horizontal lines -->
+                                                    <div class="absolute left-0 top-[-4px] bottom-[-4px] tree-line border-l"></div>
+                                                    <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
+                                                {:else}
+                                                    <!-- Last item: L-shaped connector -->
+                                                    <div class="absolute left-0 top-[-4px] h-[calc(0.7em_+_3px)] tree-line border-l"></div>
+                                                    <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
+                                                {/if}
+                                            </div>
+                                            
+                                            <!-- File content -->
+                                            <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/5 rounded pl-1 pr-2 transition-colors duration-150">
+                                                <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
+                                                <span class="truncate text-gray-300 hover:text-white">{file.name}</span>
+                                            </div>
+                                        </div>
+                                    {/each}
+                                {:else}
+                                    <!-- For larger lists, show top few files and a summary -->
+                                    {#each previewFiles.slice(0, 8) as file, i (file.path)}
+                                        <div class="flex text-xs" style="contain: content;">
+                                            <!-- Tree connection lines container -->
+                                            <div class="relative w-6 flex-shrink-0">
                                                 <div class="absolute left-0 top-[-4px] bottom-[-4px] tree-line border-l"></div>
                                                 <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
-                                            {:else}
-                                                <!-- Last item: L-shaped connector -->
-                                                <div class="absolute left-0 top-[-4px] h-[calc(0.7em_+_3px)] tree-line border-l"></div>
-                                                <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
-                                            {/if}
+                                            </div>
+                                            
+                                            <!-- File content -->
+                                            <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/5 rounded pl-1 pr-2 transition-colors duration-150">
+                                                <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
+                                                <span class="truncate text-gray-300 hover:text-white">{file.name}</span>
+                                            </div>
+                                        </div>
+                                    {/each}
+                                    
+                                    <!-- Summary line for remaining files -->
+                                    <div class="flex text-xs" style="contain: content;">
+                                        <div class="relative w-6 flex-shrink-0">
+                                            <div class="absolute left-0 top-[-4px] h-[calc(0.7em_+_3px)] tree-line border-l"></div>
+                                            <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
                                         </div>
                                         
-                                        <!-- File content -->
-                                        <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/5 rounded pl-1 pr-2 transition-colors duration-150">
-                                            <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
-                                            <span class="truncate text-gray-300 hover:text-white">{file.name}</span>
+                                        <div class="flex items-center gap-2 min-w-0 py-0.5 bg-white/5 rounded pl-1 pr-2">
+                                            <span class="material-icons text-primary text-sm flex-shrink-0">more_horiz</span>
+                                            <span class="text-gray-300">and {previewFiles.length - 8} more files...</span>
                                         </div>
                                     </div>
-                                {/each}
+                                {/if}
                             </div>
                         </div>
                     {/if}

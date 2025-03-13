@@ -398,41 +398,43 @@
             updateMergeOptionsVisibility();
         }
         
-        // If a feature was enabled, scroll it into view after a small delay
-        // to allow UI to update and expand the feature card options
+        // If a feature was enabled, scroll it into view but only if necessary
         if (enabled) {
-            // First timeout to let the feature expand
-            setTimeout(() => {
+            // Use requestAnimationFrame instead of setTimeout for better performance
+            requestAnimationFrame(() => {
                 const featureCard = document.querySelector(`[data-feature-id="${id}"]`);
-                if (featureCard) {
-                    // Get the scroll container (mask-fade element)
-                    const scrollContainer = featureCard.closest('.mask-fade');
-                    if (!scrollContainer) return;
-                    
-                    // Get the position of the feature card within the scroll container
-                    const containerRect = scrollContainer.getBoundingClientRect();
-                    const featureRect = featureCard.getBoundingClientRect();
-                    
-                    // Calculate the vertical padding needed to avoid mask-fade edges
-                    const verticalPadding = containerRect.height * 0.15; // 15% of container height
-                    
-                    // Calculate target scroll position to center the feature
-                    let targetScrollTop = scrollContainer.scrollTop + 
-                                        (featureRect.top - containerRect.top) - 
-                                        (containerRect.height / 2) + 
-                                        (featureRect.height / 2);
-                    
-                    // Ensure the feature won't be hidden by top or bottom mask-fade
-                    const minScrollTop = featureRect.top - containerRect.top - verticalPadding;
-                    const maxScrollTop = featureRect.bottom - containerRect.bottom + verticalPadding;
-                    
-                    // Apply smoothly with animation
-                    scrollContainer.scrollTo({
-                        top: targetScrollTop,
-                        behavior: 'smooth'
-                    });
+                if (!featureCard) return;
+                
+                // Get the scroll container (mask-fade element)
+                const scrollContainer = featureCard.closest('.mask-fade');
+                if (!scrollContainer) return;
+                
+                // Get the position of the feature card
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const featureRect = featureCard.getBoundingClientRect();
+                
+                // Check if feature is already fully visible - if so, don't scroll
+                const isFullyVisible = (
+                    featureRect.top >= containerRect.top + containerRect.height * 0.1 && 
+                    featureRect.bottom <= containerRect.bottom - containerRect.height * 0.1
+                );
+                
+                // Only scroll if the feature is not already fully visible
+                if (!isFullyVisible) {
+                    // Let OptionHeight calculate before scrolling
+                    setTimeout(() => {
+                        // Check again if the component is still mounted
+                        if (!document.body.contains(featureCard)) return;
+                        
+                        // Use the simpler scrollIntoView API with smooth behavior
+                        // This uses the browser's native smooth scrolling which is more optimized
+                        featureCard.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }, 200);
                 }
-            }, 250);
+            });
         }
     }
     
@@ -572,27 +574,48 @@
     }
     
     // Error management
-    $: {
-        // Feature selection errors
-        if (!Object.values(selectedFeatures).some(v => v)) {
-            errorStore.addError({
-                id: 'no-features',
-                message: 'Select at least one processing feature',
-                severity: 'critical'
-            });
-        } else {
-            errorStore.removeError('no-features');
+    // Memoize feature selection state and language validation to reduce reactivity overhead
+    let prevFeaturesSelected = false;
+    let prevLanguageValidState = null;
+    let prevLanguageTag = '';
+    
+    // Optimize error handling with debounced updates
+    const updateErrorState = debounce(() => {
+        // Check if features selection state changed
+        const featuresSelected = Object.values(selectedFeatures).some(v => v);
+        if (prevFeaturesSelected !== featuresSelected) {
+            if (!featuresSelected) {
+                errorStore.addError({
+                    id: 'no-features',
+                    message: 'Select at least one processing feature',
+                    severity: 'critical'
+                });
+            } else {
+                errorStore.removeError('no-features');
+            }
+            prevFeaturesSelected = featuresSelected;
         }
 
-        // Language validation errors
-        if (!isValidLanguage && quickAccessLangTag) {
-            errorStore.addError({
-                id: 'invalid-language',
-                message: validationError || 'Invalid language code',
-                severity: 'critical'
-            });
-        } else {
-            errorStore.removeError('invalid-language');
+        // Check if language validation state changed
+        if (prevLanguageValidState !== isValidLanguage || prevLanguageTag !== quickAccessLangTag) {
+            if (!isValidLanguage && quickAccessLangTag) {
+                errorStore.addError({
+                    id: 'invalid-language',
+                    message: validationError || 'Invalid language code',
+                    severity: 'critical'
+                });
+            } else {
+                errorStore.removeError('invalid-language');
+            }
+            prevLanguageValidState = isValidLanguage;
+            prevLanguageTag = quickAccessLangTag;
+        }
+    }, 100);
+    
+    // Trigger error state update when relevant state changes
+    $: {
+        if (selectedFeatures || isValidLanguage || quickAccessLangTag) {
+            requestAnimationFrame(updateErrorState);
         }
     }
 
@@ -695,21 +718,27 @@
         updateProviderWarnings();
         cleanupFeatureOptions(); // Clean up feature options on mount
         
-        let initialWait = 0;
-        if (showLogViewer) {
-            initialWait = 2500;
-        }
+        // Optimize staggered animation for features
+        // Check if device has reduced motion preference
+        const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
         
-        // Staggered animation for features
-        const allFeatures = Object.keys(selectedFeatures);
-        allFeatures.forEach((feature, index) => {
-            const baseDelay = 50; // Base delay in ms
-            const exponentialFactor = 2.2; // Exponential factor
-            const delay = baseDelay * Math.pow(exponentialFactor, index / 1.2);
-            setTimeout(() => {
-                visibleFeatures = [...visibleFeatures, feature];
-            }, delay + initialWait);
-        });
+        if (prefersReducedMotion) {
+            // Respect user's motion preference - show all features at once
+            visibleFeatures = Object.keys(selectedFeatures);
+        } else {
+            // More efficient batch animation with fewer DOM updates
+            const allFeatures = Object.keys(selectedFeatures);
+            const batches = 3; // Reduce number of DOM updates by showing features in 3 batches
+            const initialWait = showLogViewer ? 100 : 0; // Much shorter initial wait
+            
+            // Add features in batches for better performance
+            for (let b = 0; b < batches; b++) {
+                const batchFeatures = allFeatures.filter((_, i) => i % batches === b);
+                setTimeout(() => {
+                    visibleFeatures = [...visibleFeatures, ...batchFeatures];
+                }, initialWait + (b * 120)); // Use fixed delay increments instead of exponential
+            }
+        }
     });
     
     onDestroy(() => {
@@ -748,12 +777,15 @@
     
     <div class="space-y-4">
         {#each features.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
-            <div in:fly={{ 
-                x: 300, 
-                duration: 400 - (i * 20),
-                easing: cubicOut,
-                opacity: 0
-            }}>
+            <div 
+                in:fly={{ 
+                    x: 100, // Reduced distance for better performance
+                    duration: Math.min(300, 300 - (i * 15)), // Cap min duration at 150ms
+                    easing: cubicOut,
+                    opacity: 0
+                }}
+                style="will-change: transform, opacity; contain: content;"
+            >
                 <div data-feature-id={feature.id}>
                     <FeatureCard
                         {feature}

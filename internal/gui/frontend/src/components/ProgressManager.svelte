@@ -418,7 +418,7 @@
                             </div>
                         </div>
                         <div class="relative w-full bg-[#333] rounded-full overflow-hidden {bar.size || 'h-2.5'}">
-                            <!-- Main progress fill with dynamic gradient for non-error state -->
+                            <!-- Optimized progress bar rendering -->
                             {#if !bar.errorState}
                                 <div
                                     class="absolute inset-0 progress-gradient"
@@ -432,19 +432,27 @@
                                 />
                             {/if}
                             
-                            <!-- Tailwind-based sweeping gradient animation -->
-                            {#if bar.progress < 100 && !bar.errorState}
-                                <div class="absolute h-full w-full overflow-hidden">
-                                    <!-- Main progress fill clipping container -->
-                                    <div class="absolute inset-0 overflow-hidden" style="width: {bar.progress}%">
-                                        <!-- Fixed-width gradient container that doesn't resize with progress changes -->
-                                        <div class="absolute inset-0" style="width: 500px;">
-                                            <!-- Sweeping gradient that maintains consistent width -->
-                                            <div id="gradient-{bar.id}" class="animate-sweep-gradient absolute inset-0 w-full h-full bg-sweep-gradient" style="opacity: var(--sweep-opacity, 0.5)"></div>
+                            <!-- Only render sweeping gradient animation when bar is active and visible -->
+                            {#if bar.progress < 100 && !bar.errorState && bar.progress > 0}
+                                <div class="absolute h-full w-full overflow-hidden will-change-transform">
+                                    <!-- Main progress fill clipping container with contain property -->
+                                    <div class="absolute inset-0 overflow-hidden" 
+                                        style="width: {bar.progress}%; contain: strict;">
+                                        <!-- Fixed-width gradient container with composite layers-->
+                                        <div class="absolute inset-0" style="width: 500px; will-change: transform; contain: paint;">
+                                            <!-- Optimize gradient animation -->
+                                            <div id="gradient-{bar.id}" 
+                                                class="animate-sweep-gradient absolute inset-0 w-full h-full bg-sweep-gradient" 
+                                                style="opacity: var(--sweep-opacity, 0.5); will-change: transform;">
+                                            </div>
                                         </div>
                                     </div>
-                                    <!-- Subtle edge glow at progress boundary -->
-                                    <div class="absolute top-0 bottom-0 w-[1px] shadow-progress-edge" style="left: {bar.progress}%"></div>
+                                    <!-- Only show edge glow if progress is significant -->
+                                    {#if bar.progress > 5}
+                                        <div class="absolute top-0 bottom-0 w-[1px] shadow-progress-edge" 
+                                            style="left: {bar.progress}%">
+                                        </div>
+                                    {/if}
                                 </div>
                             {/if}
                         </div>

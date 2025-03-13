@@ -28,6 +28,7 @@
         will-change: transform;
         transform: translate3d(0, 0, 0);
         overflow: hidden;
+        contain: content;
     }
 
     .glow-blob {
@@ -49,6 +50,8 @@
         filter: blur(80px);
         animation: pulse 10s ease-in-out infinite;
         transform-origin: center center;
+        will-change: transform;
+        contain: strict;
     }
 
     .glow-blur {
@@ -60,6 +63,7 @@
         backdrop-filter: blur(100px);
         -webkit-backdrop-filter: blur(100px);
         pointer-events: none;
+        contain: strict;
     }
 
     @keyframes float {
