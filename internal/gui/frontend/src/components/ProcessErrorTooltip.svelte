@@ -59,12 +59,12 @@
 
 <Portal target="body">
     <div
-        class="fixed transform -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none"
+        class="fixed transform -translate-x-1/2 -translate-y-full z-[1000]"
         style="left: {position.x}px; top: {position.y}px;"
         in:fade={{ duration: 150 }}
         out:fade={{ duration: 100 }}
     >
-        <div class="backdrop-blur-sm bg-[rgba(100,0,0,0.85)] text-white border border-[rgba(255,255,255,0.2)] rounded p-4 min-w-[280px] max-w-[400px] transition-colors duration-200 font-sans">
+        <div class="backdrop-blur-sm bg-[rgba(100,0,0,0.85)] text-white border border-[rgba(255,255,255,0.2)] rounded p-4 min-w-[280px] max-w-[400px] transition-colors duration-200 font-sans shadow-lg shadow-red-900/50">
             <div class="text-sm font-bold mb-2">
                 {#if groupedErrors.length > 0 && groupedErrors[0].errors.length > 0}
                     {groupedErrors[0].errors.length} {groupedErrors[0].errors.length === 1 ? 'problem' : 'problems'} to resolve:
@@ -83,9 +83,9 @@
                             <span class="text-sm">{error.message}</span>
                         </div>
                         {#if error.action}
-                            <div class="mt-1 text-xs text-[#ffcccb]">
+                            <div class="mt-1 text-xs text-[#ffcccb] font-bold">
                                 {#if error.id === 'no-media'}
-                                    Please click the drop zone to select a media file.
+                                    Click to select a media file.
                                 {:else}
                                     {error.action.label}
                                 {/if}
@@ -105,4 +105,14 @@
 </Portal>
 
 <style>
+    /* Add a subtle pulse animation to the tooltip to draw attention */
+    @keyframes subtle-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.2); }
+        70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+    }
+    
+    div > div {
+        animation: subtle-pulse 2s infinite;
+    }
 </style>

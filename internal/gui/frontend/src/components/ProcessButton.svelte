@@ -16,13 +16,26 @@
     let errors = [];
     const unsubscribe = errorStore.subscribe((val) => {
         errors = val;
-        console.debug('ProcessButton: current errors', errors);
+        console.debug('ProcessButton: current errors', errors.length > 0 ? errors : 'none');
+        
+        // Auto-update tooltip position based on button position when errors change
+        // This ensures tooltip is properly positioned even with deferred loading
+        if (buttonRef && errors.length > 0) {
+            const rect = buttonRef.getBoundingClientRect();
+            tooltipPosition = {
+                x: rect.left + rect.width / 2,
+                y: rect.top - 10
+            };
+        }
     });
 
     // Determine if any critical error exists (which will lock the button)
     $: hasCriticalErrors = errors.some(e => e.severity === 'critical');
     // For the tooltip we display all errors (if any exist)
     $: hasAnyErrors = errors.length > 0;
+    
+    // No automatic tooltip display
+    // Only show on hover - handled by handleMouseOver and handleMouseOut
 
     // Update tooltip position based on mouse event coordinates.
     function updateTooltipPositionFromEvent(event: MouseEvent) {
@@ -35,20 +48,21 @@
     function handleMouseOver(event: MouseEvent) {
         if (hasAnyErrors) {
             showTooltip = true;
+            // First use button position for better initial positioning
+            updateTooltipPositionFromButton();
+            // Then use mouse position for fine-tuning
             updateTooltipPositionFromEvent(event);
-            console.debug('Mouse over - showing tooltip', tooltipPosition);
         }
     }
 
     function handleMouseMove(event: MouseEvent) {
-        if (showTooltip) {
+        if (showTooltip && hasAnyErrors) {
             updateTooltipPositionFromEvent(event);
         }
     }
 
     function handleMouseOut() {
         showTooltip = false;
-        console.debug('Mouse out - hiding tooltip');
     }
 
     function handleClick() {
@@ -75,17 +89,34 @@
         }
     }
 
+    // Helper function to position tooltip based on button
+    function updateTooltipPositionFromButton() {
+        if (buttonRef) {
+            const rect = buttonRef.getBoundingClientRect();
+            tooltipPosition = {
+                x: rect.left + rect.width / 2,
+                y: rect.top - 10
+            };
+        }
+    }
+
     onMount(() => {
+        // Position tooltip initially
+        setTimeout(updateTooltipPositionFromButton, 500);
+        
+        // Re-position on resize
         window.addEventListener('resize', () => {
             if (showTooltip && buttonRef) {
-                // Recalculate a default position (center of button) on resize.
-                const rect = buttonRef.getBoundingClientRect();
-                tooltipPosition = {
-                    x: rect.left + rect.width / 2,
-                    y: rect.top - 10
-                };
+                updateTooltipPositionFromButton();
             }
         });
+        
+        // We don't need a periodic check anymore since we only show on hover
+        
+        // Initialize button position for tooltip if needed
+        if (buttonRef) {
+            updateTooltipPositionFromButton();
+        }
     });
 
     onDestroy(() => {
@@ -123,12 +154,12 @@
         </div>
     </button>
 
-    {#if showTooltip}
+    {#if showTooltip && hasAnyErrors}
         <div
-            class="fixed z-[1000] pointer-events-none transform -translate-x-1/2 -translate-y-full"
+            class="fixed z-[1000] transform -translate-x-1/2 -translate-y-full"
             style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px;"
-            in:fade={{ duration: 150 }}
-            out:fade={{ duration: 100 }}
+            in:fade={{ duration: 200 }}
+            out:fade={{ duration: 150 }}
         >
             <ProcessErrorTooltip position={tooltipPosition} />
         </div>
