@@ -33,10 +33,10 @@
 
     .glow-blob {
         position: absolute;
-        width: 30vmax;
-        height: 30vmax;
+        width: 26vmax;
+        height: 26vmax;
         /* Adjust position to account for container offset */
-        left: calc(68vw + 5vw);
+        left: calc(73vw + 5vw);
         bottom: calc(-15vw + 5vh);
         border-radius: 50%;
         background: linear-gradient(
@@ -46,8 +46,8 @@
             rgba(255, 100, 255, 0.6),
             rgba(255, 30, 255, 0.5)
         );
-        opacity: 0.7;
-        filter: blur(80px);
+        opacity: 0,6;
+        filter: blur(100px);
         animation: pulse 10s ease-in-out infinite;
         transform-origin: center center;
         will-change: transform;
@@ -60,15 +60,15 @@
         position: fixed;
         inset: 0;
         z-index: 1;
-        backdrop-filter: blur(100px);
-        -webkit-backdrop-filter: blur(100px);
+        backdrop-filter: blur(150px);
+        -webkit-backdrop-filter: blur(150px);
         pointer-events: none;
         contain: strict;
     }
 
     @keyframes float {
         0%, 100% {
-            transform: translateY(0);
+            transform: translateY(2vw);
         }
         50% {
             transform: translateY(-2.5vw);

@@ -1,13 +1,11 @@
 
 - NORMALIZE UI COLORS // SMALL UI TWEAKS
-  - similar to Mediainput button hover: border-primary
   - balance cards bg color
+  - increase feature hover scale w/o overflow
 
-- 🤯😎😎 dubs allow user to request cached sep voice file deletion
+- dubs allow user to request cached sep voice file deletion
 
 - closedcaptions trimming: does it still impact or not?
-
-- OPTIMIZE UI
 
 - crash reports add snapshots of tsk throughout code
 

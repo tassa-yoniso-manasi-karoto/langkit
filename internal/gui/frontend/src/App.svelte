@@ -16,6 +16,7 @@
     import FeatureSelector from './components/FeatureSelector.svelte';
     import LogViewer from './components/LogViewer.svelte';
     import GlowEffect from './components/GlowEffect.svelte';
+    import BackgroundGradient from './components/BackgroundGradient.svelte';
     import Settings from './components/Settings.svelte';
     import ProcessButton from './components/ProcessButton.svelte';
     import UpdateNotification from './components/UpdateNotification.svelte';
@@ -502,6 +503,7 @@
 
 <!-- Main container now spans full viewport -->
 <div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
+    <BackgroundGradient />
     {#if showGlow && !isWindowMinimized}
         <GlowEffect {isProcessing} />
     {/if}
