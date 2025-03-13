@@ -11,6 +11,7 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/dustin/go-humanize"
+	iso "github.com/barbashov/iso639-3"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
@@ -29,10 +30,37 @@ var extPerProvider = map[string]string{
 // even demuxing with -c:a copy to keep the original encoding somehow did too!
 // Using flac or opus is critical to keep video, audio and sub in sync.
 func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
+	// Validate that AudioTracks are available - MediaInfo is a struct, not a pointer
+	// so we can't check if it's nil directly
+	
+	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
+		return tsk.Handler.LogErr(fmt.Errorf("No audio tracks found"), AbortTask, "No audio tracks found in media file")
+	}
+	
+	// Ensure UseAudiotrack is within bounds
+	if tsk.UseAudiotrack < 0 || tsk.UseAudiotrack >= len(tsk.Meta.MediaInfo.AudioTracks) {
+		return tsk.Handler.LogErr(
+			fmt.Errorf("Audio track index %d out of bounds (tracks: %d)", tsk.UseAudiotrack, len(tsk.Meta.MediaInfo.AudioTracks)),
+			AbortTask, "Invalid audio track index")
+	}
+	
+	// Ensure the track has a language
+	if tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language == nil {
+		// Set a default language if none is specified
+		tsk.Handler.ZeroLog().Warn().Msg("Audio track has no language tag, using 'und' (undefined)")
+		// Use the FromPart3Code method to get a Language for 'und' (undefined)
+		tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language = iso.FromPart3Code("und")
+	}
+	
 	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
 	audioPrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
 	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.ogg")
 	VoiceFile := audioPrefix + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib]
+	
+	tsk.Handler.ZeroLog().Debug().
+		Str("originalAudio", OriginalAudio).
+		Str("voiceFile", VoiceFile).
+		Msg("Audio files for enhancement")
 	
 	stat, errOriginal := os.Stat(OriginalAudio)
 	_, errVoice := os.Stat(VoiceFile)
@@ -53,24 +81,25 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	if stat, errOriginal = os.Stat(OriginalAudio); errOriginal == nil {
 		tsk.Handler.ZeroLog().Trace().Str("filesize", humanize.Bytes(uint64(stat.Size()))).Msg("Stat of OriginalAudio to enhance")
 	}
-	tsk.Handler.ZeroLog().Trace().Str("VoiceFile", VoiceFile).Msg("")
 	
 	if errors.Is(errVoice, os.ErrNotExist) {
 		tsk.Handler.ZeroLog().Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
-		var audio []byte
-		var err error
-		switch strings.ToLower(tsk.SeparationLib) {
-		case "demucs":
-			audio, err = voice.Demucs(ctx, OriginalAudio, extPerProvider[tsk.SeparationLib], 2, tsk.TimeoutSep, false)
-		case "demucs_ft":
-			audio, err = voice.Demucs(ctx, OriginalAudio, extPerProvider[tsk.SeparationLib], 2, tsk.TimeoutSep, true)
-		case "spleeter":
-			audio, err = voice.Spleeter(ctx, OriginalAudio, 2, tsk.TimeoutSep)
-		case "elevenlabs":
-			audio, err = voice.ElevenlabsIsolator(ctx, OriginalAudio, tsk.TimeoutSep)
-		default:
-			return tsk.Handler.LogErr(err, AbortAllTasks, "An unknown separation library was passed. Check for typo.")
+		
+		// Get the appropriate provider for audio separation
+		provider, err := voice.GetAudioSeparationProvider(tsk.SeparationLib)
+		if err != nil {
+			return tsk.Handler.LogErr(err, AbortAllTasks, "Failed to get audio separation provider. Check for typo in provider name.")
 		}
+		
+		// Check if provider is available
+		if !provider.IsAvailable() {
+			return tsk.Handler.LogErr(nil, AbortTask, fmt.Sprintf("Provider %s is not available. Check API key configuration.", provider.GetName()))
+		}
+		
+		// Process the audio using the provider
+		tsk.Handler.ZeroLog().Debug().Str("provider", provider.GetName()).Msg("Using voice separation provider")
+		audio, err := provider.SeparateVoice(ctx, OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.MaxAPIRetries, tsk.TimeoutSep)
+		
 		if err != nil {
 		        if errors.Is(err, context.Canceled) {
 				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "enhance: STT: operation canceled by user")
@@ -84,6 +113,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 				"when trying to process audio tracks of movies.\n" +
 				"As far as my testing goes, trying a few hours later solves the problem.\n")
 		}
+		
 		// Must write to disk so that it can be reused if ft error
 		if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("File of separated voice couldn't be written.")

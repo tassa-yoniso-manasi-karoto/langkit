@@ -5,9 +5,9 @@
 
 - 🤯😎😎 dubs allow user to request cached sep voice file deletion
 
-- REFACTOR
+- closedcaptions trimming: does it still impact or not?
 
-
+- OPTIMIZE UI
 
 - crash reports add snapshots of tsk throughout code
 

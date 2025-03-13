@@ -24,6 +24,30 @@ import (
 	"github.com/failsafe-go/failsafe-go/retrypolicy"
 )
 
+// Provider interfaces for better testing and flexibility
+
+// AIServiceProvider is a common interface for all external AI service providers
+type AIServiceProvider interface {
+	// GetName returns the name of the provider
+	GetName() string
+	// IsAvailable checks if the provider is available with valid API keys
+	IsAvailable() bool
+}
+
+// SpeechToTextProvider provides speech-to-text functionality
+type SpeechToTextProvider interface {
+	AIServiceProvider
+	// TranscribeAudio converts audio to text
+	TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error)
+}
+
+// AudioSeparationProvider provides audio separation functionality
+type AudioSeparationProvider interface {
+	AIServiceProvider
+	// SeparateVoice extracts voice from a mixed audio file
+	SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error)
+}
+
 var (
 	APIKeys = &sync.Map{}
 	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1"}
@@ -36,8 +60,27 @@ func init() {
 }
 
 
-func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]byte, error) {
-	// Verify API key.
+// ElevenLabsProvider implements AudioSeparationProvider using the ElevenLabs API
+type ElevenLabsProvider struct {}
+
+// GetName returns the provider name
+func (p *ElevenLabsProvider) GetName() string {
+	return "elevenlabs"
+}
+
+// IsAvailable checks if the ElevenLabs API is available
+func (p *ElevenLabsProvider) IsAvailable() bool {
+	apiKeyValue, found := APIKeys.Load("elevenlabs")
+	if !found {
+		return false
+	}
+	APIKey, ok := apiKeyValue.(string)
+	return ok && APIKey != ""
+}
+
+// SeparateVoice extracts voice from audio using ElevenLabs
+func (p *ElevenLabsProvider) SeparateVoice(ctx context.Context, audioFile, _ string, maxTry, timeout int) ([]byte, error) {
+	// Verify API key
 	apiKeyValue, found := APIKeys.Load("elevenlabs")
 	if !found {
 		return nil, fmt.Errorf("No Elevenlabs API key was provided")
@@ -47,17 +90,15 @@ func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]by
 		return nil, fmt.Errorf("Invalid Elevenlabs API key format")
 	}
 
-	// Create a new client with a timeout.
+	// Create a new client with a timeout
 	client := elevenlabs.NewClient(ctx, APIKey, time.Duration(timeout)*time.Second)
 
-	// Build a generic retry policy for the API call.
-	// This policy ignores any error until maxTry (here assumed to be 3) is reached,
-	// except for context.Canceled, which aborts immediately.
-	policy := buildRetryPolicy[[]byte](3)
+	// Build a generic retry policy for the API call
+	policy := buildRetryPolicy[[]byte](maxTry)
 
-	// Execute the API call with the retry policy.
+	// Execute the API call with the retry policy
 	audio, err := failsafe.Get(func() ([]byte, error) {
-		return client.VoiceIsolator(filePath)
+		return client.VoiceIsolator(audioFile)
 	}, policy)
 	if err != nil {
 		return nil, fmt.Errorf("API query failed after retries: %w", err)
@@ -65,15 +106,38 @@ func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]by
 	return audio, nil
 }
 
+// Default provider instance for backward compatibility
+var defaultElevenLabsProvider = &ElevenLabsProvider{}
+
+// ElevenlabsIsolator is kept for backward compatibility
+// It delegates to the default ElevenLabsProvider
+func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]byte, error) {
+	return defaultElevenLabsProvider.SeparateVoice(ctx, filePath, "", 3, timeout)
+}
 
 
-// Universal1 uses AssemblyAI's service to transcribe an audio file.
-// It verifies the API key, opens the file, and then uses a retry policy to
-// attempt transcription multiple times. For each attempt, a new timeout context
-// is created and the file pointer is reset.
-// Errors are ignored until the maximum number of attempts is reached.
-func Universal1(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
-	// Verify API key.
+
+// AssemblyAIProvider implements SpeechToTextProvider using the AssemblyAI API
+type AssemblyAIProvider struct{}
+
+// GetName returns the provider name
+func (p *AssemblyAIProvider) GetName() string {
+	return "assemblyai"
+}
+
+// IsAvailable checks if the AssemblyAI API is available
+func (p *AssemblyAIProvider) IsAvailable() bool {
+	apiKeyValue, found := APIKeys.Load("assemblyai")
+	if !found {
+		return false
+	}
+	APIKey, ok := apiKeyValue.(string)
+	return ok && APIKey != ""
+}
+
+// TranscribeAudio converts audio to text using AssemblyAI
+func (p *AssemblyAIProvider) TranscribeAudio(ctx context.Context, audioFile, language, _ string, maxTry, timeout int) (string, error) {
+	// Verify API key
 	apiKeyValue, found := APIKeys.Load("assemblyai")
 	if !found {
 		return "", fmt.Errorf("No AssemblyAI API key was provided")
@@ -84,53 +148,111 @@ func Universal1(ctx context.Context, filepath string, maxTry, timeout int, lang 
 	}
 	client := aai.NewClient(APIKey)
 
-	// Open the audio file.
-	f, err := os.Open(filepath)
+	// Open the audio file
+	f, err := os.Open(audioFile)
 	if err != nil {
 		return "", fmt.Errorf("Couldn't open audio file: %w", err)
 	}
 	defer f.Close()
 
-	// Setup transcription parameters.
+	// Setup transcription parameters
 	params := &aai.TranscriptOptionalParams{
-		LanguageCode: aai.TranscriptLanguageCode(lang),
+		LanguageCode: aai.TranscriptLanguageCode(language),
 		SpeechModel:  aai.SpeechModelBest,
 	}
 
-	// Build a generic retry policy for transcription attempts.
-	// Make retries ignore any error until the maximum attempts is reached,
-	// except for context.Canceled which aborts immediately.
+	// Build retry policy for transcription attempts
 	policy := buildRetryPolicy[aai.Transcript](maxTry)
 
-	// Execute the transcription with the retry policy.
+	// Execute the transcription with the retry policy
 	transcript, err := failsafe.Get(func() (aai.Transcript, error) {
-		// Create a new timeout context for this attempt.
+		// Create a new timeout context for this attempt
 		attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
 
-		// Reset file pointer to the beginning for each attempt.
+		// Reset file pointer to the beginning for each attempt
 		if _, err := f.Seek(0, 0); err != nil {
 			return aai.Transcript{}, err
 		}
 
-		// Attempt to transcribe the audio from the file.
+		// Attempt to transcribe the audio
 		return client.Transcripts.TranscribeFromReader(attemptCtx, f, params)
 	}, policy)
 	if err != nil {
 		return "", fmt.Errorf("Failed Universal-1 prediction after %d attempts: %w", maxTry, err)
 	}
 
-	// Return the transcription text.
+	// Return the transcription text
 	return *transcript.Text, nil
+}
+
+// Default provider instance for backward compatibility
+var defaultAssemblyAIProvider = &AssemblyAIProvider{}
+
+// Universal1 is kept for backward compatibility
+// It delegates to the default AssemblyAIProvider
+func Universal1(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
+	return defaultAssemblyAIProvider.TranscribeAudio(ctx, filepath, lang, "", maxTry, timeout)
 }
 
 
 type initRunT = func(input replicate.PredictionInput) replicate.PredictionInput
 type parserT = func(predictionOutput replicate.PredictionOutput) (string, error)
 
-func Whisper(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
+// ReplicateProvider is a base struct for providers using the Replicate platform
+type ReplicateProvider struct {
+	Owner        string
+	ModelName    string
+	ModelVersion string // Optional, uses latest if empty
+}
+
+// GetName returns a formatted provider name
+func (p *ReplicateProvider) GetName() string {
+	return fmt.Sprintf("replicate:%s/%s", p.Owner, p.ModelName)
+}
+
+// IsAvailable checks if the Replicate API is available
+func (p *ReplicateProvider) IsAvailable() bool {
+	apiKeyValue, found := APIKeys.Load("replicate")
+	if !found {
+		return false
+	}
+	APIKey, ok := apiKeyValue.(string)
+	return ok && APIKey != ""
+}
+
+// createClient creates a new Replicate client
+func (p *ReplicateProvider) createClient() (*replicate.Client, error) {
+	apiKeyValue, found := APIKeys.Load("replicate")
+	if !found {
+		return nil, fmt.Errorf("No Replicate API key was provided")
+	}
+	APIKey, ok := apiKeyValue.(string)
+	if !ok || APIKey == "" {
+		return nil, fmt.Errorf("Invalid Replicate API key format")
+	}
+	return replicate.NewClient(replicate.WithToken(APIKey))
+}
+
+// WhisperProvider implements SpeechToTextProvider using OpenAI's Whisper model via Replicate
+type WhisperProvider struct {
+	ReplicateProvider
+}
+
+// NewWhisperProvider creates a new WhisperProvider
+func NewWhisperProvider() *WhisperProvider {
+	return &WhisperProvider{
+		ReplicateProvider: ReplicateProvider{
+			Owner:     "openai",
+			ModelName: "whisper",
+		},
+	}
+}
+
+// TranscribeAudio transcribes audio using Whisper
+func (p *WhisperProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
-		input["language"] = lang
+		input["language"] = language
 		if initialPrompt != "" {
 			input["initial_prompt"] = initialPrompt
 		}
@@ -138,79 +260,158 @@ func Whisper(ctx context.Context, filepath string, maxTry, timeout int, lang, in
 	}
 	params := r8RunParams{
 		Ctx:      ctx,
-		Filepath: filepath,
+		Filepath: audioFile,
 		MaxTry:   maxTry,
 		Timeout:  timeout,
-		Owner:    "openai",
-		Name:     "whisper",
+		Owner:    p.Owner,
+		Name:     p.ModelName,
 		InitRun:  initRun,
 		Parser:   whisperParser,
 	}
 	return r8RunWithAudioFile(params)
 }
 
-func InsanelyFastWhisper(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
+// Default provider instance for backward compatibility
+var defaultWhisperProvider = NewWhisperProvider()
+
+// Whisper is kept for backward compatibility
+func Whisper(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
+	return defaultWhisperProvider.TranscribeAudio(ctx, filepath, lang, initialPrompt, maxTry, timeout)
+}
+
+// FastWhisperProvider implements SpeechToTextProvider using Incredibly Fast Whisper via Replicate
+type FastWhisperProvider struct {
+	ReplicateProvider
+}
+
+// NewFastWhisperProvider creates a new FastWhisperProvider
+func NewFastWhisperProvider() *FastWhisperProvider {
+	return &FastWhisperProvider{
+		ReplicateProvider: ReplicateProvider{
+			Owner:     "vaibhavs10",
+			ModelName: "incredibly-fast-whisper",
+		},
+	}
+}
+
+// TranscribeAudio transcribes audio using Fast Whisper
+func (p *FastWhisperProvider) TranscribeAudio(ctx context.Context, audioFile, language, _ string, maxTry, timeout int) (string, error) {
 	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
-		input["language"] = lang
+		input["language"] = language
 		return input
 	}
-	
 	params := r8RunParams{
 		Ctx:      ctx,
-		Filepath: filepath,
+		Filepath: audioFile,
 		MaxTry:   maxTry,
 		Timeout:  timeout,
-		Owner:    "vaibhavs10",
-		Name:     "incredibly-fast-whisper", // model name is outdated on replicate
+		Owner:    p.Owner,
+		Name:     p.ModelName,
 		InitRun:  initRun,
 		Parser:   whisperParser,
 	}
 	return r8RunWithAudioFile(params)
 }
 
-func Spleeter(ctx context.Context, filepath string, maxTry, timeout int) ([]byte, error) {
+// Default provider instance for backward compatibility
+var defaultFastWhisperProvider = NewFastWhisperProvider()
+
+// InsanelyFastWhisper is kept for backward compatibility
+func InsanelyFastWhisper(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
+	return defaultFastWhisperProvider.TranscribeAudio(ctx, filepath, lang, "", maxTry, timeout)
+}
+
+// SpleeterProvider implements AudioSeparationProvider using Spleeter via Replicate
+type SpleeterProvider struct {
+	ReplicateProvider
+}
+
+// NewSpleeterProvider creates a new SpleeterProvider
+func NewSpleeterProvider() *SpleeterProvider {
+	return &SpleeterProvider{
+		ReplicateProvider: ReplicateProvider{
+			Owner:     "soykertje",
+			ModelName: "spleeter",
+		},
+	}
+}
+
+// SeparateVoice separates voice from audio using Spleeter
+func (p *SpleeterProvider) SeparateVoice(ctx context.Context, audioFile, _ string, maxTry, timeout int) ([]byte, error) {
 	NoMoreInput := func(input replicate.PredictionInput) replicate.PredictionInput {
 		return input
 	}
 	params := r8RunParams{
 		Ctx:      ctx,
-		Filepath: filepath,
+		Filepath: audioFile,
 		MaxTry:   maxTry,
 		Timeout:  timeout,
-		Owner:    "soykertje",
-		Name:     "spleeter",
+		Owner:    p.Owner,
+		Name:     p.ModelName,
 		InitRun:  NoMoreInput,
 		Parser:   spleeterDemucsParser,
 	}
 	return r8RunWithAudioFileAndGET(params)
 }
 
+// Default provider instance for backward compatibility
+var defaultSpleeterProvider = NewSpleeterProvider()
 
-func Demucs(ctx context.Context, filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]byte, error) {
-	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
-		input["output_format"] = ext
-		input["stems"] = "vocals"
-		return input
+// Spleeter is kept for backward compatibility
+func Spleeter(ctx context.Context, filepath string, maxTry, timeout int) ([]byte, error) {
+	return defaultSpleeterProvider.SeparateVoice(ctx, filepath, "wav", maxTry, timeout)
+}
+
+// DemucsProvider implements AudioSeparationProvider using Demucs via Replicate
+type DemucsProvider struct {
+	ReplicateProvider
+	UseFinetuned bool
+}
+
+// NewDemucsProvider creates a new DemucsProvider
+func NewDemucsProvider(useFinetuned bool) *DemucsProvider {
+	return &DemucsProvider{
+		ReplicateProvider: ReplicateProvider{
+			Owner:     "ryan5453",
+			ModelName: "demucs",
+		},
+		UseFinetuned: useFinetuned,
 	}
-	if wantFinetuned {
-		initRun = func(input replicate.PredictionInput) replicate.PredictionInput {
+}
+
+// SeparateVoice separates voice from audio using Demucs
+func (p *DemucsProvider) SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error) {
+	initRun := func(input replicate.PredictionInput) replicate.PredictionInput {
+		input["output_format"] = outputFormat
+		input["stems"] = "vocals"
+		if p.UseFinetuned {
 			input["model"] = "htdemucs_ft"
-			input["output_format"] = ext
-			input["stems"] = "vocals"
-			return input
 		}
+		return input
 	}
 	params := r8RunParams{
 		Ctx:      ctx,
-		Filepath: filepath,
+		Filepath: audioFile,
 		MaxTry:   maxTry,
 		Timeout:  timeout,
-		Owner:    "ryan5453",
-		Name:     "demucs",
+		Owner:    p.Owner,
+		Name:     p.ModelName,
 		InitRun:  initRun,
 		Parser:   spleeterDemucsParser,
 	}
 	return r8RunWithAudioFileAndGET(params)
+}
+
+// Default provider instances for backward compatibility
+var defaultDemucsProvider = NewDemucsProvider(false)
+var defaultDemucsFinetunedProvider = NewDemucsProvider(true)
+
+// Demucs is kept for backward compatibility
+func Demucs(ctx context.Context, filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]byte, error) {
+	if wantFinetuned {
+		return defaultDemucsFinetunedProvider.SeparateVoice(ctx, filepath, ext, maxTry, timeout)
+	}
+	return defaultDemucsProvider.SeparateVoice(ctx, filepath, ext, maxTry, timeout)
 }
 
 

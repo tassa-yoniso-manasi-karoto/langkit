@@ -95,6 +95,15 @@ func NewMockHandler() *MockHandler {
 	mockHandler.On("ZeroLog").Return(&logger)
 	mockHandler.On("GetLogBuffer").Return(bytes.Buffer{})
 	mockHandler.On("IsCLI").Return(true)
+	mockHandler.On("ResetProgress").Return()
+	mockHandler.On("IncrementProgress", 
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("int"),
+		mock.AnythingOfType("int"),
+		mock.AnythingOfType("int"),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("string")).Return()
 	
 	return mockHandler
 }
@@ -167,6 +176,10 @@ func (m *MockHandler) IncrementProgress(taskID string, increment, total, priorit
 	m.Called(taskID, increment, total, priority, operation, descr, size)
 }
 
+func (m *MockHandler) ResetProgress() {
+	m.Called()
+}
+
 // MockResumptionHandler adjusted to implement MessageHandler 
 type MockResumptionHandler struct {
 	mock.Mock
@@ -235,6 +248,10 @@ func (m *MockResumptionHandler) IncrementProgress(taskID string, increment, tota
 	m.Called(taskID, increment, total, priority, operation, descr, size)
 }
 
+func (m *MockResumptionHandler) ResetProgress() {
+	m.Called()
+}
+
 func (m *MockResumptionHandler) GetOutputFilePath() string {
 	args := m.Called()
 	return args.String(0)
@@ -265,6 +282,15 @@ func NewMockResumptionHandlerWithDefaults() *MockResumptionHandler {
     mockHandler.On("IsCLI").Return(true)
     mockHandler.On("ZeroLog").Return(&logger)
     mockHandler.On("GetLogBuffer").Return(bytes.Buffer{})
+    mockHandler.On("ResetProgress").Return()
+    mockHandler.On("IncrementProgress", 
+        mock.AnythingOfType("string"),
+        mock.AnythingOfType("int"),
+        mock.AnythingOfType("int"),
+        mock.AnythingOfType("int"),
+        mock.AnythingOfType("string"),
+        mock.AnythingOfType("string"),
+        mock.AnythingOfType("string")).Return()
     
     return mockHandler
 }

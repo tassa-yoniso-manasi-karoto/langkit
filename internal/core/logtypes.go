@@ -13,6 +13,9 @@ type ProcessingError struct {
 }
 
 func (e *ProcessingError) Error() string {
+	if e.Err == nil {
+		return "ProcessingError: " + e.Behavior
+	}
 	return e.Err.Error()
 }
 

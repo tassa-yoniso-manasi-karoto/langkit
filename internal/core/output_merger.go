@@ -8,11 +8,30 @@ import (
 	"errors"
 	"sort"
 	
+	iso "github.com/barbashov/iso639-3"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
+// OutputRegistry defines an interface for tracking output files
+type OutputRegistry interface {
+	// RegisterOutputFile registers a file to be included in the merged output
+	RegisterOutputFile(path string, typ MediaOutputType, language Lang, feature string, priority int) MediaOutputFile
+	
+	// GetOutputFiles returns all registered output files
+	GetOutputFiles() []MediaOutputFile
+	
+	// GetOutputFilesByType returns all registered output files of a specific type
+	GetOutputFilesByType(typ MediaOutputType) []MediaOutputFile
+	
+	// GetOutputFileByFeature returns the first output file for a specific feature
+	GetOutputFileByFeature(feature string) (MediaOutputFile, bool)
+	
+	// GetMergedOutputPath returns the path to the merged output file
+	GetMergedOutputPath() string
+}
+
 // RegisterOutputFile adds a file to the list of files to be included in the merged output
-func (tsk *Task) RegisterOutputFile(path string, typ MediaOutputType, language Lang, feature string, priority int) {
+func (tsk *Task) RegisterOutputFile(path string, typ MediaOutputType, language Lang, feature string, priority int) MediaOutputFile {
 	outputFile := MediaOutputFile{
 		Path:        path,
 		Type:        typ,
@@ -30,28 +49,122 @@ func (tsk *Task) RegisterOutputFile(path string, typ MediaOutputType, language L
 		Str("feature", feature).
 		Int("priority", priority).
 		Msg("Registered output file for merging")
+		
+	return outputFile
 }
 
-// MergeOutputs combines all registered output files into a single video file
-func (tsk *Task) MergeOutputs(ctx context.Context) (procErr *ProcessingError) {
-	if !tsk.MergeOutputFiles || len(tsk.OutputFiles) == 0 {
-		tsk.Handler.ZeroLog().Debug().Msg("Output merging skipped - either disabled or no files to merge")
-		return nil
-	}
+// GetOutputFiles returns all registered output files
+func (tsk *Task) GetOutputFiles() []MediaOutputFile {
+	return tsk.OutputFiles
+}
 
-	// Get base name for merged output
+// GetOutputFilesByType returns all registered output files of a specific type
+func (tsk *Task) GetOutputFilesByType(typ MediaOutputType) []MediaOutputFile {
+	var files []MediaOutputFile
+	for _, file := range tsk.OutputFiles {
+		if file.Type == typ {
+			files = append(files, file)
+		}
+	}
+	
+	// Sort by priority (higher first)
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Priority > files[j].Priority
+	})
+	
+	return files
+}
+
+// GetOutputFileByFeature returns the first output file for a specific feature
+func (tsk *Task) GetOutputFileByFeature(feature string) (MediaOutputFile, bool) {
+	for _, file := range tsk.OutputFiles {
+		if file.Feature == feature {
+			return file, true
+		}
+	}
+	return MediaOutputFile{}, false
+}
+
+// GetMergedOutputPath returns the path to the final merged output file
+func (tsk *Task) GetMergedOutputPath() string {
+	// MediaInfo is a struct, not a pointer, so we can't check if it's nil directly
+	
+	// Check if there are audio tracks
+	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
+		// Use a fallback path if no audio tracks
+		basePrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase())
+		ext := tsk.MergingFormat
+		if ext == "" {
+			ext = "mp4" // Default format
+		}
+		return basePrefix + ".MERGED." + ext
+	}
+	
+	// Check if UseAudiotrack is valid
+	if tsk.UseAudiotrack < 0 || tsk.UseAudiotrack >= len(tsk.Meta.MediaInfo.AudioTracks) {
+		// Use a fallback path if UseAudiotrack is invalid
+		basePrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase())
+		ext := tsk.MergingFormat
+		if ext == "" {
+			ext = "mp4" // Default format
+		}
+		return basePrefix + ".MERGED." + ext
+	}
+	
+	// Ensure Language is not nil
+	if tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language == nil {
+		// Set a default language
+		tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language = iso.FromPart3Code("und")
+	}
+	
+	// Now we can safely get the language code
 	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
 	basePrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
 	ext := tsk.MergingFormat
 	if ext == "" {
 		ext = "mp4" // Default format
 	}
-	mergedOutput := basePrefix + ".MERGED." + ext
+	return basePrefix + ".MERGED." + ext
+}
+
+// MergeResult contains information about the merge operation
+type MergeResult struct {
+	OutputPath     string                            // Path to the merged output file
+	Command        []string                          // FFmpeg command used for merging
+	InputFilesByType map[MediaOutputType][]MediaOutputFile // Input files by type
+	Success        bool                              // Whether the merge was successful
+	Error          error                             // Error if the merge failed
+	Skipped        bool                              // Whether the merge was skipped
+	SkipReason     string                            // Reason for skipping the merge
+}
+
+// MergeOutputs combines all registered output files into a single video file
+func (tsk *Task) MergeOutputs(ctx context.Context) (*MergeResult, *ProcessingError) {
+	result := &MergeResult{
+		OutputPath: tsk.GetMergedOutputPath(),
+		Success:    false,
+		Skipped:    false,
+	}
+	
+	// Check if merging is disabled or no files to merge
+	if !tsk.MergeOutputFiles || len(tsk.OutputFiles) == 0 {
+		reason := "No files to merge"
+		if !tsk.MergeOutputFiles {
+			reason = "Merging disabled"
+		}
+		
+		tsk.Handler.ZeroLog().Debug().Msg("Output merging skipped - " + reason)
+		result.Skipped = true
+		result.SkipReason = reason
+		return result, nil
+	}
 
 	// Check if output already exists
-	if _, err := os.Stat(mergedOutput); err == nil {
-		tsk.Handler.ZeroLog().Info().Str("path", mergedOutput).Msg("Merged output file already exists, skipping merge")
-		return nil
+	if _, err := os.Stat(result.OutputPath); err == nil {
+		tsk.Handler.ZeroLog().Info().Str("path", result.OutputPath).Msg("Merged output file already exists, skipping merge")
+		result.Skipped = true
+		result.SkipReason = "Output file already exists"
+		return result, nil
 	}
 
 	tsk.Handler.ZeroLog().Info().Msg("Merging all output files...")
@@ -59,20 +172,30 @@ func (tsk *Task) MergeOutputs(ctx context.Context) (procErr *ProcessingError) {
 	// Prepare files for merging
 	filesToMerge, err := tsk.prepareFilesForMerging()
 	if err != nil {
-		return tsk.Handler.LogErr(err, AbortTask, "Failed to prepare files for merging")
+		result.Error = err
+		return result, tsk.Handler.LogErr(err, AbortTask, "Failed to prepare files for merging")
 	}
+	
+	result.InputFilesByType = filesToMerge
 
 	// Build merge command
-	mergeCmd := tsk.buildMergeCommand(filesToMerge, mergedOutput, ext)
+	mergeCmd := tsk.buildMergeCommand(filesToMerge, result.OutputPath, tsk.MergingFormat)
+	result.Command = mergeCmd
 	
 	// Execute merge
 	err = media.FFmpeg(mergeCmd...)
 	if err != nil {
-		return tsk.Handler.LogErr(err, AbortTask, "Failed to merge output files")
+		result.Error = err
+		return result, tsk.Handler.LogErr(err, AbortTask, "Failed to merge output files")
 	}
 
-	tsk.Handler.ZeroLog().Info().Str("output", mergedOutput).Msg("Successfully merged all output files")
-	return nil
+	result.Success = true
+	tsk.Handler.ZeroLog().Info().Str("output", result.OutputPath).Msg("Successfully merged all output files")
+	
+	// Register the merged output file
+	tsk.RegisterOutputFile(result.OutputPath, "merged", tsk.Targ, "merging", 100)
+	
+	return result, nil
 }
 
 // prepareFilesForMerging organizes and filters the files to be merged
@@ -85,10 +208,26 @@ func (tsk *Task) prepareFilesForMerging() (map[MediaOutputType][]MediaOutputFile
 	filesByType := make(map[MediaOutputType][]MediaOutputFile)
 	
 	// Always include original video as the base
+	// First ensure we have a valid UseAudiotrack (MediaInfo is a struct, not a pointer)
+	var langPtr *iso.Language
+	if len(tsk.Meta.MediaInfo.AudioTracks) > 0 && 
+		tsk.UseAudiotrack >= 0 && 
+		tsk.UseAudiotrack < len(tsk.Meta.MediaInfo.AudioTracks) {
+		
+		// Get language, defaulting to "und" if nil
+		langPtr = tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
+		if langPtr == nil {
+			langPtr = iso.FromPart3Code("und")
+		}
+	} else {
+		// Default to undefined language if we don't have valid track info
+		langPtr = iso.FromPart3Code("und")
+	}
+	
 	videoFile := MediaOutputFile{
 		Path:        tsk.MediaSourceFile,
 		Type:        OutputVideo,
-		Lang:        Lang{tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language, ""},
+		Lang:        Lang{langPtr, ""},
 		IsGenerated: false,
 		Feature:     "original",
 		Priority:    0,

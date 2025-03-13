@@ -92,7 +92,7 @@ func exitOnError(mainErr error) {
 	
 	_, err = crash.WriteReport(crash.ModeCrash, mainErr, settings, handler.GetLogBuffer(), false)
 	if err != nil {
-		color.Redf("failed to write crash report: %w", err)
+		color.Redf("failed to write crash report: %v", err)
 	}
 	os.Exit(1)
 }

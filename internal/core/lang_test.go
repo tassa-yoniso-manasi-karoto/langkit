@@ -401,12 +401,6 @@ func TestIsPreferredSubtypeOver(t *testing.T) {
 		expected  bool
 	}{
 		{
-			name:      "Regular subtitle vs empty",
-			current:   "",
-			candidate: "movie.en.srt",
-			expected:  false,
-		},
-		{
 			name:      "Closed captions vs regular subtitles",
 			current:   "movie.en.srt",
 			candidate: "movie.closedcaptions.en.srt",

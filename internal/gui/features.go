@@ -55,7 +55,7 @@ func (a *App) SendProcessingRequest(req ProcessRequest) {
 	
 	tsk.Handler.ZeroLog().Info().
 		Str("file", tsk.MediaSourceFile).
-		Str("mode", string(tsk.Mode)).
+		Int("mode", int(tsk.Mode)).
 		Msg("Starting processing")
 
 	pp.Println(req)

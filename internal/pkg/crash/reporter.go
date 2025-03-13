@@ -128,7 +128,7 @@ func (r *ReporterInstance) GetSnapshotsString() string {
 	if len(r.globalSnapshots) > 0 {
 		fmt.Fprintf(&b, "GLOBAL SNAPSHOTS\n")
 		fmt.Fprintf(&b, "================\n")
-		fmt.Fprintln(&b, "Note: In all snapshots, Handler is sanitized into nil to avoid clogging dumps.\n")
+		fmt.Fprint(&b, "Note: In all snapshots, Handler is sanitized into nil to avoid clogging dumps.\n\n")
 		
 		for i, snapshot := range r.globalSnapshots {
 			fmt.Fprintf(&b, "GLOBAL Snapshot #%d - %s\n", i+1, snapshot.Timestamp.Format(time.RFC3339))

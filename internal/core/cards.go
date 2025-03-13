@@ -137,9 +137,18 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	
 	// Merge all outputs if requested
 	if tsk.MergeOutputFiles && len(tsk.OutputFiles) > 0 {
-		if procErr := tsk.MergeOutputs(ctx); procErr != nil {
-			return procErr
-		}
+		mergeResult, procErr := tsk.MergeOutputs(ctx)
+			if procErr != nil {
+				return procErr
+			}
+			
+			// Log merge result information
+			if mergeResult != nil && !mergeResult.Skipped {
+				tsk.Handler.ZeroLog().Info().
+					Str("outputPath", mergeResult.OutputPath).
+					Bool("success", mergeResult.Success).
+					Msg("Output files merged successfully")
+			}
 	}
 	
 	tsk.Handler.ZeroLog().Info().Msg("Processing completed")

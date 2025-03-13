@@ -1,0 +1,198 @@
+package core
+
+import (
+	"testing"
+	
+	iso "github.com/barbashov/iso639-3"
+)
+
+// TestCombinedFeatures_EnhanceWithSTT tests enhancing audio and generating 
+// subtitles with speech-to-text
+func TestCombinedFeatures_EnhanceWithSTT(t *testing.T) {
+	TestSkipIfNoMediaFile(t)
+	
+	// Configuration for combined enhancement + STT
+	config := TaskConfig{
+		Mode:             Enhance,
+		UseMockProviders: true,
+		TargetLanguage:   Lang{Language: iso.FromPart2Code("ja")},
+		NativeLanguage:   Lang{Language: iso.FromPart2Code("en")},
+		
+		// Enhancement options
+		SeparationLib:    "demucs",
+		VoiceBoost:       13,
+		OriginalBoost:    -9,
+		Limiter:          0.9,
+		
+		// Speech-to-text options
+		STT:              "whisper",
+		TimeoutSTT:       300,
+		WantDubs:         true,
+		
+		// Merging options
+		MergeOutputFiles: true,
+		MergingFormat:    "mp4",
+	}
+	
+	// Expected outputs
+	expectations := TaskExpectation{
+		ShouldSucceed: true,
+		OutputFiles: map[string]bool{
+			"voiceEnhancing": true,
+		},
+		OutputExtensions: map[string]bool{
+			".ENHANCED.ogg": true,
+			".srt":          true,
+			".MERGED.mp4":   true,
+		},
+	}
+	
+	// Run the test
+	t.Run("EnhanceWithSTT", func(t *testing.T) {
+		RunTaskTest(t, config, expectations)
+	})
+}
+
+// TestCompleteWorkflow tests a complete workflow with multiple features
+func TestCompleteWorkflow(t *testing.T) {
+	TestSkipIfNoMediaFile(t)
+	TestSkipIfNoSubtitleFile(t)
+	
+	// Configuration for complete workflow: Subtitle cards + Transliteration + Enhancement + Merging
+	config := TaskConfig{
+		Mode:             Subs2Cards,
+		UseMockProviders: true,
+		TargetLanguage:   Lang{Language: iso.FromPart2Code("ja")},
+		NativeLanguage:   Lang{Language: iso.FromPart2Code("en")},
+		
+		// Card options
+		FieldSep:         "\t",
+		
+		// Transliteration options
+		WantTranslit:      true,
+		TranslitTypes:     []TranslitType{Romanize, Tokenize},
+		RomanizationStyle: "Hepburn",
+		
+		// Enhancement options
+		SeparationLib:     "demucs",
+		VoiceBoost:        13,
+		OriginalBoost:     -9,
+		Limiter:           0.9,
+		
+		// Output options
+		MergeOutputFiles: true,
+		MergingFormat:    "mkv",
+	}
+	
+	// Expected outputs
+	expectations := TaskExpectation{
+		ShouldSucceed: true,
+		OutputExtensions: map[string]bool{
+			".tsv":          true,
+			".romaji.srt":   true,
+			".tokenized.srt": true,
+			".ENHANCED.ogg": true,
+			".MERGED.mkv":   true,
+		},
+	}
+	
+	// Run the test
+	t.Run("CompleteWorkflow", func(t *testing.T) {
+		RunTaskTest(t, config, expectations)
+	})
+}
+
+// TestCustomizedAudioSettings tests audio enhancement with custom settings
+func TestCustomizedAudioSettings(t *testing.T) {
+	TestSkipIfNoMediaFile(t)
+	
+	// Configuration for different audio settings
+	config := TaskConfig{
+		Mode:             Enhance,
+		UseMockProviders: true,
+		TargetLanguage:   Lang{Language: iso.FromPart2Code("en")},
+		
+		// Custom audio settings
+		SeparationLib:    "elevenlabs",
+		VoiceBoost:       18,    // Higher boost
+		OriginalBoost:    -14,   // Lower original
+		Limiter:          0.7,   // Stronger limiting
+		TargetChannels:   1,     // Mono output
+		MergingFormat:    "flac", 
+	}
+	
+	// Expected outputs
+	expectations := TaskExpectation{
+		ShouldSucceed: true,
+		OutputExtensions: map[string]bool{
+			".ELEVENLABS.mp3": true,
+		},
+	}
+	
+	// Run the test
+	t.Run("CustomAudioSettings", func(t *testing.T) {
+		RunTaskTest(t, config, expectations)
+	})
+}
+
+// TestTranslitWithMultipleStyles tests transliteration with multiple output styles
+func TestTranslitWithMultipleStyles(t *testing.T) {
+	TestSkipIfNoMediaFile(t)
+	TestSkipIfNoSubtitleFile(t)
+	
+	// Configuration for multiple transliteration styles
+	config := TaskConfig{
+		Mode:               Translit,
+		UseMockProviders:   true,
+		TargetLanguage:     Lang{Language: iso.FromPart2Code("ja")},
+		NativeLanguage:     Lang{Language: iso.FromPart2Code("en")},
+		WantTranslit:       true,
+		TranslitTypes:      []TranslitType{Romanize, Tokenize, Selective},
+		RomanizationStyle:  "Hepburn",
+		KanjiThreshold:     50,  // Selective mode threshold
+	}
+	
+	// Expected outputs 
+	expectations := TaskExpectation{
+		ShouldSucceed: true,
+		OutputExtensions: map[string]bool{
+			".romaji.srt":    true,
+			".tokenized.srt": true,
+			".selective.srt": true,
+		},
+	}
+	
+	// Run the test
+	t.Run("MultipleTranslitStyles", func(t *testing.T) {
+		RunTaskTest(t, config, expectations)
+	})
+}
+
+// TestCardsWithCustomDelimiter tests generating flashcards with custom delimiter
+func TestCardsWithCustomDelimiter(t *testing.T) {
+	TestSkipIfNoMediaFile(t)
+	TestSkipIfNoSubtitleFile(t)
+	
+	// Configuration for custom delimiter
+	config := TaskConfig{
+		Mode:             Subs2Cards,
+		UseMockProviders: true,
+		TargetLanguage:   Lang{Language: iso.FromPart2Code("ja")},
+		NativeLanguage:   Lang{Language: iso.FromPart2Code("en")},
+		FieldSep:         "|",         // Custom delimiter
+		OutputExtension:  ".csv",      // Custom extension
+	}
+	
+	// Expected outputs
+	expectations := TaskExpectation{
+		ShouldSucceed: true,
+		OutputExtensions: map[string]bool{
+			".csv": true,
+		},
+	}
+	
+	// Run the test
+	t.Run("CustomDelimiter", func(t *testing.T) {
+		RunTaskTest(t, config, expectations)
+	})
+}

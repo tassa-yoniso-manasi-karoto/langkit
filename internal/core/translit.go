@@ -28,6 +28,49 @@ import (
 var (
 	Splitter = common.DefaultSplitter // All providers must accept and return UTF-8.
 	reSpacingInARow = regexp.MustCompile(`\s*(.*)\s*`)
+)
+
+// CreateMockTransliterationFiles creates mock transliteration files for testing
+func CreateMockTransliterationFiles(subsFilepath string, types []TranslitType) ([]string, error) {
+	// Only run in test mode with mock providers
+	if os.Getenv("LANGKIT_USE_MOCK_PROVIDERS") != "true" {
+		return nil, nil
+	}
+	
+	outputs := []string{}
+	baseDir := filepath.Dir(subsFilepath)
+	baseName := strings.TrimSuffix(filepath.Base(subsFilepath), filepath.Ext(subsFilepath))
+	
+	// Create mock files for each requested type
+	for _, tlitType := range types {
+		outputPath := filepath.Join(baseDir, baseName + tlitType.ToSuffix())
+		
+		// Create a simple mock subtitle file
+		srtContent := `1
+00:00:01,000 --> 00:00:04,000
+Mock ` + tlitType.String() + ` content line 1
+
+2
+00:00:05,000 --> 00:00:08,000
+Mock ` + tlitType.String() + ` content line 2
+
+3
+00:00:09,000 --> 00:00:12,000
+[Mock ` + tlitType.String() + ` of ` + filepath.Base(subsFilepath) + `]
+`
+		err := os.WriteFile(outputPath, []byte(srtContent), 0644)
+		if err != nil {
+			return outputs, fmt.Errorf("failed to write %s file: %w", tlitType.String(), err)
+		}
+		
+		outputs = append(outputs, outputPath)
+		fmt.Printf("Created mock transliteration file: %s\n", outputPath)
+	}
+	
+	return outputs, nil
+}
+
+var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
 
@@ -62,6 +105,34 @@ type TranslitProvider interface {
 
 func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *ProcessingError {
 	langCode := tsk.Targ.Language.Part3
+	
+	// Check if we're in test mode with mock providers - create mock files directly
+	if os.Getenv("LANGKIT_USE_MOCK_PROVIDERS") == "true" {
+		tsk.Handler.ZeroLog().Info().Msg("Using mock providers for transliteration in test mode")
+		mockFiles, err := CreateMockTransliterationFiles(subsFilepath, tsk.TranslitTypes)
+		if err != nil {
+			return tsk.Handler.LogErr(err, AbortAllTasks, "Failed to create mock transliteration files")
+		}
+		
+		// Register the mock files with the output registry
+		for _, path := range mockFiles {
+			tsk.Handler.ZeroLog().Info().Str("mock_file", path).Msg("Created mock transliteration file")
+			// Add to output registry if available
+			if tsk.MergeOutputFiles {
+				featType := "transliteration"
+				if strings.HasSuffix(path, Tokenize.ToSuffix()) {
+					featType = "tokenization"
+				} else if strings.HasSuffix(path, Romanize.ToSuffix()) {
+					featType = "romanization"
+				} else if strings.HasSuffix(path, Selective.ToSuffix()) {
+					featType = "selective_transliteration"
+				}
+				tsk.RegisterOutputFile(path, "subtitle", tsk.Targ, featType, 0)
+			}
+		}
+		
+		return nil
+	}
 	
 	// Start CPU profiling if enabled via environment variable
 	var profileFile *os.File

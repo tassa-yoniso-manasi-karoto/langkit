@@ -55,7 +55,7 @@ func exitOnError(tsk *core.Task, mainErr error) {
 	
 	crashPath, err := crash.WriteReport(crash.ModeCrash, mainErr, settings, tsk.Handler.GetLogBuffer(), true)
 	if err != nil {
-		color.Redf("failed to write crash report: %w", err)
+		color.Redf("failed to write crash report: %v", err)
 	}
 	tsk.Handler.ZeroLog().Fatal().
 		Err(mainErr).
