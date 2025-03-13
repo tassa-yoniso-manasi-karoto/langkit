@@ -159,7 +159,6 @@
         {#if !mediaSource}
             <!-- No media selected state -->
             <div class="text-primary/80 flex flex-col items-center justify-center gap-2 py-1">
-                <span class="material-icons text-2xl">file_upload</span>
                 <div class="flex items-center flex-wrap justify-center gap-1 text-sm text-gray-300">
                     <span>Drag &amp; drop here or select</span>
                     <button 

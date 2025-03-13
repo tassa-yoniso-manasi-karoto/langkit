@@ -1,5 +1,6 @@
 
 - NORMALIZE / BALANCE UI COLORS
+- adjust feature loading time
 - closedcaptions trimming: does it still impact or not?
 - crash reports add snapshots of tsk throughout code
 - manual GUI tests
@@ -7,6 +8,8 @@
 - translitkit close
 - fix newlines in builtin documentation
 - Update README
+- Update icon
+- Browse Fixme
 
 *later:*
 
