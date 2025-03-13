@@ -22,6 +22,10 @@ export default {
         primary: violet,      // soft violet
         secondary: '#7851a9', // royal purple, darker than soft violet
         pink: pink,           // complementary pink for gradients
+        'error-card-bg': '#281937',    // slightly purplish dark background for error cards
+        'error-card-hover': '#321e41', // slightly lighter for hover state
+        'tooltip-bg': '#1c1c24',        // dark background for tooltips
+        'tooltip-border': '#3b3167',    // border color for tooltips
         accent: {
           50: '#fffce5',
           100: '#fffacc',

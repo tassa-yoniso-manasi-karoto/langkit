@@ -45,9 +45,8 @@
             if (error.action) {
                 if (error.id === 'no-media') {
                     console.debug('Suggestion: Please click the drop zone to select a media file.');
-                } else {
-                    error.action.handler();
                 }
+                error.action.handler();
             }
         };
     }
@@ -59,47 +58,51 @@
 
 <Portal target="body">
     <div
-        class="fixed transform -translate-x-1/2 -translate-y-full z-[1000]"
+        class="fixed transform -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none"
         style="left: {position.x}px; top: {position.y}px;"
-        in:fade={{ duration: 150 }}
-        out:fade={{ duration: 100 }}
+        in:fade={{ duration: 280, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }}
+        out:fade={{ duration: 180, easing: (t) => t * t }}
     >
-        <div class="backdrop-blur-sm bg-[rgba(100,0,0,0.85)] text-white border border-[rgba(255,255,255,0.2)] rounded p-4 min-w-[280px] max-w-[400px] transition-colors duration-200 font-sans shadow-lg shadow-red-900/50">
-            <div class="text-sm font-bold mb-2">
+        <div class="backdrop-blur-md bg-tooltip-bg/85 bg-gradient-to-br from-secondary/30 to-bg/90 text-white border border-primary/20 rounded-lg p-4 min-w-[280px] max-w-[400px] transition-all duration-200 font-sans shadow-lg shadow-primary/20 pointer-events-auto">
+            <div class="text-sm font-medium mb-3 text-gray-300 flex items-center gap-2">
                 {#if groupedErrors.length > 0 && groupedErrors[0].errors.length > 0}
-                    {groupedErrors[0].errors.length} {groupedErrors[0].errors.length === 1 ? 'problem' : 'problems'} to resolve:
+                    <span class="material-icons text-primary text-xl">notification_important</span>
+                    <span>
+                        {groupedErrors[0].errors.length} {groupedErrors[0].errors.length === 1 ? 'item' : 'items'} to address
+                    </span>
                 {/if}
             </div>
-            <ul class="list-none p-0 m-0">
-                {#each groupedErrors[0].errors as error (error.id)}
-                    <li class="bg-[rgba(150,0,0,0.6)] border border-[rgba(255,255,255,0.2)] rounded p-2 mb-2 transition-colors duration-200 cursor-pointer relative hover:bg-[rgba(150,0,0,0.45)]"
+            <ul class="list-none p-0 m-0 pointer-events-auto">
+                {#each groupedErrors[0]?.errors || [] as error (error.id)}
+                    <li class="bg-error-card-bg/85 backdrop-blur-sm border border-pink/20 rounded-md p-3 mb-3 transition-all duration-200 cursor-pointer relative hover:bg-error-card-hover shadow-md"
                         on:click={handleErrorClick(error)}
                         in:slide|local={{ duration: 150 }}
                         animate:flip={{ duration: 200 }}>
                         <div class="flex items-center gap-2">
-                            <span class="material-icons text-[18px]">
+                            <span class="material-icons text-[18px] text-pink">
                                 {getSeverityIcon(error.severity)}
                             </span>
-                            <span class="text-sm">{error.message}</span>
+                            <span class="text-sm font-medium text-gray-300">{error.message}</span>
                         </div>
                         {#if error.action}
-                            <div class="mt-1 text-xs text-[#ffcccb] font-bold">
+                            <div class="mt-2 text-xs flex items-center gap-1 text-gray-400 font-medium">
+                                <span class="text-[10px] material-icons text-pink/80">touch_app</span>
                                 {#if error.id === 'no-media'}
-                                    Click to select a media file.
+                                    Please click the drop zone to select a media file.
                                 {:else}
                                     {error.action.label}
                                 {/if}
                             </div>
                         {/if}
                         {#if error.dismissible}
-                            <button class="absolute top-1 right-1 bg-transparent border-none cursor-pointer hover:opacity-80" on:click|stopPropagation={() => errorStore.removeError(error.id)}>
-                                <span class="material-icons">close</span>
+                            <button class="absolute top-2 right-2 bg-transparent border-none cursor-pointer opacity-70 hover:opacity-100 hover:text-pink" on:click|stopPropagation={() => errorStore.removeError(error.id)}>
+                                <span class="material-icons text-[16px]">close</span>
                             </button>
                         {/if}
                     </li>
                 {/each}
             </ul>
-            <div class="absolute left-1/2 bottom-[-6px] transform -translate-x-1/2 rotate-45 w-3 h-3 bg-[rgba(150,0,0,0.35)] border-l border-l-[rgba(255,255,255,0.2)] border-b border-b-[rgba(255,255,255,0.2)]"></div>
+            <div class="absolute left-1/2 bottom-[-6px] transform -translate-x-1/2 rotate-45 w-3 h-3 bg-tooltip-bg border-l border-l-primary/20 border-b border-b-primary/20"></div>
         </div>
     </div>
 </Portal>
@@ -107,12 +110,55 @@
 <style>
     /* Add a subtle pulse animation to the tooltip to draw attention */
     @keyframes subtle-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.2); }
-        70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        0% { box-shadow: 0 0 0 0 rgba(159, 110, 247, 0.15); }
+        70% { box-shadow: 0 0 0 10px rgba(159, 110, 247, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(159, 110, 247, 0); }
     }
     
+    /* Add a subtle float animation for a more dynamic feel */
+    @keyframes subtle-float {
+        0% { transform: translateY(0); }
+        50% { transform: translateY(-2px); }
+        100% { transform: translateY(0); }
+    }
+    
+    /* Apply both animations to the tooltip container */
     div > div {
-        animation: subtle-pulse 2s infinite;
+        animation: subtle-pulse 4s infinite, subtle-float 5s ease-in-out infinite;
+        will-change: transform, box-shadow;
+        transform-origin: center bottom;
+    }
+    
+    /* Add a subtle hover effect to list items */
+    li {
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    li:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 110, 199, 0.2);
+    }
+    
+    /* Smooth scrolling for the tooltip content */
+    ul {
+        scroll-behavior: smooth;
+        max-height: 65vh;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(180, 180, 255, 0.3) transparent;
+    }
+    
+    /* Custom scrollbar styling */
+    ul::-webkit-scrollbar {
+        width: 5px;
+    }
+    
+    ul::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    ul::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 110, 199, 0.3);
+        border-radius: 20px;
     }
 </style>

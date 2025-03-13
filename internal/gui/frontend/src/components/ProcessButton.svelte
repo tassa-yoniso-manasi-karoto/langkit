@@ -16,7 +16,6 @@
     let errors = [];
     const unsubscribe = errorStore.subscribe((val) => {
         errors = val;
-        console.debug('ProcessButton: current errors', errors.length > 0 ? errors : 'none');
         
         // Auto-update tooltip position based on button position when errors change
         // This ensures tooltip is properly positioned even with deferred loading
@@ -95,7 +94,7 @@
             const rect = buttonRef.getBoundingClientRect();
             tooltipPosition = {
                 x: rect.left + rect.width / 2,
-                y: rect.top - 10
+                y: rect.top - 15  // Position tooltip further from button to prevent flicker
             };
         }
     }
@@ -110,8 +109,6 @@
                 updateTooltipPositionFromButton();
             }
         });
-        
-        // We don't need a periodic check anymore since we only show on hover
         
         // Initialize button position for tooltip if needed
         if (buttonRef) {
@@ -158,8 +155,6 @@
         <div
             class="fixed z-[1000] transform -translate-x-1/2 -translate-y-full"
             style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px;"
-            in:fade={{ duration: 200 }}
-            out:fade={{ duration: 150 }}
         >
             <ProcessErrorTooltip position={tooltipPosition} />
         </div>

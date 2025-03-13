@@ -74,73 +74,48 @@
     // Deferred loading state for feature selector - wait for main UI to render first
     let showFeatureSelector = false;
 
-    // Optimized reactive error management - track previous values to only update when needed
-    let prevMediaSource = null;
-    let prevFeaturesSelected = false;
-    let prevNativeLanguages = null;
-    
-    // Throttle error updates to prevent too many updates in succession
-    function throttledErrorUpdate() {
-        // Check media source changes
-        if (prevMediaSource !== mediaSource) {
-            if (!mediaSource) {
-                errorStore.addError({
-                    id: "no-media",
-                    message: "No media file selected",
-                    severity: "critical",
-                    action: {
-                        label: "Select Media",
-                        handler: () => document.querySelector(".drop-zone")?.click()
-                    }
-                });
-            } else {
-                errorStore.removeError("no-media");
-            }
-            prevMediaSource = mediaSource;
-        }
-
-        // Check feature selection changes
-        const featuresSelected = Object.values(selectedFeatures).some(v => v);
-        if (prevFeaturesSelected !== featuresSelected) {
-            if (!featuresSelected) {
-                errorStore.addError({
-                    id: "no-features",
-                    message: "Select at least one processing feature",
-                    severity: "critical"
-                });
-            } else {
-                errorStore.removeError("no-features");
-            }
-            prevFeaturesSelected = featuresSelected;
-        }
-
-        // Check native languages changes
-        if (prevNativeLanguages !== $settings.nativeLanguages) {
-            if (!$settings.nativeLanguages) {
-                errorStore.addError({
-                    id: "no-native-lang",
-                    message: "Configure native languages in settings",
-                    severity: "warning",
-                    action: {
-                        label: "Open Settings",
-                        handler: () => $showSettings = true
-                    }
-                });
-            } else {
-                errorStore.removeError("no-native-lang");
-            }
-            prevNativeLanguages = $settings.nativeLanguages;
+    // Reactive error management
+    $: {
+        if (!mediaSource) {
+            errorStore.addError({
+                id: "no-media",
+                message: "No media file selected",
+                severity: "critical",
+                action: {
+                    label: "Select Media",
+                    handler: () => document.querySelector(".drop-zone")?.click()
+                }
+            });
+        } else {
+            errorStore.removeError("no-media");
         }
     }
     
-    // Handle all error updates in a single reactive statement with RAF for performance
     $: {
-        if (mediaSource !== prevMediaSource || 
-            Object.values(selectedFeatures).some(v => v) !== prevFeaturesSelected ||
-            $settings.nativeLanguages !== prevNativeLanguages) {
-            
-            // Use requestAnimationFrame to batch updates to the next frame
-            requestAnimationFrame(throttledErrorUpdate);
+        if (!Object.values(selectedFeatures).some(v => v)) {
+            errorStore.addError({
+                id: "no-features",
+                message: "Select at least one processing feature",
+                severity: "critical"
+            });
+        } else {
+            errorStore.removeError("no-features");
+        }
+    }
+    
+    $: {
+        if (!$settings.nativeLanguages) {
+            errorStore.addError({
+                id: "no-native-lang",
+                message: "Configure native languages in settings",
+                severity: "warning",
+                action: {
+                    label: "Open Settings",
+                    handler: () => $showSettings = true
+                }
+            });
+        } else {
+            errorStore.removeError("no-native-lang");
         }
     }
 
