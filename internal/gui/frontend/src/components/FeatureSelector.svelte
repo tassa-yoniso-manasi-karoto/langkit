@@ -826,7 +826,7 @@
     </div>
     
     <!-- Feature cards container - only rendered after data is fully loaded -->
-    <div class="space-y-4">
+    <div class="space-y-4 overflow-visible">
         {#if isInitialDataLoaded}
             {#each features.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
                 <div 
@@ -836,9 +836,10 @@
                         easing: cubicOut,
                         opacity: 0
                     }}
-                    style="will-change: transform, opacity; contain: content;"
+                    style="will-change: transform, opacity; overflow: visible;"
+                    class="px-0 my-2"
                 >
-                    <div data-feature-id={feature.id}>
+                    <div data-feature-id={feature.id} class="overflow-visible">
                         <FeatureCard
                             {feature}
                             enabled={selectedFeatures[feature.id]}

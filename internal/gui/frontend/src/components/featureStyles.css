@@ -10,6 +10,71 @@
               4px 4px 12px -2px rgba(159, 110, 247, 0.25);
 }
 
+
+/* Enhanced hover effect for material cards */
+.feature-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, box-shadow;
+    /* Gradient from top-left (purplish) to bottom-right - reduced opacity */
+    background: linear-gradient(
+        135deg, 
+        rgba(170, 130, 240, 0.08) 0%,
+        rgba(50, 50, 55, 0.2) 100%
+    ) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    border-right: 1px solid rgba(159, 110, 247, 0.15);
+    border-bottom: 1px solid rgba(159, 110, 247, 0.15);
+    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.2),
+              4px 4px 8px -2px rgba(159, 110, 247, 0.1);
+}
+
+.feature-card[aria-checked="true"] {
+    transform: scale(1.009);
+    /* Inverted gradient for selected - reduced opacity */
+    background: linear-gradient(
+        135deg, 
+        rgba(170, 130, 240, 0.05) 0%,
+        rgba(50, 50, 55, 0.12) 100%
+    ) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 2px solid rgba(159, 110, 247, 0.3);
+    border-bottom: 2px solid rgba(159, 110, 247, 0.3);
+    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.25),
+              4px 4px 12px -2px rgba(159, 110, 247, 0.2);
+}
+
+.feature-card:hover:not(.disabled) {
+    transform: translateY(-1px) scale(1.012);
+    /* Inverted gradient for hover - reduced opacity */
+    background: linear-gradient(
+        135deg, 
+        rgba(175, 140, 245, 0.07) 0%,
+        rgba(55, 55, 60, 0.13) 100%
+    ) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 2.5px solid rgba(159, 110, 247, 0.35);
+    border-bottom: 2.5px solid rgba(159, 110, 247, 0.35);
+    box-shadow: 2px 2px 12px 1px rgba(159, 110, 247, 0.2);
+    z-index: 5;
+    transform-origin: center center;
+    position: relative;
+    overflow: visible !important;
+    margin: 0;
+}
+
+
+@keyframes glow-pulse {
+    0% {
+        box-shadow: 0 0 8px 1px rgba(159, 110, 247, 0.25);
+    }
+    100% {
+        box-shadow: 0 0 12px 3px rgba(159, 110, 247, 0.35);
+    }
+}
+
 /* Animation for cards */
 @keyframes shake {
     0%, 100% { transform: translateX(0) translateY(0); }
@@ -29,18 +94,6 @@
 }
 
 
-/* Hover animation for cards */
-@keyframes pulse-border {
-    0% {
-        box-shadow: 0 0 0 0 rgba(159, 110, 247, 0.4);
-    }
-    70% {
-        box-shadow: 0 0 0 6px rgba(159, 110, 247, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(159, 110, 247, 0);
-    }
-}
 
 /* Material ripple effect styles */
 .ripple {
@@ -69,16 +122,4 @@
     transform: scale(0, 0);
     opacity: 0.3;
     transition: 0s;
-}
-
-/* Enhanced hover effect for material cards */
-.feature-card {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: transform, box-shadow;
-}
-
-.feature-card:hover:not(.disabled) {
-    transform: translateY(-1px) scale(1.005);
-    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.35),
-              4px 4px 16px -2px rgba(159, 110, 247, 0.3);
 }

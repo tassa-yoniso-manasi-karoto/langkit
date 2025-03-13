@@ -354,7 +354,7 @@
 
 <div class="feature-card bg-white/5 rounded-lg
            transition-all duration-300 ease-out transform ripple
-           relative overflow-hidden
+           relative {enabled ? '' : 'overflow-hidden'}
            {isFeatureDisabled ? 'disabled opacity-50 cursor-not-allowed' : 'hover:shadow-glow-hover'}"
      class:shadow-glow-strong={enabled && !anyFeatureSelected}
      class:shadow-glow={enabled}
