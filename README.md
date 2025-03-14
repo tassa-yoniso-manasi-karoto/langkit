@@ -14,15 +14,15 @@ Langkit is an all-in-one tool designed to **facilitate language learning from na
 ### Features
 
 - **Subs2cards**: Make Anki cards from subtitle timecodes like subs2srs
-- **Making dubtitles**²: Make a subtitle file of dubs using Speech-To-Text
+- **Making dubtitles¹**: Make a subtitle file of dubs using Speech-To-Text
 - **Voice enhancing**: Make voices louder than Music&Effects 
-- **Subtitle romanization**: Convert subtitles into a roman character version as phonetically accurate as possible¹
-- **Subtitle tokenization**: Separate the words with spaces for languages which typically don't use spaces
+- **Subtitle romanization²**
+- **Subtitle tokenization**: Separate words with spaces for languages which don't use spaces
 - **Selective transliteration**: selective transliteration of subtitles based on [logogram](https://en.wikipedia.org/wiki/Logogram) frequency. Currently only japanese Kanjis are supported. Kanji with a frequency rank below the user-defined frequency threshold and regular readings are preserved, while others are converted to hiragana.
 
-<sub> ¹ for the list of supported languages by the transliteration feature see [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators) </sub>
+<sub> ¹ 'dubtitles' is a *subtitle file that matches the dubbing lines exactly*. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sup>
 
-<sup> ² 'dubtitles' is a ***subtitle file that matches the dubbing lines exactly***. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sup>
+<sup> ² for the list of supported languages by the transliteration feature see [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators) </sub>
 <br>
 <br>
 
@@ -30,7 +30,7 @@ Langkit is an all-in-one tool designed to **facilitate language learning from na
 > Some features require an API key because certain processing tasks, such as speech-to-text, audio enhancement, are outsourced to an external provider like Replicate. These companies offer cloud-based machine learning models that handle complex tasks remotely, allowing Langkit to leverage the models without requiring local computation. <br> The cost of running a few of these tasks using open source models is typically very low. 
 
 > [!WARNING]
-> ⚠️ **on Feature Combinations**: langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior. Users are encouraged to **report any issues encountered either with the debug info exported from the Setting panel or with the crash report log**, especially when utilizing less common or more intricate feature combinations.
+> ⚠️ **about Feature Combinations**: langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior. Users are encouraged to **report any issues encountered either with the debug info exported from the Setting panel or with the crash report log**, especially when utilizing less common or more intricate feature combinations.
 
 # tldr cli
 
@@ -54,23 +54,37 @@ $ langkit subs2dubs --stt whisper media.mp4 (media.th.srt) -l "th"
 $ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs --translit
 ```
 
-# Extra features compared to subs2srs
+# Features in detail
 
-## Default encoding to OPUS / AVIF
-Use modern codecs to save storage. The image/audio codecs which langkit uses are state-of-the-art and are currently in active development.
+### Subs2cards
+Subs2cards converts your favorite TV shows and movies directly into Anki flashcards by extracting dialogues, images, and audio clips based on subtitle timecodes. It's ideal for  sentence mining and context-aware word memorization. 
 
-The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
-
-## Automatic Speech Recognition / Speech-to-Text support
-Dubbings can't be used with subtitles in the old subs2srs unless said subs are closed captions or dubtitles.<br>
-With the flag <kbd>--stt</kbd> you can use [Whisper](https://github.com/openai/whisper) (v3-large) on the audio clips corresponding to timecodes of the subtitles to get the transcript of the audio and then, have it replace the translation of the subtitles. AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
-
-By default **a dubtitle file will also be created from these transcriptions.**
 <details>
 <summary> 
-
-#### Side-by-side comparison table
+    
+#### Details
 </summary>
+
+#### Extra features compared to subs2srs
+
+- **Default encoding to OPUS / AVIF**: Use modern codecs to save storage. The image/audio codecs which langkit uses are state-of-the-art and are currently in active development.
+- **Parallelization / multi-threading by default**: By default all CPU cores available are used. You can reduce CPU usage by passing a lower ```--workers``` value than the default.
+- **Bulk / recursive directory processing**: if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
+
+</details>
+
+### Dubtitles
+Creates accurate subtitle files specifically synchronized with dubbed audio tracks using speech-to-text. This addresses the common mismatch between subtitle translations and audio dubs, ensuring text follows closely spoken dialogue.
+
+<details>
+<summary> 
+    
+#### Details
+</summary>
+
+By default **a dubtitle file will also be created from these transcriptions.**
+
+AFAIK Language Reactor was the first to combine this with language learning from content however I found the accuracy of the STT they use to be unimpressive.
     
 | Name (to be passed with --stt) | Word Error Rate average across all supported langs (june 2024) | Number of languages supported        | Price        | Type        | Note                                                                                                                                                                                                                                                                                                                   |
 |--------------------------------|-----------------|-------------------------------------------------------------------------------------|--------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -80,66 +94,81 @@ By default **a dubtitle file will also be created from these transcriptions.**
 
 See  [ArtificialAnalysis](https://artificialanalysis.ai/speech-to-text) and [Amgadoz @Reddit](https://www.reddit.com/r/LocalLLaMA/comments/1brqwun/i_compared_the_different_open_source_whisper/) for detailed comparisons.
 
-
 Note: OpenAI just released a [turbo](https://github.com/openai/whisper/discussions/1762) model of large-v3 but they say it's on a par with large-v2 as far as accuracy is concerned so I won't bother to add it.
+
 
 </details>
 
-## Condensed Audio
-langkit will automatically **make an audio file containing all the audio snippets of dialog** in the audiotrack. <br>
-This is meant to be used for passive listening. <br>
-More explanations and context here: [Optimizing Passive Immersion: Condensed Audio - YouTube](https://www.youtube.com/watch?v=QOLTeO-uCYU)
+### Voice Enhancing
 
-## Enhanced voice audiotrack
-**Make a new audiotrack with voices louder**. This is very useful for languages that are phonetically dense, such as tonal languages, or for languages that sound very different from your native language.<br>
-<br>
-It works by merging the original audiotrack with an audiotrack containing the voices only.
-<br>
-The separated voices are obtained using one of these:
+Boosts clarity of speech in audio tracks by amplifying voices while reducing background music and effects. Ideal for learners who struggle with distinguishing words clearly, particularly useful for tonal languages or when studying languages with dense or unfamiliar phonetic patterns.
+
 <details>
 <summary> 
-
-#### Side-by-side comparison table
+    
+#### Details
 </summary>
+This feature works by merging the original audiotrack with negative gain together with an audiotrack containing the voices only with additional gain.
+
+The isolated voice track are obtained using one of these:
 
 | Name (to be passed with --sep) | Quality of separated vocals | Price                               | Type        | Note                                                                                                                                 |
 |--------------------------------|-----------------------------|-------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------|
 | demucs, de                     | good                        | very cheap 0.063$/run               | MIT license | **Recommended**                                                                                                            |
 | demucs_ft, ft                  | good                        | cheap 0.252$/run                    | MIT license | Fine-tuned version: "take 4 times more time but might be a bit better". I couldn't hear any difference with the original in my test. | 
 | spleeter, sp                   | rather poor                 | very, very cheap 0.00027$/run       | MIT license |                                                                                                                                      |
-| elevenlabs, 11, el             | good                        | very, very expensive<br>1$/*MINUTE* | proprietary | Not fully supported due to limitations of their API (mp3 only) which desync the processed audio with the original.<br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
+| elevenlabs, 11, el             | good                        | very, very expensive<br>1$/*MINUTE* | proprietary | Not supported on the GUI. Not fully supported on the CLI due to limitations of their API (mp3 only) which desync the processed audio with the original.<br> **Requires an Elevenlabs API token.** <br> Does more processing than the others: noises are entirely eliminated, but it distort the soundstage to put the voice in the center. It might feel a bit uncanny in an enhanced track. |
 
 </details>
 
-> [!NOTE]
-> demucs and spleeter are originally meant for _songs_ (ie. tracks a few minutes long) and the GPUs allocated by Replicate to these models are not the best. You may encounter _OOM GPU (out of memory) errors_ when trying to process audio tracks of movies. As far as my testing goes, trying a few hours later solves the problem.<br> Replicate also offers to make deployments with a GPU of one's choice, but this isn't cost-effective or user-friendly so it probably won't ever be supported.
+### Subtitle romanization
+Convert subtitles into a roman character version as phonetically accurate as possible
+
+### Subtitle tokenization
+
+Separate words with spaces for languages which don't use spaces
+
+### Selective Kanji Transliteration
+
+Automatically transliterates Japanese subtitles from kanji into hiragana based on user-defined frequency thresholds and phonetic regularity. This feature helps Japanese learners focus on common kanji by selectively converting rarer or irregular characters into easier-to-read hiragana, facilitating incremental kanji learning and smoother immersion into native content.
+
+<details>
+<summary> 
+    
+#### Details
+</summary>
+The frequency list comes from 6th edition of "Remembering the Kanji" by James W. Heisig and supports the most 3000 frequent Kanjis.
+</details>
 
 
+<!-- ## (⚠️fixme⚠️) Condensed Audio
+langkit will automatically **make an audio file containing all the audio snippets of dialog** in the audiotrack. <br>
+This is meant to be used for passive listening. <br>
+More explanations and context here: [Optimizing Passive Immersion: Condensed Audio - YouTube](https://www.youtube.com/watch?v=QOLTeO-uCYU) -->
 
-## Parallelization / multi-threading by default
-By default all CPU cores available are used. You can reduce CPU usage by passing a lower ```--workers``` value than the default.
-
-## Bulk / recursive directory processing
-...if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
 
 # Requirements
 This fork require FFmpeg **v6 or higher (dev builds being preferred)**, Mediainfo, a [Replicate](https://replicate.com/home) API token.
 
 The FFmpeg dev team recommends end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). The FFmpeg binary's location can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is.
 
+The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
+
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
 
 # FAQ
+
 <details>
 <summary> 
 
-#### Why isn't there the possibility to run the speech-to-text / voice separation locally if I want to?
+#### Why isn't there the possibility to run the speech-to-text or voice separation locally if I want to?
 </summary>
+
 Because I only have a 10 year old Pentium CPU with a graphic chipset.
 </details>
 <details>
 <summary> 
-
+    
 #### Why use subs2srs approach nowdays?
 </summary>
 
@@ -156,65 +185,7 @@ There are several additional tools I made to accomplish this but they are hardco
 **Future developement could entirely automate the process of making cards described above using LLMs.**
 </details>
 
-
-# Aknowledgements
-Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
-
-
-# License
-All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
-
-
-See original README of bunkai below for the basic features: <br>
-<hr>
-<br><br><br>
-
-Dissects subtitles and corresponding media files into flash cardsfor [sentence mining][1] with an [SRS][2] system like [Anki][3]. It is inspired
-by the linked article on sentence mining and [existing tools][4], which you
-might want to check out as well.
-
-[1]: https://web.archive.org/web/20201220134528/https://massimmersionapproach.com/table-of-contents/stage-1/jp-quickstart-guide/
-[2]: https://en.wikipedia.org/wiki/Spaced_repetition
-[3]: https://ankiweb.net/
-[4]: #known-alternatives
-
-## Features
-- **One or two subtitle files**: Two subtitle files can be used together to
-  provide foreign and native language expressions on the same card.
-- **Multiple subtitle formats**: Any format which is supported by [go-astisub][5]
-  is also supported by this application, although some formats may work slightly
-  better than others. If in doubt, try to use `.srt` subtitles.
-
-[5]: https://github.com/asticode/go-astisub
-
-## Installation
-There is no proper release process at this time, nor a guarantee of stability
-of any sort, as I'm the only user of the software that I am aware of. For now,
-you must install the application from source.
-
-Requirements:
-- `go` command in `PATH` (only to build and install the application)
-- `ffmpeg` command in `PATH` (used at runtime)
-
-```bash
-go get github.com/tassa-yoniso-manasi-karoto/langkit
-```
-
-## Usage
-langkit is mainly used to generate flash cards from one or two subtitle files
-and a corresponding media file.
-
-For example:
-
-```bash
-langkit subs2cards media-content.mp4 foreign.srt native.srt
-```
-
-The above command generates the tab-separated file `foreign.tsv` and a
-corresponding directory `foreign.media/` containing the associated images and
-audio files. To do sentence mining, import the file `foreign.tsv` into a new
-deck and then, at least in the case of Anki, copy the media files manually into
-Anki's [collection.media directory](https://apps.ankiweb.net/docs/manual.html#file-locations).
+## Output
 
 Before you can import the deck with Anki though, you must add a new
 [Note Type](https://docs.ankiweb.net/#/editing?id=adding-a-note-type)
@@ -242,23 +213,10 @@ either too hard or too easy should be deleted in this pass. Any cards which
 remain in the imported deck after mining should be refined and moved into your
 regular deck for studying the language on a daily basis.
 
-For other uses, run `langkit --help` to view the built-in documentation.
 
-## Subtitle editors
-The state of affairs when it comes to open-source subtitle editors is a sad
-one, but here's a list of editors which may or may not work passably. If you
-know a good one, please let me know!
+# Aknowledgements
+Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
 
-| Name | Platforms | Description |
-| ---- | --------- | ----------- |
-| [Aegisub](http://www.aegisub.org/) | macOS & others | Seems to have been a popular choice, but is no longer actively maintained. |
-| [Jubler](https://www.jubler.org/) | macOS & others | Works reasonably well, but fixing timing issues is still somewhat cumbersome. |
 
-## Known alternatives
-There are at least three alternatives to this application that I know of, by
-now. Oddly enough, I found substudy just after the prototype and movies2anki
-when I published this repository. Something is off with my search skills! :)
-
-- [movies2anki](https://github.com/kelciour/movies2anki): Fully-integrated add-on for Anki which has some advanced features and supports all platforms
-- [substudy](https://github.com/emk/subtitles-rs/tree/master/substudy): CLI alternative to subs2srs with the ability to export into other formats as well, not just SRS decks
-- [subs2srs](http://subs2srs.sourceforge.net/): GUI software for Windows with many features, and inspiration for substudy and Bunkai
+# License
+All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
