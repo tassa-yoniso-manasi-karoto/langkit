@@ -6,11 +6,33 @@
     </picture>
 </p>
 
+
 ### Status: prerelease
 
-Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
+Langkit is an all-in-one tool designed to **facilitate language learning from native media content** using a collection of diverse features to transform movies, TV shows, etc., into **easily ‘digestible’ material**. It supports automatic subtitle detection, multiple native (reference) language fallback and bulk/recursive directory processing.
 
-# tldr
+### Features
+
+- **Subs2cards**: Make Anki cards from subtitle timecodes like subs2srs
+- **Making dubtitles**²: Make a subtitle file of dubs using Speech-To-Text
+- **Voice enhancing**: Make voices louder than Music&Effects 
+- **Subtitle romanization**: Convert subtitles into a roman character version as phonetically accurate as possible¹
+- **Subtitle tokenization**: Separate the words with spaces for languages which typically don't use spaces
+- **Selective transliteration**: selective transliteration of subtitles based on [logogram](https://en.wikipedia.org/wiki/Logogram) frequency. Currently only japanese Kanjis are supported. Kanji with a frequency rank below the user-defined frequency threshold and regular readings are preserved, while others are converted to hiragana.
+
+<sub> ¹ for the list of supported languages by the transliteration feature see [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators) </sub>
+
+<sup> ² 'dubtitles' is a ***subtitle file that matches the dubbing lines exactly***. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sup>
+<br>
+<br>
+
+> [!NOTE]
+> Some features require an API key because certain processing tasks, such as speech-to-text, audio enhancement, are outsourced to an external provider like Replicate. These companies offer cloud-based machine learning models that handle complex tasks remotely, allowing Langkit to leverage the models without requiring local computation. <br> The cost of running a few of these tasks using open source models is typically very low. 
+
+> [!WARNING]
+> ⚠️ **on Feature Combinations**: langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior. Users are encouraged to **report any issues encountered either with the debug info exported from the Setting panel or with the crash report log**, especially when utilizing less common or more intricate feature combinations.
+
+# tldr cli
 
 ```
 𝗕𝗮𝘀𝗶𝗰 𝘀𝘂𝗯𝘀𝟮𝘀𝗿𝘀 𝗳𝘂𝗻𝗰𝘁𝗶𝗼𝗻𝗮𝗹𝗶𝘁𝘆
@@ -19,22 +41,18 @@ $ langkit subs2cards media.mp4 media.th.srt media.en.srt
 𝗕𝘂𝗹𝗸 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 𝘄𝗶𝘁𝗵 𝗮𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗰 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘀𝗲𝗹𝗲𝗰𝘁𝗶𝗼𝗻 (𝘩𝘦𝘳𝘦: 𝘭𝘦𝘢𝘳𝘯 𝘣𝘳𝘢𝘻𝘪𝘭𝘪𝘢𝘯 𝘱𝘰𝘳𝘵𝘶𝘨𝘦𝘴𝘦 𝘧𝘳𝘰𝘮 𝘤𝘢𝘯𝘵𝘰𝘯𝘦𝘴𝘦 𝘰𝘳 𝘪𝘧 𝘶𝘯𝘢𝘷𝘢𝘪𝘭𝘢𝘣𝘭𝘦, 𝘵𝘳𝘢𝘥𝘪𝘵𝘪𝘰𝘯𝘢𝘭 𝘤𝘩𝘪𝘯𝘦𝘴𝘦)
 $ langkit subs2cards media.mp4 -l "pt-BR,yue,zh-Hant"
 
-𝗦𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘁𝗿𝗮𝗻𝘀𝗹𝗶𝘁𝗲𝗿𝗮𝘁𝗶𝗼𝗻¹ (+𝘁𝗼𝗸𝗲𝗻𝗶𝘇𝗮𝘁𝗶𝗼𝗻 𝗶𝗳 𝗻𝗲𝗰𝗲𝘀𝘀𝗮𝗿𝘆)
+𝗦𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘁𝗿𝗮𝗻𝘀𝗹𝗶𝘁𝗲𝗿𝗮𝘁𝗶𝗼𝗻 (+𝘁𝗼𝗸𝗲𝗻𝗶𝘇𝗮𝘁𝗶𝗼𝗻 𝗶𝗳 𝗻𝗲𝗰𝗲𝘀𝘀𝗮𝗿𝘆)
 $ langkit translit media.ja.srt
 
 𝗠𝗮𝗸𝗲 𝗮𝗻 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝘄𝗶𝘁𝗵 𝗲𝗻𝗵𝗮𝗻𝗰𝗲𝗱/𝗮𝗺𝗽𝗹𝗶𝗳𝗶𝗲𝗱 𝘃𝗼𝗶𝗰𝗲𝘀 𝗳𝗿𝗼𝗺 𝘁𝗵𝗲 𝟮𝗻𝗱 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
 $ langkit enhance media.mp4 -a 2 --sep demucs
 
-𝗠𝗮𝗸𝗲 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲𝘀² 𝘂𝘀𝗶𝗻𝗴 𝗦𝗽𝗲𝗲𝗰𝗵-𝘁𝗼-𝗧𝗲𝘅𝘁 𝗼𝗻 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
+𝗠𝗮𝗸𝗲 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲𝘀 𝘂𝘀𝗶𝗻𝗴 𝗦𝗽𝗲𝗲𝗰𝗵-𝘁𝗼-𝗧𝗲𝘅𝘁 𝗼𝗻 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
 $ langkit subs2dubs --stt whisper media.mp4 (media.th.srt) -l "th"
 
 𝗖𝗼𝗺𝗯𝗶𝗻𝗲 𝗮𝗹𝗹 𝗼𝗳 𝘁𝗵𝗲 𝗮𝗯𝗼𝘃𝗲 𝗶𝗻 𝗼𝗻𝗲 𝗰𝗼𝗺𝗺𝗮𝗻𝗱
 $ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs --translit
 ```
-
-<sub> ¹ for the list of supported languages by the transliteration feature see [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators) </sub>
-
-<sup> ² 'dubtitles' is a ***subtitle file that matches the dubbing lines exactly***. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sup>
 
 # Extra features compared to subs2srs
 
@@ -111,21 +129,41 @@ The FFmpeg dev team recommends end-users to use only the latest [builds from the
 
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
 
-# ...But why?
-There are plenty of good options already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), [memento](https://github.com/ripose-jp/Memento)...
+# FAQ
+<details>
+<summary> 
 
-Here is a list: [awesome-immersion](https://github.com/nakopylov/awesome-immersion)
+#### Why isn't there the possibility to run the speech-to-text / voice separation locally if I want to?
+</summary>
+Because I only have a 10 year old Pentium CPU with a graphic chipset.
+</details>
+<details>
+<summary> 
+
+#### Why use subs2srs approach nowdays?
+</summary>
+
+There are plenty of alternative comprehensible input companion already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), [memento](https://github.com/ripose-jp/Memento)...
 
 They are awesome but all of them are media-centric: they are implemented around watching shows.
 
-The approach here is word-centric:
-- **word-centric notes referencing all common meanings**: I cross-source dictionaries, LLMs to the map the meanings, connotations and register of a word. Then I use another tool to search my database of generated TSV to illustrate & disambiguate with real-world examples the meanings I have found. This results in high quality notes regrouping all examples sentences, TTS, picture... and any other fields related to the word, allowing for maximum context.
+The approach I take for card-making here is language-centric:
+- **word-centric notes referencing all common meanings**: I cross-source dictionaries, LLMs to map the meanings, connotations, register of a word. Searching my database of generated TSV I can illustrate & disambiguate with real-world examples the meanings I have found. This results in high quality notes regrouping all examples sentences, TTS, picture... and any other fields related to the word, allowing for maximum context.
 - **word-note reuse for language laddering**: another advantage of this approach it that you can use this very note as basis for making cards for a new target language further down the line, while keeping all your previous note fields at hand for making the cards template for your new target language. The initial language acts just like Note ID for a meaning mapped across multiple languages. The majority of the basic vocabulary can be translated across languages directly with no real loss of meaning (and you can go on to disambiguate it further, using the method above for example). The effort that you spend on your first target language will thus pay off on subsequent languages.
 
-There are several additional tools I made to accomplish this but they are hardcoded messes so don't expect me to publish them, langkit is enough work for me by itself! :)
+There are several additional tools I made to accomplish this but they are hardcoded messes and not meant to be published.
 
-### License
+**Future developement could entirely automate the process of making cards described above using LLMs.**
+</details>
+
+
+# Aknowledgements
+Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
+
+
+# License
 All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
+
 
 See original README of bunkai below for the basic features: <br>
 <hr>
