@@ -171,7 +171,14 @@ The FFmpeg dev team recommends end-users to use only the latest [builds from the
 
 The static FFmpeg builds guarantee that you have up-to-date codecs. **If you don't use a well-maintained bleeding edge distro or brew, use the dev builds.** You can check your distro [here](https://repology.org/project/ffmpeg/versions).
 
+## API Keys
 At the moment tokens should be passed through these env variables: REPLICATE_API_TOKEN, ASSEMBLYAI_API_KEY, ELEVENLABS_API_TOKEN.
+
+$$
+\color{red}
+\text{TODO}
+$$
+
 
 # FAQ
 
@@ -230,9 +237,19 @@ either too hard or too easy should be deleted in this pass. Any cards which
 remain in the imported deck after mining should be refined and moved into your
 regular deck for studying the language on a daily basis.
 
+# Build & Development
+
+See [DEV.md](https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/master/DEV.md)
 
 # Aknowledgements
 Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
+
+$$
+\color{red}
+\text{TODO}
+$$
+
+
 
 
 # License
