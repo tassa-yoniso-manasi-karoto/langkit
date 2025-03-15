@@ -106,15 +106,21 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 				map[string]interface{}{"item": foreignItem.String()})
 		}
 	}
-	/*if i > 0 { // FIXME this has never worked for some reason
-		prevItem := tsk.TargSubs.Items[i-1]
-		item.ForeignPrev = prevItem.String()
+	i := indexedSub.Index
+	
+	if i > 0 && i < len(tsk.TargSubs.Items) {
+		item.ForeignPrev = tsk.TargSubs.Items[i-1].String()
+	}
+	if i > 0 && i < len(tsk.NativeSubs.Items) {
+		item.NativePrev = tsk.NativeSubs.Items[i-1].String()
 	}
 
 	if i+1 < len(tsk.TargSubs.Items) {
-		nextItem := tsk.TargSubs.Items[i+1]
-		item.ForeignNext = nextItem.String()
-	}*/
+		item.ForeignNext = tsk.TargSubs.Items[i+1].String()
+	}
+	if i+1 < len(tsk.NativeSubs.Items) {
+		item.NativeNext = tsk.NativeSubs.Items[i+1].String()
+	}
 	return
 }
 

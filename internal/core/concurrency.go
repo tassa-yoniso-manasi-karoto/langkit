@@ -40,7 +40,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		}
 	}()
 	
-	// init progress  bar
+	// init progress bar
 	tsk.Handler.IncrementProgress(
 		"item-bar",
 		0,
@@ -260,14 +260,14 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		itembar.Clear()
 	}
 
-	if finalErr != nil {
+	if ctx.Err() != nil {
+		return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "supervisor: operation canceled by user")
+	} else if finalErr != nil {
+		// abort just this task
 		tsk.Handler.ZeroLog().Error().
 			Err(finalErr.Err).
 			Msg("Processing error occurred, cancelling all workers")
 		return finalErr
-	}
-	if ctx.Err() != nil {
-		return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "supervisor: operation canceled by user")
 	}
 	if tsk.WantCondensedAudio {
 		tsk.ConcatWAVstoOGG("CONDENSED") // TODO probably better to put it elsewhere

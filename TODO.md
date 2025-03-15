@@ -1,8 +1,9 @@
 
 - NORMALIZE / BALANCE UI COLORS
 
-- subtitles:
-  - check nextsub, prevsub which have been broken forever
+- fix merged being created when using subs2cards by itself
+- make sure to trimCC before subs2cards
+- progressbar not destroyed in time on resume
   
 - implement an explicit maxAbortTasks
 

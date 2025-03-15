@@ -109,9 +109,11 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		return procErr
 	}
 
-	// Process based on specific mode (Subs2Cards, Subs2Dubs)
-	if procErr := tsk.processModeSpecific(ctx, outStream); procErr != nil {
-		return procErr
+	// Launch main app logic: supervisor
+	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
+		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
+			return err
+		}
 	}
 
 	if procErr := tsk.processDubtitles(ctx); procErr != nil {
@@ -483,16 +485,6 @@ func (tsk *Task) handleUserConfirmation() *ProcessingError {
 			" which are usually reliable transcriptions of dubbings.")
 		if !userConfirmed() {
 			os.Exit(0)
-		}
-	}
-	return nil
-}
-
-// processModeSpecific handles the mode-specific processing
-func (tsk *Task) processModeSpecific(ctx context.Context, outStream *os.File) *ProcessingError {
-	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
-		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
-			return err
 		}
 	}
 	return nil
