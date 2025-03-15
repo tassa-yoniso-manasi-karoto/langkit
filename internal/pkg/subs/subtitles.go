@@ -29,7 +29,7 @@ func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
 	transcriptedLines := loadSTTfromTSV(outputFile, FieldSep)
 	if len(transcriptedLines) != len((*subs).Items) {
 		return fmt.Errorf("The number of STT transcriptions doesn't match the number of subtitle lines." +
-				" This is most likely a bug, please report it.\n" +
+				" This is a bug, please report it.\n" +
 					"len transcriptions=%d\tlen sub lines=%d", len(transcriptedLines),len((*subs).Items))
 	}
 	for i, item := range (*subs).Items {
@@ -52,7 +52,6 @@ func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
 
 // Parsing the TSV instead of processing on the fly ensure dubtitle integrity
 // in cases where the processing is restarted after an interruption or crash
-// edit: atm on-the-fly writing to TSV is gone due to parallelization implementation
 func loadSTTfromTSV(outputFile, FieldSep string) (transcriptedLines []string) {
 	file, _ := os.Open(outputFile)
 	defer file.Close()
@@ -64,22 +63,10 @@ func loadSTTfromTSV(outputFile, FieldSep string) (transcriptedLines []string) {
 			break
 		}
 		if len(row) < 5 {
-			//println("row=",len(row))
 			continue
 		}
-		//fmt.Printf("%#v\n", row)
-		//pp.Println(row)
 		transcriptedLines = append(transcriptedLines, row[4])
 	}
-	return
-}
-
-func (subs *Subtitles) TrimCC2Dubs() {
-	re := regexp.MustCompile(`^[\p{Z}\p{P}]*\[.*\][\p{P}\p{Z}]*$`) // TODO add "♪" → lyrics of BG music
-	for i, item := range subs.Items {
-		subs.Items[i].Lines = filterLines(item.Lines, re)
-	}
-	subs.Items = filterItems(subs.Items)
 	return
 }
 
@@ -101,14 +88,37 @@ func (subs *Subtitles) Translate(item *astisub.Item) *astisub.Item {
 	return newItem
 }
 
-func filterLines(lines []astisub.Line, re *regexp.Regexp) []astisub.Line {
+func (subs *Subtitles) TrimCC2Dubs() {
+	// \p{Z} → unicode whiteshape/invisible; \p{P} → unicode punct
+	re := `[\p{Z}\p{P}]*[([][^()[\]]*[)\]][\p{Z}\p{P}]*`
+	
+	// Remove leading group matches like "(...)" or "[...]" at the beginning
+	reLeadingGroup := regexp.MustCompile("^" + re)
+	// Remove trailing group matches like "(...)" or "[...]" at the end
+	reTrailingGroup := regexp.MustCompile(re + "$")
+	
+	filterFunc := func(s string) string {
+		// maybe users want lyrics
+		// if strings.Contains(s, "♪") {
+		// 	return ""
+		// }
+		s = reLeadingGroup.ReplaceAllString(s, "")
+		return reTrailingGroup.ReplaceAllString(s, "")
+	}
+	for i, item := range subs.Items {
+		subs.Items[i].Lines = filterLines(item.Lines, filterFunc)
+	}
+	subs.Items = filterItems(subs.Items)
+	return
+}
+
+func filterLines(lines []astisub.Line, fn func(string) string) []astisub.Line {
 	var filtered []astisub.Line
 	for _, line := range lines {
-		if !re.MatchString(line.String()) {
-			text := strings.TrimSpace(line.String())
-			if text != "" {
-				filtered = append(filtered, astisub.Line{Items: []astisub.LineItem{{Text: text}}})
-			}
+		text := fn(line.String())
+		text = strings.TrimSpace(text)
+		if text != "" {
+			filtered = append(filtered, astisub.Line{Items: []astisub.LineItem{{Text: text}}})
 		}
 	}
 	return filtered

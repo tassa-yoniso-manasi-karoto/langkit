@@ -9,8 +9,10 @@
   - condensed audio toggle
   - dubs allow user to request cached sep voice file deletion
 
+- frontend logs in log viewer
 - crash reports add snapshots of tsk throughout code
 - manual GUI tests
+- manual CLI tests
 
 - translitkit close
 - fix newlines in builtin documentation
