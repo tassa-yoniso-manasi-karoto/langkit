@@ -62,6 +62,7 @@ func TestSelectiveTransliteration(t *testing.T) {
 	tsk := &Task{
 		Handler:           handler,
 		Targ:              Lang{Language: jpnLang},
+		TargSubFile:       tempSubPath,
 		RomanizationStyle: "hepburn",
 		KanjiThreshold:    3, // Enable selective transliteration for kanji with >3 strokes
 		DockerRecreate:    false,
@@ -72,7 +73,7 @@ func TestSelectiveTransliteration(t *testing.T) {
 
 	// Set up test start time
 	startTime := time.Now()
-	procErr := tsk.Transliterate(ctx, tempSubPath)
+	procErr := tsk.Transliterate(ctx)
 	
 	if procErr != nil && procErr.Err != nil {
 		t.Fatalf("Expected no error from Transliterate, got: %v (type: %T)", procErr, procErr)

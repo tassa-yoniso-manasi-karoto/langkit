@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"regexp"
 
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
@@ -41,7 +42,13 @@ func (tsk *Task) audioBase() string {
 }
 
 // Execute is the main entry point for processing a task
-func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
+func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
+	var outStream *os.File
+	defer func() {
+		if outStream != nil {
+			outStream.Close()
+		}
+	}()
 	reporter := crash.Reporter
 	reporter.ClearExecutionRecords()
 	reporter.SaveSnapshot("Starting execution", tsk.DebugVals())
@@ -77,7 +84,7 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		tsk.processClosedCaptions()
 		
 		if tsk.WantTranslit {
-			if err := tsk.processTransliteration(ctx, tsk.TargSubFile); err != nil {
+			if err := tsk.processTransliteration(ctx); err != nil {
 				return err
 			}
 		}
@@ -88,12 +95,8 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		goto goodEnd
 	}
 
-	outStream, procErr := tsk.prepareOutputDirectory()
-	if procErr != nil {
+	if outStream, procErr = tsk.prepareOutputDirectory(); procErr != nil {
 		return procErr
-	}
-	if outStream != nil {
-		defer outStream.Close()
 	}
 
 	if procErr := tsk.processMediaInfo(); procErr != nil {
@@ -101,8 +104,7 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 	}
 
 	tsk.processClosedCaptions()
-
-	// FIXME
+	
 	if procErr := tsk.handleUserConfirmation(); procErr != nil {
 		return procErr
 	}
@@ -112,12 +114,11 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		return procErr
 	}
 
-	subsPath, procErr := tsk.processDubtitles(ctx)
-	if procErr != nil {
+	if procErr := tsk.processDubtitles(ctx); procErr != nil {
 		return procErr
 	}
 
-	if procErr := tsk.processTransliteration(ctx, subsPath); procErr != nil {
+	if procErr := tsk.processTransliteration(ctx); procErr != nil {
 		return procErr
 	}
 
@@ -498,36 +499,37 @@ func (tsk *Task) processModeSpecific(ctx context.Context, outStream *os.File) *P
 }
 
 // processDubtitles handles the generation of dubtitles from STT results
-func (tsk *Task) processDubtitles(ctx context.Context) (string, *ProcessingError) {
-	// Default to the target subtitle file
-	subs := tsk.TargSubFile
-	
+func (tsk *Task) processDubtitles(ctx context.Context) *ProcessingError {
 	if tsk.STT == "" || !tsk.WantDubs {
-		return subs, nil
+		return nil
 	}
 
 	// Create dubtitles from TSV
 	err := tsk.TargSubs.Subs2Dubs(tsk.outputFile(), tsk.FieldSep)
 	if err != nil {
-		return subs, tsk.Handler.LogErr(err, AbortTask, "making dubtitles")
+		return tsk.Handler.LogErr(err, AbortTask, "making dubtitles")
 	}
 
 	// Generate output file path
-	subsPath := strings.ReplaceAll(tsk.outputFile(), "subtitles", "DUBTITLES")
-	subsPath = strings.TrimSuffix(subsPath, ".tsv")
-	subsPath = subsPath + langkitMadeDubtitlesMarker(tsk.STT) + filepath.Ext(tsk.TargSubFile)
+	subsPath := strings.TrimSuffix(tsk.outputFile(), tsk.OutputFileExtension)
+	if re := regexp.MustCompile(`(?i)subtitles?`); re.MatchString(subsPath) {
+		subsPath = re.ReplaceAllString(subsPath, "DUBTITLES")
+	} else {
+		subsPath += ".DUBTITLES"
+	}
+	tsk.TargSubFile = subsPath + langkitMadeDubtitlesMarker(tsk.STT) + filepath.Ext(tsk.TargSubFile)
 
 	// Write dubtitles to file
-	if err = tsk.TargSubs.Write(subsPath); err != nil {
-		return subs, tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
+	if err = tsk.TargSubs.Write(tsk.TargSubFile); err != nil {
+		return tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
 	}
 	
 	// Register the dubtitle file for final output merging if merging is enabled
 	if tsk.MergeOutputFiles {
-		tsk.RegisterOutputFile(subsPath, OutputDubtitle, tsk.Targ, "dubtitles", 90)
+		tsk.RegisterOutputFile(tsk.TargSubFile, OutputDubtitle, tsk.Targ, "dubtitles", 90)
 	}
 
-	return subsPath, nil
+	return nil
 }
 
 
@@ -556,13 +558,13 @@ func isLangkitMadeTranslit(s string) bool {
 }
 
 // processTransliteration handles transliteration of subtitles
-func (tsk *Task) processTransliteration(ctx context.Context, subsPath string) *ProcessingError {
+func (tsk *Task) processTransliteration(ctx context.Context) *ProcessingError {
 	if !tsk.WantTranslit {
 		return nil
 	}
 	
 	// TODO: find a way to provide transliteration in the TSV as well
-	return tsk.Transliterate(ctx, subsPath)
+	return tsk.Transliterate(ctx)
 }
 
 // processAudioEnhancement handles audio enhancement if requested

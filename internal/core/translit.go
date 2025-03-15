@@ -63,13 +63,13 @@ type TranslitProvider interface {
 }
 
 
-func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *ProcessingError {
+func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	langCode := tsk.Targ.Language.Part3
 	
 	// Check if we're in test mode with mock providers - create mock files directly
 	if os.Getenv("LANGKIT_USE_MOCK_PROVIDERS") == "true" {
 		tsk.Handler.ZeroLog().Info().Msg("Using mock providers for transliteration in test mode")
-		mockFiles, err := CreateMockTransliterationFiles(subsFilepath, tsk.TranslitTypes)
+		mockFiles, err := CreateMockTransliterationFiles(tsk.TargSubFile, tsk.TranslitTypes)
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortAllTasks, "Failed to create mock transliteration files")
 		}
@@ -112,7 +112,7 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	startTime := time.Now()
 	
 	common.BrowserAccessURL = tsk.BrowserAccessURL
-	base := strings.TrimSuffix(subsFilepath, ".srt")
+	base := strings.TrimSuffix(tsk.TargSubFile, ".srt")
 
 	subsFilepathTokenized := base + Tokenize.ToSuffix()
 	subsFilepathTranslit  := base + Romanize.ToSuffix()
@@ -154,8 +154,9 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 		Msgf("translit: %s successfully initialized", provider.ProviderName())
 	
 	// Open subtitle files
-	SubTranslit, _ := astisub.OpenFile(subsFilepath)
-	SubTokenized, _ := astisub.OpenFile(subsFilepath)
+	SubTranslit, _ := astisub.OpenFile(tsk.TargSubFile)
+	SubTokenized, _ := astisub.OpenFile(tsk.TargSubFile)
+	
 	mergedSubsStr, _ := Subs2StringBlock(SubTranslit)
 	
 	// Get tokens - measure performance
@@ -184,7 +185,7 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	var selectiveDuration time.Duration
 	
 	if langCode == "jpn" && tsk.KanjiThreshold > -1 {
-		SubSelective, _ = astisub.OpenFile(subsFilepath)
+		SubSelective, _ = astisub.OpenFile(tsk.TargSubFile)
 		
 		selectiveStartTime := time.Now()
 		mergedSubsStrSelective, err = provider.GetSelectiveTranslit(ctx, tsk.KanjiThreshold)
@@ -357,7 +358,7 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 				fmt.Fprintf(summaryFile, "==============================\n\n")
 				fmt.Fprintf(summaryFile, "Language: %s\n", langCode)
 				fmt.Fprintf(summaryFile, "Provider: %s\n", provider.ProviderName())
-				fmt.Fprintf(summaryFile, "Input file: %s\n", subsFilepath)
+				fmt.Fprintf(summaryFile, "Input file: %s\n", tsk.TargSubFile)
 				fmt.Fprintf(summaryFile, "Output files:\n")
 				fmt.Fprintf(summaryFile, "  - %s\n", subsFilepathTokenized)
 				fmt.Fprintf(summaryFile, "  - %s\n", subsFilepathTranslit)
