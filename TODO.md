@@ -1,8 +1,7 @@
 
-- NORMALIZE / BALANCE UI COLORS
+- NORMALIZE / BALANCE UI COLORS (process manager, error tooltip too)
 
 - fix merged being created when using subs2cards by itself
-- make sure to trimCC before subs2cards
 - progressbar not destroyed in time on resume
   
 - implement an explicit maxAbortTasks

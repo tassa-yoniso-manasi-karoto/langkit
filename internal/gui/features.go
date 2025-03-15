@@ -103,8 +103,24 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 			Msg("Set audio track index")
 	}
 	
-
-
+	// Initialize feature groups mapping to track which features belong to which groups
+	featureGroups := map[string][]string{
+		"finalOutput": {"dubtitles", "voiceEnhancing", "subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
+		"subtitle": {"subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
+	}
+	
+	// Check if any feature in the merge group is enabled
+	hasEnabledMergeFeature := false
+	for _, feature := range featureGroups["finalOutput"] {
+		if request.SelectedFeatures[feature] {
+			hasEnabledMergeFeature = true
+			break
+		}
+	}
+	
+	// Only enable merge output if a feature in the merge group is enabled
+	tsk.MergeOutputFiles = hasEnabledMergeFeature
+	
 	// Initialize subtitle processing options
 	// We'll capture all transliteration-related features first
 	var subtitleFeatures []string

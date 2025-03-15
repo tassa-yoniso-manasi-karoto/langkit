@@ -480,6 +480,22 @@
                     });
                 }
             }
+            
+            // Trigger validation immediately for browserAccessURL
+            if (optionId === 'browserAccessURL') {
+                const isValidURL = value && value.startsWith('ws://');
+                if (needsScraper) {
+                    if (!isValidURL) {
+                        errorStore.addError({
+                            id: 'invalid-browser-url',
+                            message: 'Valid browser access URL is required for web scraping',
+                            severity: 'critical'
+                        });
+                    } else {
+                        errorStore.removeError('invalid-browser-url');
+                    }
+                }
+            }
         } 
         // Handle merge group options
         else if (isMergeOption) {
@@ -662,11 +678,20 @@
         }
     }
     
-    // Browser URL errors
+    // Browser URL errors - improved validation for all subtitle group features
     $: {
-        if (selectedFeatures.subtitleRomanization && needsScraper && 
-            (!currentFeatureOptions.subtitleRomanization.browserAccessURL || 
-             !currentFeatureOptions.subtitleRomanization.browserAccessURL.startsWith('ws://'))) {
+        // First determine if any feature in the subtitle group is enabled and needs a scraper
+        const subtitleGroupEnabled = providerGroups.subtitle.some(id => selectedFeatures[id]);
+        const needsScraperValidation = subtitleGroupEnabled && needsScraper;
+        
+        // Find the active feature in the subtitle group to check its browserAccessURL
+        const activeSubtitleFeature = providerGroups.subtitle.find(id => selectedFeatures[id]);
+        
+        // Get the browserAccessURL from any of the enabled features in the group
+        const browserURL = activeSubtitleFeature ? 
+            (currentFeatureOptions[activeSubtitleFeature]?.browserAccessURL || '') : '';
+        
+        if (needsScraperValidation && (!browserURL || !browserURL.startsWith('ws://'))) {
             errorStore.addError({
                 id: 'invalid-browser-url',
                 message: 'Valid browser access URL is required for web scraping',

@@ -65,14 +65,18 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		return procErr
 	}
 	
-	// Register original subtitle files for merging if merging is enabled
+	// Register original subtitle files for merging if merging is enabled AND this is a merge-group feature
+	// The frontend tells us this by setting MergeOutputFiles to true only for features in the mergeGroup
 	if tsk.MergeOutputFiles {
+		tsk.Handler.ZeroLog().Debug().Msg("Registering subtitle files for merging")
 		if tsk.TargSubFile != "" {
 			tsk.RegisterOutputFile(tsk.TargSubFile, OutputSubtitle, tsk.Targ, "original", 50)
 		}
 		if tsk.NativeSubFile != "" {
 			tsk.RegisterOutputFile(tsk.NativeSubFile, OutputSubtitle, tsk.Native, "original", 50)
 		}
+	} else {
+		tsk.Handler.ZeroLog().Debug().Msg("Skipping output merge registration - not a merge group feature")
 	}
 
 	// case where no dubtitle/STT is involved
@@ -128,7 +132,13 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		return procErr
 	}
 	
+	// Only merge outputs when MergeOutputFiles is true (set by the frontend for merge group features)
 	if tsk.MergeOutputFiles && len(tsk.OutputFiles) > 0 {
+		tsk.Handler.ZeroLog().Debug().
+			Bool("mergeOutputFiles", tsk.MergeOutputFiles).
+			Int("outputFilesCount", len(tsk.OutputFiles)).
+			Msg("Processing merge outputs from merge group feature")
+			
 		mergeResult, procErr := tsk.MergeOutputs(ctx)
 			if procErr != nil {
 				return procErr
@@ -140,6 +150,11 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 					Bool("success", mergeResult.Success).
 					Msg("Output files merged successfully")
 			}
+	} else {
+		tsk.Handler.ZeroLog().Debug().
+			Bool("mergeOutputFiles", tsk.MergeOutputFiles).
+			Int("outputFilesCount", len(tsk.OutputFiles)).
+			Msg("Skipping merge outputs - not part of merge group or no files to merge")
 	}
 
 goodEnd:
