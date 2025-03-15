@@ -5,7 +5,7 @@
    viewBox="0 0 24 24"
    version="1.1"
    id="svg1"
-   sodipodi:docname="langkit.svg"
+   sodipodi:docname="appicon.svg"
    xml:space="preserve"
    inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
    inkscape:export-filename="langkit.png"
@@ -25,9 +25,9 @@
      inkscape:pageopacity="0.0"
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
-     inkscape:zoom="25.131754"
-     inkscape:cx="16.433393"
-     inkscape:cy="13.031323"
+     inkscape:zoom="2.2213542"
+     inkscape:cx="32.412661"
+     inkscape:cy="49.74443"
      inkscape:window-width="1920"
      inkscape:window-height="1028"
      inkscape:window-x="0"
@@ -44,4 +44,4 @@
      fill="currentColor"
      d="m 13.372236,16.498702 -2.654969,-2.623613 0.03136,-0.03135 A 18.292124,18.292124 0 0 0 14.62656,7.0181505 h 3.062621 V 4.9276247 h -7.31685 V 2.837096 H 8.2818015 V 4.9276247 H 0.96495191 V 7.0181525 H 12.640553 C 11.940225,9.0250608 10.832247,10.937894 9.3270659,12.610317 8.3549701,11.533695 7.5501168,10.352547 6.9125054,9.108682 H 4.8219771 c 0.7630427,1.703781 1.808307,3.313489 3.1148873,4.766407 l -5.3203952,5.247227 1.4842754,1.48427 5.2263213,-5.226319 3.2507701,3.250774 z m 5.884837,-5.299491 h -2.090526 l -4.703691,12.543171 h 2.090529 l 1.170698,-3.135796 h 4.965005 l 1.181147,3.135796 h 2.090528 z m -2.73859,7.31685 1.693328,-4.525992 1.693326,4.525992 z"
      id="path1"
-     style="fill:#e0ff00;fill-opacity:1;stroke-width:1.04526" /></svg>
+     style="fill:#d1d5db;fill-opacity:1;stroke-width:1.04526" /></svg>

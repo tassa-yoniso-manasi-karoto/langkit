@@ -8,8 +8,8 @@
    version="1.1"
    id="svg1"
    sodipodi:docname="drawing.svg"
-   inkscape:version="1.3.2 (091e20ef0f, 2023-11-25)"
-   inkscape:export-filename="drawing-black.png"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   inkscape:export-filename="drawing-blackBg.png"
    inkscape:export-xdpi="500"
    inkscape:export-ydpi="500"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -27,7 +27,7 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      inkscape:zoom="1.0746575"
-     inkscape:cx="470.8477"
+     inkscape:cx="470.84769"
      inkscape:cy="200.52901"
      inkscape:window-width="1920"
      inkscape:window-height="1028"
@@ -59,22 +59,22 @@
      transform="translate(-61.086533,-66.919647)">
     <text
        xml:space="preserve"
-       transform="matrix(0.26458333,0,0,0.26458333,27.416724,12.839711)"
+       transform="matrix(0.26458333,0,0,0.26458333,30.371154,11.116294)"
        id="text1"
        style="font-size:21.3333px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect1);display:inline;stroke-width:1.00157;stroke-dasharray:none"><tspan
          x="135.46289"
-         y="382.15352"
-         id="tspan9"><tspan
-           style="font-size:192px;font-family:'Reem Kufi';-inkscape-font-specification:'Reem Kufi, Normal';fill:#4d4d4d"
+         y="393.73447"
+         id="tspan12"><tspan
+           style="font-size:192px;font-family:Outfit;-inkscape-font-specification:'Outfit, Normal';fill:#a9a9a9"
            id="tspan2">l</tspan><tspan
-           style="font-size:192px;font-family:'Reem Kufi';-inkscape-font-specification:'Reem Kufi, Normal'"
-           id="tspan3">an</tspan><tspan
-           style="font-size:192px;font-family:'Reem Kufi';-inkscape-font-specification:'Reem Kufi, Normal';fill:#4b4b4b"
-           id="tspan4">g</tspan><tspan
-           style="font-size:192px;font-family:'Reem Kufi';-inkscape-font-specification:'Reem Kufi, Normal'"
-           id="tspan6">ki</tspan><tspan
-           style="font-size:192px;font-family:'Reem Kufi';-inkscape-font-specification:'Reem Kufi, Normal';fill:#4d4d4d"
-           id="tspan8">t</tspan></tspan></text>
+           style="font-size:192px;font-family:Outfit;-inkscape-font-specification:'Outfit, Normal';fill:#ffffff"
+           id="tspan4">an</tspan><tspan
+           style="font-size:192px;font-family:Outfit;-inkscape-font-specification:'Outfit, Normal';fill:#a9a9a9"
+           id="tspan8">g</tspan><tspan
+           style="font-size:192px;font-family:Outfit;-inkscape-font-specification:'Outfit, Normal';fill:#ffffff"
+           id="tspan9">ki</tspan><tspan
+           style="font-size:192px;font-family:Outfit;-inkscape-font-specification:'Outfit, Normal';fill:#a9a9a9"
+           id="tspan11">t</tspan></tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:none;stroke-width:0.00973797;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none"
        id="rect8"

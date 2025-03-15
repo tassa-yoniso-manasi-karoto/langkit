@@ -2,6 +2,9 @@
 - NORMALIZE / BALANCE UI COLORS
 - adjust feature loading time
 - closedcaptions trimming: does it still impact or not?
+- GUI options:
+  - condensed audio toggle
+  - dubs allow user to request cached sep voice file deletion
 - crash reports add snapshots of tsk throughout code
 - manual GUI tests
 
@@ -14,7 +17,6 @@
 *later:*
 
 - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
-- dubs allow user to request cached sep voice file deletion
 - make sure API retries are subject to ctx cancelation
 - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
