@@ -3,7 +3,6 @@
 
 - subtitles:
   - check nextsub, prevsub which have been broken forever
-  - closedcaptions trimming: does it still impact or not?#
   
 - implement an explicit maxAbortTasks
 

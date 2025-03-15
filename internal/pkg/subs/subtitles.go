@@ -25,6 +25,13 @@ func OpenFile(filename string, clean bool) (*Subtitles, error) {
 	return &Subtitles{subs}, nil
 }
 
+func (subs *Subtitles) Write(filename string) error {
+	if err := subs.Subtitles.Write(filename); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
 	transcriptedLines := loadSTTfromTSV(outputFile, FieldSep)
 	if len(transcriptedLines) != len((*subs).Items) {

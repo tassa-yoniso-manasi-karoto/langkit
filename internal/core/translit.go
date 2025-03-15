@@ -13,7 +13,6 @@ import (
 	"unicode/utf8"
 	"slices"
 	
-	"github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
 	//"github.com/schollz/progressbar/v3"
 	"github.com/gookit/color"
@@ -22,6 +21,7 @@ import (
 	common "github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
 )
 
@@ -153,9 +153,9 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		Dur("init_duration", initDuration).
 		Msgf("translit: %s successfully initialized", provider.ProviderName())
 	
-	// Open subtitle files
-	SubTranslit, _ := astisub.OpenFile(tsk.TargSubFile)
-	SubTokenized, _ := astisub.OpenFile(tsk.TargSubFile)
+	// deep copy allows reusing trimmed closed captions directly without disk io
+	SubTranslit  := subs.DeepCopy(tsk.TargSubs)
+	SubTokenized := subs.DeepCopy(tsk.TargSubs)
 	
 	mergedSubsStr, _ := Subs2StringBlock(SubTranslit)
 	
@@ -180,12 +180,12 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		Msgf("translit: %s returned tokens", provider.ProviderName())
 	
 	// Get selective transliteration if supported (for Japanese) - measure performance
-	var SubSelective *astisub.Subtitles
+	var SubSelective *subs.Subtitles
 	var mergedSubsStrSelective string
 	var selectiveDuration time.Duration
 	
 	if langCode == "jpn" && tsk.KanjiThreshold > -1 {
-		SubSelective, _ = astisub.OpenFile(tsk.TargSubFile)
+		SubSelective = subs.DeepCopy(tsk.TargSubs)
 		
 		selectiveStartTime := time.Now()
 		mergedSubsStrSelective, err = provider.GetSelectiveTranslit(ctx, tsk.KanjiThreshold)
@@ -261,7 +261,6 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	for i := range (*SubTranslit).Items {
 		for j := range (*SubTranslit).Items[i].Lines {
 			for k := range (*SubTranslit).Items[i].Lines[j].Items {
-				// FIXME: Trimmed closed captions have some sublines removed, hence must adjust idx
 				(*SubTokenized).Items[i].Lines[j].Items[k].Text = clean(subSliceTokenized[idx])
 				
 				// Process transliteration
@@ -292,7 +291,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	
 	for _, out := range []struct {
 		ttype TranslitType
-		subs  *astisub.Subtitles
+		subs  *subs.Subtitles
 		path  string
 		outputType MediaOutputType
 		priority int
@@ -394,8 +393,8 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	return nil
 }
 
-func Subs2StringBlock(subs *astisub.Subtitles) (mergedSubsStr string, subSlice []string) {
-	for _, Item := range (*subs).Items {
+func Subs2StringBlock(subs *subs.Subtitles) (mergedSubsStr string, subSlice []string) {
+	for _, Item := range (*subs).Subtitles.Items {
 		for _, Line := range Item.Lines {
 			for _, LineItem := range Line.Items {
 				subSlice = append(subSlice, LineItem.Text)
