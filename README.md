@@ -56,7 +56,7 @@ $ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs 
 
 # Features in detail
 
-### Subs2cards
+## Subs2cards
 Subs2cards converts your favorite TV shows and movies directly into Anki flashcards by extracting dialogues, images, and audio clips based on subtitle timecodes. It's ideal for  sentence mining and context-aware word memorization. 
 
 <details>
@@ -67,13 +67,13 @@ Subs2cards converts your favorite TV shows and movies directly into Anki flashca
 
 #### Extra features compared to subs2srs
 
-- **Default encoding to OPUS / AVIF**: Use modern codecs to save storage. The image/audio codecs which langkit uses are state-of-the-art and are currently in active development.
+- **Default encoding to OPUS / AVIF**: Use modern codecs to save storage.
 - **Parallelization / multi-threading by default**: By default all CPU cores available are used. You can reduce CPU usage by passing a lower ```--workers``` value than the default.
 - **Bulk / recursive directory processing**: if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
 
 </details>
 
-### Dubtitles
+## Dubtitles
 Creates accurate subtitle files specifically synchronized with dubbed audio tracks using speech-to-text. This addresses the common mismatch between subtitle translations and audio dubs, ensuring text follows closely spoken dialogue.
 
 <details>
@@ -99,7 +99,7 @@ Note: OpenAI just released a [turbo](https://github.com/openai/whisper/discussio
 
 </details>
 
-### Voice Enhancing
+## Voice Enhancing
 
 Boosts clarity of speech in audio tracks by amplifying voices while reducing background music and effects. Ideal for learners who struggle with distinguishing words clearly, particularly useful for tonal languages or when studying languages with dense or unfamiliar phonetic patterns.
 
@@ -121,14 +121,31 @@ The isolated voice track are obtained using one of these:
 
 </details>
 
-### Subtitle romanization
+## Subtitle romanization
 Convert subtitles into a roman character version as phonetically accurate as possible
 
-### Subtitle tokenization
+<details>
+<summary> 
+    
+#### Details
+</summary>
+The list of supported languages by the transliteration feature is [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators)
+</details>
+
+## Subtitle tokenization
 
 Separate words with spaces for languages which don't use spaces
 
-### Selective Kanji Transliteration
+<details>
+<summary> 
+    
+#### Details
+</summary>
+The list of supported languages by the tokenization feature is [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators)
+</details>
+
+
+## Selective (Kanji) Transliteration
 
 Automatically transliterates Japanese subtitles from kanji into hiragana based on user-defined frequency thresholds and phonetic regularity. This feature helps Japanese learners focus on common kanji by selectively converting rarer or irregular characters into easier-to-read hiragana, facilitating incremental kanji learning and smoother immersion into native content.
 
@@ -161,7 +178,7 @@ At the moment tokens should be passed through these env variables: REPLICATE_API
 <details>
 <summary> 
 
-#### Why isn't there the possibility to run the speech-to-text or voice separation locally if I want to?
+#### Why isn't there the possibility to run the speech-to-text or voice separation locally?
 </summary>
 
 Because I only have a 10 year old Pentium CPU with a graphic chipset.
