@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"io"
-	"regexp"
+	"unicode"
 	"strings"
 	"encoding/csv"
 
@@ -96,35 +96,21 @@ func (subs *Subtitles) Translate(item *astisub.Item) *astisub.Item {
 }
 
 func (subs *Subtitles) TrimCC2Dubs() {
-	// \p{Z} → unicode whiteshape/invisible; \p{P} → unicode punct
-	re := `[\p{Z}\p{P}]*[([][^()[\]]*[)\]][\p{Z}\p{P}]*`
-	
-	// Remove leading group matches like "(...)" or "[...]" at the beginning
-	reLeadingGroup := regexp.MustCompile("^" + re)
-	// Remove trailing group matches like "(...)" or "[...]" at the end
-	reTrailingGroup := regexp.MustCompile(re + "$")
-	
-	filterFunc := func(s string) string {
-		// maybe users want lyrics
-		// if strings.Contains(s, "♪") {
-		// 	return ""
-		// }
-		s = reLeadingGroup.ReplaceAllString(s, "")
-		return reTrailingGroup.ReplaceAllString(s, "")
-	}
 	for i, item := range subs.Items {
-		subs.Items[i].Lines = filterLines(item.Lines, filterFunc)
+		subs.Items[i].Lines = filterLines(item.Lines)
 	}
 	subs.Items = filterItems(subs.Items)
 	return
 }
 
-func filterLines(lines []astisub.Line, fn func(string) string) []astisub.Line {
+func filterLines(lines []astisub.Line) []astisub.Line {
 	var filtered []astisub.Line
 	for _, line := range lines {
-		text := fn(line.String())
+		text := removeLeadingGroup(line.String())
+		text = removeTrailingGroup(text)
 		text = strings.TrimSpace(text)
-		if text != "" {
+		
+		if text != "" && !isNonLexicalContent(text) {
 			filtered = append(filtered, astisub.Line{Items: []astisub.LineItem{{Text: text}}})
 		}
 	}
@@ -140,6 +126,154 @@ func filterItems(items []*astisub.Item) []*astisub.Item {
 	}
 	return filtered
 }
+
+func isNonLexicalContent(s string) bool {
+	// Check for strings consisting only of punctuation and/or symbols
+	runes := []rune(s)
+	onlyPunctAndSymbols := true
+	for _, r := range runes {
+		if !unicode.IsPunct(r) && !unicode.IsSymbol(r) && !unicode.IsSpace(r) {
+			onlyPunctAndSymbols = false
+			break
+		}
+	}
+	if onlyPunctAndSymbols && len(s) > 0 {
+		return true
+	}
+	return false
+}
+
+// Function to remove parenthetical groups at the beginning of a string
+func removeLeadingGroup(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+
+	runes := []rune(s)
+	start := -1
+
+	// Find first opening parenthesis after any whitespace/punctuation
+	for i, r := range runes {
+		if unicode.Is(unicode.Ps, r) {
+			start = i
+			break
+		} else if !unicode.IsSpace(r) && !unicode.IsPunct(r) {
+			// Stop if we hit non-whitespace, non-punct before an opening parenthesis
+			return s
+		}
+	}
+
+	// No opening parenthesis found at the beginning
+	if start == -1 {
+		return s
+	}
+
+	// Track nesting depth
+	depth := 1
+	end := -1
+
+	// Find matching closing parenthesis
+	for i := start + 1; i < len(runes); i++ {
+		if unicode.Is(unicode.Ps, runes[i]) {
+			depth++
+		} else if unicode.Is(unicode.Pe, runes[i]) {
+			depth--
+			if depth == 0 {
+				end = i
+				break
+			}
+		}
+	}
+
+	// If no matching closing parenthesis found, be tolerant and return original
+	if end == -1 {
+		return s
+	}
+
+	// Find first non-whitespace/punct character after the closing parenthesis
+	contentStart := -1
+	for i := end + 1; i < len(runes); i++ {
+		if !unicode.IsSpace(runes[i]) && !unicode.IsPunct(runes[i]) {
+			contentStart = i
+			break
+		}
+	}
+
+	// If nothing after the parenthetical group, return empty string
+	if contentStart == -1 {
+		return ""
+	}
+
+	// Return everything after the parenthetical group
+	return string(runes[contentStart:])
+}
+
+// Function to remove parenthetical groups at the end of a string
+func removeTrailingGroup(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+
+	runes := []rune(s)
+	n := len(runes)
+	end := -1
+
+	// Find last closing parenthesis before any trailing whitespace/punctuation
+	for i := n - 1; i >= 0; i-- {
+		if unicode.Is(unicode.Pe, runes[i]) {
+			end = i
+			break
+		} else if !unicode.IsSpace(runes[i]) && !unicode.IsPunct(runes[i]) {
+			// Stop if we hit non-whitespace, non-punct before a closing parenthesis
+			return s
+		}
+	}
+
+	// No closing parenthesis found at the end
+	if end == -1 {
+		return s
+	}
+
+	// Track nesting depth
+	depth := 1
+	start := -1
+
+	// Find matching opening parenthesis
+	for i := end - 1; i >= 0; i-- {
+		if unicode.Is(unicode.Pe, runes[i]) {
+			depth++
+		} else if unicode.Is(unicode.Ps, runes[i]) {
+			depth--
+			if depth == 0 {
+				start = i
+				break
+			}
+		}
+	}
+
+	// If no matching opening parenthesis found, be tolerant and return original
+	if start == -1 {
+		return s
+	}
+
+	// Find last non-whitespace/punct character before the opening parenthesis
+	contentEnd := -1
+	for i := start - 1; i >= 0; i-- {
+		if !unicode.IsSpace(runes[i]) && !unicode.IsPunct(runes[i]) {
+			contentEnd = i
+			break
+		}
+	}
+
+	// If nothing before the parenthetical group, return empty string
+	if contentEnd == -1 {
+		return ""
+	}
+
+	// Return everything before the parenthetical group
+	return string(runes[:contentEnd+1])
+}
+
 
 
 func placeholder() {

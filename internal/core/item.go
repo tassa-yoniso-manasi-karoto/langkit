@@ -46,6 +46,8 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	item.ForeignCurr = joinLines(foreignItem.String())
 
 	if tsk.NativeSubs != nil {
+		// the nativeSubs have not been trimmed if targetSubs is CC but
+		// it's fine because nativeSubs rely on matching timmings
 		if nativeItem := tsk.NativeSubs.Translate(foreignItem); nativeItem != nil {
 			item.NativeCurr = joinLines(nativeItem.String())
 		}
