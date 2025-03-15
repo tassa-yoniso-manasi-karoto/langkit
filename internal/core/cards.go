@@ -41,9 +41,7 @@ func (tsk *Task) audioBase() string {
 }
 
 // Execute is the main entry point for processing a task
-// TODO Wait for Claude 4 release to break large functions and write some tests.
 func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
-	// Initialize reporter for crash diagnostics
 	reporter := crash.Reporter
 	reporter.ClearExecutionRecords()
 	reporter.SaveSnapshot("Starting execution", tsk.DebugVals())
@@ -51,7 +49,6 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		es.ParentDirPath = path.Dir(tsk.MediaSourceFile)
 	})
 
-	// Validate basic requirements
 	if procErr := tsk.validateBasicRequirements(); procErr != nil {
 		return procErr
 	}
@@ -71,13 +68,14 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		}
 	}
 
-	// Special handling for Enhance and Translit modes
+	// case where no dubtitle/STT is involved
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
 		if procErr := tsk.processMediaInfo(); procErr != nil {
 			return procErr
 		}
 		
-		// Processing for specific modes
+		tsk.processClosedCaptions()
+		
 		if tsk.WantTranslit {
 			if err := tsk.processTransliteration(ctx, tsk.TargSubFile); err != nil {
 				return err
@@ -87,12 +85,9 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
 			return procErr
 		}
-		
-		tsk.Handler.ZeroLog().Info().Msg("Processing completed")
-		return nil
+		goto goodEnd
 	}
 
-	// Prepare output files and directories
 	outStream, procErr := tsk.prepareOutputDirectory()
 	if procErr != nil {
 		return procErr
@@ -101,15 +96,13 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		defer outStream.Close()
 	}
 
-	// Media and audio track processing
 	if procErr := tsk.processMediaInfo(); procErr != nil {
 		return procErr
 	}
 
-	// Process closed captions if needed
 	tsk.processClosedCaptions()
 
-	// Handle user confirmation for CLI mode
+	// FIXME
 	if procErr := tsk.handleUserConfirmation(); procErr != nil {
 		return procErr
 	}
@@ -119,30 +112,25 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 		return procErr
 	}
 
-	// Handle STT and dubtitles generation
 	subsPath, procErr := tsk.processDubtitles(ctx)
 	if procErr != nil {
 		return procErr
 	}
 
-	// Handle transliteration if requested
 	if procErr := tsk.processTransliteration(ctx, subsPath); procErr != nil {
 		return procErr
 	}
 
-	// Handle audio enhancement if requested
 	if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
 		return procErr
 	}
 	
-	// Merge all outputs if requested
 	if tsk.MergeOutputFiles && len(tsk.OutputFiles) > 0 {
 		mergeResult, procErr := tsk.MergeOutputs(ctx)
 			if procErr != nil {
 				return procErr
 			}
 			
-			// Log merge result information
 			if mergeResult != nil && !mergeResult.Skipped {
 				tsk.Handler.ZeroLog().Info().
 					Str("outputPath", mergeResult.OutputPath).
@@ -150,7 +138,8 @@ func (tsk *Task) Execute(ctx context.Context) *ProcessingError {
 					Msg("Output files merged successfully")
 			}
 	}
-	
+
+goodEnd:
 	tsk.Handler.ZeroLog().Info().Msg("Processing completed")
 	return nil
 }
@@ -284,6 +273,7 @@ func Base2Absolute(s, dir string) string {
 	return ""
 }
 
+// FIXME No gui support
 func userConfirmed() bool {
 	reader := bufio.NewReader(os.Stdin)
 
@@ -330,7 +320,8 @@ func (tsk *Task) validateBasicRequirements() *ProcessingError {
 			"Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). "+
 				"Apostrophe in the names of the files themselves are supported using a workaround.")
 	}
-
+	
+	// FIXME Probably return on mode.Enhance here
 	// Ensure either languages or subtitle files are specified
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		return tsk.Handler.Log(Error, AbortAllTasks,
@@ -461,7 +452,6 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 		}
 	}
 
-	// Log selected audio track details
 	tsk.Handler.ZeroLog().Debug().
 		Int("UseAudiotrack", tsk.UseAudiotrack).
 		Str("trackLang", tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Part3).
@@ -472,7 +462,6 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 
 // processClosedCaptions handles closed caption detection and processing
 func (tsk *Task) processClosedCaptions() {
-	// Skip for Enhance mode
 	if tsk.Mode == Enhance {
 		return
 	}

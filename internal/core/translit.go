@@ -30,46 +30,6 @@ var (
 	reSpacingInARow = regexp.MustCompile(`\s*(.*)\s*`)
 )
 
-// CreateMockTransliterationFiles creates mock transliteration files for testing
-func CreateMockTransliterationFiles(subsFilepath string, types []TranslitType) ([]string, error) {
-	// Only run in test mode with mock providers
-	if os.Getenv("LANGKIT_USE_MOCK_PROVIDERS") != "true" {
-		return nil, nil
-	}
-	
-	outputs := []string{}
-	baseDir := filepath.Dir(subsFilepath)
-	baseName := strings.TrimSuffix(filepath.Base(subsFilepath), filepath.Ext(subsFilepath))
-	
-	// Create mock files for each requested type
-	for _, tlitType := range types {
-		outputPath := filepath.Join(baseDir, baseName + tlitType.ToSuffix())
-		
-		// Create a simple mock subtitle file
-		srtContent := `1
-00:00:01,000 --> 00:00:04,000
-Mock ` + tlitType.String() + ` content line 1
-
-2
-00:00:05,000 --> 00:00:08,000
-Mock ` + tlitType.String() + ` content line 2
-
-3
-00:00:09,000 --> 00:00:12,000
-[Mock ` + tlitType.String() + ` of ` + filepath.Base(subsFilepath) + `]
-`
-		err := os.WriteFile(outputPath, []byte(srtContent), 0644)
-		if err != nil {
-			return outputs, fmt.Errorf("failed to write %s file: %w", tlitType.String(), err)
-		}
-		
-		outputs = append(outputs, outputPath)
-		fmt.Printf("Created mock transliteration file: %s\n", outputPath)
-	}
-	
-	return outputs, nil
-}
-
 var (
 	reMultipleSpacesSeq = regexp.MustCompile(`\s+`)
 )
@@ -91,7 +51,7 @@ func (m TranslitType) ToSuffix() string {
 	return "_" + m.String() + ".srt"
 }
 
-// TranslitProvider defines an interface for transliteration providers
+// TranslitProvider defines an interface for transliteration providers.
 // translitkit already acts a layer of abstraction but for selective transliteration
 // it is better to access the dedicated lib for a given language directly.
 type TranslitProvider interface {
@@ -244,10 +204,12 @@ func (tsk *Task) Transliterate(ctx context.Context, subsFilepath string) *Proces
 	
 	tsk.Handler.ZeroLog().Trace().Msg("Tokenization/transliteration query finished")
 	
-	// TODO this convoluted replacement system of processed word on the original subtitle line
-	//  was designed to workaround the fact that some providers trimmed non-lexical elements such as
+	// this convoluted replacement system of processed word on the original subtitle line was
+	// designed to workaround the fact that some NLP providers trim non-lexical elements such as
 	// punctuation and therefore deformed the original string's format but after recent updates on
-	// translitkit I am not sure whether it's still needed
+	// translitkit it is not needed anymore. However for japanese go-ichiran is used directly
+	// because I didn't bother to reimplement selective transliteration through translitkit.
+	// Because go-ichiran doesn't have that kind of extra processing this code will remain for now. 
 	
 	// Common replacement logic - measure performance
 	replaceStartTime := time.Now()
@@ -763,6 +725,48 @@ func WantCPUProfiling() bool {
 
 func clean(s string) string{
 	return reMultipleSpacesSeq.ReplaceAllString(strings.TrimSpace(s), " ")
+}
+
+
+
+// CreateMockTransliterationFiles creates mock transliteration files for testing
+func CreateMockTransliterationFiles(subsFilepath string, types []TranslitType) ([]string, error) {
+	// Only run in test mode with mock providers
+	if os.Getenv("LANGKIT_USE_MOCK_PROVIDERS") != "true" {
+		return nil, nil
+	}
+	
+	outputs := []string{}
+	baseDir := filepath.Dir(subsFilepath)
+	baseName := strings.TrimSuffix(filepath.Base(subsFilepath), filepath.Ext(subsFilepath))
+	
+	// Create mock files for each requested type
+	for _, tlitType := range types {
+		outputPath := filepath.Join(baseDir, baseName + tlitType.ToSuffix())
+		
+		// Create a simple mock subtitle file
+		srtContent := `1
+00:00:01,000 --> 00:00:04,000
+Mock ` + tlitType.String() + ` content line 1
+
+2
+00:00:05,000 --> 00:00:08,000
+Mock ` + tlitType.String() + ` content line 2
+
+3
+00:00:09,000 --> 00:00:12,000
+[Mock ` + tlitType.String() + ` of ` + filepath.Base(subsFilepath) + `]
+`
+		err := os.WriteFile(outputPath, []byte(srtContent), 0644)
+		if err != nil {
+			return outputs, fmt.Errorf("failed to write %s file: %w", tlitType.String(), err)
+		}
+		
+		outputs = append(outputs, outputPath)
+		fmt.Printf("Created mock transliteration file: %s\n", outputPath)
+	}
+	
+	return outputs, nil
 }
 
 func placeholder2345432() {
