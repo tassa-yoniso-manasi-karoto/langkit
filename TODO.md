@@ -1,18 +1,20 @@
 
 - NORMALIZE / BALANCE UI COLORS
-- adjust feature loading time
-- closedcaptions trimming: does it still impact or not?
+
+- subtitles:
+  - check nextsub, prevsub which have been broken forever
+  - closedcaptions trimming: does it still impact or not?
+
 - GUI options:
   - condensed audio toggle
   - dubs allow user to request cached sep voice file deletion
+
 - crash reports add snapshots of tsk throughout code
 - manual GUI tests
 
 - translitkit close
 - fix newlines in builtin documentation
-- Update README
-- Update icon
-- Browse Fixme
+- Browse / check FIXMEs in codebase
 
 *later:*
 

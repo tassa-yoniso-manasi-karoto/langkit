@@ -765,8 +765,8 @@
                     // Create an exponential delay curve for a more natural feel
                     // First items appear quickly, later items have increasing delays
                     const baseDelay = 100;
-                    const incrementFactor = 1.2; 
-                    const delay = baseDelay * Math.pow(incrementFactor, index / 1.5);
+                    const incrementFactor = 1.75;
+                    const delay = baseDelay * Math.pow(incrementFactor, index / 1.2);
                     
                     setTimeout(() => {
                         console.log(`Revealing feature ${feature} at ${Math.round(delay)}ms`);
@@ -791,6 +791,10 @@
         }
     });
     
+    function softLanding(t) {
+       return 1 - Math.pow(1 - t, 3.5);
+    }
+
     onDestroy(() => {
         errorStore.removeError('docker-required');
         errorStore.removeError('invalid-browser-url');
@@ -831,9 +835,9 @@
             {#each features.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
                 <div 
                     in:fly={{ 
-                        x: 100, // Reduced distance for better performance
-                        duration: Math.min(300, 300 - (i * 15)), // Cap min duration at 150ms
-                        easing: cubicOut,
+                        x: 400,
+                        duration: Math.min(550, 550 - (i * 15)),
+                        easing: softLanding,
                         opacity: 0
                     }}
                     style="will-change: transform, opacity; overflow: visible;"
