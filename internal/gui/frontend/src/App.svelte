@@ -258,7 +258,7 @@
             const timestamp = new Date().toISOString();
             
             // Log every state check for verification
-            console.log(`[${timestamp}] Window state check - minimized: ${minimized}, previous state: ${isWindowMinimized}`);
+            //console.log(`[${timestamp}] Window state check - minimized: ${minimized}, previous state: ${isWindowMinimized}`);
             
             // Only update if state changed to avoid unnecessary re-renders
             if (minimized !== isWindowMinimized) {

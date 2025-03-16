@@ -1,30 +1,37 @@
 
 - NORMALIZE / BALANCE UI COLORS (process manager, error tooltip too)
 
-- progressbar not destroyed in time on resume
 - sub roma ichiran not written
 
 - implement an explicit maxAbortTasks
-- hide logviewer and alert on error
+
+- logviewer
+   - hide logviewer and alert on error
+   - show logviewer by default should maximize on start up
+   - frontend logs in log viewer
+   
 - immutable context problem
 
 - GUI options:
   - condensed audio toggle
   - dubs allow user to request cached sep voice file deletion
 
-- frontend logs in log viewer
+- processedCount for ETA calculation
+  - fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
+
 - crash reports add snapshots of tsk throughout code
 - manual GUI tests
 - manual CLI tests
+- try offline to see if icon / fonts are missing
+
 
 - translitkit close
-- progressCallback for all providers
+- add progressCallback to all providers in translitkit
 - fix newlines in builtin documentation
 - Browse / check FIXMEs in codebase
 
 *later:*
 
-- fork progressbar bc its time prediction use a rate based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
 - make sure API retries are subject to ctx cancelation
 - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes

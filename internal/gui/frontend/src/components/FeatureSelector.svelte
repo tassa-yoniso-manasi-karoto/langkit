@@ -7,6 +7,7 @@
     
     import { settings } from '../lib/stores.ts';
     import { errorStore } from '../lib/errorStore';
+    import { logStore } from '../lib/logStore';
     import { 
         features, 
         createDefaultOptions, 
@@ -14,6 +15,11 @@
         providersRequiringTokens,
         type RomanizationScheme 
     } from '../lib/featureModel';
+    import { 
+        featureGroupStore, 
+        type FeatureGroup,
+        groupHasEnabledFeature
+    } from '../lib/featureGroupStore';
     import { 
         GetRomanizationStyles, 
         ValidateLanguageTag, 
@@ -60,12 +66,11 @@
     let audioTrackIndex = 0;
     let hasLanguageTags = true;
 
-    // Provider group tracking
+    // Legacy group tracking for backward compatibility during transition
     let providerGroups: Record<string, string[]> = {
         subtitle: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
     };
     
-    // Output merge group tracking
     let outputMergeGroups: Record<string, string[]> = {
         finalOutput: ['dubtitles', 'voiceEnhancing', 'subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
     };
@@ -349,26 +354,105 @@
     // Event handlers
     function handleFeatureEnabledChange(event: CustomEvent) {
         const { id, enabled } = event.detail;
+        console.log(`Feature toggle: ${id} -> ${enabled}`);
+        
         selectedFeatures[id] = enabled;
         updateProviderWarnings();
         
-        // Handle provider group features
+        // Handle feature groups with the new system
         const featureDef = features.find(f => f.id === id);
-        if (featureDef?.providerGroup) {
-            // If this feature is part of a provider group, check if any feature in the group is enabled
-            const groupFeatures = providerGroups[featureDef.providerGroup] || [];
-            const isAnyGroupFeatureEnabled = groupFeatures.some(fId => selectedFeatures[fId]);
+        if (!featureDef) {
+            console.error(`Feature not found: ${id}`);
+            return;
+        }
+        
+        // Update in the feature group store if this feature belongs to any groups
+        if (featureDef.featureGroups && featureDef.featureGroups.length > 0) {
+            console.log(`Feature ${id} belongs to groups: ${featureDef.featureGroups.join(', ')}`);
             
-            // Add subtitleProviderSettings to visible features if any subtitle feature is enabled
-            if (featureDef.providerGroup === 'subtitle') {
-                // Find the subtitleProviderSettings feature for conditions
-                if (isAnyGroupFeatureEnabled && !visibleFeatures.includes('subtitleProviderSettings')) {
-                    visibleFeatures = [...visibleFeatures, 'subtitleProviderSettings'];
+            featureDef.featureGroups.forEach(groupId => {
+                console.log(`Processing group ${groupId} for feature ${id}`);
+                
+                // Update enabled state in the group store
+                featureGroupStore.updateFeatureEnabled(groupId, id, enabled);
+                
+                // If this feature was just enabled, make it the active display feature
+                if (enabled) {
+                    console.log(`Feature ${id} enabled - checking if it should be active display for group ${groupId}`);
+                    
+                    // Get all enabled features in this group
+                    const enabledFeaturesInGroup = Object.keys(selectedFeatures)
+                        .filter(fId => 
+                            selectedFeatures[fId] && 
+                            features.find(f => f.id === fId)?.featureGroups?.includes(groupId)
+                        );
+                        
+                    console.log(`Group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+                    
+                    // If this is the first enabled feature in the group, make it the active display feature
+                    const orderedGroupFeatures = features
+                        .filter(f => f.featureGroups?.includes(groupId))
+                        .map(f => f.id);
+                        
+                    const enabledOrderedFeatures = orderedGroupFeatures
+                        .filter(fId => enabledFeaturesInGroup.includes(fId));
+                        
+                    if (enabledOrderedFeatures.length > 0 && enabledOrderedFeatures[0] === id) {
+                        console.log(`Making ${id} the active display feature for group ${groupId}`);
+                        featureGroupStore.updateActiveDisplayFeature(
+                            groupId,
+                            orderedGroupFeatures,
+                            enabledFeaturesInGroup
+                        );
+                    }
                 }
+                // If this is a group option display feature and it was just disabled,
+                // we need to update the active display feature
+                else if (featureGroupStore.isActiveDisplayFeature(groupId, id)) {
+                    console.log(`Feature ${id} was active display for group ${groupId} but is now disabled`);
+                    
+                    // Get all feature IDs in this group
+                    const groupFeatureIds = features
+                        .filter(f => f.featureGroups?.includes(groupId))
+                        .map(f => f.id);
+                    
+                    // Get all enabled features in this group
+                    const enabledFeaturesInGroup = Object.keys(selectedFeatures)
+                        .filter(fId => 
+                            selectedFeatures[fId] && 
+                            features.find(f => f.id === fId)?.featureGroups?.includes(groupId)
+                        );
+                    
+                    console.log(`After disabling, group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+                    
+                    // Update the active display feature
+                    featureGroupStore.updateActiveDisplayFeature(
+                        groupId, 
+                        groupFeatureIds,
+                        enabledFeaturesInGroup
+                    );
+                }
+                
+                // Sync values from group store to all features to ensure they're consistent
+                console.log(`Syncing options for group ${groupId} to features`);
+                currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
+                    groupId, currentFeatureOptions
+                );
+            });
+        }
+        
+        // Check if any subtitle group feature is enabled to show provider settings
+        if (featureDef?.featureGroups?.includes('subtitle')) {
+            const isAnySubtitleFeatureEnabled = features.some(f => 
+                f.featureGroups?.includes('subtitle') && selectedFeatures[f.id]);
+                
+            // Add subtitleProviderSettings to visible features if any subtitle feature is enabled
+            if (isAnySubtitleFeatureEnabled && !visibleFeatures.includes('subtitleProviderSettings')) {
+                visibleFeatures = [...visibleFeatures, 'subtitleProviderSettings'];
             }
         }
         
-        // Handle output merge group features
+        // Legacy output merge group handling
         if (featureDef?.outputMergeGroup) {
             // When a feature in a merge group is enabled or disabled, 
             // we need to update the merge options visibility
@@ -439,83 +523,49 @@
     }
     
     function handleOptionChange(event: CustomEvent) {
-        const { featureId, optionId, value } = event.detail;
+        const { featureId, optionId, value, isGroupOption, groupId, isUserInput } = event.detail;
         
-        // Check if this is a provider-related option
-        const isProviderOption = optionId === 'style' || optionId === 'provider' || 
-                optionId === 'dockerRecreate' || optionId === 'browserAccessURL';
+        // Handle group option changes (new implementation)
+        if (isGroupOption && groupId) {
+            console.log(`FeatureSelector received group option change - ${groupId}.${optionId}: '${value}'`, 
+                isUserInput ? '(user input)' : '');
+            
+            // Always trust user input as authoritative
+            if (isUserInput) {
+                console.log(`Setting authoritative user value for ${groupId}.${optionId}: '${value}'`);
+            }
+            
+            // Update the group store - this is the central source of truth for group options
+            featureGroupStore.setGroupOption(groupId, optionId, value);
+            
+            // Sync values from the group store to all features in the group
+            currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
+                groupId, currentFeatureOptions
+            );
+            
+            // Dispatch changes
+            dispatch('optionsChange', currentFeatureOptions);
+            return;
+        }
         
-        // Check if this is a merge-related option
+        // Check if this is a merge-related option (legacy handling)
         const isMergeOption = optionId === 'mergeOutputFiles' || optionId === 'mergingFormat';
         
-        // Check if this belongs to a provider group
-        const feature = features.find(f => f.id === featureId);
-        const isInProviderGroup = feature && feature.providerGroup;
-        const isInMergeGroup = feature && feature.outputMergeGroup;
-        
-        // Handle provider group options
-        if (isInProviderGroup && isProviderOption) {
-            // Get all features in the same provider group
-            const groupFeatures = providerGroups[feature.providerGroup] || [];
-            
-            // Propagate provider-related changes to all features in the group
-            groupFeatures.forEach(groupFeatureId => {
-                // Create the options object if it doesn't exist
-                if (!currentFeatureOptions[groupFeatureId]) {
-                    currentFeatureOptions[groupFeatureId] = {};
-                }
-                
-                // Copy the provider-related option
-                currentFeatureOptions[groupFeatureId][optionId] = value;
-            });
-            
-            // Special handling for romanization style changes
-            if (optionId === 'style') {
-                const selectedScheme = romanizationSchemes.find(s => s.name === value);
-                if (selectedScheme) {
-                    const providerValue = selectedScheme.provider;
-                    // Update provider for all features in the group
-                    groupFeatures.forEach(groupFeatureId => {
-                        currentFeatureOptions[groupFeatureId]['provider'] = providerValue;
-                    });
-                }
-            }
-            
-            // Trigger validation immediately for browserAccessURL
-            if (optionId === 'browserAccessURL') {
-                const isValidURL = value && value.startsWith('ws://');
-                if (needsScraper) {
-                    if (!isValidURL) {
-                        errorStore.addError({
-                            id: 'invalid-browser-url',
-                            message: 'Valid browser access URL is required for web scraping',
-                            severity: 'critical'
-                        });
-                    } else {
-                        errorStore.removeError('invalid-browser-url');
-                    }
-                }
-            }
-        } 
-        // Handle merge group options
-        else if (isMergeOption) {
+        if (isMergeOption) {
             // Update the global merge option value
             mergeOptionValues[optionId] = value;
             
             // Update the current feature option
             currentFeatureOptions[featureId][optionId] = value;
             
-            // Since this is coming from a user interaction on the active feature,
-            // we don't need to run the full updateMergeOptionsVisibility
             // Just dispatch the change
             dispatch('optionsChange', currentFeatureOptions);
         } 
         else {
             // For non-special options or features not in groups, just update directly
             currentFeatureOptions[featureId][optionId] = value;
+            dispatch('optionsChange', currentFeatureOptions);
         }
-
-        dispatch('optionsChange', currentFeatureOptions);
     }
     
     function handleLanguageTagChange(event: CustomEvent) {
@@ -678,27 +728,17 @@
         }
     }
     
-    // Browser URL errors - improved validation for all subtitle group features
+    // Remove all browser URL validation errors when the component is updated
     $: {
-        // First determine if any feature in the subtitle group is enabled and needs a scraper
-        const subtitleGroupEnabled = providerGroups.subtitle.some(id => selectedFeatures[id]);
-        const needsScraperValidation = subtitleGroupEnabled && needsScraper;
+        // Clear any legacy browser URL errors
+        errorStore.removeError('invalid-browser-url');
         
-        // Find the active feature in the subtitle group to check its browserAccessURL
-        const activeSubtitleFeature = providerGroups.subtitle.find(id => selectedFeatures[id]);
-        
-        // Get the browserAccessURL from any of the enabled features in the group
-        const browserURL = activeSubtitleFeature ? 
-            (currentFeatureOptions[activeSubtitleFeature]?.browserAccessURL || '') : '';
-        
-        if (needsScraperValidation && (!browserURL || !browserURL.startsWith('ws://'))) {
-            errorStore.addError({
-                id: 'invalid-browser-url',
-                message: 'Valid browser access URL is required for web scraping',
-                severity: 'critical'
-            });
-        } else {
-            errorStore.removeError('invalid-browser-url');
+        // Also clear any group browser URL errors if no subtitle features are enabled
+        const anySubtitleFeatureEnabled = features.some(f => 
+            f.featureGroups?.includes('subtitle') && selectedFeatures[f.id]);
+            
+        if (!anySubtitleFeatureEnabled) {
+            errorStore.removeError('group-subtitle-browser-url');
         }
     }
     
@@ -736,10 +776,118 @@
     }
     
     // Component lifecycle
+    // Initialize feature groups
+    function initializeFeatureGroups() {
+        // First, handle existing features to ensure they're visible
+        // This ensures all feature cards are created correctly first
+        for (let feature of features) {
+            if (['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].includes(feature.id)) {
+                // Mark for group membership but don't initialize fully yet
+                if (!feature.featureGroups) {
+                    feature.featureGroups = ['subtitle'];
+                } else if (!feature.featureGroups.includes('subtitle')) {
+                    feature.featureGroups.push('subtitle');
+                }
+            }
+        }
+        
+        // Define the subtitle group
+        const subtitleGroup: FeatureGroup = {
+            id: 'subtitle',
+            label: 'Subtitle Processing',
+            description: 'Features related to subtitle processing',
+            featureIds: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'],
+            sharedOptions: ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
+            validationRules: [
+                {
+                    id: 'browser-url-validation',
+                    optionId: 'browserAccessURL',
+                    // Fixed validation that runs only when needed
+                    validator: (url) => {
+                        // If scraper isn't needed, don't validate
+                        if (!needsScraper) return true;
+                        
+                        // Check for a valid WebSocket URL
+                        return Boolean(url && url.startsWith('ws://'));
+                    },
+                    errorMessage: 'Valid browser access URL is required for web scraping',
+                    severity: 'critical'
+                }
+            ]
+        };
+        
+        // Register feature groups in the store
+        featureGroupStore.registerGroup(subtitleGroup);
+        
+        // Update subtitle features with shared options
+        const subtitleFeatures = features.filter(f => 
+            ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].includes(f.id));
+            
+        subtitleFeatures.forEach(feature => {
+            // Make sure group membership is set
+            if (!feature.featureGroups) {
+                feature.featureGroups = ['subtitle'];
+            } else if (!feature.featureGroups.includes('subtitle')) {
+                feature.featureGroups.push('subtitle');
+            }
+            
+            // Add group shared options
+            if (!feature.groupSharedOptions) {
+                feature.groupSharedOptions = {};
+            }
+            
+            // Define which options are shared in the subtitle group
+            feature.groupSharedOptions['subtitle'] = ['style', 'provider', 'dockerRecreate', 'browserAccessURL'];
+            
+            // Make sure the feature has the required options defined
+            if (!currentFeatureOptions[feature.id]) {
+                currentFeatureOptions[feature.id] = {};
+            }
+        });
+        
+        // Initialize shared options from existing feature options - use the first available value
+        const initialGroupOptions: Record<string, any> = {
+            'style': 'paiboon', // Default to paiboon if nothing set
+            'provider': '',
+            'browserAccessURL': '',
+            'dockerRecreate': false
+        };
+        
+        // Scan all subtitle features for options to use as initial values
+        subtitleFeatures.forEach(feature => {
+            if (currentFeatureOptions[feature.id]) {
+                const options = currentFeatureOptions[feature.id];
+                
+                ['style', 'provider', 'browserAccessURL', 'dockerRecreate'].forEach(optionId => {
+                    // Only set if the option has a non-empty value
+                    if (options[optionId] !== undefined && options[optionId] !== '' && 
+                        (optionId !== 'style' || options[optionId] !== 'paiboon')) {
+                        initialGroupOptions[optionId] = options[optionId];
+                    }
+                });
+            }
+        });
+        
+        // Apply all collected initial values to the group
+        Object.entries(initialGroupOptions).forEach(([optionId, value]) => {
+            featureGroupStore.setGroupOption('subtitle', optionId, value);
+        });
+        
+        // Apply group options to all features to ensure consistency
+        subtitleFeatures.forEach(feature => {
+            ['style', 'provider', 'browserAccessURL', 'dockerRecreate'].forEach(optionId => {
+                currentFeatureOptions[feature.id][optionId] = initialGroupOptions[optionId];
+            });
+        });
+    }
+
     onMount(async () => {
         console.log("FeatureSelector mounting - loading data...");
         
         try {
+            // Initialize feature groups first
+            initializeFeatureGroups();
+            
             // Load all necessary data before showing the component
             // This prevents visual glitches during initialization
             const currentSettings = get(settings);
@@ -821,6 +969,9 @@
     }
 
     onDestroy(() => {
+        console.log('FeatureSelector unmounting, cleaning up errors');
+        
+        // Clear legacy errors
         errorStore.removeError('docker-required');
         errorStore.removeError('invalid-browser-url');
         errorStore.removeError('no-features');
@@ -829,6 +980,11 @@
         errorStore.removeError('provider-voiceEnhancing');
         errorStore.removeError('no-romanization');
         errorStore.removeError('no-selective-transliteration');
+        
+        // Clear feature group errors - be thorough with all possible error IDs
+        featureGroupStore.clearGroupErrors('subtitle');
+        errorStore.removeError('group-subtitle-browser-url');
+        errorStore.removeError('group-subtitle-browser-url-validation');
     });
 </script>
 
