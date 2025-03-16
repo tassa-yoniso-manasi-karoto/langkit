@@ -254,8 +254,7 @@ export const features: FeatureDefinition[] = [
             style: {
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
-                default: '',
-                showCondition: "feature.id === 'subtitleRomanization'"
+                default: ''
             },
             provider: {
                 type: 'provider',
@@ -330,8 +329,7 @@ export const features: FeatureDefinition[] = [
             style: {
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
-                default: '',
-                showCondition: "feature.id === 'subtitleRomanization'"
+                default: ''
             },
             provider: {
                 type: 'provider',
