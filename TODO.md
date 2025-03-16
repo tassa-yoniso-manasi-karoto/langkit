@@ -3,12 +3,12 @@
 
 - sub roma ichiran not written
 
-- implement an explicit maxAbortTasks
+                                - implement an explicit maxAbortTasks
 
-- logviewer
-   - hide logviewer and alert on error
-   - show logviewer by default should maximize on start up
-   - frontend logs in log viewer
+                                - logviewer
+                                   - hide logviewer and alert on error
+                                   - show logviewer by default should maximize on start up
+                                   - frontend logs in log viewer
    
 - immutable context problem
 

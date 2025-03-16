@@ -95,6 +95,10 @@
             isChecking = false;
             standardTag = '';
             validationError = '';
+            
+            // Reset all feature selections
+            resetAllFeatures();
+            
             await updateRomanizationStyles('');
             return;
         }
@@ -103,9 +107,15 @@
         try {
             const response = await ValidateLanguageTag(code, maxOne);
             
+            const previousTag = standardTag;
             isValidLanguage = response.isValid;
             standardTag = response.standardTag || '';
             validationError = response.error || '';
+            
+            // If language has changed, reset all feature selections
+            if (previousTag !== standardTag) {
+                resetAllFeatures();
+            }
             
             if (response.isValid) {
                 await updateRomanizationStyles(standardTag);
@@ -117,10 +127,38 @@
             isValidLanguage = null;
             standardTag = '';
             validationError = 'Validation failed';
+            
+            // Reset all feature selections on error
+            resetAllFeatures();
+            
             await updateRomanizationStyles('');
         }
         isChecking = false;
     }, 300);
+    
+    // Function to reset all feature selections
+    function resetAllFeatures() {
+        console.log("Resetting all feature selections due to language change");
+        
+        // Disable all features
+        Object.keys(selectedFeatures).forEach(featureId => {
+            if (selectedFeatures[featureId]) {
+                // Set to false
+                selectedFeatures[featureId] = false;
+                
+                // Handle feature groups
+                const featureDef = features.find(f => f.id === featureId);
+                if (featureDef?.featureGroups?.length) {
+                    featureDef.featureGroups.forEach(groupId => {
+                        featureGroupStore.updateFeatureEnabled(groupId, featureId, false);
+                    });
+                }
+            }
+        });
+        
+        // Notify parent component of changes
+        dispatch('optionsChange', currentFeatureOptions);
+    }
 
     // Update romanization styles based on language
     async function updateRomanizationStyles(tag: string) {
@@ -616,7 +654,16 @@
     }
     
     function handleLanguageTagChange(event: CustomEvent) {
-        quickAccessLangTag = event.detail.languageTag;
+        const previousTag = quickAccessLangTag;
+        const newTag = event.detail.languageTag;
+        
+        quickAccessLangTag = newTag;
+        
+        // If tag has changed significantly (not just case or formatting), reset features
+        if (previousTag.toLowerCase() !== newTag.toLowerCase()) {
+            console.log(`Language changed from ${previousTag} to ${newTag}`);
+        }
+        
         validateLanguageTag(quickAccessLangTag, true);
     }
     
@@ -738,7 +785,15 @@
     // Settings subscription
     settings.subscribe(value => {
         if (value?.targetLanguage && value.targetLanguage !== quickAccessLangTag) {
+            const previousTag = quickAccessLangTag;
             quickAccessLangTag = value.targetLanguage;
+            
+            // If changing to a completely different language, reset features
+            if (previousTag && previousTag.toLowerCase() !== value.targetLanguage.toLowerCase()) {
+                console.log(`Language changed from settings: ${previousTag} to ${value.targetLanguage}`);
+                // The resetAllFeatures call will be triggered by validateLanguageTag
+            }
+            
             validateLanguageTag(value.targetLanguage, true);
         }
     });
