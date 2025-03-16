@@ -2,7 +2,6 @@
 - NORMALIZE / BALANCE UI COLORS (process manager, error tooltip too)
 
 - progressbar not destroyed in time on resume
-- no update when minimized
 - sub roma ichiran not written
 
 - implement an explicit maxAbortTasks

@@ -29,7 +29,8 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		errChan     = make(chan *ProcessingError, tsk.Meta.WorkersMax)	// Channel for worker errors.
 		wg          sync.WaitGroup
 		skipped     int
-		skippedIndexes = make(map[int]bool)
+		processedCount int                                               // Track actually processed items (for ETA)
+		indexesToSkip = make(map[int]bool)
 	)
 
 	toCheckChan := make(chan string)
@@ -40,29 +41,19 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		}
 	}()
 	
-	// init progress bar
-	tsk.Handler.IncrementProgress(
-		"item-bar",
-		0,
-		totalItems,
-		20,
-		"Subtitle lines processed (all files)...",
-		tsk.descrBar(),
-		"h-3",
-	)
-	updateBar := func(item *ProcessedItem) {
-		if !item.AlreadyDone {
-			tsk.Handler.IncrementProgress(
-				"item-bar",
-				1,
-				totalItems,
-				20,
-				"Subtitle lines processed (all files)...",
-				tsk.descrBar(),
-				"h-3",
-			)
-		}
+	updateBar := func(incr int) {
+		tsk.Handler.IncrementProgress(
+			"item-bar",
+			incr,
+			totalItems,
+			20,
+			"Subtitle lines processed (all files)...",
+			"",
+			"h-3",
+		)
 	}
+	
+	updateBar(0)
 
 	supCtx, supCancel := context.WithCancel(ctx)
 	defer supCancel()
@@ -114,8 +105,10 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 					Str("subline", getSubLineText(*astitem)).
 					Msg("Skipping subtitle line previously processed")
 				skipped++
-				skippedIndexes[i] = true
+				indexesToSkip[i] = true
+				// Decrease the total count as this item doesn't need processing
 				totalItems--
+				updateBar(1)
 				continue
 			}
 			
@@ -171,11 +164,12 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		
 		for {
 			// Skip any consecutive indexes that were already processed (skipped).
-			for skippedIndexes[nextIndex] {
+			for indexesToSkip[nextIndex] {
 				tsk.Handler.ZeroLog().Trace().
 					Int("idx", nextIndex).
 					Msg("writer: item exist in file already, skipping...")
-				// We pretend that item was “written,” so we just jump ahead.
+				// We don't need to update the progress bar here anymore,
+				// since it's now updated in the producer goroutine
 				nextIndex++
 			}
 			
@@ -184,7 +178,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 					Int("idx", item.Index).
 					Msg("writer: item is already in waitingRoom")
 				write(outStream, &item)
-				updateBar(&item)
+				updateBar(1)
 				delete(waitingRoom, nextIndex)
 				nextIndex++
 				continue
@@ -197,7 +191,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 				if !ok {
 					for {
 						// Skip any future indexes that we know were processed
-						for skippedIndexes[nextIndex] {
+						for indexesToSkip[nextIndex] {
 							tsk.Handler.ZeroLog().Trace().
 								Int("idx", nextIndex).
 								Msg("writer: item exist in file already, skipping...")
@@ -209,7 +203,8 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 								Int("idx", nextItem.Index).
 								Msg("writer: no more items to come: flushing waitingRoom in order")
 							write(outStream, &nextItem)
-							updateBar(&nextItem)
+							updateBar(1)
+							processedCount++  // Increment the processed count for calculating ETA
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
@@ -222,11 +217,12 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 						Int("idx", nextIndex).
 						Msg("writer: just received the correct next item")
 					write(outStream, &item)
-					updateBar(&item)
+					updateBar(1)
+					processedCount++  // Increment the processed count for calculating ETA
 					nextIndex++
 					for {
 						// Again, skip any that were marked as already processed.
-						for skippedIndexes[nextIndex] {
+						for indexesToSkip[nextIndex] {
 							tsk.Handler.ZeroLog().Trace().
 								Int("idx", nextIndex).
 								Msg("writer: item exist in file already, skipping...")
@@ -237,7 +233,8 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 								Int("idx", nextItem.Index).
 								Msg("writer: SUBSEQUENT item is already in waitingRoom")
 							write(outStream, &nextItem)
-							updateBar(&nextItem)
+							updateBar(1)
+							processedCount++  // Increment the processed count for calculating ETA
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
@@ -259,6 +256,13 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 	if itembar != nil {
 		itembar.Clear()
 	}
+	
+	// Log the actual count of processed items (useful for ETA calculations in future runs)
+	tsk.Handler.ZeroLog().Info().
+		Int("processedCount", processedCount).
+		Int("skippedCount", skipped).
+		Int("totalOriginalItems", len(tsk.TargSubs.Items)).
+		Msg("Task processing complete")
 
 	if ctx.Err() != nil {
 		return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "supervisor: operation canceled by user")
