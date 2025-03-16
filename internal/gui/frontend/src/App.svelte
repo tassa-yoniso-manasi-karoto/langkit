@@ -320,21 +320,34 @@
         const timeSinceLastUpdate = now - lastProgressTimestamp;
         lastProgressTimestamp = now;
         
-        // Skip visual updates if window is minimized to save resources
-        if (isWindowMinimized) {
-            // Log skipped updates stats
-            skippedUpdateCount += pendingProgressUpdates.length;
-            
-            // Every 10 skipped updates, log summary
-            if (skippedUpdateCount % 10 === 0) {
-                console.log(`[${new Date().toISOString()}] ⏭️ Skipped ${skippedUpdateCount} progress updates while minimized`);
-            }
-            
-            // Clear updates without processing them
-            pendingProgressUpdates = [];
-            progressUpdateDebounceTimer = null;
-            return;
+        // When window is minimized, we still want to track progress state
+    // but we can skip visual updates to save resources
+    if (isWindowMinimized) {
+        // Log skipped updates stats
+        skippedUpdateCount += pendingProgressUpdates.length;
+        
+        // Every 10 skipped updates, log summary
+        if (skippedUpdateCount % 10 === 0) {
+            console.log(`[${new Date().toISOString()}] ⏭️ Throttled ${skippedUpdateCount} progress updates while minimized`);
         }
+        
+        // Process only the most recent update for each unique progress bar ID
+        // This ensures state is maintained even when visual updates are skipped
+        const latestUpdatesByID = new Map();
+        pendingProgressUpdates.forEach(update => {
+            latestUpdatesByID.set(update.id, update);
+        });
+        
+        // Apply only the latest update for each bar to maintain state
+        Array.from(latestUpdatesByID.values()).forEach(data => {
+            updateProgressBar(data);
+        });
+        
+        // Clear the queue after processing the latest updates
+        pendingProgressUpdates = [];
+        progressUpdateDebounceTimer = null;
+        return;
+    }
         
         // Process all pending progress updates at once
         const updateCount = pendingProgressUpdates.length;
@@ -392,10 +405,7 @@
         
         // Initialize log listener with passive option for better performance
         EventsOn("log", (rawLog: any) => {
-            // Skip log UI updates if window is minimized
-            if (isWindowMinimized) return;
-            
-            // Log events won't trigger reflow, so we can add them directly
+            // Always process logs even when minimized to maintain complete log history
             logStore.addLog(rawLog);
         });
         
@@ -426,12 +436,7 @@
         
         // Batch progress updates for better performance
         EventsOn("progress", (data) => {
-            // Skip visual updates entirely if window is minimized
-            if (isWindowMinimized && !data.critical) {
-                return;
-            }
-            
-            // Add to pending updates queue
+            // Always add to pending updates queue to maintain state correctness
             pendingProgressUpdates.push(data);
             
             // Adjust frame rate based on window state
