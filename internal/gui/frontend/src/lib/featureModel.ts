@@ -61,7 +61,7 @@ const commonMergeOptions = {
     mergeOutputFiles: {
         type: 'boolean',
         label: 'Merge all processed outputs',
-        default: true,
+        default: false,
         hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
     },
     mergingFormat: {
@@ -130,7 +130,7 @@ export const features: FeatureDefinition[] = [
             mergeOutputFiles: {
                 type: 'boolean',
                 label: 'Merge all processed outputs',
-                default: true,
+                default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
             },
             mergingFormat: {
@@ -178,7 +178,7 @@ export const features: FeatureDefinition[] = [
             mergeOutputFiles: {
                 type: 'boolean',
                 label: 'Merge all processed outputs',
-                default: true,
+                default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
             },
             mergingFormat: {
@@ -227,7 +227,7 @@ export const features: FeatureDefinition[] = [
             mergeOutputFiles: {
                 type: 'boolean',
                 label: 'Merge all processed outputs',
-                default: true,
+                default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
             },
             mergingFormat: {
@@ -297,7 +297,7 @@ export const features: FeatureDefinition[] = [
             mergeOutputFiles: {
                 type: 'boolean',
                 label: 'Merge all processed outputs',
-                default: true,
+                default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
             },
             mergingFormat: {
@@ -357,7 +357,7 @@ export const features: FeatureDefinition[] = [
             mergeOutputFiles: {
                 type: 'boolean',
                 label: 'Merge all processed outputs',
-                default: true,
+                default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
             },
             mergingFormat: {

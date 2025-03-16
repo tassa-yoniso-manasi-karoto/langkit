@@ -82,7 +82,7 @@
     
     // Store for merge option default values
     let mergeOptionValues = {
-        mergeOutputFiles: true,
+        mergeOutputFiles: false,
         mergingFormat: 'mp4'
     };
 
