@@ -440,18 +440,15 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 		Bool("nativelyUsesChunks", nativelyUsesChunks).
 		Msg("")
 	
-	// Create a progress callback function
-	progressCallback := func(current, total int) {
-		handler.IncrementProgress(
-			taskID,
-			0,
-			total,
-			30,
-			"Transliterating",
-			fmt.Sprintf("Processing text (%d/%d)", current+1, total),
-			"h-2",
-		)
-	}
+	handler.IncrementProgress(
+		taskID,
+		0,
+		1,
+		30,
+		"Starting transliteration...",
+		"",
+		"h-2",
+	)
 	
 	// Determine whether to use native progress tracking or custom chunkifier
 	if !nativelyUsesChunks {
@@ -459,7 +456,6 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 		// Calculate optimal chunk size based on text length
 		runeCount := utf8.RuneCountInString(text)
 		maxChunkSize, numChunks := calculateChunkSize(runeCount)
-	
 		handler.ZeroLog().Debug().
 			Int("runeCount", runeCount).
 			Int("maxChunkSize", maxChunkSize).
@@ -469,7 +465,17 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 		m.WithCustomChunkifier(common.NewChunkifier(maxChunkSize))
 	}
 	
-	m.WithProgressCallback(progressCallback)
+	m.WithProgressCallback(func(idx, length int) {
+		handler.IncrementProgress(
+			taskID,
+			1,
+			length,
+			30,
+			"Transliterating",
+			fmt.Sprintf("Processing text (%d/%d)", idx+1, length),
+			"h-2",
+		)
+	})
 	
 	
 	tokens, err := m.Tokens(text)
@@ -551,15 +557,27 @@ func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler M
 	if err != nil {
 		return nil, nil, fmt.Errorf("error splitting text into chunks: %w", err)
 	}
+	totalChunks := len(chunks)
 	
 
 	handler.ZeroLog().Trace().
-		Int("actualNumChunks", len(chunks)).
+		Int("actualNumChunks", totalChunks).
 		Msg("")
 	
 	// Initialize result variables
 	var allTokenizedParts []string
 	var allRomanParts []string
+	
+	// spawn bar
+	handler.IncrementProgress(
+		taskID,
+		0,
+		totalChunks,
+		30,
+		"Starting transliteration...",
+		"",
+		"h-2",
+	)
 	
 	// Process each chunk
 	for i, chunk := range chunks {
@@ -584,10 +602,10 @@ func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler M
 		handler.IncrementProgress(
 			taskID,
 			1,
-			len(chunks),
+			totalChunks,
 			30,
 			"Transliterating",
-			fmt.Sprintf("Processing Japanese text (%d/%d)", i+1, len(chunks)),
+			fmt.Sprintf("Processing Japanese text (%d/%d)", i+1, totalChunks),
 			"h-2",
 		)
 	}

@@ -1,10 +1,13 @@
 
 - NORMALIZE / BALANCE UI COLORS (process manager, error tooltip too)
 
-- fix merged being created when using subs2cards by itself
 - progressbar not destroyed in time on resume
-  
+- no update when minimized
+- sub roma ichiran not written
+
 - implement an explicit maxAbortTasks
+- hide logviewer and alert on error
+- immutable context problem
 
 - GUI options:
   - condensed audio toggle
@@ -16,6 +19,7 @@
 - manual CLI tests
 
 - translitkit close
+- progressCallback for all providers
 - fix newlines in builtin documentation
 - Browse / check FIXMEs in codebase
 
