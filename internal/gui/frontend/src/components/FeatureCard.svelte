@@ -179,7 +179,8 @@
             needsDocker,
             needsScraper,
             optionValues: JSON.stringify(options),
-            selectedFeatures: JSON.stringify(selectedFeatures)
+            selectedFeatures: JSON.stringify(selectedFeatures),
+            featureId: feature.id
         };
         
         const contextHash = JSON.stringify(contextValues);
@@ -207,7 +208,8 @@
         
         // Feature options reference for conditions 
         const featureData = {
-            [feature.id]: options
+            [feature.id]: options,
+            id: feature.id // Include the feature id directly for easier checking
         };
         
         // Simple expression evaluator
@@ -219,6 +221,9 @@
                 })
                 .replace(/feature\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)/g, (_, featureId, propId) => {
                     return JSON.stringify(featureData[featureId][propId]);
+                })
+                .replace(/feature\.id/g, () => {
+                    return JSON.stringify(feature.id);
                 });
             
             // Use Function constructor to evaluate the expression
@@ -512,7 +517,15 @@
                     {@const value = options[optionId]}
                     
                     {#if feature.featureGroups && feature.groupSharedOptions && 
-                         feature.featureGroups.some(groupId => feature.groupSharedOptions[groupId]?.includes(optionId)) &&
+                         feature.featureGroups.some(groupId => {
+                           // Ensure this feature is part of the group in featureGroupStore
+                           if (!featureGroupStore.isFeatureEnabled(groupId, feature.id)) {
+                             featureGroupStore.addFeatureToGroup(groupId, feature.id);
+                           }
+                           
+                           // Check if this option is shared in the group
+                           return feature.groupSharedOptions[groupId]?.includes(optionId);
+                         }) &&
                          feature.featureGroups.some(groupId => featureGroupStore.isActiveDisplayFeature(groupId, feature.id))}
                         <!-- Group option takes the entire row - only shown for the active display feature -->
                         {@const groupId = feature.featureGroups.find(gId => 

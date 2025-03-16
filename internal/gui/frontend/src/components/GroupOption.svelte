@@ -107,6 +107,35 @@
         }
     }
     
+    // Force update provider value when romanization schemes change or style changes
+    $: if (groupId === 'subtitle') {
+        // When romanization schemes load or change
+        if (optionId === 'provider' && romanizationSchemes.length > 0) {
+            const styleValue = featureGroupStore.getGroupOption(groupId, 'style');
+            if (styleValue) {
+                const selectedScheme = romanizationSchemes.find(s => s.name === styleValue);
+                if (selectedScheme && selectedScheme.provider !== localValue) {
+                    // Update provider value directly
+                    console.log(`Updating provider from ${localValue} to ${selectedScheme.provider} based on style ${styleValue}`);
+                    localValue = selectedScheme.provider;
+                    propagateUserValue(selectedScheme.provider);
+                }
+            }
+        }
+        // When style changes and this is a provider option
+        else if (optionId === 'style' && localValue && romanizationSchemes.length > 0) {
+            const selectedScheme = romanizationSchemes.find(s => s.name === localValue);
+            if (selectedScheme) {
+                // Update the provider in the group store
+                const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
+                if (selectedScheme.provider !== currentProvider) {
+                    console.log(`Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
+                    featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+                }
+            }
+        }
+    }
+    
     // Helper function to propagate user input to all necessary places
     function propagateUserValue(newValue: any) {
         // Store in group store
@@ -166,7 +195,10 @@
         if (optionId === 'style') {
             const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
             if (selectedScheme) {
+                // Update the provider in the group store so all features get updated
                 featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+                
+                console.log(`Updated provider to ${selectedScheme.provider} based on style ${newValue}`);
             }
         }
         
@@ -288,18 +320,52 @@
         {:else if optionDef.type === 'provider'}
             <!-- Show provider with GitHub link if available -->
             <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
-                {localValue || ''}
-                {#if providerGithubUrls[localValue]}
-                    <ExternalLink 
-                        href={providerGithubUrls[localValue]}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary/70 hover:text-primary transition-colors duration-200"
-                        title="View provider repository">
-                        <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                        </svg>
-                    </ExternalLink>
+                <!-- Force lookup of provider from style -->
+                {#if groupId === 'subtitle' && optionId === 'provider'}
+                    {@const styleValue = featureGroupStore.getGroupOption(groupId, 'style')}
+                    {@const selectedScheme = romanizationSchemes.find(s => s.name === styleValue)}
+                    {@const providerValue = selectedScheme ? selectedScheme.provider : (localValue || '')}
+                    
+                    <!-- Display the provider value -->
+                    {providerValue}
+                    
+                    <!-- Update the local value to match -->
+                    {#if providerValue !== localValue && providerValue}
+                        {@const ignored = featureGroupStore.setGroupOption(groupId, 'provider', providerValue)}
+                        <!-- Also update local value for consistency -->
+                        {#if providerValue !== localValue}
+                            {@const update = (localValue = providerValue)}
+                        {/if}
+                    {/if}
+                    
+                    <!-- GitHub link if available -->
+                    {#if providerGithubUrls[providerValue]}
+                        <ExternalLink 
+                            href={providerGithubUrls[providerValue]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary/70 hover:text-primary transition-colors duration-200"
+                            title="View provider repository">
+                            <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
+                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                            </svg>
+                        </ExternalLink>
+                    {/if}
+                {:else}
+                    <!-- Regular provider display for non-subtitle groups -->
+                    {localValue || ''}
+                    {#if providerGithubUrls[localValue]}
+                        <ExternalLink 
+                            href={providerGithubUrls[localValue]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary/70 hover:text-primary transition-colors duration-200"
+                            title="View provider repository">
+                            <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
+                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                            </svg>
+                        </ExternalLink>
+                    {/if}
                 {/if}
             </div>
         {/if}

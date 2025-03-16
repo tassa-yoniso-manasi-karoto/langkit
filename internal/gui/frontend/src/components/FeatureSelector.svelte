@@ -153,9 +153,32 @@
             needsDocker = response.needsDocker || false;
             dockerEngine = response.dockerEngine || 'Docker Desktop';
             
-            // Automatically set the first scheme if only one is available
-            if (romanizationSchemes.length === 1) {
-                currentFeatureOptions.subtitleRomanization.style = romanizationSchemes[0].name;
+            // Automatically set the first scheme if only one is available or if none is set yet
+            if (romanizationSchemes.length > 0) {
+                const currentStyle = featureGroupStore.getGroupOption('subtitle', 'style');
+                if (!currentStyle || romanizationSchemes.length === 1) {
+                    const newStyle = romanizationSchemes[0].name;
+                    
+                    // Update the style and provider in the group store
+                    featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
+                    featureGroupStore.setGroupOption('subtitle', 'provider', romanizationSchemes[0].provider);
+                    
+                    // Also update the individual feature options for backward compatibility
+                    currentFeatureOptions.subtitleRomanization.style = newStyle;
+                    currentFeatureOptions.subtitleRomanization.provider = romanizationSchemes[0].provider;
+                    
+                    // Set the same values for selectiveTransliteration when available
+                    if (isSelectiveTransliterationAvailable) {
+                        currentFeatureOptions.selectiveTransliteration.style = newStyle;
+                        currentFeatureOptions.selectiveTransliteration.provider = romanizationSchemes[0].provider;
+                    }
+                    
+                    // Set the same values for subtitleTokenization
+                    currentFeatureOptions.subtitleTokenization.style = newStyle;
+                    currentFeatureOptions.subtitleTokenization.provider = romanizationSchemes[0].provider;
+                    
+                    console.log(`Set default romanization style to ${newStyle} with provider ${romanizationSchemes[0].provider}`);
+                }
             }
             
             // Disable subtitle romanization if not available
@@ -535,6 +558,30 @@
                 console.log(`Setting authoritative user value for ${groupId}.${optionId}: '${value}'`);
             }
             
+            // Special handling for romanization style changes
+            if (groupId === 'subtitle' && optionId === 'style' && romanizationSchemes.length > 0) {
+                // Update the provider based on the selected style
+                const selectedScheme = romanizationSchemes.find(s => s.name === value);
+                if (selectedScheme) {
+                    console.log(`Style changed to ${value}, updating provider to ${selectedScheme.provider}`);
+                    
+                    // First set the style
+                    featureGroupStore.setGroupOption(groupId, optionId, value);
+                    
+                    // Then set the provider
+                    featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+                    
+                    // Sync all values from the group store
+                    currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
+                        groupId, currentFeatureOptions
+                    );
+                    
+                    // Dispatch changes
+                    dispatch('optionsChange', currentFeatureOptions);
+                    return;
+                }
+            }
+            
             // Update the group store - this is the central source of truth for group options
             featureGroupStore.setGroupOption(groupId, optionId, value);
             
@@ -778,16 +825,58 @@
     // Component lifecycle
     // Initialize feature groups
     function initializeFeatureGroups() {
+        console.log(`Initializing feature groups - current language: ${standardTag}`);
+        
         // First, handle existing features to ensure they're visible
         // This ensures all feature cards are created correctly first
         for (let feature of features) {
-            if (['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].includes(feature.id)) {
+            // Include selective transliteration regardless of its label (which changes based on language)
+            const isSubtitleFeature = feature.id === 'subtitleRomanization' || 
+                                      feature.id === 'selectiveTransliteration' || 
+                                      feature.id === 'subtitleTokenization';
+                                      
+            if (isSubtitleFeature) {
+                console.log(`Adding ${feature.id} to subtitle group`);
+                
                 // Mark for group membership but don't initialize fully yet
                 if (!feature.featureGroups) {
                     feature.featureGroups = ['subtitle'];
                 } else if (!feature.featureGroups.includes('subtitle')) {
                     feature.featureGroups.push('subtitle');
                 }
+                
+                // Make sure groupSharedOptions are defined
+                if (!feature.groupSharedOptions) {
+                    feature.groupSharedOptions = {
+                        'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+                    };
+                } else if (!feature.groupSharedOptions['subtitle']) {
+                    feature.groupSharedOptions['subtitle'] = ['style', 'provider', 'dockerRecreate', 'browserAccessURL'];
+                }
+                
+                // Register each feature in the group store individually
+                featureGroupStore.addFeatureToGroup('subtitle', feature.id);
+                
+                // Initialize feature options if not already set
+                if (!currentFeatureOptions[feature.id]) {
+                    currentFeatureOptions[feature.id] = {};
+                }
+                
+                // Make sure shared options exist
+                ['style', 'provider', 'dockerRecreate', 'browserAccessURL'].forEach(optionId => {
+                    if (currentFeatureOptions[feature.id][optionId] === undefined) {
+                        // Initialize with default or empty value
+                        if (optionId === 'dockerRecreate') {
+                            currentFeatureOptions[feature.id][optionId] = false;
+                        } else if (optionId === 'style' && romanizationSchemes.length > 0) {
+                            currentFeatureOptions[feature.id][optionId] = romanizationSchemes[0].name;
+                        } else if (optionId === 'provider' && romanizationSchemes.length > 0) {
+                            currentFeatureOptions[feature.id][optionId] = romanizationSchemes[0].provider;
+                        } else {
+                            currentFeatureOptions[feature.id][optionId] = '';
+                        }
+                    }
+                });
             }
         }
         

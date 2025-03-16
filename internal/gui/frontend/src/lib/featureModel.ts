@@ -251,6 +251,33 @@ export const features: FeatureDefinition[] = [
         id: 'selectiveTransliteration',
         label: 'Selective Transliteration',
         options: {
+            style: {
+                type: 'romanizationDropdown',
+                label: 'Romanization Style',
+                default: '',
+                showCondition: "feature.id === 'subtitleRomanization'"
+            },
+            provider: {
+                type: 'provider',
+                label: 'Provider',
+                default: '',
+                showCondition: "context.romanizationSchemes.length > 0"
+            },
+            dockerRecreate: {
+                type: 'boolean',
+                label: 'Recreate Docker containers',
+                default: false,
+                hovertip: "Use this if the previous run failed or if you're experiencing issues.",
+                showCondition: "context.needsDocker"
+            },
+            browserAccessURL: {
+                type: 'string',
+                label: 'Browser access URL',
+                default: '',
+                hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
+                placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+                showCondition: "context.needsScraper"
+            },
             tokenizeOutput: {
                 type: 'boolean',
                 label: 'Tokenize words',
@@ -281,30 +308,43 @@ export const features: FeatureDefinition[] = [
                 showCondition: "feature.selectiveTransliteration.mergeOutputFiles === true"
             }
         },
+        optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'tokenizeOutput', 'kanjiFrequencyThreshold', 'mergeOutputFiles', 'mergingFormat'],
         requiresLanguage: true,
         availableLanguages: ['jpn'],
         providerGroup: 'subtitle',
         outputMergeGroup: 'finalOutput',
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
-        dependencyMessage: "Dubtitles will be used as a source for selective transliteration when both features are enabled"
+        dependencyMessage: "Dubtitles will be used as a source for selective transliteration when both features are enabled",
+        featureGroups: ['subtitle'],
+        groupSharedOptions: {
+            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+        },
+        requiresDocker: true,
+        requiresScraper: true
     },
     {
         id: 'subtitleTokenization',
         label: 'Subtitle Tokenization',
         options: {
+            style: {
+                type: 'romanizationDropdown',
+                label: 'Romanization Style',
+                default: '',
+                showCondition: "feature.id === 'subtitleRomanization'"
+            },
             provider: {
                 type: 'provider',
                 label: 'Provider',
                 default: '',
-                showCondition: "context.romanizationSchemes.length > 0 && !context.selectedFeatures.subtitleRomanization"
+                showCondition: "context.romanizationSchemes.length > 0"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.needsDocker && !context.selectedFeatures.subtitleRomanization"
+                showCondition: "context.needsDocker"
             },
             browserAccessURL: {
                 type: 'string',
@@ -312,7 +352,7 @@ export const features: FeatureDefinition[] = [
                 default: '',
                 hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.needsScraper && !context.selectedFeatures.subtitleRomanization"
+                showCondition: "context.needsScraper"
             },
             mergeOutputFiles: {
                 type: 'boolean',
@@ -328,6 +368,7 @@ export const features: FeatureDefinition[] = [
                 showCondition: "feature.subtitleTokenization.mergeOutputFiles === true"
             }
         },
+        optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'mergeOutputFiles', 'mergingFormat'],
         requiresLanguage: true,
         requiresDocker: true,
         requiresScraper: true,
@@ -335,7 +376,11 @@ export const features: FeatureDefinition[] = [
         outputMergeGroup: 'finalOutput',
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
-        dependencyMessage: "Dubtitles will be used as a source for tokenization when both features are enabled"
+        dependencyMessage: "Dubtitles will be used as a source for tokenization when both features are enabled",
+        featureGroups: ['subtitle'],
+        groupSharedOptions: {
+            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+        }
     }
 ];
 
