@@ -507,7 +507,7 @@
 </div>
 
 <!-- Main container now spans full viewport -->
-<div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
+<div class="w-screen h-screen bg-black/80 text-gray-100 font-dm-sans fixed inset-0">
     <BackgroundGradient />
     {#if showGlow && !isWindowMinimized}
         <GlowEffect {isProcessing} />
