@@ -7,8 +7,9 @@
     
     /* CSS Variables set to match the Tailwind theme colors */
     --primary-color: theme('colors.primary');
-    --accent-color: theme('colors.primary');
+    --secondary-color: theme('colors.secondary');
     --pink-color: theme('colors.pink');
+    --bg-color: theme('colors.bg');
     --error-task-color: theme('colors.error-task');
     --error-all-color: theme('colors.error-all');
     --user-cancel-color: theme('colors.user-cancel');

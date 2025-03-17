@@ -17,7 +17,7 @@ export default {
       colors: {
       	text: colors.gray[300],
         unobtrusive: colors.gray[400],
-        bg: '#1a1a1a',        // classic dark gray
+        bg: 'hsl(0, 0%, 7%)',
         
         primary: violet,      // soft violet
         secondary: '#7851a9', // royal purple, darker than soft violet
