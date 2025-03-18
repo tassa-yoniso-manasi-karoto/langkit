@@ -335,7 +335,7 @@
 
 <!-- Only show if there's at least one bar. -->
 {#if $progressBars.length > 0}
-    <div class="flex flex-col max-w-2xl mx-auto w-full text-white border-t border-[#2a2a2a] px-3 py-2 space-y-2 overflow-hidden bg-[#1a1a1a]">
+    <div class="flex flex-col max-w-2xl mx-auto w-full text-white border border-primary/20 px-3 py-2 space-y-2 overflow-hidden bg-bg-800/90 backdrop-blur-sm rounded-lg shadow-sm">
 
         <!-- A minimal top row with a label & action buttons -->
         <div class="flex items-center justify-between">
@@ -349,11 +349,11 @@
                 <!-- Collapse/Expand toggle button with ripple effect -->
                 <button 
                     class="flex items-center justify-center w-6 h-6 
-                           text-white/50 hover:text-white/80
+                           text-primary/60 hover:text-primary/90
                            transition-all duration-200 relative
                            overflow-hidden rounded-full
-                           active:bg-white/10
-                           focus:outline-none focus:ring-2 focus:ring-primary/30"
+                           active:bg-primary/10
+                           focus:outline-none focus:ring-1 focus:ring-primary/40"
                     on:click={toggleCollapse}
                     aria-label="{isCollapsed ? 'Expand' : 'Collapse'} progress bars"
                 >
@@ -370,7 +370,7 @@
                            transition-all duration-200 relative
                            overflow-hidden rounded-full
                            active:bg-red-500/10
-                           focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                           focus:outline-none focus:ring-1 focus:ring-red-500/40"
                     on:click={() => {
                         $progressBars.forEach(bar => removeProgressBar(bar.id));
                     }}
@@ -392,24 +392,24 @@
                     <div 
                         class="flex flex-col gap-1 p-2 rounded-md
                                transition-all duration-300 ease-in-out
-                               hover:bg-[#222] hover:shadow-[0_2px_6px_rgba(159,110,247,0.15)]"
+                               hover:bg-black/20 hover:shadow-[0_2px_6px_rgba(159,110,247,0.15)]"
                     >
-                        <div class="flex items-center justify-between text-sm text-gray-200">
+                        <div class="flex items-center justify-between text-sm text-white/90">
                             <span class="truncate max-w-[70%] font-medium">
                                 {bar.operation}{#if bar.description} - {bar.description}{/if}
                             </span>
                             <div class="flex items-center gap-2">
-                                <span class="text-gray-400 text-xs whitespace-nowrap">
+                                <span class="text-primary/70 text-xs whitespace-nowrap">
                                     ({bar.current}/{bar.total}) {Math.round(bar.progress)}%
                                 </span>
                                 <!-- Individual bar clear button -->
                                 <button 
                                     class="flex items-center justify-center w-5 h-5
-                                           text-gray-400/50 hover:text-gray-400
+                                           text-primary/40 hover:text-primary/80
                                            transition-all duration-200 relative
                                            overflow-hidden rounded-full
-                                           active:bg-gray-500/10
-                                           focus:outline-none focus:ring-1 focus:ring-gray-400/30"
+                                           active:bg-primary/10
+                                           focus:outline-none focus:ring-1 focus:ring-primary/30"
                                     on:click={() => clearBar(bar.id)}
                                     aria-label="Clear progress bar"
                                 >
@@ -417,7 +417,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="relative w-full bg-[#333] rounded-full overflow-hidden {bar.size || 'h-2.5'}">
+                        <div class="relative w-full bg-black/30 rounded-full overflow-hidden {bar.size || 'h-2.5'}">
                             <!-- Optimized progress bar rendering -->
                             {#if !bar.errorState}
                                 <div
@@ -464,13 +464,23 @@
 {/if}
 
 <style>
+    /* Container shadow for subtle depth */
+    :global(.shadow-sm) {
+        box-shadow: 
+            0 4px 12px rgba(0, 0, 0, 0.15),
+            0 1px 3px rgba(0, 0, 0, 0.2),
+            0 0 0 1px rgba(0, 0, 0, 0.05);
+    }
+    
     /* Dynamic gradient for progress bars */
     .progress-gradient {
-        background: linear-gradient(to right, var(--primary-color, #9f6ef7), #ff6ec7);
+        background: linear-gradient(to right, 
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 1), 
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 1));
         background-size: 200% 100%;
         background-position: calc(100% - var(--gradient-position, 0%)) 0;
         transition: background-position 0.4s ease, width 0.4s ease;
-        box-shadow: 0 0 8px rgba(159, 110, 247, 0.6);
+        box-shadow: 0 0 8px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6);
     }
     
     /* Error state styles with distinct class names matching errorState values */
