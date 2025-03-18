@@ -1,5 +1,4 @@
 <script lang="ts">
-    // A static background gradient that transitions from the secondary color to the primary color
     // This component creates a seamless transition for the glow effect
 </script>
 

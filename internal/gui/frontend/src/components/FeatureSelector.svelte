@@ -1134,8 +1134,8 @@
 
 <div class="space-y-6">
     <div class="flex items-center justify-between pl-0 pr-0">
-        <h2 class="text-xl font-medium text-secondary flex items-center pl-4 gap-2">
-            <span class="material-icons text-secondary">tune</span>
+        <h2 class="text-xl font-medium text-tertiary flex items-center pl-4 gap-2">
+            <span class="material-icons text-tertiary">tune</span>
             Select Features
         </h2>
         

@@ -7,7 +7,7 @@ const red = colors.red[500]
 const orange = colors.orange[500] // Changed from yellow to orange
 const green = '#68e796'
 const yellow = '#fff38e'
-const pink = '#ff6ec7'
+const pink = 'hsl(323, 100%, 72%)'
 
 export default {
   darkMode: 'class',
@@ -32,9 +32,22 @@ export default {
           950: 'hsl(261, 92%, 5%)',
           DEFAULT: violet,
         },
-        // FIXME I actually haven't used secondary and used hardcoded pink variant in gloweffect, featureStyles, and BackgroundGradient
-        secondary: '#7851a9', // royal purple, darker than soft violet, 
-        pink: pink,           // complementary pink for gradients
+        secondary: {
+          50: 'hsl(323, 100%, 95%)',
+          100: 'hsl(324, 100%, 90%)',
+          200: 'hsl(323, 100%, 80%)',
+          300: 'hsl(323, 100%, 70%)',
+          400: 'hsl(323, 100%, 60%)',
+          500: 'hsl(323, 100%, 50%)',
+          600: 'hsl(323, 100%, 40%)',
+          700: 'hsl(323, 100%, 30%)',
+          800: 'hsl(323, 100%, 20%)',
+          900: 'hsl(324, 100%, 10%)',
+          950: 'hsl(323, 100%, 5%)',
+          DEFAULT: pink,
+        },
+        tertiary: '#7851a9', // royal purple, darker than soft violet, 
+        pink: pink, // FIXME should be depreciated in favor of secondary
         
         
         'error-card-bg': '#281937',    // slightly purplish dark background for error cards

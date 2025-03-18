@@ -503,7 +503,7 @@
         {#if feature.outputMergeGroup && feature.showMergeBanner && enabled}
             <div class="mt-2 flex items-left text-xs text-green-300 pl-7">
                 <span class="material-icons text-[14px] mr-1">merge_type</span>
-                All processed outputs will be merged in the final video
+                All created content will be merged with originals in a new video
             </div>
         {/if}
     </div>

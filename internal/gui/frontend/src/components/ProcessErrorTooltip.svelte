@@ -63,7 +63,7 @@
         in:fade={{ duration: 280, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }}
         out:fade={{ duration: 180, easing: (t) => t * t }}
     >
-        <div class="backdrop-blur-md bg-tooltip-bg/85 bg-gradient-to-br from-secondary/30 to-bg/90 text-white border border-primary/20 rounded-lg p-4 min-w-[280px] max-w-[400px] transition-all duration-200 font-sans shadow-lg shadow-primary/20 pointer-events-auto">
+        <div class="backdrop-blur-md bg-tooltip-bg/85 bg-gradient-to-br from-tertiary/30 to-bg/90 text-white border border-primary/20 rounded-lg p-4 min-w-[280px] max-w-[400px] transition-all duration-200 font-sans shadow-lg shadow-primary/20 pointer-events-auto">
             <div class="text-sm font-medium mb-3 text-gray-300 flex items-center gap-2">
                 {#if groupedErrors.length > 0 && groupedErrors[0].errors.length > 0}
                     <span class="material-icons text-primary text-xl">notification_important</span>
