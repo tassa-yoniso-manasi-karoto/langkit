@@ -6,7 +6,7 @@
     color-scheme: dark;
     
     /* CSS Variables set to match the Tailwind theme colors */
-    --primary-color: theme('colors.primary');
+    --primary-color: theme('colors.primary.DEFAULT');
     --secondary-color: theme('colors.secondary');
     --pink-color: theme('colors.pink');
     --bg-color: theme('colors.bg');

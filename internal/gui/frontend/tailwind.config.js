@@ -2,7 +2,7 @@
 
 import colors from 'tailwindcss/colors';
 
-const violet = '#9f6ef7'
+const violet = 'hsl(261, 90%, 70%)'
 const red = colors.red[500]
 const orange = colors.orange[500] // Changed from yellow to orange
 const green = '#68e796'
@@ -18,10 +18,25 @@ export default {
       	text: colors.gray[300],
         unobtrusive: colors.gray[400],
         bg: 'hsl(0, 0%, 7%)',
-        
-        primary: violet,      // soft violet
-        secondary: '#7851a9', // royal purple, darker than soft violet
+        primary: {
+          50: 'hsl(261, 92%, 95%)',
+          100: 'hsl(261, 88%, 90%)',
+          200: 'hsl(261, 90%, 80%)',
+          300: 'hsl(261, 90%, 70%)',
+          400: 'hsl(261, 90%, 60%)',
+          500: 'hsl(261, 90%, 50%)',
+          600: 'hsl(261, 90%, 40%)',
+          700: 'hsl(261, 90%, 30%)',
+          800: 'hsl(261, 90%, 20%)',
+          900: 'hsl(261, 88%, 10%)',
+          950: 'hsl(261, 92%, 5%)',
+          DEFAULT: violet,
+        },
+        // FIXME I actually haven't used secondary and used hardcoded pink variant in gloweffect, featureStyles, and BackgroundGradient
+        secondary: '#7851a9', // royal purple, darker than soft violet, 
         pink: pink,           // complementary pink for gradients
+        
+        
         'error-card-bg': '#281937',    // slightly purplish dark background for error cards
         'error-card-hover': '#321e41', // slightly lighter for hover state
         'tooltip-bg': '#1c1c24',        // dark background for tooltips

@@ -368,7 +368,7 @@
 <div class="feature-card bg-white/5 rounded-lg
            transition-all duration-300 ease-out transform ripple
            relative {enabled ? '' : 'overflow-hidden'}
-           {isFeatureDisabled ? 'disabled opacity-50 cursor-not-allowed' : 'hover:shadow-glow-hover'}"
+           {isFeatureDisabled ? 'disabled opacity-50 cursor-not-allowed' : ''}"
      class:shadow-glow-strong={enabled && !anyFeatureSelected}
      class:shadow-glow={enabled}
      class:opacity-30={anyFeatureSelected && !enabled}
@@ -401,7 +401,7 @@
                 }}
             />
             <span class="text-lg transition-all duration-300 {getTextColorClass(enabled, anyFeatureSelected)}
-                       group-hover:text-primary"
+                       group-hover:text-primary-200"
                   class:font-semibold={enabled || !anyFeatureSelected}>
                 {displayLabel || formatDisplayText(feature.id)}
             </span>

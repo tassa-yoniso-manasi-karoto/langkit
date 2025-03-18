@@ -488,17 +488,17 @@
     }
     
     @keyframes fadeToOrange {
-        0% { background-color: theme('colors.primary'); }
+        0% { background-color: theme('colors.primary.DEFAULT'); }
         100% { background-color: theme('colors.error-task'); }
     }
     
     @keyframes fadeToRed {
-        0% { background-color: theme('colors.primary'); }
+        0% { background-color: theme('colors.primary.DEFAULT'); }
         100% { background-color: theme('colors.error-all'); }
     }
     
     @keyframes fadeToGray {
-        0% { background-color: theme('colors.primary'); }
+        0% { background-color: theme('colors.primary.DEFAULT'); }
         100% { background-color: theme('colors.user-cancel'); }
     }
 </style>
