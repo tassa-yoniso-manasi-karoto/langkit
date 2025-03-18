@@ -26,6 +26,7 @@ export default {
       colors: {
       	text: colors.gray[300],
         unobtrusive: colors.gray[400],
+        logbg: 'hsl(0, 0%, 15%)',
         
         bg: {
           50: 'hsl(0, 0%, 95%)',
