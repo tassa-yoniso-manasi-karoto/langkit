@@ -49,13 +49,13 @@
             bind:value={languageTag}
             maxlength="9"
             placeholder="e.g. ja, zh-Hans"
-            class="w-24 bg-sky-dark/50 border border-tertiary/30 rounded px-2 py-2
-                   hover:border-tertiary/90 focus:border-tertiary focus:ring-1 focus:ring-tertiary
-                   focus:outline-none transition-colors duration-200 text-xs font-bold"
+            class="w-24 bg-primary-900/30 backdrop-blur-sm border border-primary/30 rounded px-2 py-2
+                   hover:border-primary/90 focus:border-primary focus:ring-1 focus:ring-primary
+                   focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
             on:input={updateLanguageTag}
         />
         {#if isChecking}
-            <span class="absolute right-2 material-icons animate-spin text-tertiary/70 text-sm" style="font-size: 1.4rem;">
+            <span class="absolute right-2 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
                 refresh
             </span>
         {:else if isValidLanguage === false}
@@ -75,17 +75,17 @@
         <!-- Disclosure arrow button with connected border and matching background -->
         <button
             class="flex items-center justify-center p-4 w-6 h-6
-                   border border-tertiary/30 
-                   hover:border-tertiary/60 hover:bg-tertiary/10 
+                   border border-primary/30 
+                   hover:border-primary/60 hover:bg-primary/10 
                    transition-all duration-500 focus:outline-none
                    {showAudioTrackIndex 
-                      ? 'bg-tertiary/5 rounded-tl rounded-bl rounded-tr-none rounded-br-none'
-                      : 'rounded'}"
+                      ? 'bg-primary/5 rounded-tl rounded-bl rounded-tr-none rounded-br-none shadow-sm shadow-primary/20'
+                      : 'rounded shadow-sm shadow-primary/10'}"
             on:click={toggleAudioTrackIndex}
             title="Toggle method used to select audio track"
         >
-            <span class="transform transition-transform duration-1000 text-tertiary/80
-                         hover:text-tertiary text-2xl leading-none"
+            <span class="transform transition-transform duration-1000 text-primary/80
+                         hover:text-primary text-2xl leading-none"
                   class:rotate-180={showAudioTrackIndex}>
                 🡸
             </span>
@@ -97,14 +97,14 @@
             <div class="-ml-px flex items-center"
                  transition:slide={{ duration: 200, axis: 'x' }}>
                 <!-- Panel: use matching background and borders; remove left rounding -->
-                <div class="flex items-center bg-tertiary/5 
-                           border border-tertiary/30 border-l-0
-                           rounded-r px-2 p-4 h-6">
+                <div class="flex items-center bg-primary/5 backdrop-blur-sm
+                           border border-primary/30 border-l-0
+                           rounded-r px-2 p-4 h-6 shadow-sm shadow-primary/10">
                     <span class="text-primary text-sm whitespace-nowrap">
                         Track Override
                     </span>
                     <Hovertip message={trackOverrideHovertip}>
-                        <span slot="trigger" class="material-icons text-tertiary cursor-help pr-1 leading-none material-icon-adjust">
+                        <span slot="trigger" class="material-icons text-primary cursor-help pr-1 leading-none material-icon-adjust">
                             help_outline
                         </span>
                     </Hovertip>
@@ -125,4 +125,13 @@
 
 <style>
     @import './featureStyles.css';
+    
+    /* Add subtle glow on hover for the inputs */
+    input:hover {
+        box-shadow: 0 0 8px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2);
+    }
+    
+    input:focus {
+        box-shadow: 0 0 12px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
+    }
 </style>

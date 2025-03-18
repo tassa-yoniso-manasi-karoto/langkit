@@ -18,7 +18,7 @@
     --primary-color: theme('colors.primary.DEFAULT');
     --secondary-color: theme('colors.secondary.DEFAULT');
     --pink-color: theme('colors.pink');
-    --bg-color: theme('colors.bg');
+    --bg-color: theme('colors.bg.DEFAULT');
     --error-task-color: theme('colors.error-task');
     --error-all-color: theme('colors.error-all');
     --user-cancel-color: theme('colors.user-cancel');

@@ -26,7 +26,21 @@ export default {
       colors: {
       	text: colors.gray[300],
         unobtrusive: colors.gray[400],
-        bg: 'hsl(0, 0%, 7%)',
+        
+        bg: {
+          50: 'hsl(0, 0%, 95%)',
+          100: 'hsl(0, 0%, 90%)',
+          200: 'hsl(0, 0%, 80%)',
+          300: 'hsl(0, 0%, 70%)',
+          400: 'hsl(0, 0%, 60%)',
+          500: 'hsl(0, 0%, 50%)',
+          600: 'hsl(0, 0%, 40%)',
+          700: 'hsl(0, 0%, 30%)',
+          800: 'hsl(0, 0%, 20%)',
+          900: 'hsl(0, 0%, 10%)',
+          950: 'hsl(0, 0%, 5%)',
+          DEFAULT: 'hsl(0, 0%, 7%)',
+        },
         primary: {
           50: `hsl(${primaryHue}, 92%, 95%)`,
           100: `hsl(${primaryHue}, 88%, 90%)`,
