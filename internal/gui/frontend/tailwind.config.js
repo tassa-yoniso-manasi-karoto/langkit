@@ -2,12 +2,21 @@
 
 import colors from 'tailwindcss/colors';
 
-const violet = 'hsl(261, 90%, 70%)'
-const red = colors.red[500]
-const orange = colors.orange[500] // Changed from yellow to orange
-const green = '#68e796'
-const yellow = '#fff38e'
-const pink = 'hsl(323, 100%, 72%)'
+// Define base color values
+const primaryHue = 261;
+const primarySaturation = '90%';
+const primaryLightness = '70%';
+
+const secondaryHue = 323;
+const secondarySaturation = '100%';
+const secondaryLightness = '72%';
+
+const violet = `hsl(${primaryHue}, ${primarySaturation}, ${primaryLightness})`;
+const pink = `hsl(${secondaryHue}, ${secondarySaturation}, ${secondaryLightness})`;
+const red = colors.red[500];
+const orange = colors.orange[500]; // Changed from yellow to orange
+const green = '#68e796';
+const yellow = '#fff38e';
 
 export default {
   darkMode: 'class',
@@ -19,31 +28,31 @@ export default {
         unobtrusive: colors.gray[400],
         bg: 'hsl(0, 0%, 7%)',
         primary: {
-          50: 'hsl(261, 92%, 95%)',
-          100: 'hsl(261, 88%, 90%)',
-          200: 'hsl(261, 90%, 80%)',
-          300: 'hsl(261, 90%, 70%)',
-          400: 'hsl(261, 90%, 60%)',
-          500: 'hsl(261, 90%, 50%)',
-          600: 'hsl(261, 90%, 40%)',
-          700: 'hsl(261, 90%, 30%)',
-          800: 'hsl(261, 90%, 20%)',
-          900: 'hsl(261, 88%, 10%)',
-          950: 'hsl(261, 92%, 5%)',
+          50: `hsl(${primaryHue}, 92%, 95%)`,
+          100: `hsl(${primaryHue}, 88%, 90%)`,
+          200: `hsl(${primaryHue}, ${primarySaturation}, 80%)`,
+          300: `hsl(${primaryHue}, ${primarySaturation}, 70%)`,
+          400: `hsl(${primaryHue}, ${primarySaturation}, 60%)`,
+          500: `hsl(${primaryHue}, ${primarySaturation}, 50%)`,
+          600: `hsl(${primaryHue}, ${primarySaturation}, 40%)`,
+          700: `hsl(${primaryHue}, ${primarySaturation}, 30%)`,
+          800: `hsl(${primaryHue}, ${primarySaturation}, 20%)`,
+          900: `hsl(${primaryHue}, 88%, 10%)`,
+          950: `hsl(${primaryHue}, 92%, 5%)`,
           DEFAULT: violet,
         },
         secondary: {
-          50: 'hsl(323, 100%, 95%)',
-          100: 'hsl(324, 100%, 90%)',
-          200: 'hsl(323, 100%, 80%)',
-          300: 'hsl(323, 100%, 70%)',
-          400: 'hsl(323, 100%, 60%)',
-          500: 'hsl(323, 100%, 50%)',
-          600: 'hsl(323, 100%, 40%)',
-          700: 'hsl(323, 100%, 30%)',
-          800: 'hsl(323, 100%, 20%)',
-          900: 'hsl(324, 100%, 10%)',
-          950: 'hsl(323, 100%, 5%)',
+          50: `hsl(${secondaryHue}, ${secondarySaturation}, 95%)`,
+          100: `hsl(${secondaryHue + 1}, ${secondarySaturation}, 90%)`,
+          200: `hsl(${secondaryHue}, ${secondarySaturation}, 80%)`,
+          300: `hsl(${secondaryHue}, ${secondarySaturation}, 70%)`,
+          400: `hsl(${secondaryHue}, ${secondarySaturation}, 60%)`,
+          500: `hsl(${secondaryHue}, ${secondarySaturation}, 50%)`,
+          600: `hsl(${secondaryHue}, ${secondarySaturation}, 40%)`,
+          700: `hsl(${secondaryHue}, ${secondarySaturation}, 30%)`,
+          800: `hsl(${secondaryHue}, ${secondarySaturation}, 20%)`,
+          900: `hsl(${secondaryHue + 1}, ${secondarySaturation}, 10%)`,
+          950: `hsl(${secondaryHue}, ${secondarySaturation}, 5%)`,
           DEFAULT: pink,
         },
         tertiary: '#7851a9', // royal purple, darker than soft violet, 

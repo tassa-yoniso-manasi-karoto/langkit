@@ -5,6 +5,15 @@
 :root {
     color-scheme: dark;
     
+    /* Color system variables - core values from tailwind.config.js */
+    --primary-hue: 261;
+    --primary-saturation: 90%;
+    --primary-lightness: 70%;
+    
+    --secondary-hue: 323;
+    --secondary-saturation: 100%;
+    --secondary-lightness: 72%;
+    
     /* CSS Variables set to match the Tailwind theme colors */
     --primary-color: theme('colors.primary.DEFAULT');
     --secondary-color: theme('colors.secondary.DEFAULT');

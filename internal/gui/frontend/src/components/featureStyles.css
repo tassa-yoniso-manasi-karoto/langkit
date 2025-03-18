@@ -4,7 +4,7 @@
     /* Gradient from top-left (purplish) to bottom-right with reduced opacity */
     background: linear-gradient(
         135deg, 
-        rgba(170, 130, 240, 0.12) 0%,
+        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.12) 0%,
         rgba(50, 50, 55, 0.18) 100%
     ) !important;
     /* Position relative for pseudo-element gradient border */
@@ -27,8 +27,8 @@
             to bottom right, 
             rgba(255, 255, 255, 0) 0%, 
             rgba(255, 255, 255, 0.05) 50%, 
-            rgba(159, 110, 247, 0.3) 51%, 
-            rgba(255, 110, 199, 0.25) 100%
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3) 51%, 
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.25) 100%
         );
         -webkit-mask: 
             linear-gradient(#fff 0 0) content-box, 
@@ -38,7 +38,7 @@
         pointer-events: none; /* Make sure clicks pass through to the main element */
         z-index: 0;
     }
-    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.2),
+    box-shadow: 2px 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2),
               4px 4px 8px -2px rgba(0, 0, 0, 0.2);
 }
 
@@ -47,7 +47,7 @@
     /* Selected state gradient */
     background: linear-gradient(
         135deg, 
-        rgba(175, 140, 245, 0.19) 0%,
+        hsla(var(--primary-hue), var(--primary-saturation), calc(var(--primary-lightness) + 5%), 0.19) 0%,
         rgba(55, 55, 60, 0.21) 100%
     ) !important;
     /* Brighter border for selected state using pseudo-element */
@@ -56,18 +56,18 @@
         background: linear-gradient(
             to bottom right, 
             rgba(255, 255, 255, 0.0) 0%, /* while enable keep it all around this time & use the box-shadow to keep bottom-right more proeminent */
-            rgba(159, 110, 247, 0.5) 50%, 
-            rgba(255, 110, 199, 0.45) 90%
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5) 50%, 
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.45) 90%
         );
         z-index: 1; /* Increase z-index to ensure hover border appears on top */
     }
     /* Shadow that emphasizes bottom-right */
     box-shadow: 
-        1px 1px 0 0 rgba(159, 110, 247, 0.2),      /* Subtle overall border highlight */
-        2px 2px 0 0 rgba(159, 110, 247, 0.25),     /* Right-bottom purple glow */
-        3px 3px 0 0 rgba(255, 110, 199, 0.2),      /* Bottom-right corner pink accent */
-        0 0 5px rgba(159, 110, 247, 0.1),          /* Subtle overall glow */
-        2px 2px 8px -2px rgba(159, 110, 247, 0.15); /* Bottom-right shadow */
+        1px 1px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2),      /* Subtle overall border highlight */
+        2px 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),     /* Right-bottom purple glow */
+        3px 3px 0 0 hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.2), /* Bottom-right corner pink accent */
+        0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1),          /* Subtle overall glow */
+        2px 2px 8px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15); /* Bottom-right shadow */
     z-index: 5;
     transform-origin: center center;
     position: relative;
@@ -81,7 +81,7 @@
     /* Hover state gradient */
     background: linear-gradient(
         135deg, 
-        rgba(175, 140, 245, 0.19) 0%,
+        hsla(var(--primary-hue), var(--primary-saturation), calc(var(--primary-lightness) + 5%), 0.19) 0%,
         rgba(55, 55, 60, 0.21) 100%
     ) !important;
     
@@ -110,11 +110,11 @@
         right: 0; /* Place on right side */
         background: repeating-linear-gradient(
             to bottom,
-            rgba(159, 110, 247, 0.6),
-            rgba(255, 110, 199, 0.65),
-            rgba(159, 110, 247, 0.6),
-            rgba(255, 110, 199, 0.65),
-            rgba(159, 110, 247, 0.6)
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
         );
         background-size: 100% 200%;
         animation: fadeInGradient 0.6s forwards,
@@ -130,23 +130,23 @@
         bottom: 0; /* Place on bottom side */
         background: repeating-linear-gradient(
             to right,
-            rgba(159, 110, 247, 0.6),
-            rgba(255, 110, 199, 0.65),
-            rgba(159, 110, 247, 0.6),
-            rgba(255, 110, 199, 0.65),
-            rgba(159, 110, 247, 0.6)
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
         );
         background-size: 200% 100%;
         animation: fadeInGradient 0.6s forwards,
                   smoothFlowToLeft 3s infinite linear; 
     }
     
-    box-shadow: 2px 2px 0 0 rgba(159, 110, 247, 0.3),
-                4px 4px 8px -1px rgba(159, 110, 247, 0.3),
-                4px 4px 16px -2px rgba(159, 110, 247, 0.25),
+    box-shadow: 2px 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
+                4px 4px 8px -1px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
+                4px 4px 16px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
                 /* subtle top/left borders */
-                inset 2px 0 0 rgba(159, 110, 247, 0.3),
-                inset 0 2px 0 rgba(159, 110, 247, 0.3);
+                inset 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
+                inset 0 2px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
     z-index: 5;
     transform-origin: center center;
     overflow: visible !important;
@@ -197,7 +197,6 @@
 }
 
 
-
 /* Material ripple effect styles */
 .ripple {
     position: relative;
@@ -208,7 +207,7 @@
 .ripple-element {
     position: absolute;
     border-radius: 50%;
-    background-color: rgba(159, 110, 247, 0.15);
+    background-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15);
     width: 100px;
     height: 100px;
     margin-top: -50px;

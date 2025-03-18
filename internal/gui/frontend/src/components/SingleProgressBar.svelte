@@ -103,7 +103,7 @@
 <style>
     /* Dynamic gradient background with position based on progress */
     .progress-gradient {
-        background: linear-gradient(to right, var(--primary-color, #9f6ef7), var(--pink-color, #ff6ec7));
+        background: linear-gradient(to right, var(--primary-color, #9f6ef7), var(--secondary-color, #ff6ec7));
         background-size: 200% 100%;
         background-position: calc(100% - var(--gradient-position, 0%)) 0;
         transition: background-position 0.4s ease, width 0.4s ease;
@@ -136,17 +136,17 @@
     }
     
     @keyframes fadeToOrange {
-        0% { background-color: theme('colors.primary'); }
+        0% { background-color: theme('colors.primary.DEFAULT'); }
         100% { background-color: theme('colors.error-task'); }
     }
     
     @keyframes fadeToRed {
-        0% { background-color: theme('colors.primary'); }
+        0% { background-color: theme('colors.primary.DEFAULT'); }
         100% { background-color: theme('colors.error-all'); }
     }
     
     @keyframes fadeToGray {
-        0% { background-color: theme('colors.primary'); }
+        0% { background-color: theme('colors.primary.DEFAULT'); }
         100% { background-color: theme('colors.user-cancel'); }
     }
 </style>
