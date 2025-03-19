@@ -538,40 +538,40 @@ More aggressive force-scrolling:
         text-shadow: 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
     }
     
-    /* Enhanced styling for behavior-specific log entries */
+    /* Enhanced styling for behavior-specific log entries using HSL variables */
     .log-behavior-abort-task {
         background: linear-gradient(
             to right,
-            rgba(255, 125, 0, 0.08) 0%,
+            hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.08) 0%,
             rgba(0, 0, 0, 0) 70%
         );
-        border-left: 2px solid rgba(255, 125, 0, 0.6);
+        border-left: 2px solid hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.6);
     }
     
     .log-behavior-abort-all {
         background: linear-gradient(
             to right,
-            rgba(239, 68, 68, 0.1) 0%,
+            hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.1) 0%,
             rgba(0, 0, 0, 0) 70%
         );
-        border-left: 2px solid rgba(239, 68, 68, 0.6);
+        border-left: 2px solid hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.6);
     }
     
     .log-behavior-cancel {
         background: linear-gradient(
             to right,
-            rgba(107, 114, 128, 0.08) 0%,
+            hsla(var(--user-cancel-hue), var(--user-cancel-saturation), var(--user-cancel-lightness), 0.08) 0%,
             rgba(0, 0, 0, 0) 70%
         );
-        border-left: 2px solid rgba(107, 114, 128, 0.5);
+        border-left: 2px solid hsla(var(--user-cancel-hue), var(--user-cancel-saturation), var(--user-cancel-lightness), 0.5);
     }
     
     .log-behavior-probe {
         background: linear-gradient(
             to right,
-            rgba(255, 243, 142, 0.08) 0%,
+            hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.08) 0%,
             rgba(0, 0, 0, 0) 70%
         );
-        border-left: 2px solid rgba(255, 243, 142, 0.4);
+        border-left: 2px solid hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.4);
     }
 </style>

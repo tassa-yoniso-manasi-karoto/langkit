@@ -13,6 +13,9 @@ type Settings = {
     maxLogEntries: number;
     maxAPIRetries: number;
     maxWorkers: number;
+    // Internal settings (not exposed in UI)
+    appStartCount?: number;
+    hasSeenLogViewerTooltip?: boolean;
 };
 
 /* these values are irrelevant, only the default values of the backend matter */
@@ -29,6 +32,9 @@ const initSettings: Settings = {
     maxLogEntries: 10000,
     maxAPIRetries: 10,
     maxWorkers: 1,
+    // Default values for internal settings
+    appStartCount: 0,
+    hasSeenLogViewerTooltip: false,
 };
 
 type showSettings = boolean;

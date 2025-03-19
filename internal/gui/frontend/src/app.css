@@ -14,6 +14,19 @@
     --secondary-saturation: 100%;
     --secondary-lightness: 72%;
     
+    /* Error state colors */
+    --error-task-hue: 50;
+    --error-task-saturation: 90%;
+    --error-task-lightness: 75%;
+    
+    --error-all-hue: 0;
+    --error-all-saturation: 85%;
+    --error-all-lightness: 60%;
+    
+    --user-cancel-hue: 220;
+    --user-cancel-saturation: 10%;
+    --user-cancel-lightness: 45%;
+    
     /* CSS Variables set to match the Tailwind theme colors */
     --primary-color: theme('colors.primary.DEFAULT');
     --secondary-color: theme('colors.secondary.DEFAULT');

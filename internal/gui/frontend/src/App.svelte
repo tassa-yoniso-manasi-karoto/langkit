@@ -21,6 +21,7 @@
     import ProcessButton from './components/ProcessButton.svelte';
     import UpdateNotification from './components/UpdateNotification.svelte';
     import ProgressManager from './components/ProgressManager.svelte';
+    import LogViewerNotification from './components/LogViewerNotification.svelte';
 
     import { SendProcessingRequest, CancelProcessing, GetVersion } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
@@ -74,6 +75,10 @@
     
     // Deferred loading state for feature selector - wait for main UI to render first
     let showFeatureSelector = false;
+    
+    // References for LogViewer button positioning
+    let logViewerButton: HTMLButtonElement;
+    let logViewerButtonPosition = { x: 0, y: 0 };
 
     // Reactive error management
     $: {
@@ -89,6 +94,23 @@
             });
         } else {
             errorStore.removeError("no-media");
+        }
+    }
+    
+    // Update LogViewer button position whenever processing state changes
+    // This handles the appearance/disappearance of the cancel button
+    $: {
+        if (isProcessing !== undefined) {
+            // Use setTimeout to allow DOM to update first
+            setTimeout(() => {
+                if (logViewerButton) {
+                    const rect = logViewerButton.getBoundingClientRect();
+                    logViewerButtonPosition = {
+                        x: rect.left + rect.width / 2,
+                        y: rect.top
+                    };
+                }
+            }, 400);
         }
     }
     
@@ -124,15 +146,63 @@
         currentFeatureOptions = event.detail;
     }
 
+    // Helper to check for actual error logs (not user cancellations)
+    function hasErrorLogs(): boolean {
+        return $logStore.some(log => 
+            (log.behavior === 'abort_task' && log.level.toUpperCase() === 'ERROR') || 
+            (log.behavior === 'abort_all' && log.level.toUpperCase() === 'ERROR') ||
+            (log.level.toUpperCase() === 'ERROR' && 
+             (!log.behavior || log.behavior !== 'user_cancel') &&
+             (!log.message || !log.message.toLowerCase().includes('cancel')))
+        );
+    }
+    
+    // Tooltip visibility state
+    let tooltipDismissed = false;
+    let tooltipVisible = false;
+    
+    // Show tooltip when hovering over the button (if errors exist)
+    function handleLogButtonHover() {
+        if (hasErrorLogs() && !showLogViewer && tooltipDismissed) {
+            tooltipVisible = true;
+            
+            // Update button position to ensure tooltip is correctly positioned
+            if (logViewerButton) {
+                const rect = logViewerButton.getBoundingClientRect();
+                logViewerButtonPosition = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top
+                };
+            }
+        }
+    }
+    
     function toggleLogViewer() {
         showLogViewer = !showLogViewer;
+        
+        // Mark tooltip as dismissed once user has seen it
+        if (hasErrorLogs()) {
+            tooltipDismissed = true;
+        }
+        
+        // Update button position after the transition completes
+        setTimeout(() => {
+            if (logViewerButton) {
+                const rect = logViewerButton.getBoundingClientRect();
+                logViewerButtonPosition = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top
+                };
+            }
+        }, 400); // Match transition duration from slide animation
     }
 
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
 
         isProcessing = true;
-        showLogViewer = true;
+        // We no longer automatically show the log viewer
+        // Instead, we'll notify the user with a tooltip
         progress = 0;
         
         // Completely clear all progress bars when starting a new process
@@ -201,10 +271,17 @@
     async function loadSettings() {
         try {
             const loadedSettings = await window.go.gui.App.LoadSettings();
-            settings.set(loadedSettings);
-            showGlow = loadedSettings.enableGlow;
-            defaultTargetLanguage = loadedSettings.targetLanguage;
-            showLogViewer = loadedSettings.showLogViewerByDefault;
+            
+            // Increment app start count before setting
+            const updatedSettings = {
+                ...loadedSettings,
+                appStartCount: (loadedSettings.appStartCount || 0) + 1
+            };
+            
+            settings.set(updatedSettings);
+            showGlow = updatedSettings.enableGlow;
+            defaultTargetLanguage = updatedSettings.targetLanguage;
+            showLogViewer = updatedSettings.showLogViewerByDefault;
         } catch (error) {
             console.error("Failed to load settings:", error);
             errorStore.addError({
@@ -376,6 +453,30 @@
         // Initialize window state detection - check initially and set up interval
         checkWindowState();
         
+        // Calculate LogViewer button position for notifications
+        const updateLogViewerButtonPosition = () => {
+            if (logViewerButton) {
+                const rect = logViewerButton.getBoundingClientRect();
+                logViewerButtonPosition = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top
+                };
+            }
+        };
+        
+        // Update position initially, on resize, and after transitions
+        updateLogViewerButtonPosition();
+        window.addEventListener('resize', updateLogViewerButtonPosition);
+        
+        // Also update on transition end events
+        const handleTransitionEnd = (e: TransitionEvent) => {
+            // Check if the transition is related to layout changes
+            if (e.target && (e.target as HTMLElement).classList.contains('will-change-transform')) {
+                updateLogViewerButtonPosition();
+            }
+        };
+        document.addEventListener('transitionend', handleTransitionEnd);
+        
         // Log initialization of performance monitoring
         console.log(`[${new Date().toISOString()}] 🚀 Initializing window-state based performance optimizations:
         - Window state checked every 2 seconds
@@ -472,6 +573,8 @@
         // Clean up all event listeners and timers on component destruction
         return () => {
             window.removeEventListener("settingsUpdated", handleSettingsUpdated);
+            window.removeEventListener('resize', updateLogViewerButtonPosition);
+            document.removeEventListener('transitionend', handleTransitionEnd);
             
             // Clear progress update timer
             if (progressUpdateDebounceTimer) {
@@ -595,23 +698,52 @@
                             </div>
                         {/if}
                         
-                        <!-- Log viewer toggle button with optimized transitions -->
-                        <button
-                            class="h-12 w-12 flex items-center justify-center rounded-lg
-                                   transition-all duration-200 will-change-transform
-                                   {showLogViewer ? 'bg-primary text-sky-dark' : 'bg-white/10 text-white'}
-                                   hover:bg-opacity-80 hover:-translate-y-0.5
-                                   hover:shadow-lg
-                                   focus:outline-none focus:ring-2
-                                   {showLogViewer ? 'focus:ring-primary/50' : 'focus:ring-white/30'}
-                                   focus:ring-offset-2 focus:ring-offset-bg"
-                            on:click={toggleLogViewer}
-                            aria-label="{showLogViewer ? 'Hide log viewer' : 'Show log viewer'}"
-                        >
-                            <span class="material-icons">
-                                {showLogViewer ? "chevron_right" : "chevron_left"}
-                            </span>
-                        </button>
+                        <!-- Log viewer toggle button with notifications and pulsing effects -->
+                        <div class="relative">
+                            <button
+                                class="h-12 w-12 flex items-center justify-center rounded-lg
+                                       transition-all duration-200 will-change-transform
+                                       {showLogViewer ? 'bg-primary text-sky-dark' : 'bg-white/10 text-white'}
+                                       hover:bg-opacity-80 hover:-translate-y-0.5
+                                       hover:shadow-lg
+                                       focus:outline-none focus:ring-2
+                                       {showLogViewer ? 'focus:ring-primary/50' : 'focus:ring-white/30'}
+                                       focus:ring-offset-2 focus:ring-offset-bg
+                                       {isProcessing && !showLogViewer && !hasErrorLogs() ? 'log-button-pulse' : ''}
+                                       {hasErrorLogs() && !showLogViewer ? 'log-button-error-pulse' : ''}"
+                                on:mouseenter={handleLogButtonHover}
+                                on:click={toggleLogViewer}
+                                aria-label="{showLogViewer ? 'Hide log viewer' : 'Show log viewer'}"
+                                bind:this={logViewerButton}
+                            >
+                                <span class="material-icons">
+                                    {showLogViewer ? "chevron_right" : "chevron_left"}
+                                </span>
+                                
+                                <!-- Error indicator badge -->
+                                {#if !showLogViewer && hasErrorLogs()}
+                                    <span class="absolute -top-1 -right-1 h-4 w-4 bg-error-all rounded-full border border-white flex items-center justify-center text-[10px] text-white font-bold animate-pulse">
+                                        !
+                                    </span>
+                                {/if}
+                            </button>
+                            
+                            <!-- Log Viewer Notification -->
+                            {#if ((isProcessing && !tooltipDismissed) || 
+                                 hasErrorLogs() || 
+                                 tooltipVisible
+                                ) && !showLogViewer && logViewerButtonPosition}
+                                <LogViewerNotification 
+                                    position={logViewerButtonPosition} 
+                                    mode={hasErrorLogs() ? 'error' : 'processing'}
+                                    onOpenLogViewer={toggleLogViewer}
+                                    onDismiss={() => {
+                                        tooltipDismissed = true;
+                                        tooltipVisible = false;
+                                    }}
+                                />
+                            {/if}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -711,5 +843,27 @@
     }
     .no-scrollbar::-webkit-scrollbar {
         display: none;             /* Chrome, Safari, Opera */
+    }
+    
+    /* Log viewer button animations */
+    @keyframes log-button-pulse {
+        0% { box-shadow: 0 0 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4); }
+        70% { box-shadow: 0 0 0 10px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0); }
+        100% { box-shadow: 0 0 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0); }
+    }
+    
+    @keyframes log-button-error-pulse {
+        0% { box-shadow: 0 0 0 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.4); }
+        70% { box-shadow: 0 0 0 10px hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0); }
+        100% { box-shadow: 0 0 0 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0); }
+    }
+    
+    .log-button-pulse {
+        animation: log-button-pulse 2s infinite;
+    }
+    
+    .log-button-error-pulse {
+        animation: log-button-error-pulse 1.5s infinite;
+        border: 1px solid hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.5);
     }
 </style>

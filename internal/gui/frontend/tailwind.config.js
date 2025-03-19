@@ -11,12 +11,28 @@ const secondaryHue = 323;
 const secondarySaturation = '100%';
 const secondaryLightness = '72%';
 
+// Core base colors as HSL
 const violet = `hsl(${primaryHue}, ${primarySaturation}, ${primaryLightness})`;
 const pink = `hsl(${secondaryHue}, ${secondarySaturation}, ${secondaryLightness})`;
-const red = colors.red[500];
-const orange = colors.orange[500]; // Changed from yellow to orange
+
+// Error state colors in HSL format
+const errorTaskHue = 50; // Yellow hue for task errors
+const errorTaskSaturation = '90%';
+const errorTaskLightness = '75%';
+
+const errorAllHue = 0; // Red hue for critical errors
+const errorAllSaturation = '85%';
+const errorAllLightness = '60%';
+
+const userCancelHue = 220; // Blue-gray hue for cancellations
+const userCancelSaturation = '10%';
+const userCancelLightness = '45%';
+
+// Define color values
+const red = `hsl(${errorAllHue}, ${errorAllSaturation}, ${errorAllLightness})`;
 const green = '#68e796';
-const yellow = '#fff38e';
+const yellow = `hsl(${errorTaskHue}, ${errorTaskSaturation}, ${errorTaskLightness})`;
+const userCancelGray = `hsl(${userCancelHue}, ${userCancelSaturation}, ${userCancelLightness})`;
 
 export default {
   darkMode: 'class',
@@ -98,9 +114,21 @@ export default {
         'log-warn': yellow,
         'log-error': red,
         
-        'error-task': orange,     // Orange for task errors (changed from yellow)
+        // Error states with HSL definitions
+        'error-task': yellow,     // Yellow for task errors
+        'error-task-hue': errorTaskHue,
+        'error-task-saturation': errorTaskSaturation,
+        'error-task-lightness': errorTaskLightness,
+        
         'error-all': red,         // Red for critical errors
-        'user-cancel': '#6b7280', // Gray for user cancellations
+        'error-all-hue': errorAllHue,
+        'error-all-saturation': errorAllSaturation,
+        'error-all-lightness': errorAllLightness,
+        
+        'user-cancel': userCancelGray, // Gray for user cancellations
+        'user-cancel-hue': userCancelHue,
+        'user-cancel-saturation': userCancelSaturation,
+        'user-cancel-lightness': userCancelLightness
       },
       fontFamily: {
         sans: ['"DM Sans"', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
