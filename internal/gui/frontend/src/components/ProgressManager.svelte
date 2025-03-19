@@ -335,7 +335,8 @@
 
 <!-- Only show if there's at least one bar. -->
 {#if $progressBars.length > 0}
-    <div class="flex flex-col max-w-2xl mx-auto w-full text-white border border-primary/20 px-3 py-2 space-y-2 overflow-hidden bg-bg-800/90 backdrop-blur-sm rounded-lg shadow-sm">
+    <div class="flex flex-col max-w-2xl mx-auto w-full text-white rounded-lg p-3 
+                transition-all duration-200 ease-out">
 
         <!-- A minimal top row with a label & action buttons -->
         <div class="flex items-center justify-between">
@@ -346,13 +347,13 @@
                 {statusText}
             </span>
             <div class="flex items-center gap-2">
-                <!-- Collapse/Expand toggle button with ripple effect -->
+                <!-- Collapse/Expand toggle button -->
                 <button 
                     class="flex items-center justify-center w-6 h-6 
-                           text-primary/60 hover:text-primary/90
+                           text-primary/70 hover:text-primary
                            transition-all duration-200 relative
                            overflow-hidden rounded-full
-                           active:bg-primary/10
+                           active:bg-primary/20
                            focus:outline-none focus:ring-1 focus:ring-primary/40"
                     on:click={toggleCollapse}
                     aria-label="{isCollapsed ? 'Expand' : 'Collapse'} progress bars"
@@ -363,14 +364,14 @@
                     </span>
                 </button>
                 
-                <!-- Clear all progress bars button with ripple effect -->
+                <!-- Clear all progress bars button -->
                 <button 
                     class="flex items-center justify-center w-6 h-6
-                           text-red-400/50 hover:text-red-400
+                           text-secondary/70 hover:text-secondary
                            transition-all duration-200 relative
                            overflow-hidden rounded-full
-                           active:bg-red-500/10
-                           focus:outline-none focus:ring-1 focus:ring-red-500/40"
+                           active:bg-secondary/20
+                           focus:outline-none focus:ring-1 focus:ring-secondary/40"
                     on:click={() => {
                         $progressBars.forEach(bar => removeProgressBar(bar.id));
                     }}
@@ -385,39 +386,24 @@
         {#if !isCollapsed}
             <div 
                 transition:slide={{ duration: 200, easing: quintOut }} 
-                class="space-y-2"
+                class="space-y-2 mt-2"
             >
                 {#each sortedBars as bar (bar.id)}
-                    <!-- Single bar row with elevation on hover -->
+                    <!-- Single bar row with subtle styling matching MediaInput -->
                     <div 
                         class="flex flex-col gap-1 p-2 rounded-md
-                               transition-all duration-300 ease-in-out
-                               hover:bg-black/20 hover:shadow-[0_2px_6px_rgba(159,110,247,0.15)]"
+                               transition-all duration-300 ease-in-out 
+                               bg-white/5 hover:bg-white/8"
                     >
                         <div class="flex items-center justify-between text-sm text-white/90">
-                            <span class="truncate max-w-[70%] font-medium">
+                            <span class="truncate max-w-[80%] font-medium">
                                 {bar.operation}{#if bar.description} - {bar.description}{/if}
                             </span>
-                            <div class="flex items-center gap-2">
-                                <span class="text-primary/70 text-xs whitespace-nowrap">
-                                    ({bar.current}/{bar.total}) {Math.round(bar.progress)}%
-                                </span>
-                                <!-- Individual bar clear button -->
-                                <button 
-                                    class="flex items-center justify-center w-5 h-5
-                                           text-primary/40 hover:text-primary/80
-                                           transition-all duration-200 relative
-                                           overflow-hidden rounded-full
-                                           active:bg-primary/10
-                                           focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                    on:click={() => clearBar(bar.id)}
-                                    aria-label="Clear progress bar"
-                                >
-                                    <span class="material-icons text-[12px]">close</span>
-                                </button>
-                            </div>
+                            <span class="text-primary/80 text-xs whitespace-nowrap">
+                                ({bar.current}/{bar.total}) {Math.round(bar.progress)}%
+                            </span>
                         </div>
-                        <div class="relative w-full bg-black/30 rounded-full overflow-hidden {bar.size || 'h-2.5'}">
+                        <div class="relative w-full bg-black/20 rounded-full overflow-hidden {bar.size || 'h-2.5'}">
                             <!-- Optimized progress bar rendering -->
                             {#if !bar.errorState}
                                 <div
@@ -464,13 +450,7 @@
 {/if}
 
 <style>
-    /* Container shadow for subtle depth */
-    :global(.shadow-sm) {
-        box-shadow: 
-            0 4px 12px rgba(0, 0, 0, 0.15),
-            0 1px 3px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(0, 0, 0, 0.05);
-    }
+    /* Progress bar styles */
     
     /* Dynamic gradient for progress bars */
     .progress-gradient {
