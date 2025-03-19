@@ -1203,6 +1203,4 @@
         will-change: transform;
         transform: translateZ(0);
     }
-    
-    /* Glow effects are now in FeatureCard component */
 </style>

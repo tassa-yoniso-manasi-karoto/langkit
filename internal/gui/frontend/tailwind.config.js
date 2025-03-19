@@ -149,6 +149,12 @@ export default {
       animation: {
         // Controls the sweep animation speed (2s = moderate pace, lower = faster)
         'sweep-gradient': 'sweep var(--sweep-duration, 2s) linear infinite',
+        // Feature message fade in animation
+        'fadeIn': 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+        // Subtle pulse animation for message items hover
+        'subtlePulse': 'subtlePulse 2s ease-in-out infinite',
+        // Individual message item fade in animation
+        'messageIn': 'messageIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both',
       },
       
       // Shadow effects for various UI elements
@@ -172,6 +178,39 @@ export default {
           '100%': { 
             backgroundPosition: '200% 0',
           },
+        },
+        // Fade in animation for feature messages
+        fadeIn: {
+          '0%': {
+            opacity: '0',
+            transform: 'translateY(-5px) scale(0.98)'
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'translateY(0) scale(1)'
+          }
+        },
+        // Subtle pulse animation for icons in feature messages
+        subtlePulse: {
+          '0%, 100%': {
+            opacity: '1',
+            transform: 'scale(1)'
+          },
+          '50%': {
+            opacity: '0.85',
+            transform: 'scale(0.97)'
+          }
+        },
+        // Animation for individual feature message items
+        messageIn: {
+          '0%': {
+            opacity: '0',
+            transform: 'translateY(-2px)'
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'translateY(0)'
+          }
         },
       },
       /**

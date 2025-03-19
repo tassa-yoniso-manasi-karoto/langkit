@@ -1,11 +1,14 @@
 <script lang="ts">
     import { get } from 'svelte/store';
-    import { createEventDispatcher, onMount } from 'svelte';
+    import { createEventDispatcher, onMount, tick } from 'svelte';
     
     import { formatDisplayText, type FeatureDefinition } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
     import { showSettings } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
+    
+    // Class for message items to keep styling consistent
+    const messageItemClass = "flex items-center gap-2 py-2 px-3 first:pt-2 last:pb-2 hover:bg-white/5 transition-colors duration-200 group";
     
     import Dropdown from './Dropdown.svelte';
     import Hovertip from './Hovertip.svelte';
@@ -363,6 +366,70 @@
     $: isFeatureDisabled = ((!isRomanizationAvailable && feature.id === 'subtitleRomanization') || 
                            (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
                            (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)));
+    
+    // Track merge option changes to force re-animation
+    let previousMergeState = false;
+    $: if (options.mergeOutputFiles !== previousMergeState) {
+        previousMergeState = options.mergeOutputFiles;
+        // Force re-animation of message card by toggling class
+        if (options.mergeOutputFiles) {
+            setTimeout(() => {
+                const messageCard = document.querySelector('.glassmorphism-card');
+                if (messageCard) {
+                    // First add the class to reset animation
+                    messageCard.classList.add('reanimating');
+                    
+                    // Then after a brief delay, remove it to trigger animation
+                    setTimeout(() => {
+                        messageCard.classList.remove('reanimating');
+                    }, 50);
+                }
+            }, 10);
+        }
+    }
+    
+    // Helper function to determine if we should show feature messages
+    function hasFeatureMessages() {
+        // API Provider error messages
+        if (enabled && get(errorStore).some(e => e.id === `provider-${feature.id}`)) {
+            return true;
+        }
+        
+        // Feature-specific messages
+        if (feature.id === 'subtitleRomanization') {
+            if ((enabled && hasVisibleOptions() && needsDocker && !dockerUnreachable) ||
+                (needsDocker && dockerUnreachable) ||
+                (!standardTag) ||
+                (!isRomanizationAvailable)) {
+                return true;
+            }
+        } else if (feature.id === 'selectiveTransliteration') {
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable) ||
+                (needsDocker && dockerUnreachable) ||
+                (!standardTag) ||
+                (standardTag !== 'jpn' && showNonJpnMessage)) {
+                return true;
+            }
+        } else if (feature.id === 'subtitleTokenization') {
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable) ||
+                (needsDocker && dockerUnreachable) ||
+                showNotAvailableMessage) {
+                return true;
+            }
+        }
+        
+        // Dependency messages
+        if (feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled) {
+            return true;
+        }
+        
+        // Output merge group banner - only shown when merge option is enabled
+        if (feature.outputMergeGroup && feature.showMergeBanner && enabled && options.mergeOutputFiles) {
+            return true;
+        }
+        
+        return false;
+    }
 </script>
 
 <div class="feature-card bg-white/5 rounded-lg
@@ -387,7 +454,9 @@
      }}
      on:click={handleFeatureClick}
 >
-    <div class="p-4 border-b border-white/10">
+    <div class="p-4 border-b border-white/10
+                {(enabled && hasFeatureMessages()) ? 'pb-1' : 'pb-4'}"
+    >
         <div class="flex items-center gap-3 cursor-pointer group
                   {isFeatureDisabled ? 'cursor-not-allowed' : ''}">
             <input
@@ -407,104 +476,184 @@
             </span>
         </div>
         
-        {#if enabled && get(errorStore).some(e => e.id === `provider-${feature.id}`)}
-            <div class="mt-2 flex items-center gap-2 text-red-400 text-xs pl-7">
-                <span class="material-icons text-[14px]">warning</span>
-                <span>
-                    {get(errorStore).find(e => e.id === `provider-${feature.id}`)?.message}
-                    <button 
-                        class="ml-1 text-primary hover:text-primary/80 transition-colors"
-                        on:click={() => $showSettings = true}
-                    >
-                        Configure API Keys
-                    </button>
-                </span>
-            </div>
-        {/if}
-        
-        <!-- Feature-specific messages -->
-        {#if feature.id === 'subtitleRomanization'}
-            <!-- Only show Docker status if this feature is showing provider options -->
-            {#if enabled && hasVisibleOptions() && needsDocker && !dockerUnreachable}
-                <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
-                    🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
-                </div>
-            {/if}
-            {#if needsDocker && dockerUnreachable}
-                <div class="mt-2 flex items-left text-xs font-bold text-red-500 pl-7">
-                    🔴 {dockerEngine} is required but not reachable. Please make sure it is installed and running.
-                </div>
-            {:else if !standardTag}
-                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
-                    Please select a language to proceed.
-                </div>
-            {:else if !isRomanizationAvailable}
-                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
-                    Sorry, no transliteration scheme has been implemented for this language yet! 
-                </div>
-                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
-                    <ExternalLink 
-                        href="https://github.com/tassa-yoniso-manasi-karoto/translitkit"
-                        className="hover:text-white/60 transition-colors duration-200"
-                        target="_blank"
-                        rel="noopener noreferrer">
-                        Pull requests and feedback are welcome.
-                    </ExternalLink>
-                </div>
-            {/if}
-        {:else if feature.id === 'selectiveTransliteration'}
-            <!-- Only show Docker status if this feature is showing provider options -->
-            {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
-                <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
-                    🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
-                </div>
-            {/if}
-            {#if needsDocker && dockerUnreachable}
-                <div class="mt-2 flex items-left text-xs font-bold text-red-500 pl-7">
-                    🔴 {dockerEngine} is required but not reachable. Please make sure it is installed and running.
-                </div>
-            {:else if !standardTag}
-                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
-                    Please select a language to proceed.
-                </div>
-            {:else if standardTag !== 'jpn' && showNonJpnMessage}
-                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
-                    Sorry, selective transliteration is currently only available for Japanese Kanji transliteration!
-                </div>
-            {/if}
-        {:else if feature.id === 'subtitleTokenization'}
-            <!-- Only show Docker status if this feature is showing provider options -->
-            {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
-                <div class="mt-2 flex items-left text-xs font-bold text-green-300 pl-7">
-                    🟢 {dockerEngine} is running and reachable.	&nbsp;<span class="relative top-[-3px]"> 🐳</span>
-                </div>
-            {/if}
-            {#if needsDocker && dockerUnreachable}
-                <div class="mt-2 flex items-left text-xs font-bold text-red-500 pl-7">
-                    🔴 {dockerEngine} is required but not reachable. Please make sure it is installed and running.
-                </div>
-            {/if}
-            {#if showNotAvailableMessage}
-                <div class="mt-2 flex items-left text-xs text-white/80 pl-7">
-                    Sorry, no tokenizer is implemented for this language at this time!
-                </div>
-            {/if}
-        {/if}
+        {#if hasFeatureMessages()}
+        <div class="feature-message-card ml-7 w-auto animate-fadeIn">
+                <div class="glassmorphism-card">
+                    <!-- API Provider error messages -->
+                    {#if enabled && get(errorStore).some(e => e.id === `provider-${feature.id}`)}
+                        <div class={messageItemClass}>
+                            <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
+                                warning
+                            </span>
+                            <div class="flex-1 text-xs text-white/90">
+                                <span>{get(errorStore).find(e => e.id === `provider-${feature.id}`)?.message || ''}</span>
+                                <button 
+                                    class="ml-1 text-primary hover:text-primary-300 transition-colors duration-200 underline"
+                                    on:click={() => $showSettings = true}>
+                                    Configure API Keys
+                                </button>
+                            </div>
+                        </div>
+                    {/if}
+                    
+                    <!-- Feature-specific messages -->
+                    {#if feature.id === 'subtitleRomanization'}
+                        <!-- Docker status banners -->
+                        {#if enabled && hasVisibleOptions() && needsDocker && !dockerUnreachable}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-pale-green mt-0.5 group-hover:animate-subtlePulse">
+                                    check_circle
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>{dockerEngine} is running and reachable. 🐳</span>
+                                </div>
+                            </div>
+                        {/if}
+                        
+                        {#if needsDocker && dockerUnreachable}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
+                                    error
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                </div>
+                            </div>
+                        {:else if !standardTag}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
+                                    info
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>Please select a language to proceed.</span>
+                                </div>
+                            </div>
+                        {:else if !isRomanizationAvailable}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
+                                    info
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>Sorry, no transliteration scheme has been implemented for this language yet!</span>
+                                </div>
+                            </div>
+                            <div class={messageItemClass}>
+                                <span class="w-[14px] ml-3"></span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>Pull requests and feedback are welcome.</span>
+                                    <a href="https://github.com/tassa-yoniso-manasi-karoto/translitkit" 
+                                       class="ml-1 text-primary hover:text-primary-300 transition-colors duration-200"
+                                       target="_blank" 
+                                       rel="noopener noreferrer">
+                                        Learn more
+                                    </a>
+                                </div>
+                            </div>
+                        {/if}
+                    
+                    {:else if feature.id === 'selectiveTransliteration'}
+                        <!-- Docker status banners -->
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-pale-green mt-0.5 group-hover:animate-subtlePulse">
+                                    check_circle
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>{dockerEngine} is running and reachable. 🐳</span>
+                                </div>
+                            </div>
+                        {/if}
+                        
+                        {#if needsDocker && dockerUnreachable}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
+                                    error
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                </div>
+                            </div>
+                        {:else if !standardTag}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
+                                    info
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>Please select a language to proceed.</span>
+                                </div>
+                            </div>
+                        {:else if standardTag !== 'jpn' && showNonJpnMessage}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-error-task mt-0.5 group-hover:animate-subtlePulse">
+                                    warning
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>Sorry, selective transliteration is currently only available for Japanese Kanji transliteration!</span>
+                                </div>
+                            </div>
+                        {/if}
+                    
+                    {:else if feature.id === 'subtitleTokenization'}
+                        <!-- Docker status banners -->
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-pale-green mt-0.5 group-hover:animate-subtlePulse">
+                                    check_circle
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>{dockerEngine} is running and reachable. 🐳</span>
+                                </div>
+                            </div>
+                        {/if}
+                        
+                        {#if needsDocker && dockerUnreachable}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
+                                    error
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                </div>
+                            </div>
+                        {/if}
+                        
+                        {#if showNotAvailableMessage}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-error-task mt-0.5 group-hover:animate-subtlePulse">
+                                    warning
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>Sorry, no tokenizer is implemented for this language at this time!</span>
+                                </div>
+                            </div>
+                        {/if}
+                    {/if}
 
-        <!-- Dependency messages when a feature depends on dubtitles -->
-        {#if feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled}
-            <div class="mt-2 flex items-left text-xs text-blue-300 pl-7">
-                <span class="material-icons text-[14px] mr-1">info</span>
-                {feature.dependencyMessage}
-            </div>
-        {/if}
+                    <!-- Dependency messages when a feature depends on dubtitles -->
+                    {#if feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled}
+                        <div class={messageItemClass}>
+                            <span class="material-icons text-[14px] text-log-info mt-0.5 group-hover:animate-subtlePulse">
+                                link
+                            </span>
+                            <div class="flex-1 text-xs text-white/90">
+                                <span>{feature.dependencyMessage}</span>
+                            </div>
+                        </div>
+                    {/if}
 
-        <!-- Output merge group banner (shown for all features in the merge group) -->
-        {#if feature.outputMergeGroup && feature.showMergeBanner && enabled}
-            <div class="mt-2 flex items-left text-xs text-green-300 pl-7">
-                <span class="material-icons text-[14px] mr-1">merge_type</span>
-                All created content will be merged with originals in a new video
-            </div>
+                    <!-- Output merge group banner (shown only when merge option is enabled) -->
+                    {#if feature.outputMergeGroup && feature.showMergeBanner && enabled && options.mergeOutputFiles}
+                        <div class={messageItemClass} key="{options.mergeOutputFiles}">
+                            <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
+                                merge_type
+                            </span>
+                            <div class="flex-1 text-xs text-white/90">
+                                <span>All created content will be merged with originals in a new video</span>
+                            </div>
+                        </div>
+                    {/if}
+                </div>
+        </div>
         {/if}
     </div>
     
@@ -746,5 +895,80 @@
     
     .option-input {
         width: 100%; /* Ensure consistent width with group options */
+    }
+    
+    .feature-message-card {
+        position: relative;
+        left: 0;
+        text-align: left;
+    }
+    
+    /* Enhanced glassmorphism effect for feature message card 
+    .glassmorphism-card {
+        background-color: rgba(31, 41, 55, 0.15);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-radius: 0.375rem;
+        overflow: hidden;
+        display: inline-block;
+        max-width: max-content;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    .glassmorphism-card:hover {
+        background-color: rgba(31, 41, 55, 0.22);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        transform: translateY(-1px);
+    }*/
+    
+    /* Style for the dividing dotted lines */
+    .glassmorphism-card > div:not(:first-child) {
+        border-top-width: 1px;
+        border-color: rgba(255, 255, 255, 0.1);
+        border-style: dotted;
+    }
+    
+    /* Staggered message animations */
+    .glassmorphism-card > div {
+        animation: messageIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+        opacity: 0;
+    }
+    
+    .glassmorphism-card > div:nth-child(1) {
+        animation-delay: 0s;
+    }
+    
+    .glassmorphism-card > div:nth-child(2) {
+        animation-delay: 0.05s;
+    }
+    
+    .glassmorphism-card > div:nth-child(3) {
+        animation-delay: 0.1s;
+    }
+    
+    .glassmorphism-card > div:nth-child(4) {
+        animation-delay: 0.15s;
+    }
+    
+    .glassmorphism-card > div:nth-child(5) {
+        animation-delay: 0.2s;
+    }
+    
+    @keyframes messageIn {
+        0% {
+            opacity: 0;
+            transform: translateY(-2px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Force animation reset when the class is toggled */
+    .glassmorphism-card.reanimating > div {
+        opacity: 0 !important;
+        animation-name: none !important;
     }
 </style>

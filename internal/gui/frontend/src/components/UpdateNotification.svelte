@@ -12,7 +12,7 @@
 <a 
     href={href}
     on:click={handleClick}
-    class="ml-2 font-bold cursor-pointer text-orange-500 underline blinking-update"
+    class="ml-2 font-semibold cursor-pointer text-orange-500 tracking-tighter blinking-update"
     target="_blank"
     rel="noopener noreferrer"
     title="Click to view latest release">

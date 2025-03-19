@@ -98,7 +98,7 @@
     }
     
     // Update LogViewer button position whenever processing state changes
-    // This handles the appearance/disappearance of the cancel button
+    // This handles the slide appearance/disappearance of the cancel button
     $: {
         if (isProcessing !== undefined) {
             // Use setTimeout to allow DOM to update first
@@ -110,7 +110,7 @@
                         y: rect.top
                     };
                 }
-            }, 400);
+            }, 2000);
         }
     }
     
@@ -194,15 +194,13 @@
                     y: rect.top
                 };
             }
-        }, 400); // Match transition duration from slide animation
+        }, 2000); // Match transition duration from slide animation
     }
 
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
 
         isProcessing = true;
-        // We no longer automatically show the log viewer
-        // Instead, we'll notify the user with a tooltip
         progress = 0;
         
         // Completely clear all progress bars when starting a new process
@@ -343,22 +341,22 @@
                 
                 // If window is minimized, reduce animations and processing
                 if (minimized) {
-                    console.log(`[${timestamp}] 🔴 WINDOW MINIMIZED - reducing UI animations and processing`);
-                    logStore.addLog({
-                        level: 'INFO',
-                        message: '🔴 Window minimized - performance optimizations active',
-                        time: timestamp
-                    });
+                    // console.log(`[${timestamp}] 🔴 WINDOW MINIMIZED - reducing UI animations and processing`);
+                    // logStore.addLog({
+                    //     level: 'INFO',
+                    //     message: '🔴 Window minimized - performance optimizations active',
+                    //     time: timestamp
+                    // });
                     
                     // Hide glow effect when minimized regardless of settings
                     showGlow = false;
                 } else {
-                    console.log(`[${timestamp}] 🟢 WINDOW RESTORED - resuming normal operation`);
-                    logStore.addLog({
-                        level: 'INFO',
-                        message: '🟢 Window restored - normal performance mode',
-                        time: timestamp
-                    });
+                    // console.log(`[${timestamp}] 🟢 WINDOW RESTORED - resuming normal operation`);
+                    // logStore.addLog({
+                    //     level: 'INFO',
+                    //     message: '🟢 Window restored - normal performance mode',
+                    //     time: timestamp
+                    // });
                     
                     // Restore glow effect based on user settings
                     showGlow = $settings?.enableGlow || true;
@@ -405,7 +403,7 @@
         
         // Every 10 skipped updates, log summary
         if (skippedUpdateCount % 10 === 0) {
-            console.log(`[${new Date().toISOString()}] ⏭️ Throttled ${skippedUpdateCount} progress updates while minimized`);
+            // console.log(`[${new Date().toISOString()}] ⏭️ Throttled ${skippedUpdateCount} progress updates while minimized`);
         }
         
         // Process only the most recent update for each unique progress bar ID
@@ -513,7 +511,6 @@
         // Get version info on load
         GetVersion()
             .then((result: any) => {
-                // Avoid unnecessary console.log in production
                 version = result.version;
                 updateAvailable = result.newerVersionAvailable;
             })
