@@ -807,10 +807,10 @@
                                     />
                                 {:else if optionDef.type === 'provider'}
                                     {@const provider = options['style'] ? (romanizationSchemes.find(s => s.name === options['style'])?.provider || '') : 'ichiran'}
-                                    <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-between gap-2">
-                                        <div class="flex-grow text-center">{provider}</div>
+                                    <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
+                                       {provider}
                                         
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center justify-center gap-2">
                                             <!-- GitHub link if available -->
                                             {#if providerGithubUrls[provider]}
                                                 <ExternalLink 
