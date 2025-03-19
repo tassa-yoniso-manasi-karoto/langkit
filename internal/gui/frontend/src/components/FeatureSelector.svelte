@@ -1186,6 +1186,7 @@
                             {selectedFeatures}
                             {providerGroups}
                             {outputMergeGroups}
+                            {mergeOptionValues}
                             on:enabledChange={handleFeatureEnabledChange}
                             on:optionChange={handleOptionChange}
                         />

@@ -20,6 +20,10 @@
     
     export let feature: FeatureDefinition;
     export let enabled = false;
+    export let mergeOptionValues = {
+        mergeOutputFiles: false,
+        mergingFormat: 'mp4'
+    };;
     export let options: any = {};
     export let anyFeatureSelected = false;
     
@@ -642,7 +646,7 @@
                     {/if}
 
                     <!-- Output merge group banner (shown only when merge option is enabled) -->
-                    {#if feature.outputMergeGroup && feature.showMergeBanner && enabled && options.mergeOutputFiles}
+                    {#if feature.outputMergeGroup && feature.showMergeBanner && enabled && mergeOptionValues.mergeOutputFiles}
                         <div class={messageItemClass} key="{options.mergeOutputFiles}">
                             <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
                                 merge_type
