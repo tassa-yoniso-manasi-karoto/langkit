@@ -302,7 +302,7 @@ More aggressive force-scrolling:
 <!-- Main container for the log viewer with glassmorphism -->
 <div class="flex flex-col h-full bg-logbg/60 text-white font-[DM_Mono] text-[11px] rounded-lg border-r border-b border-primary/20 shadow-log">
     <!-- Top controls row -->
-    <div class="px-3 py-2 border-b border-primary/20 bg-bg-800/60 backdrop-blur-md h-10 flex items-center justify-between rounded-t-lg">
+    <div class="px-3 py-2 border-b border-primary/20 bg-bgold-800/60 backdrop-blur-md h-10 flex items-center justify-between rounded-t-lg">
         <div class="flex items-center gap-6">
             <!-- Log level filter -->
             <div class="flex items-center gap-2 whitespace-nowrap">

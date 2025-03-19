@@ -146,8 +146,8 @@
     <div
         role="presentation"
         class="relative border-2 border-dashed border-primary/30 rounded-lg p-4 text-center
-               transition-all duration-200 ease-out bg-white/5
-               hover:border-primary/50 hover:bg-white/10
+               transition-all duration-200 ease-out bg-ui-element
+               hover:border-primary/50 hover:bg-ui-element-hover
                {dragOver ? 'border-primary bg-primary/10 scale-[1.01]' : ''}
                {mediaSource ? 'opacity-95' : ''}"
         on:dragenter={handleDragEnter}
@@ -207,7 +207,7 @@
 
                     {#if isDirectory && previewFiles.length > 0}
                         <!-- Directory content preview with tree structure -->
-                        <div class="bg-white/5 p-2 rounded-md">
+                        <div class="bg-ui-element p-2 rounded-md">
                             <!-- Header with total count -->
                             <div class="flex justify-between items-center mb-1 text-xs text-gray-300">
                                 <span class="font-medium">Directory contents:</span>

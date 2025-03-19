@@ -28,11 +28,20 @@ const userCancelHue = 220; // Blue-gray hue for cancellations
 const userCancelSaturation = '10%';
 const userCancelLightness = '45%';
 
+// UI Element Background colors
+const uiElementHue = 0; // Neutral gray hue
+const uiElementSaturation = '0%';
+const uiElementLightness = '100%';
+const uiElementAlpha = '0.05'; // Base opacity
+const uiElementHoverAlpha = '0.08'; // Hover state opacity
+
 // Define color values
 const red = `hsl(${errorAllHue}, ${errorAllSaturation}, ${errorAllLightness})`;
 const green = '#68e796';
 const yellow = `hsl(${errorTaskHue}, ${errorTaskSaturation}, ${errorTaskLightness})`;
 const userCancelGray = `hsl(${userCancelHue}, ${userCancelSaturation}, ${userCancelLightness})`;
+const uiElementBg = `hsla(${uiElementHue}, ${uiElementSaturation}, ${uiElementLightness}, ${uiElementAlpha})`;
+const uiElementHoverBg = `hsla(${uiElementHue}, ${uiElementSaturation}, ${uiElementLightness}, ${uiElementHoverAlpha})`;
 
 export default {
   darkMode: 'class',
@@ -44,7 +53,7 @@ export default {
         unobtrusive: colors.gray[400],
         logbg: 'hsl(0, 0%, 15%)',
         
-        bg: {
+        bgold: {
           50: 'hsl(0, 0%, 95%)',
           100: 'hsl(0, 0%, 90%)',
           200: 'hsl(0, 0%, 80%)',
@@ -94,6 +103,8 @@ export default {
         'error-card-hover': '#321e41', // slightly lighter for hover state
         'tooltip-bg': '#1c1c24',        // dark background for tooltips
         'tooltip-border': '#3b3167',    // border color for tooltips
+        'ui-element': uiElementBg,      // subtle background for UI elements like MediaInput and ProgressManager
+        'ui-element-hover': uiElementHoverBg, // hover state for UI elements
         accent: {
           50: '#fffce5',
           100: '#fffacc',

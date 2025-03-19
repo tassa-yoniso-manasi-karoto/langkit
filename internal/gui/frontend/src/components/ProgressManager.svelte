@@ -393,7 +393,7 @@
                     <div 
                         class="flex flex-col gap-1 p-2 rounded-md
                                transition-all duration-300 ease-in-out 
-                               bg-white/5 hover:bg-white/8"
+                               bg-ui-element hover:bg-ui-element-hover"
                     >
                         <div class="flex items-center justify-between text-sm text-white/90">
                             <span class="truncate max-w-[80%] font-medium">

@@ -47,7 +47,7 @@
                    appearance-none cursor-pointer select-centered"
         >
             {#each options as option}
-                <option value={getValue(option)} class="bg-bg">
+                <option value={getValue(option)} class="bg-bgold">
                     {getLabel(option)}
                 </option>
             {/each}
