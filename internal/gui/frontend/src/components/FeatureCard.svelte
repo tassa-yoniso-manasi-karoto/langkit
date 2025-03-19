@@ -15,7 +15,9 @@
     import NumericInput from './NumericInput.svelte';
     import TextInput from './TextInput.svelte';
     import ExternalLink from './ExternalLink.svelte';
-    import GroupIcon from './GroupIcon.svelte';
+    import GroupIcon from './icons/GroupIcon.svelte';
+    import DockerIcon from './icons/DockerIcon.svelte';
+    import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import GroupOption from './GroupOption.svelte';
     
     export let feature: FeatureDefinition;
@@ -505,20 +507,16 @@
                         <!-- Docker status banners -->
                         {#if enabled && hasVisibleOptions() && needsDocker && !dockerUnreachable}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-pale-green mt-0.5 group-hover:animate-subtlePulse">
-                                    check_circle
-                                </span>
+                                <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>{dockerEngine} is running and reachable. 🐳</span>
+                                    <span>{dockerEngine} is running and reachable.</span>
                                 </div>
                             </div>
                         {/if}
                         
                         {#if needsDocker && dockerUnreachable}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
-                                    error
-                                </span>
+                                <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
@@ -559,20 +557,16 @@
                         <!-- Docker status banners -->
                         {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-pale-green mt-0.5 group-hover:animate-subtlePulse">
-                                    check_circle
-                                </span>
+                                <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>{dockerEngine} is running and reachable. 🐳</span>
+                                    <span>{dockerEngine} is running and reachable.</span>
                                 </div>
                             </div>
                         {/if}
                         
                         {#if needsDocker && dockerUnreachable}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
-                                    error
-                                </span>
+                                <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
@@ -601,20 +595,16 @@
                         <!-- Docker status banners -->
                         {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-pale-green mt-0.5 group-hover:animate-subtlePulse">
-                                    check_circle
-                                </span>
+                                <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>{dockerEngine} is running and reachable. 🐳</span>
+                                    <span>{dockerEngine} is running and reachable.</span>
                                 </div>
                             </div>
                         {/if}
                         
                         {#if needsDocker && dockerUnreachable}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
-                                    error
-                                </span>
+                                <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>

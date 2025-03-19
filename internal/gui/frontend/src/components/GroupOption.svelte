@@ -8,7 +8,7 @@
     import Hovertip from './Hovertip.svelte';
     import NumericInput from './NumericInput.svelte';
     import TextInput from './TextInput.svelte';
-    import GroupIcon from './GroupIcon.svelte';
+    import GroupIcon from './icons/GroupIcon.svelte';
     import ExternalLink from './ExternalLink.svelte';
     
     // Props
