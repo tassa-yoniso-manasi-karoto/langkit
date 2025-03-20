@@ -30,7 +30,6 @@ export interface FeatureDefinition {
     dependencyMessage?: string; // Message to display when a feature depends on another
     showCondition?: string; // Expression to determine if this feature should be shown
     
-    // New group-related properties
     featureGroups?: string[]; // IDs of feature groups this feature belongs to
     groupSharedOptions?: Record<string, string[]>; // Group ID -> Option IDs
 }

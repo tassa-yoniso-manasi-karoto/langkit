@@ -417,102 +417,22 @@
         const { id, enabled } = event.detail;
         console.log(`Feature toggle: ${id} -> ${enabled}`);
         
+        // Update the selected features state
         selectedFeatures[id] = enabled;
         updateProviderWarnings();
         
-        // Handle feature groups with the new system
+        // Find the feature definition
         const featureDef = features.find(f => f.id === id);
         if (!featureDef) {
             console.error(`Feature not found: ${id}`);
             return;
         }
         
-        // Update in the feature group store if this feature belongs to any groups
-        if (featureDef.featureGroups && featureDef.featureGroups.length > 0) {
-            console.log(`Feature ${id} belongs to groups: ${featureDef.featureGroups.join(', ')}`);
-            
-            featureDef.featureGroups.forEach(groupId => {
-                console.log(`Processing group ${groupId} for feature ${id}`);
-                
-                // Update enabled state in the group store
-                featureGroupStore.updateFeatureEnabled(groupId, id, enabled);
-                
-                // If this feature was just enabled, make it the active display feature
-                if (enabled) {
-                    console.log(`Feature ${id} enabled - checking if it should be active display for group ${groupId}`);
-                    
-                    // Get all enabled features in this group
-                    const enabledFeaturesInGroup = Object.keys(selectedFeatures)
-                        .filter(fId => 
-                            selectedFeatures[fId] && 
-                            features.find(f => f.id === fId)?.featureGroups?.includes(groupId)
-                        );
-                        
-                    console.log(`Group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
-                    
-                    // If this is the first enabled feature in the group, make it the active display feature
-                    const orderedGroupFeatures = features
-                        .filter(f => f.featureGroups?.includes(groupId))
-                        .map(f => f.id);
-                        
-                    const enabledOrderedFeatures = orderedGroupFeatures
-                        .filter(fId => enabledFeaturesInGroup.includes(fId));
-                        
-                    if (enabledOrderedFeatures.length > 0 && enabledOrderedFeatures[0] === id) {
-                        console.log(`Making ${id} the active display feature for group ${groupId}`);
-                        featureGroupStore.updateActiveDisplayFeature(
-                            groupId,
-                            orderedGroupFeatures,
-                            enabledFeaturesInGroup
-                        );
-                    }
-                }
-                // If this is a group option display feature and it was just disabled,
-                // we need to update the active display feature
-                else if (featureGroupStore.isActiveDisplayFeature(groupId, id)) {
-                    console.log(`Feature ${id} was active display for group ${groupId} but is now disabled`);
-                    
-                    // Get all feature IDs in this group
-                    const groupFeatureIds = features
-                        .filter(f => f.featureGroups?.includes(groupId))
-                        .map(f => f.id);
-                    
-                    // Get all enabled features in this group
-                    const enabledFeaturesInGroup = Object.keys(selectedFeatures)
-                        .filter(fId => 
-                            selectedFeatures[fId] && 
-                            features.find(f => f.id === fId)?.featureGroups?.includes(groupId)
-                        );
-                    
-                    console.log(`After disabling, group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
-                    
-                    // Update the active display feature
-                    featureGroupStore.updateActiveDisplayFeature(
-                        groupId, 
-                        groupFeatureIds,
-                        enabledFeaturesInGroup
-                    );
-                }
-                
-                // Sync values from group store to all features to ensure they're consistent
-                console.log(`Syncing options for group ${groupId} to features`);
-                currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
-                    groupId, currentFeatureOptions
-                );
-            });
+        // Process feature groups if this feature belongs to any
+        if (featureDef.featureGroups?.length) {
+            handleFeatureGroupUpdates(featureDef, id, enabled);
         }
-        
-        // Check if any subtitle group feature is enabled to show provider settings
-        if (featureDef?.featureGroups?.includes('subtitle')) {
-            const isAnySubtitleFeatureEnabled = features.some(f => 
-                f.featureGroups?.includes('subtitle') && selectedFeatures[f.id]);
-                
-            // Add subtitleProviderSettings to visible features if any subtitle feature is enabled
-            if (isAnySubtitleFeatureEnabled && !visibleFeatures.includes('subtitleProviderSettings')) {
-                visibleFeatures = [...visibleFeatures, 'subtitleProviderSettings'];
-            }
-        }
-        
+
         // Legacy output merge group handling
         if (featureDef?.outputMergeGroup) {
             // When a feature in a merge group is enabled or disabled, 
@@ -582,7 +502,121 @@
             });
         }
     }
-    
+
+    /**
+     * Handles all feature group related updates when a feature's enabled state changes
+     */
+    function handleFeatureGroupUpdates(featureDef: FeatureDefinition, featureId: string, enabled: boolean) {
+        console.log(`Feature ${featureId} belongs to groups: ${featureDef.featureGroups.join(', ')}`);
+        
+        featureDef.featureGroups.forEach(groupId => {
+            console.log(`Processing group ${groupId} for feature ${featureId}`);
+            
+            // Update enabled state in the group store
+            featureGroupStore.updateFeatureEnabled(groupId, featureId, enabled);
+            
+            // Get all feature IDs in this group for reference
+            const groupFeatureIds = getFeatureIdsInGroup(groupId);
+            
+            // Get all enabled features in this group
+            const enabledFeaturesInGroup = getEnabledFeaturesInGroup(groupId);
+            console.log(`Group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+            
+            // Handle active display feature updates based on the state change
+            if (enabled) {
+                handleFeatureEnabled(groupId, featureId, groupFeatureIds, enabledFeaturesInGroup);
+            } else {
+                handleFeatureDisabled(groupId, featureId, groupFeatureIds, enabledFeaturesInGroup);
+            }
+            
+            // Ensure options are consistent across all features in the group
+            syncFeatureOptions(groupId);
+        });
+    }
+
+    /**
+     * Handle logic when a feature is enabled
+     */
+    function handleFeatureEnabled(
+        groupId: string, 
+        featureId: string, 
+        groupFeatureIds: string[], 
+        enabledFeaturesInGroup: string[]
+    ) {
+        console.log(`Feature ${featureId} enabled - checking if it should be active display for group ${groupId}`);
+        
+        // Get the features in the order they should be prioritized
+        const enabledOrderedFeatures = groupFeatureIds.filter(fId => enabledFeaturesInGroup.includes(fId));
+        
+        // If this is the highest priority enabled feature, make it the active display feature
+        if (enabledOrderedFeatures.length > 0 && enabledOrderedFeatures[0] === featureId) {
+            console.log(`Making ${featureId} the active display feature for group ${groupId}`);
+            featureGroupStore.updateActiveDisplayFeature(
+                groupId,
+                groupFeatureIds,
+                enabledFeaturesInGroup
+            );
+        }
+    }
+
+    /**
+     * Handle logic when a feature is disabled
+     */
+    function handleFeatureDisabled(
+        groupId: string, 
+        featureId: string, 
+        groupFeatureIds: string[], 
+        enabledFeaturesInGroup: string[]
+    ) {
+        // Only update the active display feature if the disabled feature was the active one
+        if (featureGroupStore.isActiveDisplayFeature(groupId, featureId)) {
+            console.log(`Feature ${featureId} was active display for group ${groupId} but is now disabled`);
+            console.log(`After disabling, group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+            
+            // Update the active display feature to the next best available
+            featureGroupStore.updateActiveDisplayFeature(
+                groupId, 
+                groupFeatureIds,
+                enabledFeaturesInGroup
+            );
+        }
+    }
+
+    /**
+     * Get all feature IDs that belong to a specific group
+     */
+    function getFeatureIdsInGroup(groupId: string): string[] {
+        return features
+            .filter(f => f.featureGroups?.includes(groupId))
+            .map(f => f.id);
+    }
+
+    /**
+     * Get all enabled features in a specific group
+     */
+    function getEnabledFeaturesInGroup(groupId: string): string[] {
+        // First get all feature IDs in this group in their defined order
+        const groupFeatureIds = getFeatureIdsInGroup(groupId);
+        
+        // Then filter for only the enabled ones, maintaining their original order
+        return groupFeatureIds.filter(fId => selectedFeatures[fId]);
+    }
+    /**
+     * Sync options from the group store to all features in the group
+     */
+    function syncFeatureOptions(groupId: string) {
+        console.log(`Syncing options for group ${groupId} to features`);
+        currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
+            groupId, currentFeatureOptions
+        );
+    }
+
+    /**
+     * Update subtitle provider settings visibility
+     */
+    function updateSubtitleProviderVisibility(featureDef: FeatureDefinition) {
+    }
+
     function handleOptionChange(event: CustomEvent) {
         const { featureId, optionId, value, isGroupOption, groupId, isUserInput } = event.detail;
         
@@ -803,8 +837,6 @@
             updateProviderWarnings();
         }
     });
-    
-    // Remove this section as we've moved selective transliteration to its own feature
     
     // Media source change
     $: if (mediaSource) {

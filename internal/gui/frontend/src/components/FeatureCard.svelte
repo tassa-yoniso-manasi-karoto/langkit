@@ -653,6 +653,7 @@
     
     <!-- Options drawer with slide animation - only displayed if the feature has visible options -->
     {#if hasVisibleOptions()}
+    {@const _logVisible = console.log('hasVisibleOptions() returned true')}
     <div
     bind:this={optionsContainer} 
     class="overflow-hidden" 
@@ -664,22 +665,44 @@
                 {#each getVisibleOptions() as optionId}
                     {@const optionDef = feature.options[optionId]}
                     {@const value = options[optionId]}
+                    {@const _logOption = console.log(
+                        'Rendering option:', optionId, 
+                        'with value:', value, 
+                        'and optionDef:', optionDef
+                    )}
                     
-                    {#if feature.featureGroups && feature.groupSharedOptions && 
-                         feature.featureGroups.some(groupId => {
-                           // Ensure this feature is part of the group in featureGroupStore
-                           if (!featureGroupStore.isFeatureEnabled(groupId, feature.id)) {
-                             featureGroupStore.addFeatureToGroup(groupId, feature.id);
-                           }
-                           
-                           // Check if this option is shared in the group
-                           return feature.groupSharedOptions[groupId]?.includes(optionId);
-                         }) &&
-                         feature.featureGroups.some(groupId => featureGroupStore.isActiveDisplayFeature(groupId, feature.id))}
-                        <!-- Group option takes the entire row - only shown for the active display feature -->
-                        {@const groupId = feature.featureGroups.find(gId => 
-                            feature.groupSharedOptions[gId]?.includes(optionId) && 
-                            featureGroupStore.isActiveDisplayFeature(gId, feature.id)
+                    <!-- Check if this option is a group shared option -->
+                    {@const isGroupOption = feature.featureGroups && 
+                        feature.groupSharedOptions && 
+                        feature.featureGroups.some(groupId => 
+                            feature.groupSharedOptions[groupId]?.includes(optionId)
+                        )}
+                    
+                    <!-- Find the group that this option belongs to (if any) -->
+                    {@const groupId = isGroupOption ? 
+                        feature.featureGroups.find(gId => 
+                            feature.groupSharedOptions[gId]?.includes(optionId)
+                        ) : null}
+                    
+                    <!-- Ensure this feature is registered in the group -->
+                    {#if isGroupOption && groupId}
+                        {@const _ensureInGroup = 
+                            featureGroupStore.addFeatureToGroup(groupId, feature.id)}
+                    {/if}
+                    
+                    <!-- Determine if this feature should display the group option -->
+                    {@const isActiveDisplayFeature = isGroupOption && 
+                        groupId && 
+                        featureGroupStore.isActiveDisplayFeature(groupId, feature.id)}
+                    
+                    {@const _logGroupCheck = isGroupOption ? 
+                        console.log(`Feature ${feature.id} option ${optionId} is in group ${groupId}, isActiveDisplay: ${isActiveDisplayFeature}`) : 
+                        null}
+                    
+                    {#if isGroupOption && isActiveDisplayFeature}
+                        <!-- Render Group Option (only for the active display feature) -->
+                        {@const _logGroup = console.log(
+                            'Rendering group option for:', optionId, 'in group:', groupId
                         )}
                         <div class="mb-4 w-full">
                             <GroupOption 

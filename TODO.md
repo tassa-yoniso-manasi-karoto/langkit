@@ -1,19 +1,18 @@
 
-- 🤯🤯 NORMALIZE / BALANCE UI COLORS (process manager, error tooltip too)
 
-- display "All processed outputs will be merged in the final video" only if merge is enabled
 - sub roma ichiran not written
-- show logviewer by default should maximize on start up
-- test abort_task
-- 🤯🤯 REWRITE DOCKERUTIL: immutable context problem
+- migrate go-ichiran/aksharamukha to use ctx
 
 - GUI options:
   - condensed audio toggle
   - dubs allow user to request cached sep voice file deletion
 
-- 🤯🤯 consistent progress bars between GUI and CLI
+- 🤯 consistent progress bars between GUI and CLI
   - processedCount for ETA calculation
   - ETA algo bc progressbar pkg uses a rate-based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
+
+- "Recreate Docker containers" should not show everywhere →→→ SELECTOR #L472
+- truncated feature card (left & right) when not maximized
 
 - crash reports add snapshots of tsk throughout code
 - manual GUI tests
@@ -30,10 +29,6 @@
 *future implementations*
 
 - implement an explicit maxAbortTasks
-
-- logviewer
-   - hide logviewer and alert on error
-   - frontend logs in log viewer
 
 - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes

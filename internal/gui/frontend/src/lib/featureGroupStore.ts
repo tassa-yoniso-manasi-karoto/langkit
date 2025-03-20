@@ -264,6 +264,9 @@ function createFeatureGroupStore() {
          */
         isActiveDisplayFeature(groupId: string, featureId: string): boolean {
             const state = get(store);
+            console.log(
+              'isActiveDisplayFeature: groupID', groupId, 'activeDisplayFeature of group', state.activeDisplayFeature[groupId], 'feature currently examined', featureId, 'isActiveDisplay?', state.activeDisplayFeature[groupId] === featureId
+            )
             return state.activeDisplayFeature[groupId] === featureId;
         },
 
