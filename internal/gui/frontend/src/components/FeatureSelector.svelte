@@ -1049,6 +1049,8 @@
         featureGroupStore.registerGroup(subtitleGroup);
         featureGroupStore.registerGroup(mergeGroup);
         
+        // Sync happens later during initialization - no need to do it here
+        
         // Update subtitle features with shared options
         const subtitleFeatures = features.filter(f => 
             ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].includes(f.id));
@@ -1113,6 +1115,9 @@
         // Initialize merge group options
         featureGroupStore.setGroupOption('finalOutput', 'mergeOutputFiles', mergeOptionValues.mergeOutputFiles);
         featureGroupStore.setGroupOption('finalOutput', 'mergingFormat', mergeOptionValues.mergingFormat);
+        
+        // Sync the merge options to features in the merge group
+        currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('finalOutput', currentFeatureOptions);
     }
 
     // Function to register the display order of features in the UI

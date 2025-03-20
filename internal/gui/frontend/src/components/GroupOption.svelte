@@ -216,7 +216,7 @@
     }
 </script>
 
-<div class="group-option">
+<div class="group-option" data-group-id={groupId}>
     <div class="option-label">
         <span class="text-gray-300 text-sm text-left flex items-center gap-2">
             {optionDef.label}
@@ -228,9 +228,19 @@
                 </Hovertip>
             {/if}
             {#if showGroupIndicator}
-                <Hovertip message="This option is shared across subtitle features">
+                {@const groupMessage = groupId === 'subtitle' 
+                    ? "This option is shared across subtitle features" 
+                    : groupId === 'finalOutput' 
+                        ? "This option is shared across output merge features"
+                        : `This option is shared across ${groupId} features`}
+                {@const iconColorClass = groupId === 'subtitle' 
+                    ? "text-group-subtitle" 
+                    : groupId === 'finalOutput' 
+                        ? "text-group-finalOutput"
+                        : "text-blue-400"}
+                <Hovertip message={groupMessage}>
                     <span slot="trigger" class="cursor-help">
-                        <GroupIcon size="1.5em" className="text-blue-400" />
+                        <GroupIcon size="1.5em" className={iconColorClass} />
                     </span>
                 </Hovertip>
             {/if}
@@ -379,9 +389,18 @@
         grid-template-columns: 1fr 1.5fr;
         gap: 1.5rem;
         align-items: center;
-        border-left: 2px solid rgba(99, 102, 241, 0.3);
+        border-left: 2px solid; /* Color is applied dynamically */
         padding-left: 0.25rem; /* Reduced padding to minimize indentation */
         margin-left: 0;
+    }
+    
+    /* Group-specific border colors using Tailwind color scheme */
+    :global(.group-option[data-group-id='subtitle']) {
+        border-left-color: rgba(65, 145, 250, 0.3);
+    }
+    
+    :global(.group-option[data-group-id='finalOutput']) {
+        border-left-color: rgba(0, 230, 100, 0.3);
     }
     
     .option-label {

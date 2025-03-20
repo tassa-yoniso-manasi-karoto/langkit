@@ -139,7 +139,11 @@ export default {
         'user-cancel': userCancelGray, // Gray for user cancellations
         'user-cancel-hue': userCancelHue,
         'user-cancel-saturation': userCancelSaturation,
-        'user-cancel-lightness': userCancelLightness
+        'user-cancel-lightness': userCancelLightness,
+        
+        // Feature group colors
+        'group-subtitle': 'hsl(210, 90%, 60%)',  // Blue for subtitle group
+        'group-finalOutput': 'hsl(130, 90%, 50%)'  // Green for merge/output group
       },
       fontFamily: {
         sans: ['"DM Sans"', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
