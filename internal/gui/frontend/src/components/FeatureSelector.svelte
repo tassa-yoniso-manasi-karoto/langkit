@@ -670,17 +670,22 @@
             return;
         }
         
-        // Check if this is a merge-related option (legacy handling)
+        // Check if this is a merge-related option (migrating to group handling)
         const isMergeOption = optionId === 'mergeOutputFiles' || optionId === 'mergingFormat';
         
         if (isMergeOption) {
-            // Update the global merge option value
+            // Update the global merge option value for backward compatibility
             mergeOptionValues[optionId] = value;
             
-            // Update the current feature option
-            currentFeatureOptions[featureId][optionId] = value;
+            // Handle it as a group option by setting it in the feature group store
+            featureGroupStore.setGroupOption('finalOutput', optionId, value);
             
-            // Just dispatch the change
+            // Sync values from the group store to all features in the group
+            currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
+                'finalOutput', currentFeatureOptions
+            );
+            
+            // Dispatch changes
             dispatch('optionsChange', currentFeatureOptions);
         } 
         else {
@@ -968,6 +973,36 @@
                     }
                 });
             }
+            
+            // Handle merge features
+            const isMergeFeature = feature.outputMergeGroup === 'finalOutput';
+            if (isMergeFeature) {
+                console.log(`Adding ${feature.id} to finalOutput merge group`);
+                
+                // Mark for group membership
+                if (!feature.featureGroups) {
+                    feature.featureGroups = ['finalOutput'];
+                } else if (!feature.featureGroups.includes('finalOutput')) {
+                    feature.featureGroups.push('finalOutput');
+                }
+                
+                // Make sure groupSharedOptions are defined
+                if (!feature.groupSharedOptions) {
+                    feature.groupSharedOptions = {
+                        'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+                    };
+                } else if (!feature.groupSharedOptions['finalOutput']) {
+                    feature.groupSharedOptions['finalOutput'] = ['mergeOutputFiles', 'mergingFormat'];
+                }
+                
+                // Register each feature in the group store individually
+                featureGroupStore.addFeatureToGroup('finalOutput', feature.id);
+                
+                // Initialize feature options if not already set
+                if (!currentFeatureOptions[feature.id]) {
+                    currentFeatureOptions[feature.id] = {};
+                }
+            }
         }
         
         // Define the subtitle group
@@ -995,8 +1030,24 @@
             ]
         };
         
+        // Define the merge output group
+        const mergeGroup: FeatureGroup = {
+            id: 'finalOutput',
+            label: 'Output Merging',
+            description: 'Features that can be merged into final output',
+            featureIds: [
+                'dubtitles', 
+                'voiceEnhancing', 
+                'subtitleRomanization', 
+                'selectiveTransliteration', 
+                'subtitleTokenization'
+            ],
+            sharedOptions: ['mergeOutputFiles', 'mergingFormat']
+        };
+        
         // Register feature groups in the store
         featureGroupStore.registerGroup(subtitleGroup);
+        featureGroupStore.registerGroup(mergeGroup);
         
         // Update subtitle features with shared options
         const subtitleFeatures = features.filter(f => 
@@ -1058,6 +1109,10 @@
                 currentFeatureOptions[feature.id][optionId] = initialGroupOptions[optionId];
             });
         });
+        
+        // Initialize merge group options
+        featureGroupStore.setGroupOption('finalOutput', 'mergeOutputFiles', mergeOptionValues.mergeOutputFiles);
+        featureGroupStore.setGroupOption('finalOutput', 'mergingFormat', mergeOptionValues.mergingFormat);
     }
 
     // Function to register the display order of features in the UI

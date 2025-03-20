@@ -130,19 +130,24 @@ export const features: FeatureDefinition[] = [
                 type: 'boolean',
                 label: 'Merge all processed outputs',
                 default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
+                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
+                showCondition: "context.isTopmostInGroup"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "feature.dubtitles.mergeOutputFiles === true"
+                showCondition: "context.isTopmostInGroup && feature.dubtitles.mergeOutputFiles === true"
             }
         },
         requiresToken: ['whisper', 'insanely-fast-whisper', 'universal-1'],
         outputMergeGroup: 'finalOutput',
-        showMergeBanner: true
+        showMergeBanner: true,
+        featureGroups: ['finalOutput'],
+        groupSharedOptions: {
+            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+        }
     },
     {
         id: 'voiceEnhancing',
@@ -178,19 +183,24 @@ export const features: FeatureDefinition[] = [
                 type: 'boolean',
                 label: 'Merge all processed outputs',
                 default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
+                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
+                showCondition: "context.isTopmostInGroup"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "feature.voiceEnhancing.mergeOutputFiles === true"
+                showCondition: "context.isTopmostInGroup && feature.voiceEnhancing.mergeOutputFiles === true"
             }
         },
         requiresToken: ['demucs', 'spleeter'],
         outputMergeGroup: 'finalOutput',
-        showMergeBanner: true
+        showMergeBanner: true,
+        featureGroups: ['finalOutput'],
+        groupSharedOptions: {
+            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+        }
     },
     {
         id: 'subtitleRomanization',
@@ -228,14 +238,15 @@ export const features: FeatureDefinition[] = [
                 type: 'boolean',
                 label: 'Merge all processed outputs',
                 default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
+                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
+                showCondition: "context.isTopmostInGroup"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "feature.subtitleRomanization.mergeOutputFiles === true"
+                showCondition: "context.isTopmostInGroup && feature.subtitleRomanization.mergeOutputFiles === true"
             }
         },
         requiresLanguage: true,
@@ -246,9 +257,10 @@ export const features: FeatureDefinition[] = [
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for romanization when both features are enabled",
-        featureGroups: ['subtitle'],
+        featureGroups: ['subtitle', 'finalOutput'],
         groupSharedOptions: {
-            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
+            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
         }
     },
     {
@@ -302,14 +314,15 @@ export const features: FeatureDefinition[] = [
                 type: 'boolean',
                 label: 'Merge all processed outputs',
                 default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
+                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
+                showCondition: "context.isTopmostInGroup"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "feature.selectiveTransliteration.mergeOutputFiles === true"
+                showCondition: "context.isTopmostInGroup && feature.selectiveTransliteration.mergeOutputFiles === true"
             }
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'tokenizeOutput', 'kanjiFrequencyThreshold', 'mergeOutputFiles', 'mergingFormat'],
@@ -320,9 +333,10 @@ export const features: FeatureDefinition[] = [
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for selective transliteration when both features are enabled",
-        featureGroups: ['subtitle'],
+        featureGroups: ['subtitle', 'finalOutput'],
         groupSharedOptions: {
-            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
+            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
         },
         requiresDocker: true,
         requiresScraper: true
@@ -362,14 +376,15 @@ export const features: FeatureDefinition[] = [
                 type: 'boolean',
                 label: 'Merge all processed outputs',
                 default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file."
+                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
+                showCondition: "context.isTopmostInGroup"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "feature.subtitleTokenization.mergeOutputFiles === true"
+                showCondition: "context.isTopmostInGroup && feature.subtitleTokenization.mergeOutputFiles === true"
             }
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'mergeOutputFiles', 'mergingFormat'],
@@ -381,9 +396,10 @@ export const features: FeatureDefinition[] = [
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for tokenization when both features are enabled",
-        featureGroups: ['subtitle'],
+        featureGroups: ['subtitle', 'finalOutput'],
         groupSharedOptions: {
-            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
+            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
         }
     }
 ];
