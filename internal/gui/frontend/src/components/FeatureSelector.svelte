@@ -66,24 +66,9 @@
     let audioTrackIndex = 0;
     let hasLanguageTags = true;
 
-    // Legacy group tracking for backward compatibility during transition
+    // Group tracking for reference
     let providerGroups: Record<string, string[]> = {
         subtitle: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
-    };
-    
-    let outputMergeGroups: Record<string, string[]> = {
-        finalOutput: ['dubtitles', 'voiceEnhancing', 'subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
-    };
-    
-    // Active feature for showing merge options in each merge group
-    let activeMergeFeature: Record<string, string | null> = {
-        finalOutput: null
-    };
-    
-    // Store for merge option default values
-    let mergeOptionValues = {
-        mergeOutputFiles: false,
-        mergingFormat: 'mp4'
     };
 
     const dispatch = createEventDispatcher();
@@ -252,102 +237,9 @@
         }
     }
 
-    // Synchronize merge option values
-    function synchronizeMergeOptions() {
-        // This now just extracts merge option values from the active feature
-        // in each group, if available
-        
-        for (const groupName of Object.keys(activeMergeFeature)) {
-            const activeFeature = activeMergeFeature[groupName];
-            
-            if (activeFeature && 
-                selectedFeatures[activeFeature] && 
-                currentFeatureOptions[activeFeature]) {
-                
-                // Update global merge values from the active feature
-                if (currentFeatureOptions[activeFeature].mergeOutputFiles !== undefined) {
-                    mergeOptionValues.mergeOutputFiles = currentFeatureOptions[activeFeature].mergeOutputFiles;
-                }
-                if (currentFeatureOptions[activeFeature].mergingFormat !== undefined) {
-                    mergeOptionValues.mergingFormat = currentFeatureOptions[activeFeature].mergingFormat;
-                }
-            }
-        }
-    }
+    // Removed synchronizeMergeOptions - obsolete function no longer needed with the new group system
     
-    // This function controls which feature shows the merge options
-    function updateMergeOptionsVisibility() {
-        let hasChanges = false;
-        
-        // For each merge group, only show merge options on one selected feature
-        for (const [groupName, groupFeatures] of Object.entries(outputMergeGroups)) {
-            // Always use the first enabled feature in the order they appear in the features array
-            // This ensures the merge options always appear on the feature that's earliest in the list
-            
-            // Find the first enabled feature based on the original feature order in features array
-            const orderedEnabledFeatures = features
-                .filter(f => 
-                    f.outputMergeGroup === groupName && 
-                    groupFeatures.includes(f.id) && 
-                    selectedFeatures[f.id]
-                )
-                .map(f => f.id);
-            
-            if (orderedEnabledFeatures.length > 0) {
-                // Always use the first enabled feature in the list
-                const firstEnabledFeature = orderedEnabledFeatures[0];
-                
-                // If the active feature has changed, update it
-                if (activeMergeFeature[groupName] !== firstEnabledFeature) {
-                    activeMergeFeature[groupName] = firstEnabledFeature;
-                    hasChanges = true;
-                }
-                
-                // Process each feature
-                for (const featureId of groupFeatures) {
-                    if (!currentFeatureOptions[featureId]) {
-                        currentFeatureOptions[featureId] = {};
-                    }
-                    
-                    // Create a shallow copy of the options object
-                    const optionsCopy = {...currentFeatureOptions[featureId]};
-                    
-                    if (featureId === firstEnabledFeature) {
-                        // This is the active feature - ensure it has merge options
-                        optionsCopy.mergeOutputFiles = mergeOptionValues.mergeOutputFiles;
-                        optionsCopy.mergingFormat = mergeOptionValues.mergingFormat;
-                    } else {
-                        // Remove merge options from inactive features
-                        if (optionsCopy.mergeOutputFiles !== undefined) {
-                            delete optionsCopy.mergeOutputFiles;
-                            hasChanges = true;
-                        }
-                        if (optionsCopy.mergingFormat !== undefined) {
-                            delete optionsCopy.mergingFormat;
-                            hasChanges = true;
-                        }
-                    }
-                    
-                    // Only update if changes were made
-                    if (JSON.stringify(optionsCopy) !== JSON.stringify(currentFeatureOptions[featureId])) {
-                        hasChanges = true;
-                        currentFeatureOptions[featureId] = optionsCopy;
-                    }
-                }
-            } else {
-                // No enabled features in this group
-                if (activeMergeFeature[groupName] !== null) {
-                    activeMergeFeature[groupName] = null;
-                    hasChanges = true;
-                }
-            }
-        }
-        
-        // Only dispatch if changes were made
-        if (hasChanges) {
-            dispatch('optionsChange', currentFeatureOptions);
-        }
-    }
+    // Removed updateMergeOptionsVisibility - obsolete function replaced by the centralized group system
     
     // API token checking
     function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
@@ -436,35 +328,7 @@
             setTimeout(registerFeatureDisplayOrder, 50);
         }
 
-        // Legacy output merge group handling
-        if (featureDef?.outputMergeGroup) {
-            // When a feature in a merge group is enabled or disabled, 
-            // we need to update the merge options visibility
-            
-            // If this feature was just enabled, it might need to get the merge options
-            if (enabled) {
-                // Get the group this feature belongs to
-                const groupName = featureDef.outputMergeGroup;
-                const groupFeatures = outputMergeGroups[groupName] || [];
-                
-                // Find all enabled features in this group ordered by their appearance in the features array
-                const orderedEnabledFeatures = features
-                    .filter(f => 
-                        f.outputMergeGroup === groupName && 
-                        groupFeatures.includes(f.id) && 
-                        (f.id === id || selectedFeatures[f.id]) // Include this feature as if it's already enabled
-                    )
-                    .map(f => f.id);
-                
-                // If this feature is the first enabled one in the list, it should get the merge options
-                if (orderedEnabledFeatures[0] === id) {
-                    activeMergeFeature[groupName] = id;
-                }
-            }
-            
-            // Update visibility in all cases
-            updateMergeOptionsVisibility();
-        }
+        // Removed legacy output merge group handling - now handled by feature groups system
         
         // If a feature was enabled, scroll it into view but only if necessary
         if (enabled) {
@@ -670,29 +534,9 @@
             return;
         }
         
-        // Check if this is a merge-related option (migrating to group handling)
-        const isMergeOption = optionId === 'mergeOutputFiles' || optionId === 'mergingFormat';
-        
-        if (isMergeOption) {
-            // Update the global merge option value for backward compatibility
-            mergeOptionValues[optionId] = value;
-            
-            // Handle it as a group option by setting it in the feature group store
-            featureGroupStore.setGroupOption('finalOutput', optionId, value);
-            
-            // Sync values from the group store to all features in the group
-            currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
-                'finalOutput', currentFeatureOptions
-            );
-            
-            // Dispatch changes
-            dispatch('optionsChange', currentFeatureOptions);
-        } 
-        else {
-            // For non-special options or features not in groups, just update directly
-            currentFeatureOptions[featureId][optionId] = value;
-            dispatch('optionsChange', currentFeatureOptions);
-        }
+        // For non-group options, directly update the feature's options
+        currentFeatureOptions[featureId][optionId] = value;
+        dispatch('optionsChange', currentFeatureOptions);
     }
     
     function handleLanguageTagChange(event: CustomEvent) {
@@ -889,32 +733,36 @@
         dispatch('optionsChange', currentFeatureOptions);
     }
     
-    // Feature selection change
-    // Use a debounced version of update functions to reduce lag
-    const debouncedUpdateMergeOptionsVisibility = debounce(updateMergeOptionsVisibility, 100);
-    
+    // Keep feature warnings in sync with selection state
     $: if (selectedFeatures) {
         updateProviderWarnings();
-        debouncedUpdateMergeOptionsVisibility();
     }
 
     // Special initialization to clean up inconsistencies in feature options
     function cleanupFeatureOptions() {
-        // Initialize all features and remove any stray merge options
-        Object.entries(outputMergeGroups).forEach(([groupName, groupFeatures]) => {
-            groupFeatures.forEach(featureId => {
-                if (!currentFeatureOptions[featureId]) {
-                    currentFeatureOptions[featureId] = {};
+        // Initialize all features with appropriate options
+        features.forEach(feature => {
+            if (!currentFeatureOptions[feature.id]) {
+                currentFeatureOptions[feature.id] = {};
+            }
+            
+            // Ensure appropriate initialization for each feature
+            if (feature.featureGroups?.includes('finalOutput')) {
+                // Ensure merge options are properly initialized for this group
+                const groupOptions = featureGroupStore.getGroupOptions('finalOutput');
+                if (groupOptions) {
+                    // For each shared option in the finalOutput group
+                    if (feature.groupSharedOptions?.['finalOutput']) {
+                        feature.groupSharedOptions['finalOutput'].forEach(optionId => {
+                            // Initialize from group store if available
+                            if (groupOptions[optionId] !== undefined) {
+                                currentFeatureOptions[feature.id][optionId] = groupOptions[optionId];
+                            }
+                        });
+                    }
                 }
-                
-                // Remove merge options from all features initially
-                delete currentFeatureOptions[featureId].mergeOutputFiles;
-                delete currentFeatureOptions[featureId].mergingFormat;
-            });
+            }
         });
-        
-        // Then run the update to add options only to the active feature
-        updateMergeOptionsVisibility();
     }
     
     // Component lifecycle
@@ -1112,11 +960,11 @@
             });
         });
         
-        // Initialize merge group options
-        featureGroupStore.setGroupOption('finalOutput', 'mergeOutputFiles', mergeOptionValues.mergeOutputFiles);
-        featureGroupStore.setGroupOption('finalOutput', 'mergingFormat', mergeOptionValues.mergingFormat);
+        // Initialize finalOutput group options with defaults
+        featureGroupStore.setGroupOption('finalOutput', 'mergeOutputFiles', false);
+        featureGroupStore.setGroupOption('finalOutput', 'mergingFormat', 'mp4');
         
-        // Sync the merge options to features in the merge group
+        // Sync the group options to features in the finalOutput group
         currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('finalOutput', currentFeatureOptions);
     }
 
@@ -1322,8 +1170,6 @@
                             {providerGithubUrls}
                             {selectedFeatures}
                             {providerGroups}
-                            {outputMergeGroups}
-                            {mergeOptionValues}
                             on:enabledChange={handleFeatureEnabledChange}
                             on:optionChange={handleOptionChange}
                         />

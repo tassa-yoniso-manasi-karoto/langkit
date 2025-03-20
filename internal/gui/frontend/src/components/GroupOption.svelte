@@ -107,31 +107,15 @@
         }
     }
     
-    // Force update provider value when romanization schemes change or style changes
-    $: if (groupId === 'subtitle') {
-        // When romanization schemes load or change
-        if (optionId === 'provider' && romanizationSchemes.length > 0) {
-            const styleValue = featureGroupStore.getGroupOption(groupId, 'style');
-            if (styleValue) {
-                const selectedScheme = romanizationSchemes.find(s => s.name === styleValue);
-                if (selectedScheme && selectedScheme.provider !== localValue) {
-                    // Update provider value directly
-                    console.log(`Updating provider from ${localValue} to ${selectedScheme.provider} based on style ${styleValue}`);
-                    localValue = selectedScheme.provider;
-                    propagateUserValue(selectedScheme.provider);
-                }
-            }
-        }
-        // When style changes and this is a provider option
-        else if (optionId === 'style' && localValue && romanizationSchemes.length > 0) {
-            const selectedScheme = romanizationSchemes.find(s => s.name === localValue);
-            if (selectedScheme) {
-                // Update the provider in the group store
-                const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
-                if (selectedScheme.provider !== currentProvider) {
-                    console.log(`Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
-                    featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
-                }
+    // Update provider when style changes
+    $: if (groupId === 'subtitle' && optionId === 'style' && localValue && romanizationSchemes.length > 0) {
+        const selectedScheme = romanizationSchemes.find(s => s.name === localValue);
+        if (selectedScheme) {
+            // Update the provider in the group store
+            const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
+            if (selectedScheme.provider !== currentProvider) {
+                console.log(`Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
+                featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
             }
         }
     }
@@ -281,30 +265,24 @@
         {:else if optionDef.type === 'string'}
             <!-- Special handling for browser URL for immediate validation -->
             {#if optionId === 'browserAccessURL'}
-                <!-- Special handling for browser URL - immediate validation -->
+                <!-- Browser URL with immediate validation -->
                 <TextInput
                     bind:value={localValue}
                     placeholder={optionDef.placeholder || "ws://127.0.0.1:9222/..."}
                     className="text-sm placeholder:text-gray-500"
-                    on:input={(e) => {
-                        // Get the input value directly from the event
-                        const newValue = e.target.value;
-                        
-                        // Give user input a future timestamp to ensure it takes precedence
+                    on:input={() => {
+                        // Set user input timestamp for authority
                         lastUserUpdateTime = Date.now() + 100;
                         
-                        // Update local value immediately
-                        localValue = newValue;
+                        // Special handling for browser URL - validate immediately
+                        featureGroupStore.setGroupOption(groupId, optionId, localValue);
+                        featureGroupStore.validateBrowserUrl(localValue, needsScraper, groupId);
                         
-                        // Store in group store and validate immediately
-                        featureGroupStore.setGroupOption(groupId, optionId, newValue);
-                        featureGroupStore.validateBrowserUrl(newValue, needsScraper, groupId);
-                        
-                        // Notify parent with user authority flag
+                        // Notify parent component
                         dispatch('groupOptionChange', { 
                             groupId, 
                             optionId, 
-                            value: newValue,
+                            value: localValue,
                             isUserInput: true
                         });
                     }}
@@ -339,13 +317,10 @@
                     <!-- Display the provider value -->
                     {providerValue}
                     
-                    <!-- Update the local value to match -->
+                    <!-- Update if needed -->
                     {#if providerValue !== localValue && providerValue}
-                        {@const ignored = featureGroupStore.setGroupOption(groupId, 'provider', providerValue)}
-                        <!-- Also update local value for consistency -->
-                        {#if providerValue !== localValue}
-                            {@const update = (localValue = providerValue)}
-                        {/if}
+                        {localValue = providerValue}
+                        {featureGroupStore.setGroupOption(groupId, 'provider', providerValue)}
                     {/if}
                     
                     <!-- GitHub link if available -->

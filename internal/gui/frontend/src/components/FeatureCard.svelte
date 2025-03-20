@@ -24,10 +24,6 @@
     
     export let feature: FeatureDefinition;
     export let enabled = false;
-    export let mergeOptionValues = {
-        mergeOutputFiles: false,
-        mergingFormat: 'mp4'
-    };;
     export let options: any = {};
     export let anyFeatureSelected = false;
     
@@ -42,8 +38,6 @@
     
     export let providerGithubUrls = {};
     export let selectedFeatures = {};
-    export let providerGroups = {};
-    export let outputMergeGroups = {};
 
     const dispatch = createEventDispatcher();
     
@@ -322,27 +316,17 @@
     
     // Mark cache as dirty when dependencies change
     $: {
-        if (feature || options || standardTag || selectedFeatures || outputMergeGroups) {
+        if (feature || options || standardTag || selectedFeatures) {
             visibleOptionsDirty = true;
         }
     }
     
-    // Get visible options for this feature (excluding merge options if not active feature)
+    // Get visible options for this feature
     function getVisibleOptions(): string[] {
         // Use cache if available and not dirty
         if (!visibleOptionsDirty && visibleOptionsCache.length > 0) {
             return visibleOptionsCache;
         }
-        
-        // Check if this feature is in a merge group and if it's the active feature for that group
-        const isInMergeGroup = feature.outputMergeGroup;
-        const isMergeActive = isInMergeGroup && 
-                              outputMergeGroups[feature.outputMergeGroup] && 
-                              outputMergeGroups[feature.outputMergeGroup].includes(feature.id);
-                              
-        // If the feature is in a merge group but not the active feature for showing merge options,
-        // we need to filter out the merge options
-        const shouldHideMergeOptions = isInMergeGroup && !options.mergeOutputFiles && !options.mergingFormat;
         
         let optionList;
         if (feature.optionOrder) {
@@ -352,18 +336,6 @@
         } else {
             optionList = Object.keys(feature.options).filter(optionId => 
                 shouldShowOption(optionId, feature.options[optionId])
-            );
-        }
-        
-        // Special case: Only show the Romanization Style option for subtitleRomanization
-        if (feature.id !== 'subtitleRomanization') {
-            optionList = optionList.filter(optionId => optionId !== 'style');
-        }
-        
-        // Filter out merge options if this is not the active merge feature
-        if (shouldHideMergeOptions) {
-            optionList = optionList.filter(optionId => 
-                optionId !== 'mergeOutputFiles' && optionId !== 'mergingFormat'
             );
         }
         
@@ -447,25 +419,19 @@
                            (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
                            (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)));
     
-    // Track merge option changes to force re-animation
-    let previousMergeState = false;
-    $: if (options.mergeOutputFiles !== previousMergeState) {
-        previousMergeState = options.mergeOutputFiles;
-        // Force re-animation of message card by toggling class
-        if (options.mergeOutputFiles) {
-            setTimeout(() => {
-                const messageCard = document.querySelector('.glassmorphism-card');
-                if (messageCard) {
-                    // First add the class to reset animation
-                    messageCard.classList.add('reanimating');
-                    
-                    // Then after a brief delay, remove it to trigger animation
-                    setTimeout(() => {
-                        messageCard.classList.remove('reanimating');
-                    }, 50);
-                }
-            }, 10);
-        }
+    // Track option changes that need animation refresh
+    $: if (options && Object.keys(options).some(key => key === 'mergeOutputFiles' || key.startsWith('docker'))) {
+        // Schedule animation refresh after options change
+        setTimeout(() => {
+            const messageCard = document.querySelector('.glassmorphism-card');
+            if (messageCard) {
+                // Toggle animation class
+                messageCard.classList.add('reanimating');
+                setTimeout(() => {
+                    messageCard.classList.remove('reanimating');
+                }, 50);
+            }
+        }, 10);
     }
     
     // Helper function to determine if we should show feature messages
@@ -712,7 +678,7 @@
                     {/if}
 
                     <!-- Output merge group banner (shown only when merge option is enabled) -->
-                    {#if feature.outputMergeGroup && feature.showMergeBanner && enabled && mergeOptionValues.mergeOutputFiles}
+                    {#if feature.outputMergeGroup && feature.showMergeBanner && enabled && options.mergeOutputFiles}
                         <div class={messageItemClass} key="{options.mergeOutputFiles}">
                             <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
                                 merge_type
@@ -741,11 +707,6 @@
                 {#each getVisibleOptions() as optionId}
                     {@const optionDef = feature.options[optionId]}
                     {@const value = options[optionId]}
-                    {@const _logOption = console.log(
-                        'Rendering option:', optionId, 
-                        'with value:', value, 
-                        'and optionDef:', optionDef
-                    )}
                     
                     <!-- Check if this option is a group shared option -->
                     {@const isGroupOption = feature.featureGroups && 
@@ -766,51 +727,35 @@
                             featureGroupStore.addFeatureToGroup(groupId, feature.id)}
                     {/if}
                     
-                    <!-- Determine if this feature should display the group option -->
-                    {@const isActiveDisplayFeature = isGroupOption && 
-                        groupId && 
-                        featureGroupStore.isActiveDisplayFeature(groupId, feature.id)}
+                    <!-- No additional checks needed - isTopmostInGroup is the source of truth -->
                     
-                    {#if isGroupOption && groupId && isTopmostFeatureForAnyGroup}
-                        <!-- Double check that this is the topmost feature for THIS specific group -->
-                        {@const groupEnabledFeatures = featureGroupStore.getEnabledFeatures(groupId)}
-                        {@const featureElements = Array.from(document.querySelectorAll('.feature-card[data-feature-id]'))}
-                        {@const uniqueIds = new Set()}
-                        {@const orderedEnabledFeatures = featureElements
-                            .map(el => el.getAttribute('data-feature-id'))
-                            .filter(id => id && groupEnabledFeatures.includes(id) && !uniqueIds.has(id) && uniqueIds.add(id))}
-                        
-                        {#if orderedEnabledFeatures.length > 0 && orderedEnabledFeatures[0] === feature.id}
-                            <!-- This is the actual topmost feature for this group -->
-                            <div class="mb-4 w-full">
-                                <GroupOption 
-                                    {groupId}
-                                    {optionId}
-                                    optionDef={optionDef}
-                                    value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
-                                    {needsDocker}
-                                    {needsScraper}
-                                    {romanizationSchemes}
-                                    on:groupOptionChange={event => {
-                                        const { groupId, optionId, value } = event.detail;
-                                        // Update local option value for reactivity
-                                        options[optionId] = value;
-                                        
-                                        // Dispatch to parent with all necessary metadata
-                                        dispatch('optionChange', { 
-                                            featureId: feature.id, 
-                                            optionId, 
-                                            value,
-                                            isGroupOption: true,
-                                            groupId
-                                        });
-                                    }}
-                                />
-                            </div>
-                        {:else}
-                            <!-- Debug: Not rendering group option because this isn't the topmost feature -->
-                            {@const _debug = console.log(`Not showing group option ${optionId} in feature ${feature.id} because it's not the topmost feature for group ${groupId}`)}
-                        {/if}
+                    {#if isGroupOption && groupId && featureGroupStore.isTopmostInGroup(groupId, feature.id)}
+                        <!-- Using canonical ordering from the feature store -->
+                        <div class="mb-4 w-full">
+                            <GroupOption 
+                                {groupId}
+                                {optionId}
+                                optionDef={optionDef}
+                                value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                {needsDocker}
+                                {needsScraper}
+                                {romanizationSchemes}
+                                on:groupOptionChange={event => {
+                                    const { groupId, optionId, value } = event.detail;
+                                    // Update local option value for reactivity
+                                    options[optionId] = value;
+                                    
+                                    // Dispatch to parent with all necessary metadata
+                                    dispatch('optionChange', { 
+                                        featureId: feature.id, 
+                                        optionId, 
+                                        value,
+                                        isGroupOption: true,
+                                        groupId
+                                    });
+                                }}
+                            />
+                        </div>
                     {:else}
                         <!-- Regular option with label and input -->
                         <div class="option-row">

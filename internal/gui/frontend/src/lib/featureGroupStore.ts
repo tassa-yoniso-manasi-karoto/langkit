@@ -33,12 +33,12 @@ export interface GroupState {
     activeDisplayFeature: Record<string, string | null>;
     // Validation state
     validationErrors: Record<string, string[]>;
-    // Visual display order of features in the UI
-    displayOrder: Record<string, string[]>; // Group ID -> ordered feature IDs as they appear in the UI
     // Canonical ordering of features as defined in the model
     canonicalOrder: string[];
     // Derived canonical order for each group
     groupCanonicalOrder: Record<string, string[]>;
+    // Legacy field kept for backward compatibility, not used anymore
+    displayOrder: Record<string, string[]>;
 }
 
 function createFeatureGroupStore() {
@@ -137,38 +137,32 @@ function createFeatureGroupStore() {
 
         /**
          * Update the active feature that should display group options
+         * Always uses the canonical order to determine topmost feature
          */
         updateActiveDisplayFeature(groupId: string, groupFeatures: string[], enabledFeatures: string[]) {
-            console.log(`Updating active display feature for group ${groupId}`, {
-                groupFeatures,
-                enabledFeatures,
-            });
+            console.log(`Updating active display feature for group ${groupId}`);
             
-            // If we have a display order for this group, use that to determine the active feature
+            // Get the topmost enabled feature using canonical order
             const state = get(store);
-            if (state.displayOrder?.[groupId]?.length > 0) {
-                this.updateActiveDisplayFeatureByDisplayOrder(groupId);
-                return;
+            
+            // Get canonical order for this group
+            let orderToUse = state.groupCanonicalOrder[groupId];
+            if (!orderToUse || orderToUse.length === 0) {
+                // Fall back to group features order if canonical order not available
+                orderToUse = groupFeatures;
             }
             
-            // Fall back to the original implementation if no display order is available
+            // Find the first enabled feature according to canonical order
+            const topmostFeature = orderToUse.find(id => enabledFeatures.includes(id));
+            
             store.update(state => {
                 const newState = { ...state };
                 const oldActiveFeature = newState.activeDisplayFeature[groupId];
                 
-                // Get the first enabled feature in order of definition
-                const orderedEnabledFeatures = groupFeatures.filter(id => enabledFeatures.includes(id));
-                
-                console.log(`Group ${groupId} has ${orderedEnabledFeatures.length} enabled features in order`);
-                
-                if (orderedEnabledFeatures.length > 0) {
-                    const newActiveFeature = orderedEnabledFeatures[0];
-                    newState.activeDisplayFeature[groupId] = newActiveFeature;
-                    
-                    console.log(`Setting active display feature for ${groupId} to ${newActiveFeature}`);
-                    
-                    if (oldActiveFeature !== newActiveFeature) {
-                        console.log(`Active display feature for ${groupId} changed from ${oldActiveFeature} to ${newActiveFeature}`);
+                if (topmostFeature) {
+                    if (oldActiveFeature !== topmostFeature) {
+                        newState.activeDisplayFeature[groupId] = topmostFeature;
+                        console.log(`Active display feature for ${groupId} changed from ${oldActiveFeature} to ${topmostFeature}`);
                     }
                 } else {
                     newState.activeDisplayFeature[groupId] = null;
@@ -178,7 +172,7 @@ function createFeatureGroupStore() {
                 return newState;
             });
             
-            // After updating the state, validate the group to ensure errors are correctly shown
+            // Validate the group after updating
             this.validateGroup(groupId);
         },
 
@@ -307,105 +301,23 @@ function createFeatureGroupStore() {
         
         /**
          * Update the display order of features for a group
+         * This method is kept for backward compatibility but now delegates to canonical order
          */
         updateFeatureDisplayOrder(groupId: string, orderedFeatureIds: string[]) {
-            console.log(`Updating display order for group ${groupId}:`, orderedFeatureIds);
+            console.log(`Updating display order for group ${groupId} - using canonical order instead`);
             
-            store.update(state => {
-                const newState = { ...state };
-                if (!newState.displayOrder) {
-                    newState.displayOrder = {};
-                }
-                
-                // Only store features that belong to this group
-                const groupFeatures = state.groups[groupId]?.featureIds || [];
-                const relevantFeatures = orderedFeatureIds.filter(id => 
-                    groupFeatures.includes(id));
-                    
-                newState.displayOrder[groupId] = relevantFeatures;
-                
-                console.log(`Set display order for group ${groupId}:`, relevantFeatures);
-                
-                return newState;
-            });
+            // This method no longer updates the displayOrder but reuses the
+            // canonical order for consistency
             
-            // Update the active display feature based on the new display order
-            this.updateActiveDisplayFeatureByDisplayOrder(groupId);
+            // Update the active display feature based on current canonical order
+            const state = get(store);
+            const enabledFeatures = state.enabledFeatures[groupId] || [];
+            const groupFeatures = state.groups[groupId]?.featureIds || [];
+            
+            this.updateActiveDisplayFeature(groupId, groupFeatures, enabledFeatures);
         },
         
-        /**
-         * Update active display feature based on current display order
-         */
-        updateActiveDisplayFeatureByDisplayOrder(groupId: string) {
-            const state = get(store);
-            
-            const displayOrder = state.displayOrder?.[groupId] || [];
-            const enabledFeatures = state.enabledFeatures[groupId] || [];
-            
-            // Find the first enabled feature according to display order
-            const topmostEnabledFeature = displayOrder.find(id => 
-                enabledFeatures.includes(id));
-                
-            console.log(`Updating active display feature by display order for group ${groupId}:`, {
-                displayOrder,
-                enabledFeatures,
-                topmostEnabledFeature
-            });
-                
-            if (topmostEnabledFeature) {
-                store.update(state => {
-                    const newState = { ...state };
-                    const oldActiveFeature = newState.activeDisplayFeature[groupId];
-                    
-                    if (oldActiveFeature !== topmostEnabledFeature) {
-                        newState.activeDisplayFeature[groupId] = topmostEnabledFeature;
-                        console.log(`Active display feature for ${groupId} changed from ${oldActiveFeature} to ${topmostEnabledFeature} (by display order)`);
-                    }
-                    
-                    return newState;
-                });
-                
-                // Validate the group after updating
-                this.validateGroup(groupId);
-            } else if (enabledFeatures.length === 0) {
-                // No enabled features, set to null
-                store.update(state => {
-                    const newState = { ...state };
-                    if (newState.activeDisplayFeature[groupId] !== null) {
-                        newState.activeDisplayFeature[groupId] = null;
-                        console.log(`Active display feature for ${groupId} cleared - no enabled features`);
-                    }
-                    return newState;
-                });
-            }
-        },
-        
-        /**
-         * Check if a feature is the topmost displayed feature of its group
-         * 
-         * NOTE: This method is no longer used - components now check DOM positioning directly.
-         * Keeping it for backward compatibility.
-         */
-        isTopmostDisplayedFeature(groupId: string, featureId: string): boolean {
-            const state = get(store);
-            
-            // First check if the feature is enabled in this group
-            if (!state.enabledFeatures[groupId]?.includes(featureId)) {
-                return false;
-            }
-            
-            // Get the display order for this group
-            const displayOrder = state.displayOrder?.[groupId] || [];
-            
-            // Get all enabled features in this group
-            const enabledFeatures = state.enabledFeatures[groupId] || [];
-            
-            // Find the first enabled feature in the display order
-            const topmostFeature = displayOrder.find(id => enabledFeatures.includes(id));
-            
-            // This feature is the topmost if it matches the first enabled feature in display order
-            return topmostFeature === featureId;
-        },
+        // Removed isTopmostDisplayedFeature - obsolete method has been replaced by isTopmostInGroup
         
         /**
          * Get all registered groups
