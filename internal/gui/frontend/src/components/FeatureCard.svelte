@@ -517,7 +517,7 @@
                         {#if needsDocker && dockerUnreachable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
-                                <div class="flex-1 text-xs text-white/90">
+                                <div class="flex-1 text-xs text-[#ff0000] font-bold">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
@@ -567,7 +567,7 @@
                         {#if needsDocker && dockerUnreachable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
-                                <div class="flex-1 text-xs text-white/90">
+                                <div class="flex-1 text-xs text-[#ff0000] font-bold">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
@@ -605,7 +605,7 @@
                         {#if needsDocker && dockerUnreachable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
-                                <div class="flex-1 text-xs text-white/90">
+                                <div class="flex-1 text-xs text-[#ff0000] font-bold">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
