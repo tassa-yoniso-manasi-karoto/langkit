@@ -25,6 +25,9 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
 )
 
+
+// FIXME transcoding srt into ass causes astisub runtime panic, no sure if supported or not
+
 var (
 	Splitter = common.DefaultSplitter // All providers must accept and return UTF-8.
 	reSpacingInARow = regexp.MustCompile(`\s*(.*)\s*`)
@@ -302,6 +305,8 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	} {
 		// Only proceed if user selected this translit type
 		if !slices.Contains(tsk.TranslitTypes, out.ttype) {
+			tsk.Handler.ZeroLog().Trace().
+				Msgf("Subtitle type %s isn't wanted", out.ttype.String())
 			continue
 		}
 
@@ -312,13 +317,11 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 
 		// Attempt writing
 		if err := out.subs.Write(out.path); err != nil {
-			tsk.Handler.ZeroLog().
-				Error().
+			tsk.Handler.ZeroLog().Error().
 				Err(err).
 				Msgf("Failed to write %s subtitles", out.ttype.String())
 		} else {
-			tsk.Handler.ZeroLog().
-				Info().
+			tsk.Handler.ZeroLog().Info().
 				Msgf("Created %s subtitles", out.ttype.String())
 			
 			// Register the subtitle file for final output merging if merging is enabled
@@ -712,25 +715,6 @@ func fileExistsAndNotEmpty(filepath string) (bool, error) {
 
         return fileInfo.Size() > 0, nil
 }
-
-
-
-// // FIXME transcoding srt into ass causes astisub runtime panic, no sure if supported or not
-// func WriteASS(filepath string, subtitles *astisub.Subtitles) error {
-// 	// Create the output file
-// 	outputFile, err := os.Create(filepath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create file: %w", err)
-// 	}
-// 	defer outputFile.Close()
-
-// 	// Write the subtitles to ASS format
-// 	if err := subtitles.WriteToSSA(outputFile); err != nil {
-// 		return fmt.Errorf("failed to write subtitles to ASS format: %w", err)
-// 	}
-
-// 	return nil
-// }
 
 
 // WantCPUProfiling returns true if CPU profiling is enabled for transliteration

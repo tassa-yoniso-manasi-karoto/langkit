@@ -200,20 +200,21 @@ export const features: FeatureDefinition[] = [
             style: {
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
-                default: ''
+                default: '',
+                showCondition: "context.isTopmostInGroup"
             },
             provider: {
                 type: 'provider',
                 label: 'Provider',
                 default: '',
-                showCondition: "context.romanizationSchemes.length > 0"
+                showCondition: "context.isTopmostInGroup && context.romanizationSchemes.length > 0"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.needsDocker"
+                showCondition: "context.isTopmostInGroup && context.needsDocker"
             },
             browserAccessURL: {
                 type: 'string',
@@ -221,7 +222,7 @@ export const features: FeatureDefinition[] = [
                 default: '',
                 hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.needsScraper"
+                showCondition: "context.isTopmostInGroup && context.needsScraper"
             },
             mergeOutputFiles: {
                 type: 'boolean',
@@ -244,7 +245,11 @@ export const features: FeatureDefinition[] = [
         outputMergeGroup: 'finalOutput',
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
-        dependencyMessage: "Dubtitles will be used as a source for romanization when both features are enabled"
+        dependencyMessage: "Dubtitles will be used as a source for romanization when both features are enabled",
+        featureGroups: ['subtitle'],
+        groupSharedOptions: {
+            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+        }
     },
     {
         id: 'selectiveTransliteration',
@@ -253,20 +258,21 @@ export const features: FeatureDefinition[] = [
             style: {
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
-                default: ''
+                default: '',
+                showCondition: "context.isTopmostInGroup"
             },
             provider: {
                 type: 'provider',
                 label: 'Provider',
                 default: '',
-                showCondition: "context.romanizationSchemes.length > 0"
+                showCondition: "context.isTopmostInGroup && context.romanizationSchemes.length > 0"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.needsDocker"
+                showCondition: "context.isTopmostInGroup && context.needsDocker"
             },
             browserAccessURL: {
                 type: 'string',
@@ -274,7 +280,7 @@ export const features: FeatureDefinition[] = [
                 default: '',
                 hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.needsScraper"
+                showCondition: "context.isTopmostInGroup && context.needsScraper"
             },
             tokenizeOutput: {
                 type: 'boolean',
@@ -328,20 +334,21 @@ export const features: FeatureDefinition[] = [
             style: {
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
-                default: ''
+                default: '',
+                showCondition: "context.isTopmostInGroup"
             },
             provider: {
                 type: 'provider',
                 label: 'Provider',
                 default: '',
-                showCondition: "context.romanizationSchemes.length > 0"
+                showCondition: "context.isTopmostInGroup && context.romanizationSchemes.length > 0"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.needsDocker"
+                showCondition: "context.isTopmostInGroup && context.needsDocker"
             },
             browserAccessURL: {
                 type: 'string',
@@ -349,7 +356,7 @@ export const features: FeatureDefinition[] = [
                 default: '',
                 hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.needsScraper"
+                showCondition: "context.isTopmostInGroup && context.needsScraper"
             },
             mergeOutputFiles: {
                 type: 'boolean',

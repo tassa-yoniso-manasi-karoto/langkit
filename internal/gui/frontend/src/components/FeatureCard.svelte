@@ -1,6 +1,6 @@
 <script lang="ts">
     import { get } from 'svelte/store';
-    import { createEventDispatcher, onMount, tick } from 'svelte';
+    import { createEventDispatcher, onMount, tick, afterUpdate } from 'svelte';
     
     import { formatDisplayText, type FeatureDefinition } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
@@ -19,6 +19,8 @@
     import DockerIcon from './icons/DockerIcon.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import GroupOption from './GroupOption.svelte';
+    
+    // No longer needed - direct DOM check is more reliable
     
     export let feature: FeatureDefinition;
     export let enabled = false;
@@ -53,10 +55,54 @@
     let showNonJpnMessage = false;
     let showNotAvailableMessage = false;
     
+    // Store reference to the feature card element
+    let featureCardElement: HTMLElement;
+    
+    // Store if this is the topmost feature for any of its groups
+    let isTopmostFeatureForAnyGroup = false;
+    
+    // Function to check if this feature is the topmost for a given group using canonical order
+    function checkTopmostFeatureStatus() {
+        if (!feature.featureGroups || !feature.featureGroups.length || !enabled) {
+            isTopmostFeatureForAnyGroup = false;
+            return;
+        }
+        
+        // For each group this feature belongs to, check if it's the topmost
+        let foundTopmost = false;
+        for (const groupId of feature.featureGroups) {
+            // Use the store's isTopmostInGroup method instead of DOM queries
+            if (featureGroupStore.isTopmostInGroup(groupId, feature.id)) {
+                foundTopmost = true;
+                break;
+            }
+        }
+        
+        isTopmostFeatureForAnyGroup = foundTopmost;
+        console.log(`Feature ${feature.id} topmost status check: ${isTopmostFeatureForAnyGroup}`);
+    }
+    
     onMount(() => {
         // Initial measurement of the options height if enabled
         if (enabled && optionsWrapper) {
             optionsHeight = optionsWrapper.offsetHeight;
+        }
+    });
+    
+    // After all components are updated, check topmost status only when necessary
+    let lastEnabledState = false;
+    let lastCheckTime = 0;
+    
+    afterUpdate(() => {
+        const now = Date.now();
+        // Only check if enabled state changed or if it's been more than 300ms since last check
+        if (enabled && feature.featureGroups?.length && 
+            (enabled !== lastEnabledState || now - lastCheckTime > 300)) {
+            
+            lastEnabledState = enabled;
+            lastCheckTime = now;
+            // Schedule the check slightly later to ensure DOM is fully updated
+            setTimeout(checkTopmostFeatureStatus, 50);
         }
     });
     
@@ -184,13 +230,25 @@
         if (!optionDef.showCondition) return true;
         
         // Create a cache key based on the condition and current context values that affect it
+        // Determine if this is the topmost feature in any of its groups for cache key
+        let isTopmostInGroupForCache = false;
+        if (feature.featureGroups && feature.featureGroups.length > 0 && enabled) {
+            for (const groupId of feature.featureGroups) {
+                if (featureGroupStore.isTopmostInGroup(groupId, feature.id)) {
+                    isTopmostInGroupForCache = true;
+                    break;
+                }
+            }
+        }
+        
         const contextValues = {
             standardTag,
             needsDocker,
             needsScraper,
             optionValues: JSON.stringify(options),
             selectedFeatures: JSON.stringify(selectedFeatures),
-            featureId: feature.id
+            featureId: feature.id,
+            isTopmostInGroup: isTopmostInGroupForCache
         };
         
         const contextHash = JSON.stringify(contextValues);
@@ -207,13 +265,16 @@
             return optionVisibilityCache.get(cacheKey);
         }
         
+        // Use the isTopmostInGroup value we already calculated for the cache key
+        
         // Context object for evaluating conditions
         const context = {
             standardTag,
             needsDocker,
             needsScraper,
             romanizationSchemes,
-            selectedFeatures
+            selectedFeatures,
+            isTopmostInGroup: isTopmostInGroupForCache
         };
         
         // Feature options reference for conditions 
@@ -326,7 +387,7 @@
         return hasVisibleOptionsCache;
     }
     
-    // When enabled status changes, animate the height
+    // When enabled status changes, animate the height and check topmost status
     $: {
         if (optionsContainer) {
             // Only animate if there are visible options
@@ -344,12 +405,20 @@
                             // Animation complete
                             setTimeout(() => {
                                 animating = false;
+                                
+                                // Check topmost status after animation completes
+                                if (feature.featureGroups?.length) {
+                                    checkTopmostFeatureStatus();
+                                }
                             }, 350);
                         }, 10);
                     }
                 } else {
                     // Closing animation
                     optionsContainer.style.height = '0px';
+                    
+                    // Reset topmost status when disabled
+                    isTopmostFeatureForAnyGroup = false;
                     
                     // Animation complete
                     setTimeout(() => {
@@ -362,6 +431,11 @@
                 animating = false;
             }
         }
+    }
+    
+    // Reset topmost status when disabled
+    $: if (!enabled && isTopmostFeatureForAnyGroup) {
+        isTopmostFeatureForAnyGroup = false;
     }
     
     $: displayLabel = feature.id === 'selectiveTransliteration' && standardTag === 'jpn' 
@@ -450,6 +524,8 @@
      aria-expanded={enabled}
      aria-labelledby={`feature-heading-${feature.id}`}
      aria-checked={enabled}
+     data-feature-id={feature.id}
+     bind:this={featureCardElement}
      on:keydown={(e) => {
          if (e.key === 'Enter' || e.key === ' ') {
              e.preventDefault();
@@ -695,37 +771,46 @@
                         groupId && 
                         featureGroupStore.isActiveDisplayFeature(groupId, feature.id)}
                     
-                    {@const _logGroupCheck = isGroupOption ? 
-                        console.log(`Feature ${feature.id} option ${optionId} is in group ${groupId}, isActiveDisplay: ${isActiveDisplayFeature}`) : 
-                        null}
-                    
-                    {#if isGroupOption && isActiveDisplayFeature}
-                        <!-- Render Group Option (only for the active display feature) -->
-                        {@const _logGroup = console.log(
-                            'Rendering group option for:', optionId, 'in group:', groupId
-                        )}
-                        <div class="mb-4 w-full">
-                            <GroupOption 
-                                {groupId}
-                                {optionId}
-                                optionDef={optionDef}
-                                value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
-                                {needsDocker}
-                                {needsScraper}
-                                {romanizationSchemes}
-                                on:groupOptionChange={event => {
-                                    const { groupId, optionId, value } = event.detail;
-                                    options[optionId] = value;
-                                    dispatch('optionChange', { 
-                                        featureId: feature.id, 
-                                        optionId, 
-                                        value,
-                                        isGroupOption: true,
-                                        groupId
-                                    });
-                                }}
-                            />
-                        </div>
+                    {#if isGroupOption && groupId && isTopmostFeatureForAnyGroup}
+                        <!-- Double check that this is the topmost feature for THIS specific group -->
+                        {@const groupEnabledFeatures = featureGroupStore.getEnabledFeatures(groupId)}
+                        {@const featureElements = Array.from(document.querySelectorAll('.feature-card[data-feature-id]'))}
+                        {@const uniqueIds = new Set()}
+                        {@const orderedEnabledFeatures = featureElements
+                            .map(el => el.getAttribute('data-feature-id'))
+                            .filter(id => id && groupEnabledFeatures.includes(id) && !uniqueIds.has(id) && uniqueIds.add(id))}
+                        
+                        {#if orderedEnabledFeatures.length > 0 && orderedEnabledFeatures[0] === feature.id}
+                            <!-- This is the actual topmost feature for this group -->
+                            <div class="mb-4 w-full">
+                                <GroupOption 
+                                    {groupId}
+                                    {optionId}
+                                    optionDef={optionDef}
+                                    value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                    {needsDocker}
+                                    {needsScraper}
+                                    {romanizationSchemes}
+                                    on:groupOptionChange={event => {
+                                        const { groupId, optionId, value } = event.detail;
+                                        // Update local option value for reactivity
+                                        options[optionId] = value;
+                                        
+                                        // Dispatch to parent with all necessary metadata
+                                        dispatch('optionChange', { 
+                                            featureId: feature.id, 
+                                            optionId, 
+                                            value,
+                                            isGroupOption: true,
+                                            groupId
+                                        });
+                                    }}
+                                />
+                            </div>
+                        {:else}
+                            <!-- Debug: Not rendering group option because this isn't the topmost feature -->
+                            {@const _debug = console.log(`Not showing group option ${optionId} in feature ${feature.id} because it's not the topmost feature for group ${groupId}`)}
+                        {/if}
                     {:else}
                         <!-- Regular option with label and input -->
                         <div class="option-row">

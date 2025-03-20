@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+    import { createEventDispatcher, onMount, onDestroy, afterUpdate } from 'svelte';
     import { fly } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { get } from 'svelte/store';
@@ -431,6 +431,9 @@
         // Process feature groups if this feature belongs to any
         if (featureDef.featureGroups?.length) {
             handleFeatureGroupUpdates(featureDef, id, enabled);
+            
+            // Update display order after feature enable/disable to ensure proper topmost display
+            setTimeout(registerFeatureDisplayOrder, 50);
         }
 
         // Legacy output merge group handling
@@ -1057,11 +1060,46 @@
         });
     }
 
+    // Function to register the display order of features in the UI
+    function registerFeatureDisplayOrder() {
+        // Get all visible features in their current DOM order
+        const featureElements = Array.from(document.querySelectorAll('[data-feature-id]'));
+        
+        if (featureElements.length === 0) {
+            console.log('No feature elements found in the DOM yet');
+            return;
+        }
+        
+        const orderedFeatureIds = featureElements
+            .map(el => el.getAttribute('data-feature-id'))
+            .filter(Boolean);
+        
+        console.log('Current feature display order:', orderedFeatureIds);
+        
+        // Update the display order for each group
+        Object.keys(featureGroupStore.getGroups()).forEach(groupId => {
+            featureGroupStore.updateFeatureDisplayOrder(groupId, orderedFeatureIds);
+        });
+    }
+    
+    // Update display order when features are fully rendered
+    afterUpdate(() => {
+        if (isInitialDataLoaded && visibleFeatures.length > 0) {
+            // Use a slight delay to ensure the DOM is fully updated
+            setTimeout(registerFeatureDisplayOrder, 100);
+        }
+    });
+    
     onMount(async () => {
         console.log("FeatureSelector mounting - loading data...");
         
         try {
-            // Initialize feature groups first
+            // Initialize canonical feature order from feature definitions
+            const canonicalOrder = features.map(f => f.id);
+            featureGroupStore.initializeCanonicalOrder(canonicalOrder);
+            console.log('Initialized canonical feature order:', canonicalOrder);
+            
+            // Initialize feature groups 
             initializeFeatureGroups();
             
             // Load all necessary data before showing the component
@@ -1094,6 +1132,9 @@
             if (prefersReducedMotion) {
                 // Respect user's motion preference - show all features at once
                 visibleFeatures = Object.keys(selectedFeatures);
+                
+                // Register display order immediately if not using animations
+                setTimeout(registerFeatureDisplayOrder, 50);
             } else {
                 // Use proper staggered animation with timeouts
                 const allFeatures = Object.keys(selectedFeatures);
@@ -1122,6 +1163,10 @@
                         visibleFeatures = [...visibleFeatures, feature];
                     }, delay);
                 });
+                
+                // Register display order after all animations complete
+                const maxDelay = 100 * Math.pow(1.75, orderedFeatures.length / 1.2) + 200;
+                setTimeout(registerFeatureDisplayOrder, maxDelay);
             }
         } catch (error) {
             console.error("Error during FeatureSelector initialization:", error);
