@@ -1,5 +1,13 @@
 # Feature Group System Architecture
 
+## Developer's remark
+
+My program displays a list of features to select. When you click on the feature, it reveals a number of options on the feature card. The feature can have options that are bound to them specifically.
+The feature can belong to a group of features. This group of features has options that are bound to the group rather than a particular feature. Thus, features can also display options related to this group, rather than being bound to this particular feature.
+Overall, features can display two sorts of options: options that are bound specifically to them and options that are bound to a group to which they belong.
+
+The options of the group should always be present only once among the entire user interface. So even if multiple features belonging to the same group are selected and have their options displayed, the options related to their group should be displayed only once. And it should be displayed in the topmost selected feature (belonging to the group) within the list.
+
 ## Overview
 
 The Feature Group system allows multiple features to share common options and settings. This provides a consistent user experience while reducing redundancy in the UI. When multiple features belong to the same group (e.g., subtitle processing features), certain options (like browser URL, provider, etc.) are shared across all features in the group.
