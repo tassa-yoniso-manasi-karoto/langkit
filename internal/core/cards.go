@@ -57,6 +57,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	})
 
 	if procErr := tsk.validateBasicRequirements(); procErr != nil {
+		reporter.SaveSnapshot("Requirements validation failed", tsk.DebugVals()) // necessity: high
 		return procErr
 	}
 
@@ -81,7 +82,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 
 	// case where no dubtitle/STT is involved
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
-		if procErr := tsk.processMediaInfo(); procErr != nil {
+		if procErr := tsk.processMediaInfo(); procErr != nil { // FIXME DRY
 			return procErr
 		}
 		
@@ -106,6 +107,10 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	if procErr := tsk.processMediaInfo(); procErr != nil {
 		return procErr
 	}
+	reporter.SaveSnapshot("After media info processing", tsk.DebugVals()) // necessity: high
+	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		es.MediaInfoDump = fmt.Sprintf("%+v", tsk.Meta.MediaInfo) // necessity: high
+	})
 
 	tsk.processClosedCaptions()
 	
@@ -116,19 +121,23 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	// Launch main app logic: supervisor
 	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
 		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
+			reporter.SaveSnapshot("Supervisor failed", tsk.DebugVals()) // necessity: critical
 			return err
 		}
 	}
 
 	if procErr := tsk.processDubtitles(ctx); procErr != nil {
+		reporter.SaveSnapshot("Dubtitles processing failed", tsk.DebugVals()) // necessity: high
 		return procErr
 	}
 
 	if procErr := tsk.processTransliteration(ctx); procErr != nil {
+		reporter.SaveSnapshot("Transliteration failed", tsk.DebugVals()) // necessity: high
 		return procErr
 	}
 
 	if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
+		reporter.SaveSnapshot("Audio enhancement failed", tsk.DebugVals()) // necessity: high
 		return procErr
 	}
 	
@@ -141,6 +150,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 			
 		mergeResult, procErr := tsk.MergeOutputs(ctx)
 			if procErr != nil {
+				reporter.SaveSnapshot("Output merging failed", tsk.DebugVals()) // necessity: high
 				return procErr
 			}
 			

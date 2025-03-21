@@ -23,6 +23,7 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 
@@ -69,6 +70,13 @@ type TranslitProvider interface {
 
 func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	langCode := tsk.Targ.Language.Part3
+	
+	reporter := crash.Reporter
+	reporter.SaveSnapshot("Starting transliteration", tsk.DebugVals()) // necessity: high
+	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		es.TransliterationType = pp.Sprint(tsk.TranslitTypes)
+		es.TransliterationLanguage = langCode
+	}) // necessity: high
 	
 	// Check if we're in test mode with mock providers - create mock files directly
 	if os.Getenv("LANGKIT_USE_MOCK_PROVIDERS") == "true" {
@@ -142,8 +150,12 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	
 	// Initialize provider - measure performance
 	initStartTime := time.Now()
+	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		es.CurrentTranslitProvider = provider.ProviderName()
+	}) // necessity: high
 	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s provider initialization starting, please wait...", provider.ProviderName())
 	if err := provider.Initialize(ctx, tsk); err != nil {
+		reporter.SaveSnapshot("Transliteration provider initialization failed", tsk.DebugVals()) // necessity: high
 		if errors.Is(err, context.Canceled) {
 			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: init: operation canceled by user")
 		} else if errors.Is(err, context.DeadlineExceeded) {
@@ -172,6 +184,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	tsk.Handler.ZeroLog().Info().Msgf("tokens received from %s", provider.ProviderName())
 	tokenDuration := time.Since(tokenStartTime)
 	if err != nil {
+		reporter.SaveSnapshot("Token extraction failed", tsk.DebugVals()) // necessity: high
 		if errors.Is(err, context.Canceled) {
 			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: tkns: operation canceled by user")
 		} else if errors.Is(err, context.DeadlineExceeded) {

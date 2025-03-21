@@ -29,6 +29,9 @@ var (
 )
 
 func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
+	reporter := crash.Reporter
+   	reporter.SaveSnapshot("Starting routing", tsk.DebugVals()) // necessity: high
+
 	// Start memory profiler if enabled (30 second interval)
 	if profiling.IsMemoryProfilingEnabled() {
 		memoryProfilerDone = profiling.StartMemoryProfiler("routing", 30*time.Second)
@@ -59,6 +62,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	
 	version, err := media.GetFFmpegVersion()
 	if err != nil {
+		reporter.SaveSnapshot("FFmpeg access failed", tsk.DebugVals()) // necessity: critical
 		return tsk.Handler.LogErr(err, AbortAllTasks, "failed to access FFmpeg binary")
 	}
 	crash.Reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
@@ -76,6 +80,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	
 	stat, err := os.Stat(userProvided)
 	if err != nil {
+		reporter.SaveSnapshot("Media file/dir access failed", tsk.DebugVals()) // necessity: high
 		// NOTE: these two loggers are equivalent: they would both log to STDERR
 		// and to the GUI (if applicable). The only difference is that
 		// Log[Err][Fields]() returns a ProcessingError that can be used
@@ -126,6 +131,10 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		if err != nil {
 			return
 		}
+		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+			es.BulkProcessingDir = userProvided
+			es.ExpectedFileCount = len(tasks) // Will be populated after the walk function
+		}) // necessity: high
 		
 		tsk.Handler.IncrementProgress(
 			"media-bar",
@@ -138,11 +147,18 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		)
 		//mediabar := mkMediabar(len(tasks))
 		for idx, tsk := range tasks {
+			reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+				es.CurrentFileIndex = idx
+				es.CurrentFilePath = tsk.MediaSourceFile
+				es.TotalFileCount = len(tasks)
+			}) // necessity: high
+
 			// trick to have a new line without the log prefix
 			tsk.Handler.ZeroLog().Info().Msg("\r             \n")//+mediabar.String())
 			tsk.Handler.ZeroLog().Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
 			
 			if err := tsk.Execute(ctx); err != nil {
+				reporter.SaveSnapshot("Execute failed in bulk mode", tsk.DebugVals()) // necessity: high
 				if errors.Is(err.Err, context.Canceled) {
 					tsk.Handler.ZeroLog().Info().Msg("Processing canceled by the user")
 				} else if errors.Is(err.Err, context.DeadlineExceeded) {

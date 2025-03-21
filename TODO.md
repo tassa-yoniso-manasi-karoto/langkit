@@ -1,7 +1,7 @@
 
-
-- sub roma ichiran not written
-- migrate go-ichiran/aksharamukha to use ctx
+- selective translit TOKENIZED
+- crash reports add snapshots of tsk throughout code
+- add docker version + docker info to crash report
 
 - GUI options:
   - condensed audio toggle
@@ -11,10 +11,9 @@
   - processedCount for ETA calculation
   - ETA algo bc progressbar pkg uses a rate-based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
 
-- "Recreate Docker containers" should not show everywhere →→→ SELECTOR #L472
 - truncated feature card (left & right) when not maximized
 
-- crash reports add snapshots of tsk throughout code
+
 - manual GUI tests
 - manual CLI tests
 - try offline to see if icon / fonts are missing

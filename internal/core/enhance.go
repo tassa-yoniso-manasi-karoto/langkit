@@ -15,6 +15,8 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 
@@ -30,10 +32,11 @@ var extPerProvider = map[string]string{
 // even demuxing with -c:a copy to keep the original encoding somehow did too!
 // Using flac or opus is critical to keep video, audio and sub in sync.
 func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
-	// Validate that AudioTracks are available - MediaInfo is a struct, not a pointer
-	// so we can't check if it's nil directly
+	reporter := crash.Reporter
+	reporter.SaveSnapshot("Starting audio enhancement", tsk.DebugVals()) // necessity: high
 	
 	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
+		reporter.SaveSnapshot("No audio tracks found", tsk.DebugVals()) // necessity: high
 		return tsk.Handler.LogErr(fmt.Errorf("No audio tracks found"), AbortTask, "No audio tracks found in media file")
 	}
 	
@@ -61,6 +64,12 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		Str("originalAudio", OriginalAudio).
 		Str("voiceFile", VoiceFile).
 		Msg("Audio files for enhancement")
+		
+	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		es.SelectedAudioTrack = tsk.UseAudiotrack
+		es.AudioTrackLanguage = langCode
+		es.SeparationProvider = tsk.SeparationLib
+	}) // necessity: high
 	
 	stat, errOriginal := os.Stat(OriginalAudio)
 	_, errVoice := os.Stat(VoiceFile)
@@ -101,6 +110,11 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		audio, err := provider.SeparateVoice(ctx, OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.MaxAPIRetries, tsk.TimeoutSep)
 		
 		if err != nil {
+			reporter.SaveSnapshot("Voice separation failed", tsk.DebugVals()) // necessity: high
+			reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+				es.LastErrorOperation = "voice_separation"
+				es.LastErrorProvider = provider.GetName()
+			}) // necessity: high
 		        if errors.Is(err, context.Canceled) {
 				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "enhance: STT: operation canceled by user")
 		        } else if errors.Is(err, context.DeadlineExceeded) {
@@ -145,6 +159,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 					MergedFile,
 		}...)
 		if err != nil {
+			reporter.SaveSnapshot("Audio merging failed", tsk.DebugVals()) // necessity: high
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to merge original with separated voice track.")
 		}
 		tsk.Handler.ZeroLog().Trace().Msg("Audio merging success.")

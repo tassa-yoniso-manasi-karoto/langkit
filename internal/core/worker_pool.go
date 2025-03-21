@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/asticode/go-astisub"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 
@@ -281,6 +283,7 @@ func (p *DefaultWorkerPool) ProcessItems(ctx context.Context, items []*astisub.I
 
 // startWorker starts a worker goroutine for processing subtitle items
 func (p *DefaultWorkerPool) startWorker(cfg WorkerConfig) {
+	reporter := crash.Reporter
 	defer p.handler.ZeroLog().Trace().
 		Int("workerID", cfg.id).
 		Msg("Terminating worker")
@@ -303,6 +306,12 @@ func (p *DefaultWorkerPool) startWorker(cfg WorkerConfig) {
 			// Process the item
 			item, procErr := p.task.ProcessItem(cfg.ctx, indexedSub)
 			if procErr != nil {
+				reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+					// Record the subtitle index that caused the failure
+					es.FailedSubtitleIndex = indexedSub.Index
+					es.FailedSubtitleText = getSubLineText(*indexedSub.Item)
+				}) // necessity: critical
+				
 				// Try to send error, but don't block if canceled
 				select {
 				case cfg.errChan <- procErr:

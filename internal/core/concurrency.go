@@ -10,6 +10,8 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/schollz/progressbar/v3"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 // IndexedSubItem wraps a subtitle item along with its original index.
@@ -23,6 +25,12 @@ type ProcessedItemWriter func(*os.File, *ProcessedItem)
 // Supervisor manages multiple workers processing subtitle items concurrently.
 // It handles cancellation, error reporting, duplicate checking for resuming a previous aborted run, and on‑the‑fly writing.
 func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write ProcessedItemWriter) *ProcessingError {
+	reporter := crash.Reporter
+	reporter.SaveSnapshot("Starting Supervisor", tsk.DebugVals()) // necessity: high
+	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		es.WorkerPoolSize = tsk.Meta.WorkersMax
+		es.ItemCount = len(tsk.TargSubs.Items)
+	})
 	var (
 		subLineChan = make(chan IndexedSubItem)				// Channel for distributing work (each item tagged with its index).
 		itemChan    = make(chan ProcessedItem, len(tsk.TargSubs.Items))	// Buffered channel for processed items.
@@ -265,8 +273,10 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		Msg("Task processing complete")
 
 	if ctx.Err() != nil {
+		reporter.SaveSnapshot("Supervisor canceled by context", tsk.DebugVals()) // necessity: high
 		return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "supervisor: operation canceled by user")
 	} else if finalErr != nil {
+		reporter.SaveSnapshot("Supervisor failed with error", tsk.DebugVals()) // necessity: critical
 		// abort just this task
 		tsk.Handler.ZeroLog().Error().
 			Err(finalErr.Err).

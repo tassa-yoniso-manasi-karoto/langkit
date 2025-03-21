@@ -17,6 +17,8 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
+	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 // ProcessedItem represents the exported information of a single subtitle item.
@@ -37,6 +39,8 @@ type ProcessedItem struct {
 }
 
 func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (item ProcessedItem, procErr *ProcessingError) {
+	reporter := crash.Reporter
+	
 	// CAVEAT: astisub.Item has an "index" field and so does our IndexedSubItem
 	foreignItem := indexedSub.Item
 	childCtx, childCancel := context.WithCancel(ctx)
@@ -84,6 +88,11 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
 	
 	if tsk.STT != "" {
+		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+			es.CurrentSTTOperation = tsk.STT
+			es.CurrentItemIndex = indexedSub.Index
+			es.CurrentItemTimecode = timePosition(foreignItem.StartAt)
+		}) // necessity: high
 		tsk.Handler.ZeroLog().Trace().
 			Int("idx", indexedSub.Index). // FIXME discrepancies should be expected in closedcaptions trimmed to dubtitle
 			Msgf("Requesting %s prediction to remote API...", tsk.STT)
@@ -99,6 +108,12 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 		}
 		item.ForeignCurr = dub
 		if err != nil {
+			reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+				es.LastErrorOperation = "speech_to_text"
+				es.LastErrorProvider = tsk.STT
+				es.FailedSubtitleIndex = indexedSub.Index
+				es.FailedSubtitleTimecode = timePosition(foreignItem.StartAt)
+			}) // necessity: critical
 			if errors.Is(err, context.Canceled) {
 				return item, tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "STT: Processing canceled")
 			} else if errors.Is(err, context.DeadlineExceeded) {

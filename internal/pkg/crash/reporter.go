@@ -26,19 +26,50 @@ const (
 
 // GlobalScope holds program-wide information
 type GlobalScope struct {
-	StartTime     time.Time
-	FFmpegPath    string
-	FFmpegVersion string
-	MediaInfoVer  string
+    StartTime     time.Time
+    FFmpegPath    string
+    FFmpegVersion string
+    MediaInfoVer  string
+    
+    DockerStatus  string          // Docker availability status
+    CommandLine   []string        // Command line arguments
 }
 
 // ExecutionScope holds information specific to current processing
 type ExecutionScope struct {
-	StartTime     time.Time
-	MediaInfoDump string
-	ParentDirPath string
+    StartTime            time.Time
+    MediaInfoDump        string
+    ParentDirPath        string
+    
+    CurrentFilePath      string            // Current file being processed
+    CurrentFileIndex     int               // Current index in bulk processing
+    TotalFileCount       int               // Total number of files in bulk mode
+    BulkProcessingDir    string            // Directory for bulk processing
+    ExpectedFileCount    int               // Expected number of files to process
+    
+    WorkerPoolSize       int               // Number of workers in pool
+    ItemCount            int               // Number of subtitle items
+    CurrentItemIndex     int               // Current item being processed
+    CurrentItemTimecode  string            // Timecode of current item
+    FailedSubtitleIndex  int               // Index of failed subtitle
+    FailedSubtitleText   string            // Text of failed subtitle
+    FailedSubtitleTimecode string          // Timecode of failed subtitle
+    
+    SelectedAudioTrack   int               // Selected audio track index
+    AudioTrackLanguage   string            // Language of selected audio track
+    SeparationProvider   string            // Voice separation provider
+    ProviderAvailability string            // Provider availability status
+    
+    LastErrorOperation   string            // Last operation that caused an error
+    LastErrorProvider    string            // Provider involved in last error
+    
+    CurrentSTTOperation  string            // Current STT operation
+    
+    TransliterationType  string            // Type of transliteration
+    TransliterationLanguage string         // Language being transliterated
+    CurrentTranslitProvider string         // Current transliteration provider
+    TransliterationStats string            // Transliteration statistics
 }
-
 type ReporterInstance struct {
 	mu sync.RWMutex
 
