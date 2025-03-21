@@ -4,6 +4,12 @@ package commands
 import (
 	"fmt"
 	"context"
+	"errors"
+	"io"
+	"io/fs"
+	"net"
+	"os"
+	"strings"
 	
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -43,28 +49,43 @@ func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 
 
 func exitOnError(tsk *core.Task, mainErr error) {
+	if mainErr == nil {
+		return
+	}
+
+	// Check for common ordinary errors that don't require crash reports
+	if isOrdinaryError(mainErr) {
+		tsk.Handler.ZeroLog().Trace().
+			Err(mainErr).
+			Msg("Operation failed with an ordinary error")
+		
+		color.Yellowf("Error: %v\n", mainErr)
+		return
+	}
+
+	// Handle critical errors with crash reports
 	tsk.Handler.ZeroLog().Warn().
 		Err(mainErr).
-		Msgf("An error occured, creating a crash report at %s", crash.GetCrashDir())
-
+		Msgf("An error occurred, creating a crash report at %s", crash.GetCrashDir())
+	
 	settings, err := config.LoadSettings()
 	if err != nil {
-		// Continue with empty settings if loading fails
 		fmt.Printf("Warning: Failed to load settings: %v\n", err)
 	}
 	
 	crashPath, err := crash.WriteReport(crash.ModeCrash, mainErr, settings, tsk.Handler.GetLogBuffer(), true)
 	if err != nil {
-		color.Redf("failed to write crash report: %v", err)
+		color.Redf("Failed to write crash report: %v\n", err)
 	}
+	
 	tsk.Handler.ZeroLog().Fatal().
 		Err(mainErr).
 		Str("report_path", crashPath).
-		Msg("An error occured, exiting...")
+		Msg("A critical error occurred, exiting...")
 }
 
 
-// Early load the settings before flag initialization
+// Early load the settings before flag initialization by cobra
 var settings config.Settings
 
 func init() {
@@ -172,6 +193,55 @@ func addSharedTranslitFlags(cmd *cobra.Command, notTranslitSubcommand bool) {
 	}
 	cmd.PersistentFlags().Int("translit-to", 90, "timeout in seconds for the transliteration service request\n")
 	cmd.PersistentFlags().String("browser-access-url", "", "websocket URL for DevTools remote debugging")
+}
+
+
+
+// isOrdinaryError checks if an error is a common non-critical error that doesn't warrant a crash report
+func isOrdinaryError(err error) bool {
+	// File not found errors
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+
+	// Permission errors
+	if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrPermission) {
+		return true
+	}
+
+	// Network-related errors
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		// DNS resolution errors, timeout errors, connection refused
+		return netErr.Timeout() || strings.Contains(err.Error(), "no such host") || 
+			strings.Contains(err.Error(), "connection refused") || 
+			strings.Contains(err.Error(), "network is unreachable")
+	}
+
+	// IO errors that are common
+	if strings.Contains(err.Error(), "broken pipe") || 
+		strings.Contains(err.Error(), "connection reset by peer") {
+		return true
+	}
+
+	// User input validation errors (assuming you have some pattern for these)
+	if strings.Contains(err.Error(), "invalid input") || 
+		strings.Contains(err.Error(), "validation failed") {
+		return true
+	}
+
+	// Configuration errors
+	// if strings.Contains(err.Error(), "configuration") || 
+	// 	strings.Contains(err.Error(), "config file") {
+	// 	return true
+	// }
+
+	// EOF errors (often normal in file processing)
+	if errors.Is(err, io.EOF) {
+		return true
+	}
+
+	return false
 }
 
 // https://github.com/spf13/cobra/issues/648#issuecomment-393154805
