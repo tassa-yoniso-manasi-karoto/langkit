@@ -63,6 +63,7 @@ type TranslitProvider interface {
 	GetSelectiveTranslit(ctx context.Context, threshold int) (string, error)
 	PostProcess(text string) string
 	ProviderName() string
+	Close(ctx context.Context) error
 }
 
 
@@ -161,6 +162,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	SubTokenized := subs.DeepCopy(tsk.TargSubs)
 	
 	mergedSubsStr, _ := Subs2StringBlock(SubTranslit)
+	tsk.Handler.ZeroLog().Trace().Msgf("translit: mergedSubsStr: len=%d", len(mergedSubsStr))
 	
 	// Get tokens - measure performance
 	tokenStartTime := time.Now()
@@ -392,6 +394,17 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		}
 	}
 	
+	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s shuting down provider, please wait...", provider.ProviderName())
+	if err := provider.Close(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: close: operation canceled by user")
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			return tsk.Handler.LogErr(err, AbortTask, "translit: close: operation timed out.")
+		}
+		return tsk.Handler.LogErr(err, AbortAllTasks,
+			fmt.Sprintf("translit: failed to close provider for language %s", langCode))
+	}
+	
 	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
 	return nil
 }
@@ -425,12 +438,10 @@ func NewGenericProvider(lang string, style string) (*GenericProvider, error) {
 }
 
 func (p *GenericProvider) Initialize(ctx context.Context, tsk *Task) error {
-	p.module.WithContext(ctx)
-	
 	if !tsk.DockerRecreate {
-		return p.module.Init()
+		return p.module.InitWithContext(ctx)
 	} 
-	return p.module.InitRecreate(true)
+	return p.module.InitRecreateWithContext(ctx, true)
 }
 
 func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
@@ -481,7 +492,7 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 	})
 	
 	
-	tokens, err := m.Tokens(text)
+	tokens, err := m.TokensWithContext(ctx, text)
 	
 	if err != nil {
 		return nil, nil, fmt.Errorf("error processing text: %w", err)
@@ -506,6 +517,11 @@ func (p *GenericProvider) ProviderName() string {
 
 
 
+func (p *GenericProvider) Close(ctx context.Context) error {
+	return p.module.CloseWithContext(ctx)
+}
+
+
 
 
 
@@ -523,7 +539,7 @@ func (p *GenericProvider) ProviderName() string {
 
 // JapaneseProvider handles Japanese-specific transliteration
 type JapaneseProvider struct {
-	// Cache the tokens to avoid redundant Analyze calls
+	// Cache the tokens to avoid redundant Analyze calls for selective tlit
 	tokensSlice  []*ichiran.JSONTokens
 }
 
@@ -532,12 +548,10 @@ func NewJapaneseProvider() *JapaneseProvider {
 }
 
 func (p *JapaneseProvider) Initialize(ctx context.Context, tsk *Task) error {
-	ichiran.Ctx = ctx
-	
 	if !tsk.DockerRecreate {
-		return ichiran.Init()
+		return ichiran.InitWithContext(ctx)
 	}
-	return ichiran.InitRecreate(true)
+	return ichiran.InitRecreateWithContext(ctx, true)
 }
 
 
@@ -592,7 +606,7 @@ func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler M
 			// Continue processing
 		}
 		handler.ZeroLog().Trace().Msgf("Analyzing chunk %d/%d", i+1, len(chunks))
-		tokens, err := p.analyzeText(chunk)
+		tokens, err := p.analyzeText(ctx, chunk)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error analyzing chunk %d: %w", i+1, err)
 		}
@@ -617,9 +631,9 @@ func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler M
 }
 
 // analyzeText ensures we only call ichiran.Analyze once for the same text
-func (p *JapaneseProvider) analyzeText(text string) (*ichiran.JSONTokens, error) {
+func (p *JapaneseProvider) analyzeText(ctx context.Context, text string) (*ichiran.JSONTokens, error) {
 	// Analyze the text and cache the results
-	tokens, err := ichiran.Analyze(text)
+	tokens, err := ichiran.AnalyzeWithContext(ctx, text)
 	if err != nil {
 		return nil, err
 	}
@@ -663,6 +677,12 @@ func (p *JapaneseProvider) ProviderName() string {
 	return "jpn-ichiran"
 }
 
+
+func (p *JapaneseProvider) Close(ctx context.Context) error {
+	return ichiran.Close()
+}
+
+
 // GetTranslitProvider returns the appropriate provider based on language
 func GetTranslitProvider(lang string, style string) (TranslitProvider, error) {
 	if lang == "jpn" {
@@ -671,6 +691,7 @@ func GetTranslitProvider(lang string, style string) (TranslitProvider, error) {
 	
 	return NewGenericProvider(lang, style)
 }
+
 
 
 
