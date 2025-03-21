@@ -1,7 +1,5 @@
 
 - selective translit TOKENIZED
-- crash reports add snapshots of tsk throughout code
-- add docker version + docker info to crash report
 
 - GUI options:
   - condensed audio toggle

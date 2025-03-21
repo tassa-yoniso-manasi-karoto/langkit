@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"net"
 	"net/http"
@@ -36,6 +37,74 @@ func GetCrashDir() string {
 	os.MkdirAll(dir, 0755)
 	return dir
 }
+
+// Add this function to writer.go
+func captureDockerInfo(w io.Writer) {
+	fmt.Fprintln(w, "DOCKER STATUS")
+	fmt.Fprintln(w, "=============")
+
+	// Check if Docker is available first
+	_, versionErr := exec.Command("docker", "version", "--format", "{{json .}}").Output()
+	if versionErr != nil {
+		fmt.Fprintf(w, "Docker not available or not running: %v\n\n", versionErr)
+		return
+	}
+
+	// If Docker is available, capture both version and info
+	fmt.Fprintln(w, "Docker Version Output:")
+	fmt.Fprintln(w, "---------------------")
+	versionCmd := exec.Command("docker", "version")
+	versionOutput, err := versionCmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(w, "Error getting Docker version: %v\n", err)
+	} else {
+		fmt.Fprintf(w, "%s\n", string(versionOutput))
+	}
+
+	fmt.Fprintln(w, "\nDocker Info Output:")
+	fmt.Fprintln(w, "------------------")
+	infoCmd := exec.Command("docker", "info")
+	infoOutput, err := infoCmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(w, "Error getting Docker info: %v\n", err)
+	} else {
+		fmt.Fprintf(w, "%s\n", string(infoOutput))
+	}
+
+	// List Docker images used by langkit
+	fmt.Fprintln(w, "\nRelevant Docker Images:")
+	fmt.Fprintln(w, "---------------------")
+	relevantImages := []string{
+		"ichiran",
+		"aksharamukha",
+	}
+
+	imagesCmd := exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}} ({{.Size}})")
+	imagesOutput, err := imagesCmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(w, "Error listing Docker images: %v\n", err)
+	} else {
+		images := strings.Split(string(imagesOutput), "\n")
+		foundRelevant := false
+
+		for _, image := range images {
+			for _, relevant := range relevantImages {
+				if strings.Contains(image, relevant) {
+					fmt.Fprintf(w, "%s\n", image)
+					foundRelevant = true
+				}
+			}
+		}
+
+		if !foundRelevant {
+			fmt.Fprintln(w, "No relevant langkit Docker images found")
+		}
+	}
+
+	fmt.Fprintln(w)
+}
+
+
 
 // Print environment variables safely, redacting sensitive values
 func printEnvironment(w io.Writer) {

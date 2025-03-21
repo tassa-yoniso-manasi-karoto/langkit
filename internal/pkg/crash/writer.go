@@ -214,6 +214,11 @@ func writeReportContent(
 	fmt.Fprintln(w, "DOCKER LOG HISTORY")
 	fmt.Fprintln(w, "==================")
 	writeLogs(w, &dockerutil.DockerLogBuffer)
+	
+	fmt.Fprintln(w, "DOCKER INFORMATION")
+	fmt.Fprintln(w, "==================")
+	captureDockerInfo(w)
+	fmt.Fprint(w, "\n")
 
 	// 12. Connectivity status
 	fmt.Fprintln(w, "CONNECTIVITY STATUS")
