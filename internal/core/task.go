@@ -398,6 +398,9 @@ func (tsk *Task) DebugVals() string {
 	cp.PathService = nil
 	cp.ProgressTracker = nil
 	
+	cp.NativeSubs = &subs.Subtitles{}
+	cp.TargSubs = &subs.Subtitles{}
+	
 	return pp.Sprintln(cp)
 }
 
