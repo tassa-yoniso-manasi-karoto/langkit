@@ -800,6 +800,11 @@
                 // Register each feature in the group store individually
                 featureGroupStore.addFeatureToGroup('subtitle', feature.id);
                 
+                // Register each option with its group - this is crucial for the new approach
+                ['style', 'provider', 'dockerRecreate', 'browserAccessURL'].forEach(optionId => {
+                    featureGroupStore.registerOptionToGroup('subtitle', optionId);
+                });
+                
                 // Initialize feature options if not already set
                 if (!currentFeatureOptions[feature.id]) {
                     currentFeatureOptions[feature.id] = {};
@@ -845,6 +850,10 @@
                 
                 // Register each feature in the group store individually
                 featureGroupStore.addFeatureToGroup('finalOutput', feature.id);
+                
+                // Register merge options with the finalOutput group - crucial for proper handling
+                featureGroupStore.registerOptionToGroup('finalOutput', 'mergeOutputFiles');
+                featureGroupStore.registerOptionToGroup('finalOutput', 'mergingFormat');
                 
                 // Initialize feature options if not already set
                 if (!currentFeatureOptions[feature.id]) {

@@ -11,6 +11,7 @@ The Feature Group system allows multiple features to share common options and se
 3. **Consistent Values**: All features must use the same values for shared options
 4. **Value Synchronization**: Changes to a shared option in one feature must propagate to all features in the group
 5. **Reliable Order Determination**: The system must reliably determine which feature should show the options
+6. **Multi-Group Support**: Features can belong to multiple groups, with proper handling of options from each group
 
 ## Key Components
 
@@ -24,10 +25,14 @@ The central store manages all group-related state, including:
 - Feature enabled status tracking
 - Topmost feature determination
 - Value validation
+- Option-to-group mapping
 
 The store provides these key methods:
 - `initializeCanonicalOrder()`: Sets the definitive ordering of features based on the feature model
 - `isTopmostInGroup()`: Determines if a feature is the first enabled one in its group
+- `registerOptionToGroup()`: Associates an option with a specific group
+- `getGroupForOption()`: Retrieves which group an option belongs to
+- `isTopmostForOption()`: Determines if a feature should display a specific option based on its group
 - `syncOptionsToFeatures()`: Ensures all features in a group have the same option values
 - `updateFeatureEnabled()`: Updates which features are enabled in each group
 
@@ -46,6 +51,7 @@ Manages feature initialization and UI coordination:
 
 - Initializes canonical feature ordering from the feature model
 - Registers feature groups and their shared options
+- Registers options to their respective groups
 - Manages feature enable/disable events
 - Coordinates value synchronization across the system
 
@@ -53,16 +59,95 @@ Manages feature initialization and UI coordination:
 
 Manages individual feature display including:
 
-- Checking if it should display group options (via `isTopmostInGroup`)
+- Context-aware option visibility determination 
+- Automatic option-to-group registration
 - Conditional rendering of group options
 - Handling user inputs for option values
 - Propagating changes to the central store
 
 ## Implementation Approach
 
-The system uses a canonical order approach (instead of DOM queries) to determine the topmost feature:
+### Option-Group Relationship Management
 
-1. During initialization, the feature model's original order is captured:
+The system maintains a clear mapping between options and their owning groups:
+
+```typescript
+// In featureGroupStore.ts
+interface GroupState {
+    // ... existing fields
+    optionGroups: Record<string, string>; // Maps option IDs to their owning group IDs
+}
+
+registerOptionToGroup(groupId: string, optionId: string) {
+    store.update(state => {
+        const newState = { ...state };
+        newState.optionGroups[optionId] = groupId;
+        return newState;
+    });
+}
+
+getGroupForOption(optionId: string): string | null {
+    const state = get(store);
+    return state.optionGroups[optionId] || null;
+}
+```
+
+### Context-Aware Option Visibility
+
+The system uses option-specific context to determine visibility:
+
+```typescript
+// In FeatureCard.svelte
+function shouldShowOption(optionId: string, optionDef: any): boolean {
+    // Find which group this option belongs to (if any)
+    let optionGroup = null;
+    if (feature.groupSharedOptions) {
+        for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
+            if (options.includes(optionId)) {
+                optionGroup = groupId;
+                
+                // Register this option with the group store
+                featureGroupStore.registerOptionToGroup(groupId, optionId);
+                break;
+            }
+        }
+    }
+    
+    // Use the option-specific topmost check
+    let isTopmostForThisOption = false;
+    if (enabled) {
+        isTopmostForThisOption = featureGroupStore.isTopmostForOption(feature.id, optionId);
+    }
+    
+    // Context for conditional rendering
+    const context = {
+        // ...other context properties
+        isTopmostForOption: isTopmostForThisOption
+    };
+}
+```
+
+### Option-Specific Topmost Check
+
+```typescript
+// In featureGroupStore.ts
+isTopmostForOption(featureId: string, optionId: string): boolean {
+    // Get the group this option belongs to
+    const groupId = this.getGroupForOption(optionId);
+    if (!groupId) {
+        console.warn(`Option ${optionId} is not registered with any group`);
+        return true; // Default to showing if not registered
+    }
+    
+    // Check if this feature is the topmost in the option's group
+    return this.isTopmostInGroup(groupId, featureId);
+}
+```
+
+### Canonical Order Approach
+
+The system uses canonical ordering (not DOM position) to determine the topmost feature:
+
 ```typescript
 // In FeatureSelector.svelte
 onMount(() => {
@@ -74,128 +159,86 @@ onMount(() => {
 });
 ```
 
-2. The store maintains this canonical order and derives group-specific orders:
+Special handling is provided for the merge group:
+
 ```typescript
 // In featureGroupStore.ts
-initializeCanonicalOrder(orderedFeatureIds: string[]) {
-  store.update(state => {
-    const newState = { ...state };
-    newState.canonicalOrder = orderedFeatureIds;
-    return newState;
-  });
-  
-  // Update canonical order for all groups
-  Object.keys(this.getGroups()).forEach(groupId => {
-    this.updateGroupCanonicalOrder(groupId);
-  });
-}
-```
-
-3. A reliable method determines the topmost feature in each group:
-```typescript
 isTopmostInGroup(groupId: string, featureId: string): boolean {
-  const state = get(store);
-  
-  // First check if the feature is enabled
-  if (!state.enabledFeatures[groupId]?.includes(featureId)) {
-    return false;
-  }
-  
-  // Get canonical order for this group
-  const groupOrder = state.groupCanonicalOrder[groupId] || [];
-  
-  // Get all enabled features
-  const enabledFeatures = state.enabledFeatures[groupId] || [];
-  
-  // Find the first enabled feature according to canonical order
-  const topmostFeature = groupOrder.find(id => enabledFeatures.includes(id));
-  
-  // This feature is the topmost if it matches the first enabled feature
-  return topmostFeature === featureId;
+    // ... basic checks
+
+    // Special case for finalOutput (merge) group
+    if (groupId === 'finalOutput') {
+        // Use global canonical order for merge group
+        const globalOrder = state.canonicalOrder || [];
+        
+        // Find first enabled feature in the merge group using global order
+        const topmostFeature = globalOrder.find(id => enabledFeatures.includes(id));
+        
+        return topmostFeature === featureId;
+    }
+    
+    // Standard group handling...
 }
 ```
 
-4. Option visibility is controlled through the `showCondition` system:
+### Feature Model Option Visibility
+
+Options use the new `isTopmostForOption` context variable:
+
 ```typescript
-// In featureModel.ts, for each shared option
-showCondition: "context.isTopmostInGroup && context.needsScraper"
+// In featureModel.ts
+options: {
+    mergeOutputFiles: {
+        type: 'boolean',
+        label: 'Merge all processed outputs',
+        default: false,
+        hovertip: "When enabled, all processed outputs will be merged into a single video file.",
+        showCondition: "context.isTopmostForOption"
+    },
+    // ...
+}
 ```
 
-5. The `isTopmostInGroup` context variable is provided to option conditions:
+## Group Initialization
+
+During initialization, groups and their options are registered:
+
 ```typescript
-// In FeatureCard.svelte
-function shouldShowOption(optionId: string, optionDef: any): boolean {
-  // Determine if this is the topmost feature in any groups
-  let isTopmostInGroupForCache = false;
-  if (feature.featureGroups && feature.featureGroups.length > 0 && enabled) {
-    for (const groupId of feature.featureGroups) {
-      if (featureGroupStore.isTopmostInGroup(groupId, feature.id)) {
-        isTopmostInGroupForCache = true;
-        break;
-      }
-    }
-  }
-  
-  // Context object for evaluating conditions
-  const context = {
-    // ...other context properties
-    isTopmostInGroup: isTopmostInGroupForCache
-  };
-  
-  // Evaluate condition with this context
-  // ...
+// In FeatureSelector.svelte
+function initializeFeatureGroups() {
+    // Register subtitle group
+    const subtitleGroup = {
+        id: 'subtitle',
+        label: 'Subtitle Processing',
+        featureIds: [...],
+        sharedOptions: ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+    };
+    
+    featureGroupStore.registerGroup(subtitleGroup);
+    
+    // Register options to their groups
+    ['style', 'provider', 'dockerRecreate', 'browserAccessURL'].forEach(optionId => {
+        featureGroupStore.registerOptionToGroup('subtitle', optionId);
+    });
+    
+    // Register merge group and its options
+    featureGroupStore.registerOptionToGroup('finalOutput', 'mergeOutputFiles');
+    featureGroupStore.registerOptionToGroup('finalOutput', 'mergingFormat');
 }
 ```
 
 ## Value Synchronization Logic
 
-The system ensures values are properly synchronized through the following mechanism:
+The system ensures values are properly synchronized through the central store:
 
-1. When a user changes a shared option value, it's first updated in the central store:
 ```typescript
-// In GroupOption.svelte
-function handleValueChange(newValue) {
-  // Update local state with user input
-  localValue = newValue;
-  lastUserUpdateTime = Date.now() + 1000; // Future timestamp for priority
-  
-  // Update the central store
-  featureGroupStore.setGroupOption(groupId, optionId, newValue);
-  
-  // Notify parent component
-  dispatch('groupOptionChange', { groupId, optionId, value: newValue });
-}
-```
-
-2. The feature selector syncs values from the store to all features:
-```typescript
-// In FeatureSelector.svelte
-function handleGroupOptionChange(event) {
-  const { groupId, optionId, value } = event.detail;
-  
-  // Update central store first
-  featureGroupStore.setGroupOption(groupId, optionId, value);
-  
-  // Sync to all features in the group
-  currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
-    groupId, 
-    currentFeatureOptions
-  );
-}
-```
-
-3. The store's sync method ensures all features have identical values:
-```typescript
+// Store's sync method ensures all features have identical values
 syncOptionsToFeatures(groupId, currentOptions) {
   const newOptions = { ...currentOptions };
   const groupOptions = this.getGroupOptions(groupId);
   
   // Apply group option values to all features in the group
   this.getGroupFeatures(groupId).forEach(featureId => {
-    if (!newOptions[featureId]) {
-      newOptions[featureId] = {};
-    }
-    
     // Apply each shared option value
     this.getSharedOptions(groupId).forEach(optionId => {
       if (groupOptions[optionId] !== undefined) {
@@ -208,121 +251,67 @@ syncOptionsToFeatures(groupId, currentOptions) {
 }
 ```
 
-## Value Authority System
+## Multi-Group Feature Configuration
 
-To handle the potential for conflicting updates, the system implements an authority mechanism using timestamps:
-
-```typescript
-// In GroupOption.svelte
-let lastUserUpdateTime = 0;
-let lastExternalUpdateTime = Date.now();
-
-// When receiving external updates
-$: if (externalValue !== undefined && externalValue !== localValue) {
-  // Only accept external changes if they're more recent than user changes
-  if (lastExternalUpdateTime > lastUserUpdateTime) {
-    localValue = externalValue;
-  } else {
-    // User's change takes precedence - propagate back to the system
-    propagateUserValue(localValue);
-  }
-  lastExternalUpdateTime = Date.now();
-}
-
-// User input gets future timestamp to ensure priority
-function handleUserInput(newValue) {
-  lastUserUpdateTime = Date.now() + 1000;
-  localValue = newValue;
-  propagateUserValue(newValue);
-}
-```
-
-## Feature Membership Configuration
-
-Features are configured to belong to groups in the feature model:
+Features can belong to multiple groups:
 
 ```typescript
 // In featureModel.ts
 {
-  id: 'subtitleTokenization',
-  // ...other properties
-  featureGroups: ['subtitle'],
+  id: 'subtitleRomanization',
+  // ...
+  featureGroups: ['subtitle', 'finalOutput'],
   groupSharedOptions: {
-    'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
+    'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
+    'finalOutput': ['mergeOutputFiles', 'mergingFormat']
   }
-}
-```
-
-The group itself is defined during initialization:
-
-```typescript
-// In FeatureSelector.svelte
-function initializeFeatureGroups() {
-  const subtitleGroup = {
-    id: 'subtitle',
-    label: 'Subtitle Processing',
-    featureIds: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'],
-    sharedOptions: ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-    validationRules: [
-      // Rules for option validation
-    ]
-  };
-  
-  featureGroupStore.registerGroup(subtitleGroup);
-  
-  // Additional setup...
 }
 ```
 
 ## Common Pitfalls and Solutions
 
-1. **Circular Updates**: 
-   - Problem: Reactive statements can trigger cascading updates
-   - Solution: Use proper timestamp-based authority system
+1. **Group Conflicts**: 
+   - Problem: Features in multiple groups could have conflicting topmost status
+   - Solution: Options know which group they belong to via `optionGroups` mapping
 
-2. **Empty Value Propagation**: 
-   - Problem: Empty values can override valid user inputs
-   - Solution: Special handling for critical values
-   ```typescript
-   // Special case for important values like WebSocket URLs
-   if (optionId === 'browserAccessURL' && !value && localValue && localValue.startsWith('ws://')) {
-     // Block empty values from overriding valid WebSocket URLs
-     propagateUserValue(localValue);
-   }
-   ```
+2. **Mixed Option Visibility**: 
+   - Problem: Generic topmost check doesn't work for features in multiple groups
+   - Solution: Option-specific `isTopmostForOption` check that identifies the proper group
 
-3. **Timing Issues**: 
-   - Problem: Component mounting and initialization can race
-   - Solution: Wait for components to fully mount before propagating values
+3. **Different Group Orders**: 
+   - Problem: Each group can have a different canonical order
+   - Solution: Global order for merge group, group-specific order for others
 
-4. **Topmost Feature Determination**: 
-   - Problem: DOM-based approaches are unreliable
-   - Solution: Use canonical order from the feature model
+4. **Option Ownership Ambiguity**: 
+   - Problem: Without explicit option-to-group mapping, conflicts arise
+   - Solution: Register each option to exactly one group in the store
 
 ## Best Practices for Working with the Group System
 
 1. **Adding new shared options**:
    - Add option definition to feature model
    - Add to groupSharedOptions array for each feature in the group
-   - Use `context.isTopmostInGroup` in showCondition
+   - Register option with its group during initialization
+   - Use `context.isTopmostForOption` in showCondition
 
 2. **Creating a new group**:
    - Define group with ID, features, and shared options
    - Register with featureGroupStore
+   - Register options to the group
    - Update feature definitions with group membership
    - Provide default values for shared options
 
 3. **Implementing conditional visibility**:
-   - Use the `isTopmostInGroup` context variable:
+   - Use the option-specific context variable:
    ```typescript
-   showCondition: "context.isTopmostInGroup && context.needsDocker"
+   showCondition: "context.isTopmostForOption && context.needsDocker"
    ```
 
-4. **Adding features to a group**:
-   - Update feature definition with group membership
-   - Add group shared options configuration
-   - Ensure feature is registered with the group store
+4. **Features in multiple groups**:
+   - Ensure each option is registered with exactly one group
+   - Organize groupSharedOptions by group ID
+   - Test visibility when multiple group features are enabled
 
 ## Summary
 
-The Feature Group system provides a robust, reliable way to share options across related features. By using canonical feature ordering instead of DOM position, the system can consistently determine which feature should display the group's shared options. The topmost feature is derived from the original order in the feature model, ensuring consistent behavior regardless of DOM rendering or visual effects.
+The Feature Group system provides a robust mechanism for sharing options across related features, even when features belong to multiple groups. By tracking which option belongs to which group and using context-aware visibility checks, the system ensures consistent display of shared options regardless of which combination of features is enabled.

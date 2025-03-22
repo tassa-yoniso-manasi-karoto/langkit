@@ -39,6 +39,8 @@ export interface GroupState {
     groupCanonicalOrder: Record<string, string[]>;
     // Legacy field kept for backward compatibility, not used anymore
     displayOrder: Record<string, string[]>;
+    // Maps option IDs to their owning group IDs
+    optionGroups: Record<string, string>;
 }
 
 function createFeatureGroupStore() {
@@ -52,7 +54,9 @@ function createFeatureGroupStore() {
         displayOrder: {},
         // New fields for canonical feature ordering
         canonicalOrder: [],
-        groupCanonicalOrder: {}
+        groupCanonicalOrder: {},
+        // Option to group mapping
+        optionGroups: {}
     };
 
     const store = writable<GroupState>(initialState);
@@ -454,6 +458,42 @@ function createFeatureGroupStore() {
             });
             
             return isTopmost;
+        },
+        
+        /**
+         * Register an option as belonging to a specific group
+         */
+        registerOptionToGroup(groupId: string, optionId: string) {
+            store.update(state => {
+                const newState = { ...state };
+                newState.optionGroups[optionId] = groupId;
+                return newState;
+            });
+        },
+        
+        /**
+         * Get the group that an option belongs to
+         */
+        getGroupForOption(optionId: string): string | null {
+            const state = get(store);
+            return state.optionGroups[optionId] || null;
+        },
+        
+        /**
+         * Check if a feature is the topmost for a specific option
+         * This is the key method that enables proper handling of options
+         * that belong to different groups
+         */
+        isTopmostForOption(featureId: string, optionId: string): boolean {
+            // Get the group this option belongs to
+            const groupId = this.getGroupForOption(optionId);
+            if (!groupId) {
+                console.warn(`Option ${optionId} is not registered with any group`);
+                return true; // Default to showing if not registered
+            }
+            
+            // Check if this feature is the topmost in the option's group
+            return this.isTopmostInGroup(groupId, featureId);
         },
 
         /**

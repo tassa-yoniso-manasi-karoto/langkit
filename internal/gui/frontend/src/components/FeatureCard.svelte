@@ -229,19 +229,23 @@
             for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
                 if (options.includes(optionId)) {
                     optionGroup = groupId;
+                    
+                    // Register this option with the group store if not already registered
+                    // This ensures the store knows which option belongs to which group
+                    featureGroupStore.registerOptionToGroup(groupId, optionId);
                     break;
                 }
             }
         }
         
-        // Check if this feature is the topmost in the specific group for this option
+        // Use the feature group store's isTopmostForOption function for precise option-based checks
         let isTopmostForThisOption = false;
-        if (optionGroup && enabled) {
-            isTopmostForThisOption = featureGroupStore.isTopmostInGroup(optionGroup, feature.id);
-            console.log(`Option ${optionId} belongs to group ${optionGroup}, isTopmost: ${isTopmostForThisOption}`);
+        if (enabled) {
+            isTopmostForThisOption = featureGroupStore.isTopmostForOption(feature.id, optionId);
+            console.log(`Option ${optionId} isTopmostForOption check: ${isTopmostForThisOption}`);
         }
         
-        // For backwards compatibility, also check topmost status in any group
+        // For backwards compatibility, maintain generic isTopmostInGroup checks
         let isTopmostInAnyGroup = false;
         if (feature.featureGroups && feature.featureGroups.length > 0 && enabled) {
             for (const groupId of feature.featureGroups) {
@@ -259,7 +263,8 @@
             optionValues: JSON.stringify(options),
             selectedFeatures: JSON.stringify(selectedFeatures),
             featureId: feature.id,
-            isTopmostInGroup: optionGroup ? isTopmostForThisOption : isTopmostInAnyGroup
+            isTopmostInGroup: isTopmostInAnyGroup,
+            isTopmostForOption: isTopmostForThisOption
         };
         
         const contextHash = JSON.stringify(contextValues);
@@ -283,7 +288,8 @@
             needsScraper,
             romanizationSchemes,
             selectedFeatures,
-            isTopmostInGroup: optionGroup ? isTopmostForThisOption : isTopmostInAnyGroup
+            isTopmostInGroup: isTopmostInAnyGroup,
+            isTopmostForOption: isTopmostForThisOption
         };
         
         // Feature options reference for conditions 

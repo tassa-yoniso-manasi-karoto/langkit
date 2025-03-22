@@ -131,14 +131,14 @@ export const features: FeatureDefinition[] = [
                 label: 'Merge all processed outputs',
                 default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostInGroup && feature.dubtitles.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && feature.dubtitles.mergeOutputFiles === true"
             }
         },
         requiresToken: ['whisper', 'insanely-fast-whisper', 'universal-1'],
@@ -184,14 +184,14 @@ export const features: FeatureDefinition[] = [
                 label: 'Merge all processed outputs',
                 default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostInGroup && feature.voiceEnhancing.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && feature.voiceEnhancing.mergeOutputFiles === true"
             }
         },
         requiresToken: ['demucs', 'spleeter'],
@@ -211,20 +211,20 @@ export const features: FeatureDefinition[] = [
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
                 default: '',
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             provider: {
                 type: 'provider',
                 label: 'Provider',
                 default: '',
-                showCondition: "context.isTopmostInGroup && context.romanizationSchemes.length > 0"
+                showCondition: "context.isTopmostForOption && context.romanizationSchemes.length > 0"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.isTopmostInGroup && context.needsDocker"
+                showCondition: "context.isTopmostForOption && context.needsDocker"
             },
             browserAccessURL: {
                 type: 'string',
@@ -232,21 +232,21 @@ export const features: FeatureDefinition[] = [
                 default: '',
                 hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.isTopmostInGroup && context.needsScraper"
+                showCondition: "context.isTopmostForOption && context.needsScraper"
             },
             mergeOutputFiles: {
                 type: 'boolean',
                 label: 'Merge all processed outputs',
                 default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostInGroup && feature.subtitleRomanization.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && feature.subtitleRomanization.mergeOutputFiles === true"
             }
         },
         requiresLanguage: true,
@@ -271,20 +271,20 @@ export const features: FeatureDefinition[] = [
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
                 default: '',
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             provider: {
                 type: 'provider',
                 label: 'Provider',
                 default: '',
-                showCondition: "context.isTopmostInGroup && context.romanizationSchemes.length > 0"
+                showCondition: "context.isTopmostForOption && context.romanizationSchemes.length > 0"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.isTopmostInGroup && context.needsDocker"
+                showCondition: "context.isTopmostForOption && context.needsDocker"
             },
             browserAccessURL: {
                 type: 'string',
@@ -292,7 +292,7 @@ export const features: FeatureDefinition[] = [
                 default: '',
                 hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.isTopmostInGroup && context.needsScraper"
+                showCondition: "context.isTopmostForOption && context.needsScraper"
             },
             tokenizeOutput: {
                 type: 'boolean',
@@ -315,14 +315,14 @@ export const features: FeatureDefinition[] = [
                 label: 'Merge all processed outputs',
                 default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostInGroup && feature.selectiveTransliteration.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && feature.selectiveTransliteration.mergeOutputFiles === true"
             }
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'tokenizeOutput', 'kanjiFrequencyThreshold', 'mergeOutputFiles', 'mergingFormat'],
@@ -349,20 +349,20 @@ export const features: FeatureDefinition[] = [
                 type: 'romanizationDropdown',
                 label: 'Romanization Style',
                 default: '',
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             provider: {
                 type: 'provider',
                 label: 'Provider',
                 default: '',
-                showCondition: "context.isTopmostInGroup && context.romanizationSchemes.length > 0"
+                showCondition: "context.isTopmostForOption && context.romanizationSchemes.length > 0"
             },
             dockerRecreate: {
                 type: 'boolean',
                 label: 'Recreate Docker containers',
                 default: false,
                 hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.isTopmostInGroup && context.needsDocker"
+                showCondition: "context.isTopmostForOption && context.needsDocker"
             },
             browserAccessURL: {
                 type: 'string',
@@ -370,21 +370,21 @@ export const features: FeatureDefinition[] = [
                 default: '',
                 hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.isTopmostInGroup && context.needsScraper"
+                showCondition: "context.isTopmostForOption && context.needsScraper"
             },
             mergeOutputFiles: {
                 type: 'boolean',
                 label: 'Merge all processed outputs',
                 default: false,
                 hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostInGroup"
+                showCondition: "context.isTopmostForOption"
             },
             mergingFormat: {
                 type: 'dropdown',
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostInGroup && feature.subtitleTokenization.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && feature.subtitleTokenization.mergeOutputFiles === true"
             }
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'mergeOutputFiles', 'mergingFormat'],
