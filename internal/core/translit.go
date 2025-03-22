@@ -64,7 +64,7 @@ type TranslitProvider interface {
 	GetSelectiveTranslit(ctx context.Context, threshold int) (string, error)
 	PostProcess(text string) string
 	ProviderName() string
-	Close(ctx context.Context) error
+	Close(ctx context.Context, langCode, RomanizationStyle string) error
 }
 
 
@@ -408,7 +408,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	}
 	
 	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s shuting down provider, please wait...", provider.ProviderName())
-	if err := provider.Close(ctx); err != nil {
+	if err := provider.Close(ctx, langCode, tsk.RomanizationStyle); err != nil {
 		if errors.Is(err, context.Canceled) {
 			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: close: operation canceled by user")
 		} else if errors.Is(err, context.DeadlineExceeded) {
@@ -529,8 +529,21 @@ func (p *GenericProvider) ProviderName() string {
 }
 
 
-
-func (p *GenericProvider) Close(ctx context.Context) error {
+func (p *GenericProvider) Close(ctx context.Context, languageCode, RomanizationStyle string) error {
+	schemes, err := common.GetSchemes(languageCode)
+	if err != nil {
+		if err == common.ErrNoSchemesRegistered {
+			return fmt.Errorf("translit: close: no schemes for %s: %w", languageCode, err)
+		} else {
+			return fmt.Errorf("translit: close couldn't schemes for %s: %w", languageCode, err)
+		}
+	}
+	for _, scheme := range schemes {
+		if RomanizationStyle == scheme.Name && scheme.NeedsScraper {
+			color.Redln("not closing instance for %s provider since it's a user-started browser", languageCode)
+			return nil
+		}
+	}
 	return p.module.CloseWithContext(ctx)
 }
 
@@ -691,7 +704,7 @@ func (p *JapaneseProvider) ProviderName() string {
 }
 
 
-func (p *JapaneseProvider) Close(ctx context.Context) error {
+func (p *JapaneseProvider) Close(ctx context.Context, _, _ string) error {
 	return ichiran.Close()
 }
 
