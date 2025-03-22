@@ -24,7 +24,7 @@ export interface FeatureDefinition {
     requiresLanguage?: boolean;
     availableLanguages?: string[]; // Languages where this feature is available
     providerGroup?: string; // Used to group features sharing the same provider
-    outputMergeGroup?: string; // Used to group features that contribute to the final merged output
+    outputMergeGroup?: string; // Used to group features that contribute to the merged output
     showMergeBanner?: boolean; // Whether to show the merge banner for this feature
     dependentFeature?: string; // ID of the feature this feature depends on (e.g., dubtitles for subtitle processing)
     dependencyMessage?: string; // Message to display when a feature depends on another
@@ -142,11 +142,11 @@ export const features: FeatureDefinition[] = [
             }
         },
         requiresToken: ['whisper', 'insanely-fast-whisper', 'universal-1'],
-        outputMergeGroup: 'finalOutput',
+        outputMergeGroup: 'merge',
         showMergeBanner: true,
-        featureGroups: ['finalOutput'],
+        featureGroups: ['merge'],
         groupSharedOptions: {
-            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+            'merge': ['mergeOutputFiles', 'mergingFormat']
         }
     },
     {
@@ -195,11 +195,11 @@ export const features: FeatureDefinition[] = [
             }
         },
         requiresToken: ['demucs', 'spleeter'],
-        outputMergeGroup: 'finalOutput',
+        outputMergeGroup: 'merge',
         showMergeBanner: true,
-        featureGroups: ['finalOutput'],
+        featureGroups: ['merge'],
         groupSharedOptions: {
-            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+            'merge': ['mergeOutputFiles', 'mergingFormat']
         }
     },
     {
@@ -253,14 +253,14 @@ export const features: FeatureDefinition[] = [
         requiresDocker: true,
         requiresScraper: true,
         providerGroup: 'subtitle',
-        outputMergeGroup: 'finalOutput',
+        outputMergeGroup: 'merge',
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for romanization when both features are enabled",
-        featureGroups: ['subtitle', 'finalOutput'],
+        featureGroups: ['subtitle', 'merge'],
         groupSharedOptions: {
             'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+            'merge': ['mergeOutputFiles', 'mergingFormat']
         }
     },
     {
@@ -329,14 +329,14 @@ export const features: FeatureDefinition[] = [
         requiresLanguage: true,
         availableLanguages: ['jpn'],
         providerGroup: 'subtitle',
-        outputMergeGroup: 'finalOutput',
+        outputMergeGroup: 'merge',
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for selective transliteration when both features are enabled",
-        featureGroups: ['subtitle', 'finalOutput'],
+        featureGroups: ['subtitle', 'merge'],
         groupSharedOptions: {
             'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+            'merge': ['mergeOutputFiles', 'mergingFormat']
         },
         requiresDocker: true,
         requiresScraper: true
@@ -392,14 +392,14 @@ export const features: FeatureDefinition[] = [
         requiresDocker: true,
         requiresScraper: true,
         providerGroup: 'subtitle',
-        outputMergeGroup: 'finalOutput',
+        outputMergeGroup: 'merge',
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for tokenization when both features are enabled",
-        featureGroups: ['subtitle', 'finalOutput'],
+        featureGroups: ['subtitle', 'merge'],
         groupSharedOptions: {
             'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+            'merge': ['mergeOutputFiles', 'mergingFormat']
         }
     }
 ];

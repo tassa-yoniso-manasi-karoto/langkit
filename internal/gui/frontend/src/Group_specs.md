@@ -166,8 +166,8 @@ Special handling is provided for the merge group:
 isTopmostInGroup(groupId: string, featureId: string): boolean {
     // ... basic checks
 
-    // Special case for finalOutput (merge) group
-    if (groupId === 'finalOutput') {
+    // Special case for merge group
+    if (groupId === 'merge') {
         // Use global canonical order for merge group
         const globalOrder = state.canonicalOrder || [];
         
@@ -222,8 +222,8 @@ function initializeFeatureGroups() {
     });
     
     // Register merge group and its options
-    featureGroupStore.registerOptionToGroup('finalOutput', 'mergeOutputFiles');
-    featureGroupStore.registerOptionToGroup('finalOutput', 'mergingFormat');
+    featureGroupStore.registerOptionToGroup('merge', 'mergeOutputFiles');
+    featureGroupStore.registerOptionToGroup('merge', 'mergingFormat');
 }
 ```
 
@@ -260,10 +260,10 @@ Features can belong to multiple groups:
 {
   id: 'subtitleRomanization',
   // ...
-  featureGroups: ['subtitle', 'finalOutput'],
+  featureGroups: ['subtitle', 'merge'],
   groupSharedOptions: {
     'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-    'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+    'merge': ['mergeOutputFiles', 'mergingFormat']
   }
 }
 ```

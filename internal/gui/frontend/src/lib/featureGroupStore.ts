@@ -407,8 +407,8 @@ function createFeatureGroupStore() {
             // Get all enabled features for this group
             const enabledFeatures = state.enabledFeatures[groupId] || [];
             
-            // Special case for finalOutput (merge) group
-            if (groupId === 'finalOutput') {
+            // Special case for merge group
+            if (groupId === 'merge') {
                 // For the merge group, we need to use the global canonical order
                 // to correctly identify the topmost feature across all features
                 // that belong to the merge group
@@ -419,7 +419,7 @@ function createFeatureGroupStore() {
                 
                 const isTopmost = topmostFeature === featureId;
                 
-                console.log(`isTopmostInGroup check for finalOutput group:`, {
+                console.log(`isTopmostInGroup check for merge group:`, {
                     featureId,
                     enabledFeatures,
                     globalOrder,

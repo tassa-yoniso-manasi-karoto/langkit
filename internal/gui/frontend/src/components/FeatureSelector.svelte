@@ -747,13 +747,13 @@
             }
             
             // Ensure appropriate initialization for each feature
-            if (feature.featureGroups?.includes('finalOutput')) {
+            if (feature.featureGroups?.includes('merge')) {
                 // Ensure merge options are properly initialized for this group
-                const groupOptions = featureGroupStore.getGroupOptions('finalOutput');
+                const groupOptions = featureGroupStore.getGroupOptions('merge');
                 if (groupOptions) {
-                    // For each shared option in the finalOutput group
-                    if (feature.groupSharedOptions?.['finalOutput']) {
-                        feature.groupSharedOptions['finalOutput'].forEach(optionId => {
+                    // For each shared option in the merge group
+                    if (feature.groupSharedOptions?.['merge']) {
+                        feature.groupSharedOptions['merge'].forEach(optionId => {
                             // Initialize from group store if available
                             if (groupOptions[optionId] !== undefined) {
                                 currentFeatureOptions[feature.id][optionId] = groupOptions[optionId];
@@ -828,32 +828,32 @@
             }
             
             // Handle merge features
-            const isMergeFeature = feature.outputMergeGroup === 'finalOutput';
+            const isMergeFeature = feature.outputMergeGroup === 'merge';
             if (isMergeFeature) {
-                console.log(`Adding ${feature.id} to finalOutput merge group`);
+                console.log(`Adding ${feature.id} to merge group`);
                 
                 // Mark for group membership
                 if (!feature.featureGroups) {
-                    feature.featureGroups = ['finalOutput'];
-                } else if (!feature.featureGroups.includes('finalOutput')) {
-                    feature.featureGroups.push('finalOutput');
+                    feature.featureGroups = ['merge'];
+                } else if (!feature.featureGroups.includes('merge')) {
+                    feature.featureGroups.push('merge');
                 }
                 
                 // Make sure groupSharedOptions are defined
                 if (!feature.groupSharedOptions) {
                     feature.groupSharedOptions = {
-                        'finalOutput': ['mergeOutputFiles', 'mergingFormat']
+                        'merge': ['mergeOutputFiles', 'mergingFormat']
                     };
-                } else if (!feature.groupSharedOptions['finalOutput']) {
-                    feature.groupSharedOptions['finalOutput'] = ['mergeOutputFiles', 'mergingFormat'];
+                } else if (!feature.groupSharedOptions['merge']) {
+                    feature.groupSharedOptions['merge'] = ['mergeOutputFiles', 'mergingFormat'];
                 }
                 
                 // Register each feature in the group store individually
-                featureGroupStore.addFeatureToGroup('finalOutput', feature.id);
+                featureGroupStore.addFeatureToGroup('merge', feature.id);
                 
-                // Register merge options with the finalOutput group - crucial for proper handling
-                featureGroupStore.registerOptionToGroup('finalOutput', 'mergeOutputFiles');
-                featureGroupStore.registerOptionToGroup('finalOutput', 'mergingFormat');
+                // Register merge options with the merge group - crucial for proper handling
+                featureGroupStore.registerOptionToGroup('merge', 'mergeOutputFiles');
+                featureGroupStore.registerOptionToGroup('merge', 'mergingFormat');
                 
                 // Initialize feature options if not already set
                 if (!currentFeatureOptions[feature.id]) {
@@ -889,9 +889,9 @@
         
         // Define the merge output group
         const mergeGroup: FeatureGroup = {
-            id: 'finalOutput',
+            id: 'merge',
             label: 'Output Merging',
-            description: 'Features that can be merged into final output',
+            description: 'Features that can be merged into output',
             featureIds: [
                 'dubtitles', 
                 'voiceEnhancing', 
@@ -969,12 +969,12 @@
             });
         });
         
-        // Initialize finalOutput group options with defaults
-        featureGroupStore.setGroupOption('finalOutput', 'mergeOutputFiles', false);
-        featureGroupStore.setGroupOption('finalOutput', 'mergingFormat', 'mp4');
+        // Initialize merge group options with defaults
+        featureGroupStore.setGroupOption('merge', 'mergeOutputFiles', false);
+        featureGroupStore.setGroupOption('merge', 'mergingFormat', 'mp4');
         
-        // Sync the group options to features in the finalOutput group
-        currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('finalOutput', currentFeatureOptions);
+        // Sync the group options to features in the merge group
+        currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('merge', currentFeatureOptions);
     }
 
     // Function to register the display order of features in the UI

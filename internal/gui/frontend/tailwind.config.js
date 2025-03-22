@@ -143,7 +143,7 @@ export default {
         
         // Feature group colors
         'group-subtitle': 'hsl(210, 90%, 60%)',  // Blue for subtitle group
-        'group-finalOutput': 'hsl(130, 90%, 50%)'  // Green for merge/output group
+        'group-merge': 'hsl(130, 90%, 50%)'  // Green for merge/output group
       },
       fontFamily: {
         sans: ['"DM Sans"', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],

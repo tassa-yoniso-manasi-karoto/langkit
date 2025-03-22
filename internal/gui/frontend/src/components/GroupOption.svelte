@@ -214,13 +214,13 @@
             {#if showGroupIndicator}
                 {@const groupMessage = groupId === 'subtitle' 
                     ? "This option is shared across subtitle features" 
-                    : groupId === 'finalOutput' 
+                    : groupId === 'merge' 
                         ? "This option is shared across output merge features"
                         : `This option is shared across ${groupId} features`}
                 {@const iconColorClass = groupId === 'subtitle' 
                     ? "text-group-subtitle" 
-                    : groupId === 'finalOutput' 
-                        ? "text-group-finalOutput"
+                    : groupId === 'merge' 
+                        ? "text-group-merge"
                         : "text-blue-400"}
                 <Hovertip message={groupMessage}>
                     <span slot="trigger" class="cursor-help">
@@ -374,7 +374,7 @@
         border-left-color: rgba(65, 145, 250, 0.3);
     }
     
-    :global(.group-option[data-group-id='finalOutput']) {
+    :global(.group-option[data-group-id='merge']) {
         border-left-color: rgba(0, 230, 100, 0.3);
     }
     
