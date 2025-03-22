@@ -90,14 +90,17 @@ func (p *ElevenLabsProvider) SeparateVoice(ctx context.Context, audioFile, _ str
 		return nil, fmt.Errorf("Invalid Elevenlabs API key format")
 	}
 
-	// Create a new client with a timeout
-	client := elevenlabs.NewClient(ctx, APIKey, time.Duration(timeout)*time.Second)
-
 	// Build a generic retry policy for the API call
 	policy := buildRetryPolicy[[]byte](maxTry)
 
 	// Execute the API call with the retry policy
 	audio, err := failsafe.Get(func() ([]byte, error) {
+		// Create a fresh context for this attempt
+		attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+		
+		// Create a new client with the fresh context
+		client := elevenlabs.NewClient(attemptCtx, APIKey, time.Duration(timeout)*time.Second)
 		return client.VoiceIsolator(audioFile)
 	}, policy)
 	if err != nil {
@@ -445,9 +448,10 @@ func buildRetryPolicy[R any](maxTry int) failsafe.Policy[R] {
 		ReturnLastFailure().
 		// Example exponential backoff from 500 ms up to 5 s, doubling each time.
 		WithBackoffFactor(500*time.Millisecond, 5*time.Second, 2.0).
-		// Log each failed attempt.
+		// Log each failed attempt with more detailed error information.
 		OnRetry(func(evt failsafe.ExecutionEvent[R]) {
-			fmt.Fprintf(os.Stderr, "WARN: Attempt %d failed; retrying...\n", evt.Attempts())
+			fmt.Fprintf(os.Stderr, "WARN: Attempt %d failed with error: %v; retrying...\n", 
+				evt.Attempts(), evt.LastError())
 		}).
 		Build()
 }
@@ -478,12 +482,22 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 		return "", fmt.Errorf("failed to create Replicate client: %w", err)
 	}
 
-	// Create a fresh context with timeout for this overall attempt.
-	ctx, cancel := context.WithTimeout(params.Ctx, time.Duration(params.Timeout)*time.Second)
-	defer cancel()
+	// Create a parent context for the whole operation - this shouldn't time out
+	// but will be inherited by each individual operation
+	parentCtx, parentCancel := context.WithCancel(params.Ctx)
+	defer parentCancel()
 
 	// First, retrieve model info.
-	model, err := r8.GetModel(ctx, params.Owner, params.Name)
+	var model *replicate.Model
+	modelPolicy := buildRetryPolicy[*replicate.Model](params.MaxTry)
+	model, err = failsafe.Get(func() (*replicate.Model, error) {
+		// Create a separate context for model retrieval
+		modelCtx, modelCancel := context.WithTimeout(parentCtx, time.Duration(params.Timeout)*time.Second)
+		defer modelCancel()
+		
+		return r8.GetModel(modelCtx, params.Owner, params.Name)
+	}, modelPolicy)
+	
 	if err != nil {
 		return "", fmt.Errorf("failed retrieving %s's information: %w", params.Name, err)
 	}
@@ -493,9 +507,15 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 	uploadPolicy := buildRetryPolicy[*replicate.File](params.MaxTry)
 
 	// Execute the upload with the retry policy.
-	uploadResult, err := failsafe.Get(func() (*replicate.File, error) {
-		return r8.CreateFileFromPath(ctx, params.Filepath, nil)
+	var uploadResult *replicate.File
+	uploadResult, err = failsafe.Get(func() (*replicate.File, error) {
+		// Create a fresh context for this upload attempt
+		uploadCtx, uploadCancel := context.WithTimeout(parentCtx, time.Duration(params.Timeout)*time.Second)
+		defer uploadCancel()
+		
+		return r8.CreateFileFromPath(uploadCtx, params.Filepath, nil)
 	}, uploadPolicy)
+	
 	if err != nil {
 		return "", fmt.Errorf("CreateFileFromPath failed for \"%s\": %w", params.Filepath, err)
 	}
@@ -505,14 +525,20 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 	predictionPolicy := buildRetryPolicy[replicate.PredictionOutput](params.MaxTry)
 
 	// Execute the prediction call within the retry policy.
-	predictionOutput, err := failsafe.Get(func() (replicate.PredictionOutput, error) {
+	var predictionOutput replicate.PredictionOutput
+	predictionOutput, err = failsafe.Get(func() (replicate.PredictionOutput, error) {
+		// Create a fresh context for this prediction attempt
+		predictionCtx, predictionCancel := context.WithTimeout(parentCtx, time.Duration(params.Timeout)*time.Second)
+		defer predictionCancel()
+		
 		// Build the input with the successfully uploaded file.
 		input := replicate.PredictionInput{
 			"audio": uploadResult,
 		}
 		input = params.InitRun(input)
-		return r8.Run(ctx, params.Owner+"/"+params.Name+":"+model.LatestVersion.ID, input, nil)
+		return r8.Run(predictionCtx, params.Owner+"/"+params.Name+":"+model.LatestVersion.ID, input, nil)
 	}, predictionPolicy)
+	
 	if err != nil {
 		// If it's a replicate.ModelError, print logs and modify the error message.
 		if me, ok := err.(*replicate.ModelError); ok {
@@ -541,11 +567,22 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 }
 
 // makeRequestWithRetry performs an HTTP GET using failsafe-go with the same style of retrypolicy.
-func makeRequestWithRetry(url string, maxTry int) (*http.Response, error) {
+func makeRequestWithRetry(url string, ctx context.Context, timeout, maxTry int) (*http.Response, error) {
 	// Use the same generic policy creation function, specialized for *http.Response.
 	policy := buildRetryPolicy[*http.Response](maxTry)
+	
 	return failsafe.Get(func() (*http.Response, error) {
-		return http.Get(url)
+		// Create a fresh context for each request attempt
+		reqCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+		
+		// Create a request with context
+		req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		
+		return http.DefaultClient.Do(req)
 	}, policy)
 }
 
@@ -559,7 +596,7 @@ func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
 	}
 
 	// 2. Download the result with repeated attempts.
-	resp, err := makeRequestWithRetry(URL, params.MaxTry)
+	resp, err := makeRequestWithRetry(URL, params.Ctx, params.Timeout, params.MaxTry)
 	if err != nil {
 		return nil, fmt.Errorf("Failed request on prediction output after %d attempts: %w", params.MaxTry, err)
 	}
@@ -572,15 +609,11 @@ func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
 	body, err := io.ReadAll(reader)
 	if err != nil {
 		pp.Println(err)
-		return nil, fmt.Errorf("Error reading body of the response")
+		return nil, fmt.Errorf("Error reading body of the response: %w", err)
 	}
 	fmt.Print("\n")
 	return body, nil
 }
-
-
-
-
 
 
 func spleeterDemucsParser (predictionOutput replicate.PredictionOutput) (string, error) {
