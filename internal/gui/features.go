@@ -56,6 +56,7 @@ func (a *App) SendProcessingRequest(req ProcessRequest) {
 	tsk.Handler.ZeroLog().Info().
 		Str("file", tsk.MediaSourceFile).
 		Int("mode", int(tsk.Mode)).
+		Bool("MergeOutputFiles", tsk.MergeOutputFiles).
 		Msg("Starting processing")
 
 	pp.Println(req)
@@ -104,22 +105,44 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 	}
 	
 	// Initialize feature groups mapping to track which features belong to which groups
-	featureGroups := map[string][]string{
-		"finalOutput": {"dubtitles", "voiceEnhancing", "subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
-		"subtitle": {"subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
-	}
+	// featureGroups := map[string][]string{
+	// 	"merge": {"dubtitles", "voiceEnhancing", "subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
+	// 	"subtitle": {"subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
+	// }
 	
-	// Check if any feature in the merge group is enabled
-	hasEnabledMergeFeature := false
-	for _, feature := range featureGroups["finalOutput"] {
-		if request.SelectedFeatures[feature] {
-			hasEnabledMergeFeature = true
-			break
+	// Check all enabled features for mergeOutputFiles=true
+	tsk.MergeOutputFiles = false
+	for feature, enabled := range request.SelectedFeatures {
+		if !enabled {
+			continue
+		}
+		
+		featureOpts, ok := request.Options.Options[feature]
+		if !ok {
+			continue
+		}
+		
+		if mergeOutput, ok := featureOpts["mergeOutputFiles"]; ok {
+			if shouldMerge, ok := mergeOutput.(bool); ok && shouldMerge {
+				tsk.MergeOutputFiles = true
+				
+				// Get the mergingFormat from this feature
+				if mergingFormat, ok := featureOpts["mergingFormat"]; ok {
+					if format, ok := mergingFormat.(string); ok {
+						tsk.MergingFormat = format
+						
+						tsk.Handler.ZeroLog().Debug().
+							Str("feature", feature).
+							Str("mergingFormat", format).
+							Msg("Enabling merge output files")
+					}
+				}
+				
+				// We found a feature with mergeOutputFiles=true, no need to check others
+				break
+			}
 		}
 	}
-	
-	// Only enable merge output if a feature in the merge group is enabled
-	tsk.MergeOutputFiles = hasEnabledMergeFeature
 	
 	// Initialize subtitle processing options
 	// We'll capture all transliteration-related features first
@@ -257,12 +280,6 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 		if limiter, ok := featureOpts["limiter"]; ok {
 			if limit, ok := limiter.(float64); ok {
 				tsk.Limiter = limit
-			}
-		}
-		
-		if mergingFormat, ok := featureOpts["mergingFormat"]; ok {
-			if format, ok := mergingFormat.(string); ok {
-				tsk.MergingFormat = format
 			}
 		}
 

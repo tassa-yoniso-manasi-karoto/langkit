@@ -182,7 +182,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		KanjiThreshold: -1,
 		
 		// Default output merging settings
-		MergeOutputFiles: true,
+		MergeOutputFiles: false,
 		MergingFormat: "mp4",
 		OutputFiles: []MediaOutputFile{},
 	}
