@@ -223,13 +223,30 @@
     function shouldShowOption(optionId: string, optionDef: any): boolean {
         if (!optionDef.showCondition) return true;
         
-        // Create a cache key based on the condition and current context values that affect it
-        // Determine if this is the topmost feature in any of its groups for cache key
-        let isTopmostInGroupForCache = false;
+        // Find which group this option belongs to (if any)
+        let optionGroup = null;
+        if (feature.groupSharedOptions) {
+            for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
+                if (options.includes(optionId)) {
+                    optionGroup = groupId;
+                    break;
+                }
+            }
+        }
+        
+        // Check if this feature is the topmost in the specific group for this option
+        let isTopmostForThisOption = false;
+        if (optionGroup && enabled) {
+            isTopmostForThisOption = featureGroupStore.isTopmostInGroup(optionGroup, feature.id);
+            console.log(`Option ${optionId} belongs to group ${optionGroup}, isTopmost: ${isTopmostForThisOption}`);
+        }
+        
+        // For backwards compatibility, also check topmost status in any group
+        let isTopmostInAnyGroup = false;
         if (feature.featureGroups && feature.featureGroups.length > 0 && enabled) {
             for (const groupId of feature.featureGroups) {
                 if (featureGroupStore.isTopmostInGroup(groupId, feature.id)) {
-                    isTopmostInGroupForCache = true;
+                    isTopmostInAnyGroup = true;
                     break;
                 }
             }
@@ -242,7 +259,7 @@
             optionValues: JSON.stringify(options),
             selectedFeatures: JSON.stringify(selectedFeatures),
             featureId: feature.id,
-            isTopmostInGroup: isTopmostInGroupForCache
+            isTopmostInGroup: optionGroup ? isTopmostForThisOption : isTopmostInAnyGroup
         };
         
         const contextHash = JSON.stringify(contextValues);
@@ -259,8 +276,6 @@
             return optionVisibilityCache.get(cacheKey);
         }
         
-        // Use the isTopmostInGroup value we already calculated for the cache key
-        
         // Context object for evaluating conditions
         const context = {
             standardTag,
@@ -268,7 +283,7 @@
             needsScraper,
             romanizationSchemes,
             selectedFeatures,
-            isTopmostInGroup: isTopmostInGroupForCache
+            isTopmostInGroup: optionGroup ? isTopmostForThisOption : isTopmostInAnyGroup
         };
         
         // Feature options reference for conditions 

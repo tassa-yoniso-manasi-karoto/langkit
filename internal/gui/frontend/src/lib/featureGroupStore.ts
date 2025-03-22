@@ -400,24 +400,46 @@ function createFeatureGroupStore() {
                 return false;
             }
             
-            // Get canonical order for this group
+            // Get all enabled features for this group
+            const enabledFeatures = state.enabledFeatures[groupId] || [];
+            
+            // Special case for finalOutput (merge) group
+            if (groupId === 'finalOutput') {
+                // For the merge group, we need to use the global canonical order
+                // to correctly identify the topmost feature across all features
+                // that belong to the merge group
+                const globalOrder = state.canonicalOrder || [];
+                
+                // Find the first enabled feature in the merge group according to global canonical order
+                const topmostFeature = globalOrder.find(id => enabledFeatures.includes(id));
+                
+                const isTopmost = topmostFeature === featureId;
+                
+                console.log(`isTopmostInGroup check for finalOutput group:`, {
+                    featureId,
+                    enabledFeatures,
+                    globalOrder,
+                    topmostFeature,
+                    isTopmost
+                });
+                
+                return isTopmost;
+            }
+            
+            // Standard handling for other groups (e.g., subtitle)
             const groupOrder = state.groupCanonicalOrder[groupId] || [];
             if (groupOrder.length === 0) {
                 console.warn(`No canonical order for group ${groupId}, falling back to feature definition order`);
                 
                 // Fallback to group feature order if no canonical order is available
                 const groupFeatures = state.groups[groupId]?.featureIds || [];
-                const enabledFeatures = state.enabledFeatures[groupId] || [];
                 
                 // Find the first enabled feature in group definition order
                 const topmostFeature = groupFeatures.find(id => enabledFeatures.includes(id));
                 return topmostFeature === featureId;
             }
             
-            // Get all enabled features
-            const enabledFeatures = state.enabledFeatures[groupId] || [];
-            
-            // Find the first enabled feature according to canonical order
+            // Find the first enabled feature according to this group's canonical order
             const topmostFeature = groupOrder.find(id => enabledFeatures.includes(id));
             
             // This feature is the topmost if it matches the first enabled feature in canonical order
