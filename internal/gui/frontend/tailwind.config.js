@@ -21,8 +21,8 @@ const errorTaskSaturation = '90%';
 const errorTaskLightness = '75%';
 
 const errorAllHue = 0; // Red hue for critical errors
-const errorAllSaturation = '85%';
-const errorAllLightness = '60%';
+const errorAllSaturation = '100%';
+const errorAllLightness = '45%';
 
 const userCancelHue = 220; // Blue-gray hue for cancellations
 const userCancelSaturation = '10%';
