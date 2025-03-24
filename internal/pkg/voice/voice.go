@@ -48,7 +48,7 @@ func NewElevenLabsSTTProvider() *ElevenLabsSTTProvider {
 
 // GetName returns the provider name
 func (p *ElevenLabsSTTProvider) GetName() string {
-	return "elevenlabs-scribe"
+	return "scribe"
 }
 
 // IsAvailable checks if the ElevenLabs API is available

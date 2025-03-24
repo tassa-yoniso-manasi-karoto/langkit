@@ -3,8 +3,10 @@ package voice
 import (
 	"context"
 	"fmt"
-	"sort"
 )
+
+// DefaultSpeechToTextRegistry is a global instance for convenience
+var DefaultSpeechToTextRegistry = NewSpeechToTextRegistry()
 
 // STTModelInfo contains information about a speech-to-text model
 type STTModelInfo struct {
@@ -19,6 +21,8 @@ type STTModelInfo struct {
 	
 	// ProviderName identifies which provider supplies this model
 	ProviderName string
+	
+	IsDepreciated, IsRecommended bool
 }
 
 // GetAvailableSTTModels returns a slice of all available speech-to-text models
@@ -27,40 +31,45 @@ func GetAvailableSTTModels() []STTModelInfo {
 	// Define all supported models with their metadata
 	allModels := []STTModelInfo{
 		{
-			Name:        "whisper",
-			DisplayName: "OpenAI Whisper",
-			Description: "High-accuracy speech recognition model with broad language support",
-			ProviderName: "replicate",
-		},
-		{
-			Name:        "incredibly-fast-whisper",
-			DisplayName: "Incredibly Fast Whisper",
-			Description: "Optimized version of Whisper with faster processing time",
-			ProviderName: "replicate",
-		},
-		{
-			Name:        "universal-1",
-			DisplayName: "Universal-1",
-			Description: "AssemblyAI's speech recognition model with strong performance across languages",
-			ProviderName: "assemblyai",
-		},
-		{
 			Name:        "gpt-4o-transcribe",
 			DisplayName: "GPT-4o Transcribe",
 			Description: "OpenAI's premium transcription model with high accuracy",
 			ProviderName: "openai",
+			IsRecommended: true,
 		},
 		{
 			Name:        "gpt-4o-mini-transcribe",
 			DisplayName: "GPT-4o Mini Transcribe",
 			Description: "Lightweight and cost-effective version of GPT-4o transcription",
 			ProviderName: "openai",
+			IsRecommended: true,
 		},
 		{
-			Name:        "elevenlabs-scribe",
-			DisplayName: "ElevenLabs Scribe",
+			Name:        "scribe",
+			DisplayName: "Scribe",
 			Description: "ElevenLabs' specialized speech-to-text model",
 			ProviderName: "elevenlabs",
+			IsRecommended: true,
+		},
+		{
+			Name:        "whisper",
+			DisplayName: "OpenAI Whisper V3 Large",
+			Description: "High-accuracy speech recognition model with broad language support",
+			ProviderName: "replicate",
+			IsDepreciated: true,
+		},
+		{
+			Name:        "incredibly-fast-whisper",
+			DisplayName: "Incredibly Fast Whisper",
+			Description: "Optimized version of Whisper with faster processing time",
+			ProviderName: "replicate",
+			IsDepreciated: true,
+		},
+		{
+			Name:        "universal-1",
+			DisplayName: "Universal-1",
+			Description: "AssemblyAI's speech recognition model with strong performance across languages",
+			ProviderName: "assemblyai",
 		},
 	}
 
@@ -72,11 +81,6 @@ func GetAvailableSTTModels() []STTModelInfo {
 			availableModels = append(availableModels, model)
 		}
 	}
-
-	// Sort models by name for consistency
-	sort.Slice(availableModels, func(i, j int) bool {
-		return availableModels[i].Name < availableModels[j].Name
-	})
 
 	return availableModels
 }
@@ -153,6 +157,3 @@ func (r *SpeechToTextRegistry) Transcribe(ctx context.Context, modelName, audioF
 	
 	return provider.TranscribeAudio(ctx, audioFile, language, initialPrompt, maxTry, timeout)
 }
-
-// DefaultSpeechToTextRegistry is a global instance for convenience
-var DefaultSpeechToTextRegistry = NewSpeechToTextRegistry()

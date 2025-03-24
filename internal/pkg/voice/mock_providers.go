@@ -191,7 +191,7 @@ type MockElevenLabsSTTProvider struct {
 // NewMockElevenLabsSTTProvider creates a new mock ElevenLabs STT provider
 func NewMockElevenLabsSTTProvider() *MockElevenLabsSTTProvider {
 	return &MockElevenLabsSTTProvider{
-		MockProvider: NewMockProvider("elevenlabs-scribe-mock"),
+		MockProvider: NewMockProvider("scribe-mock"),
 	}
 }
 
@@ -202,7 +202,7 @@ func (p *MockElevenLabsSTTProvider) IsAvailable() bool {
 
 // GetName returns the provider name
 func (p *MockElevenLabsSTTProvider) GetName() string {
-	return "elevenlabs-scribe-mock"
+	return "scribe-mock"
 }
 
 // TranscribeAudio mocks the transcription process

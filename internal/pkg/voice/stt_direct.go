@@ -47,7 +47,7 @@ func GPT4oMiniTranscribe(ctx context.Context, filepath string, maxTry, timeout i
 }
 
 func ElevenLabsScribe(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
-	provider, err := GetSpeechToTextProvider("elevenlabs-scribe")
+	provider, err := GetSpeechToTextProvider("scribe")
 	if err != nil {
 		return "", err
 	}

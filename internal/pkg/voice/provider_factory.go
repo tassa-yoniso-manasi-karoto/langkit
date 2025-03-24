@@ -72,7 +72,7 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
 			provider = NewMockOpenAIProvider("gpt-4o-transcribe")
 		case "gpt-4o-mini-transcribe":
 			provider = NewMockOpenAIProvider("gpt-4o-mini-transcribe")
-		case "elevenlabs-scribe":
+		case "scribe":
 			provider = NewMockElevenLabsSTTProvider()
 		default:
 			// For all other providers, use the generic mock
@@ -95,7 +95,7 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
 			provider = NewOpenAIProvider("gpt-4o-transcribe")
 		case "gpt-4o-mini-transcribe":
 			provider = NewOpenAIProvider("gpt-4o-mini-transcribe")
-		case "elevenlabs-scribe":
+		case "scribe":
 			provider = NewElevenLabsSTTProvider()
 		default:
 			return nil, fmt.Errorf("unknown speech-to-text provider: %s", name)
@@ -125,7 +125,7 @@ func (f *ProviderFactory) GetSpeechToTextProviderWithAliases(name string) (Speec
 	case "4o-mini":
 		normalizedName = "gpt-4o-mini-transcribe"
 	case "11", "el":
-		normalizedName = "elevenlabs-scribe"
+		normalizedName = "scribe"
 	}
 	
 	return f.GetSpeechToTextProvider(normalizedName)
