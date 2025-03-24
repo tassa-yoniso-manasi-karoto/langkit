@@ -53,13 +53,18 @@ func NewProviderFactory() *ProviderFactory {
 func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProvider, error) {
 	// Return mock provider if mocks are enabled
 	if f.UseMocks {
-		// For "whisper" provider in mock mode, use our specific mock whisper provider
-		if strings.ToLower(name) == "whisper" {
+		// For specific providers in mock mode, use specialized mocks
+		switch strings.ToLower(name) {
+		case "whisper":
 			return NewMockWhisperProvider(), nil
+		case "gpt-4o-transcribe":
+			return NewMockOpenAIProvider("gpt-4o-transcribe"), nil
+		case "gpt-4o-mini-transcribe":
+			return NewMockOpenAIProvider("gpt-4o-mini-transcribe"), nil
+		default:
+			// For all other providers, use the generic mock
+			return GetMockSpeechToTextProvider(f.MockSTTName), nil
 		}
-		
-		// For all other providers, use the generic mock
-		return GetMockSpeechToTextProvider(f.MockSTTName), nil
 	}
 	
 	// Return real provider based on name
@@ -70,6 +75,10 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
 		return NewFastWhisperProvider(), nil
 	case "universal-1":
 		return &AssemblyAIProvider{}, nil
+	case "gpt-4o-transcribe":
+		return NewOpenAIProvider("gpt-4o-transcribe"), nil
+	case "gpt-4o-mini-transcribe":
+		return NewOpenAIProvider("gpt-4o-mini-transcribe"), nil
 	default:
 		return nil, fmt.Errorf("unknown speech-to-text provider: %s", name)
 	}

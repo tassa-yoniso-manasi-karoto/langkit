@@ -142,6 +142,47 @@ Mock whisper transcription line 2 [test framework]
 	return "Mock transcription successful", nil
 }
 
+// Mock OpenAI GPT-4o provider for tests
+type MockOpenAIProvider struct {
+	*MockProvider
+	ModelName string
+}
+
+// NewMockOpenAIProvider creates a new mock OpenAI provider
+func NewMockOpenAIProvider(modelName string) *MockOpenAIProvider {
+	return &MockOpenAIProvider{
+		MockProvider: NewMockProvider("openai-" + modelName + "-mock"),
+		ModelName:    modelName,
+	}
+}
+
+// IsAvailable always returns true for the mock provider
+func (p *MockOpenAIProvider) IsAvailable() bool {
+	return true
+}
+
+// GetName returns the provider name
+func (p *MockOpenAIProvider) GetName() string {
+	return "openai-" + p.ModelName + "-mock"
+}
+
+// TranscribeAudio mocks the transcription process
+func (p *MockOpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
+	// Record the call
+	p.MockProvider.TranscribeAudio(ctx, audioFile, language, initialPrompt, maxTry, timeout)
+	
+	// Create a model-specific mock response
+	modelPrefix := "GPT-4o"
+	if p.ModelName == "gpt-4o-mini-transcribe" {
+		modelPrefix = "GPT-4o Mini"
+	}
+	
+	return fmt.Sprintf("[Mock %s transcription of %s in %s]", 
+		modelPrefix, 
+		filepath.Base(audioFile), 
+		language), nil
+}
+
 // SeparateVoice simulates separating voice from audio
 func (p *MockProvider) SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error) {
 	callID := fmt.Sprintf("SeparateVoice:%s:%s", audioFile, outputFormat)

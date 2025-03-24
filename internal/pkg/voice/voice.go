@@ -22,6 +22,9 @@ import (
 	aai "github.com/AssemblyAI/assemblyai-go-sdk"
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/retrypolicy"
+	openai "github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/packages/param"
 )
 
 // Provider interfaces for better testing and flexibility
@@ -50,13 +53,14 @@ type AudioSeparationProvider interface {
 
 var (
 	APIKeys = &sync.Map{}
-	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1"}
+	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"}
 )
 
 func init() {
 	APIKeys.Store("elevenlabs", "")
 	APIKeys.Store("assemblyai", "")
 	APIKeys.Store("replicate", "")
+	APIKeys.Store("openai", "")
 }
 
 
@@ -633,6 +637,122 @@ func whisperParser (predictionOutput replicate.PredictionOutput) (string, error)
 	return transcription, nil
 }
 
+
+// OpenAIProvider implements SpeechToTextProvider using OpenAI API
+type OpenAIProvider struct {
+	ModelName string // "gpt-4o-transcribe" or "gpt-4o-mini-transcribe"
+}
+
+// NewOpenAIProvider creates a new OpenAIProvider
+func NewOpenAIProvider(modelName string) *OpenAIProvider {
+	return &OpenAIProvider{
+		ModelName: modelName,
+	}
+}
+
+// GetName returns the provider name
+func (p *OpenAIProvider) GetName() string {
+	return "openai:" + p.ModelName
+}
+
+// IsAvailable checks if the OpenAI API is available
+func (p *OpenAIProvider) IsAvailable() bool {
+	apiKeyValue, found := APIKeys.Load("openai")
+	if !found {
+		return false
+	}
+	APIKey, ok := apiKeyValue.(string)
+	return ok && APIKey != ""
+}
+
+// TranscribeAudio converts audio to text using OpenAI GPT-4o models
+func (p *OpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
+	// Verify API key
+	apiKeyValue, found := APIKeys.Load("openai")
+	if !found {
+		return "", fmt.Errorf("No OpenAI API key was provided")
+	}
+	APIKey, ok := apiKeyValue.(string)
+	if !ok || APIKey == "" {
+		return "", fmt.Errorf("Invalid OpenAI API key format")
+	}
+
+	// Open the audio file
+	f, err := os.Open(audioFile)
+	if err != nil {
+		return "", fmt.Errorf("Couldn't open audio file: %w", err)
+	}
+	defer f.Close()
+
+	// Create OpenAI client with API key
+	client := openai.NewClient(option.WithAPIKey(APIKey))
+
+	// Determine which model to use
+	var model openai.AudioModel
+	switch p.ModelName {
+	case "gpt-4o-transcribe":
+		model = openai.AudioModelGPT4oTranscribe
+	case "gpt-4o-mini-transcribe":
+		model = openai.AudioModelGPT4oMiniTranscribe
+	default:
+		return "", fmt.Errorf("unsupported OpenAI model: %s", p.ModelName)
+	}
+
+	// Build a retry policy for transcription attempts
+	policy := buildRetryPolicy[*openai.Transcription](maxTry)
+
+	// Execute the transcription with the retry policy
+	transcription, err := failsafe.Get(func() (*openai.Transcription, error) {
+		// Create a new timeout context for this attempt
+		attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+
+		// Reset file pointer to the beginning for each attempt
+		if _, err := f.Seek(0, 0); err != nil {
+			return nil, err
+		}
+
+		// Setup transcription params
+		params := openai.AudioTranscriptionNewParams{
+			Model: model,
+			File:  f,
+			ResponseFormat: openai.AudioResponseFormatJSON,
+		}
+
+		// Add language if specified
+		if language != "" {
+			params.Language = param.NewOpt(language)
+		}
+
+		// Add prompt if specified
+		if initialPrompt != "" {
+			params.Prompt = param.NewOpt(initialPrompt)
+		}
+
+		// Attempt to transcribe the audio
+		return client.Audio.Transcriptions.New(attemptCtx, params)
+	}, policy)
+	if err != nil {
+		return "", fmt.Errorf("Failed %s prediction after %d attempts: %w", p.ModelName, maxTry, err)
+	}
+
+	// Return the transcription text
+	return transcription.Text, nil
+}
+
+// Default provider instances for backward compatibility
+var defaultGPT4oTranscribeProvider = NewOpenAIProvider("gpt-4o-transcribe")
+var defaultGPT4oMiniTranscribeProvider = NewOpenAIProvider("gpt-4o-mini-transcribe")
+
+// GPT4oTranscribe is for backward compatibility
+func GPT4oTranscribe(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
+	return defaultGPT4oTranscribeProvider.TranscribeAudio(ctx, filepath, lang, initialPrompt, maxTry, timeout)
+}
+
+// GPT4oMiniTranscribe is for backward compatibility
+func GPT4oMiniTranscribe(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
+	return defaultGPT4oMiniTranscribeProvider.TranscribeAudio(ctx, filepath, lang, initialPrompt, maxTry, timeout)
+}
 
 func placeholder5() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
