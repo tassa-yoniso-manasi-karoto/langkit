@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"sync"
 	"errors"
+	"mime/multipart"
+	"path/filepath"
+	"encoding/json"
 	
 	"github.com/tassa-yoniso-manasi-karoto/elevenlabs-go"
 	
@@ -53,7 +56,7 @@ type AudioSeparationProvider interface {
 
 var (
 	APIKeys = &sync.Map{}
-	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"}
+	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "elevenlabs-scribe"}
 )
 
 func init() {
@@ -120,6 +123,155 @@ var defaultElevenLabsProvider = &ElevenLabsProvider{}
 // It delegates to the default ElevenLabsProvider
 func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]byte, error) {
 	return defaultElevenLabsProvider.SeparateVoice(ctx, filePath, "", 3, timeout)
+}
+
+// ElevenLabsSTTProvider implements SpeechToTextProvider using ElevenLabs Scribe API
+type ElevenLabsSTTProvider struct{}
+
+// NewElevenLabsSTTProvider creates a new ElevenLabsSTTProvider
+func NewElevenLabsSTTProvider() *ElevenLabsSTTProvider {
+	return &ElevenLabsSTTProvider{}
+}
+
+// GetName returns the provider name
+func (p *ElevenLabsSTTProvider) GetName() string {
+	return "elevenlabs-scribe"
+}
+
+// IsAvailable checks if the ElevenLabs API is available
+func (p *ElevenLabsSTTProvider) IsAvailable() bool {
+	apiKeyValue, found := APIKeys.Load("elevenlabs")
+	if !found {
+		return false
+	}
+	APIKey, ok := apiKeyValue.(string)
+	return ok && APIKey != ""
+}
+
+// TranscribeAudio converts audio to text using ElevenLabs Scribe API
+func (p *ElevenLabsSTTProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
+	// Verify API key
+	apiKeyValue, found := APIKeys.Load("elevenlabs")
+	if !found {
+		return "", fmt.Errorf("No ElevenLabs API key was provided")
+	}
+	APIKey, ok := apiKeyValue.(string)
+	if !ok || APIKey == "" {
+		return "", fmt.Errorf("Invalid ElevenLabs API key format")
+	}
+
+	// Build a generic retry policy for the API call
+	policy := buildRetryPolicy[string](maxTry)
+
+	// Execute the API call with the retry policy
+	transcription, err := failsafe.Get(func() (string, error) {
+		// Create a fresh context for this attempt
+		attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+
+		// Prepare the file for upload
+		file, err := os.Open(audioFile)
+		if err != nil {
+			return "", fmt.Errorf("couldn't open audio file: %w", err)
+		}
+		defer file.Close()
+
+		// Create a pipe for streaming the file
+		pr, pw := io.Pipe()
+		writer := multipart.NewWriter(pw)
+
+		// Start a goroutine to write the file data to the pipe
+		go func() {
+			defer pw.Close()
+
+			// Add form fields
+			_ = writer.WriteField("model_id", "scribe_v1")
+
+			// Add language_code field if specified
+			if language != "" {
+				_ = writer.WriteField("language_code", language)
+			}
+
+			// Add other optional parameters with default values
+			_ = writer.WriteField("tag_audio_events", "true")
+			_ = writer.WriteField("timestamps_granularity", "word")
+			_ = writer.WriteField("diarize", "false")
+
+			// Add the file
+			part, err := writer.CreateFormFile("file", filepath.Base(audioFile))
+			if err != nil {
+				pw.CloseWithError(fmt.Errorf("error creating form file: %w", err))
+				return
+			}
+
+			// Copy the file data to the multipart form
+			_, err = io.Copy(part, file)
+			if err != nil {
+				pw.CloseWithError(fmt.Errorf("error copying file data: %w", err))
+				return
+			}
+
+			// Close the writer to finalize the form data
+			err = writer.Close()
+			if err != nil {
+				pw.CloseWithError(fmt.Errorf("error closing multipart writer: %w", err))
+				return
+			}
+		}()
+
+		// Create the request
+		req, err := http.NewRequestWithContext(attemptCtx, "POST", "https://api.elevenlabs.io/v1/speech-to-text", pr)
+		if err != nil {
+			return "", fmt.Errorf("error creating request: %w", err)
+		}
+
+		// Set headers
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("xi-api-key", APIKey)
+
+		// Execute the request
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("error sending request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		// Check for non-2xx status code
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			body, _ := io.ReadAll(resp.Body)
+			return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+		}
+
+		// Parse the response
+		var result struct {
+			Text          string  `json:"text"`
+			LanguageCode  string  `json:"language_code"`
+			LanguageProb  float64 `json:"language_probability"`
+			Words         []any   `json:"words"` // We only need the text, so don't parse the full structure
+		}
+
+		err = json.NewDecoder(resp.Body).Decode(&result)
+		if err != nil {
+			return "", fmt.Errorf("error decoding response: %w", err)
+		}
+
+		return result.Text, nil
+	}, policy)
+
+	if err != nil {
+		return "", fmt.Errorf("API query failed after retries: %w", err)
+	}
+
+	return transcription, nil
+}
+
+// Default provider instance for backward compatibility
+var defaultElevenLabsSTTProvider = NewElevenLabsSTTProvider()
+
+// ElevenLabsScribe is kept for backward compatibility
+func ElevenLabsScribe(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
+	return defaultElevenLabsSTTProvider.TranscribeAudio(ctx, filepath, lang, "", maxTry, timeout)
 }
 
 

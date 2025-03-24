@@ -61,6 +61,8 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
 			return NewMockOpenAIProvider("gpt-4o-transcribe"), nil
 		case "gpt-4o-mini-transcribe":
 			return NewMockOpenAIProvider("gpt-4o-mini-transcribe"), nil
+		case "elevenlabs-scribe":
+			return NewMockElevenLabsSTTProvider(), nil
 		default:
 			// For all other providers, use the generic mock
 			return GetMockSpeechToTextProvider(f.MockSTTName), nil
@@ -79,6 +81,8 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
 		return NewOpenAIProvider("gpt-4o-transcribe"), nil
 	case "gpt-4o-mini-transcribe":
 		return NewOpenAIProvider("gpt-4o-mini-transcribe"), nil
+	case "elevenlabs-scribe":
+		return NewElevenLabsSTTProvider(), nil
 	default:
 		return nil, fmt.Errorf("unknown speech-to-text provider: %s", name)
 	}

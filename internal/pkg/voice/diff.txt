@@ -1,48 +1,39 @@
 diff --git a/internal/pkg/voice/mock_providers.go b/internal/pkg/voice/mock_providers.go
-index d38cc72..ca2cbb1 100644
+index ca2cbb1..e3d3679 100644
 --- a/internal/pkg/voice/mock_providers.go
 +++ b/internal/pkg/voice/mock_providers.go
-@@ -142,6 +142,47 @@ Mock whisper transcription line 2 [test framework]
- 	return "Mock transcription successful", nil
+@@ -183,6 +183,38 @@ func (p *MockOpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, lan
+ 		language), nil
  }
  
-+// Mock OpenAI GPT-4o provider for tests
-+type MockOpenAIProvider struct {
++// Mock ElevenLabs STT provider for tests
++type MockElevenLabsSTTProvider struct {
 +	*MockProvider
-+	ModelName string
 +}
 +
-+// NewMockOpenAIProvider creates a new mock OpenAI provider
-+func NewMockOpenAIProvider(modelName string) *MockOpenAIProvider {
-+	return &MockOpenAIProvider{
-+		MockProvider: NewMockProvider("openai-" + modelName + "-mock"),
-+		ModelName:    modelName,
++// NewMockElevenLabsSTTProvider creates a new mock ElevenLabs STT provider
++func NewMockElevenLabsSTTProvider() *MockElevenLabsSTTProvider {
++	return &MockElevenLabsSTTProvider{
++		MockProvider: NewMockProvider("elevenlabs-scribe-mock"),
 +	}
 +}
 +
 +// IsAvailable always returns true for the mock provider
-+func (p *MockOpenAIProvider) IsAvailable() bool {
++func (p *MockElevenLabsSTTProvider) IsAvailable() bool {
 +	return true
 +}
 +
 +// GetName returns the provider name
-+func (p *MockOpenAIProvider) GetName() string {
-+	return "openai-" + p.ModelName + "-mock"
++func (p *MockElevenLabsSTTProvider) GetName() string {
++	return "elevenlabs-scribe-mock"
 +}
 +
 +// TranscribeAudio mocks the transcription process
-+func (p *MockOpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
++func (p *MockElevenLabsSTTProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
 +	// Record the call
 +	p.MockProvider.TranscribeAudio(ctx, audioFile, language, initialPrompt, maxTry, timeout)
 +	
-+	// Create a model-specific mock response
-+	modelPrefix := "GPT-4o"
-+	if p.ModelName == "gpt-4o-mini-transcribe" {
-+		modelPrefix = "GPT-4o Mini"
-+	}
-+	
-+	return fmt.Sprintf("[Mock %s transcription of %s in %s]", 
-+		modelPrefix, 
++	return fmt.Sprintf("[Mock ElevenLabs Scribe transcription of %s in %s]", 
 +		filepath.Base(audioFile), 
 +		language), nil
 +}
@@ -51,98 +42,70 @@ index d38cc72..ca2cbb1 100644
  func (p *MockProvider) SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error) {
  	callID := fmt.Sprintf("SeparateVoice:%s:%s", audioFile, outputFormat)
 diff --git a/internal/pkg/voice/provider_factory.go b/internal/pkg/voice/provider_factory.go
-index 558c3e0..f91e49d 100644
+index f91e49d..bedd811 100644
 --- a/internal/pkg/voice/provider_factory.go
 +++ b/internal/pkg/voice/provider_factory.go
-@@ -53,13 +53,18 @@ func NewProviderFactory() *ProviderFactory {
- func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProvider, error) {
- 	// Return mock provider if mocks are enabled
- 	if f.UseMocks {
--		// For "whisper" provider in mock mode, use our specific mock whisper provider
--		if strings.ToLower(name) == "whisper" {
-+		// For specific providers in mock mode, use specialized mocks
-+		switch strings.ToLower(name) {
-+		case "whisper":
- 			return NewMockWhisperProvider(), nil
-+		case "gpt-4o-transcribe":
-+			return NewMockOpenAIProvider("gpt-4o-transcribe"), nil
-+		case "gpt-4o-mini-transcribe":
-+			return NewMockOpenAIProvider("gpt-4o-mini-transcribe"), nil
-+		default:
-+			// For all other providers, use the generic mock
-+			return GetMockSpeechToTextProvider(f.MockSTTName), nil
- 		}
--		
--		// For all other providers, use the generic mock
--		return GetMockSpeechToTextProvider(f.MockSTTName), nil
- 	}
- 	
- 	// Return real provider based on name
-@@ -70,6 +75,10 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
- 		return NewFastWhisperProvider(), nil
- 	case "universal-1":
- 		return &AssemblyAIProvider{}, nil
-+	case "gpt-4o-transcribe":
-+		return NewOpenAIProvider("gpt-4o-transcribe"), nil
-+	case "gpt-4o-mini-transcribe":
-+		return NewOpenAIProvider("gpt-4o-mini-transcribe"), nil
+@@ -61,6 +61,8 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
+ 			return NewMockOpenAIProvider("gpt-4o-transcribe"), nil
+ 		case "gpt-4o-mini-transcribe":
+ 			return NewMockOpenAIProvider("gpt-4o-mini-transcribe"), nil
++		case "elevenlabs-scribe":
++			return NewMockElevenLabsSTTProvider(), nil
+ 		default:
+ 			// For all other providers, use the generic mock
+ 			return GetMockSpeechToTextProvider(f.MockSTTName), nil
+@@ -79,6 +81,8 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
+ 		return NewOpenAIProvider("gpt-4o-transcribe"), nil
+ 	case "gpt-4o-mini-transcribe":
+ 		return NewOpenAIProvider("gpt-4o-mini-transcribe"), nil
++	case "elevenlabs-scribe":
++		return NewElevenLabsSTTProvider(), nil
  	default:
  		return nil, fmt.Errorf("unknown speech-to-text provider: %s", name)
  	}
 diff --git a/internal/pkg/voice/voice.go b/internal/pkg/voice/voice.go
-index 6d5b564..d94bd67 100644
+index d94bd67..201d844 100644
 --- a/internal/pkg/voice/voice.go
 +++ b/internal/pkg/voice/voice.go
-@@ -22,6 +22,9 @@ import (
- 	aai "github.com/AssemblyAI/assemblyai-go-sdk"
- 	"github.com/failsafe-go/failsafe-go"
- 	"github.com/failsafe-go/failsafe-go/retrypolicy"
-+	openai "github.com/openai/openai-go"
-+	"github.com/openai/openai-go/option"
-+	"github.com/openai/openai-go/packages/param"
- )
- 
- // Provider interfaces for better testing and flexibility
-@@ -50,13 +53,14 @@ type AudioSeparationProvider interface {
+@@ -10,6 +10,9 @@ import (
+ 	"net/http"
+ 	"sync"
+ 	"errors"
++	"mime/multipart"
++	"path/filepath"
++	"encoding/json"
+ 	
+ 	"github.com/tassa-yoniso-manasi-karoto/elevenlabs-go"
+ 	
+@@ -53,7 +56,7 @@ type AudioSeparationProvider interface {
  
  var (
  	APIKeys = &sync.Map{}
--	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1"}
-+	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"}
+-	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"}
++	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "elevenlabs-scribe"}
  )
  
  func init() {
- 	APIKeys.Store("elevenlabs", "")
- 	APIKeys.Store("assemblyai", "")
- 	APIKeys.Store("replicate", "")
-+	APIKeys.Store("openai", "")
+@@ -122,6 +125,155 @@ func ElevenlabsIsolator(ctx context.Context, filePath string, timeout int) ([]by
+ 	return defaultElevenLabsProvider.SeparateVoice(ctx, filePath, "", 3, timeout)
  }
  
- 
-@@ -634,6 +638,122 @@ func whisperParser (predictionOutput replicate.PredictionOutput) (string, error)
- }
- 
- 
-+// OpenAIProvider implements SpeechToTextProvider using OpenAI API
-+type OpenAIProvider struct {
-+	ModelName string // "gpt-4o-transcribe" or "gpt-4o-mini-transcribe"
-+}
++// ElevenLabsSTTProvider implements SpeechToTextProvider using ElevenLabs Scribe API
++type ElevenLabsSTTProvider struct{}
 +
-+// NewOpenAIProvider creates a new OpenAIProvider
-+func NewOpenAIProvider(modelName string) *OpenAIProvider {
-+	return &OpenAIProvider{
-+		ModelName: modelName,
-+	}
++// NewElevenLabsSTTProvider creates a new ElevenLabsSTTProvider
++func NewElevenLabsSTTProvider() *ElevenLabsSTTProvider {
++	return &ElevenLabsSTTProvider{}
 +}
 +
 +// GetName returns the provider name
-+func (p *OpenAIProvider) GetName() string {
-+	return "openai:" + p.ModelName
++func (p *ElevenLabsSTTProvider) GetName() string {
++	return "elevenlabs-scribe"
 +}
 +
-+// IsAvailable checks if the OpenAI API is available
-+func (p *OpenAIProvider) IsAvailable() bool {
-+	apiKeyValue, found := APIKeys.Load("openai")
++// IsAvailable checks if the ElevenLabs API is available
++func (p *ElevenLabsSTTProvider) IsAvailable() bool {
++	apiKeyValue, found := APIKeys.Load("elevenlabs")
 +	if !found {
 +		return false
 +	}
@@ -150,95 +113,132 @@ index 6d5b564..d94bd67 100644
 +	return ok && APIKey != ""
 +}
 +
-+// TranscribeAudio converts audio to text using OpenAI GPT-4o models
-+func (p *OpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
++// TranscribeAudio converts audio to text using ElevenLabs Scribe API
++func (p *ElevenLabsSTTProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
 +	// Verify API key
-+	apiKeyValue, found := APIKeys.Load("openai")
++	apiKeyValue, found := APIKeys.Load("elevenlabs")
 +	if !found {
-+		return "", fmt.Errorf("No OpenAI API key was provided")
++		return "", fmt.Errorf("No ElevenLabs API key was provided")
 +	}
 +	APIKey, ok := apiKeyValue.(string)
 +	if !ok || APIKey == "" {
-+		return "", fmt.Errorf("Invalid OpenAI API key format")
++		return "", fmt.Errorf("Invalid ElevenLabs API key format")
 +	}
 +
-+	// Open the audio file
-+	f, err := os.Open(audioFile)
-+	if err != nil {
-+		return "", fmt.Errorf("Couldn't open audio file: %w", err)
-+	}
-+	defer f.Close()
++	// Build a generic retry policy for the API call
++	policy := buildRetryPolicy[string](maxTry)
 +
-+	// Create OpenAI client with API key
-+	client := openai.NewClient(option.WithAPIKey(APIKey))
-+
-+	// Determine which model to use
-+	var model openai.AudioModel
-+	switch p.ModelName {
-+	case "gpt-4o-transcribe":
-+		model = openai.AudioModelGPT4oTranscribe
-+	case "gpt-4o-mini-transcribe":
-+		model = openai.AudioModelGPT4oMiniTranscribe
-+	default:
-+		return "", fmt.Errorf("unsupported OpenAI model: %s", p.ModelName)
-+	}
-+
-+	// Build a retry policy for transcription attempts
-+	policy := buildRetryPolicy[*openai.Transcription](maxTry)
-+
-+	// Execute the transcription with the retry policy
-+	transcription, err := failsafe.Get(func() (*openai.Transcription, error) {
-+		// Create a new timeout context for this attempt
++	// Execute the API call with the retry policy
++	transcription, err := failsafe.Get(func() (string, error) {
++		// Create a fresh context for this attempt
 +		attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 +		defer cancel()
 +
-+		// Reset file pointer to the beginning for each attempt
-+		if _, err := f.Seek(0, 0); err != nil {
-+			return nil, err
++		// Prepare the file for upload
++		file, err := os.Open(audioFile)
++		if err != nil {
++			return "", fmt.Errorf("couldn't open audio file: %w", err)
++		}
++		defer file.Close()
++
++		// Create a pipe for streaming the file
++		pr, pw := io.Pipe()
++		writer := multipart.NewWriter(pw)
++
++		// Start a goroutine to write the file data to the pipe
++		go func() {
++			defer pw.Close()
++
++			// Add form fields
++			_ = writer.WriteField("model_id", "scribe_v1")
++
++			// Add language_code field if specified
++			if language != "" {
++				_ = writer.WriteField("language_code", language)
++			}
++
++			// Add other optional parameters with default values
++			_ = writer.WriteField("tag_audio_events", "true")
++			_ = writer.WriteField("timestamps_granularity", "word")
++			_ = writer.WriteField("diarize", "false")
++
++			// Add the file
++			part, err := writer.CreateFormFile("file", filepath.Base(audioFile))
++			if err != nil {
++				pw.CloseWithError(fmt.Errorf("error creating form file: %w", err))
++				return
++			}
++
++			// Copy the file data to the multipart form
++			_, err = io.Copy(part, file)
++			if err != nil {
++				pw.CloseWithError(fmt.Errorf("error copying file data: %w", err))
++				return
++			}
++
++			// Close the writer to finalize the form data
++			err = writer.Close()
++			if err != nil {
++				pw.CloseWithError(fmt.Errorf("error closing multipart writer: %w", err))
++				return
++			}
++		}()
++
++		// Create the request
++		req, err := http.NewRequestWithContext(attemptCtx, "POST", "https://api.elevenlabs.io/v1/speech-to-text", pr)
++		if err != nil {
++			return "", fmt.Errorf("error creating request: %w", err)
 +		}
 +
-+		// Setup transcription params
-+		params := openai.AudioTranscriptionNewParams{
-+			Model: model,
-+			File:  f,
-+			ResponseFormat: openai.AudioResponseFormatJSON,
++		// Set headers
++		req.Header.Set("Content-Type", writer.FormDataContentType())
++		req.Header.Set("xi-api-key", APIKey)
++
++		// Execute the request
++		client := &http.Client{}
++		resp, err := client.Do(req)
++		if err != nil {
++			return "", fmt.Errorf("error sending request: %w", err)
++		}
++		defer resp.Body.Close()
++
++		// Check for non-2xx status code
++		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
++			body, _ := io.ReadAll(resp.Body)
++			return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
 +		}
 +
-+		// Add language if specified
-+		if language != "" {
-+			params.Language = param.NewOpt(language)
++		// Parse the response
++		var result struct {
++			Text          string  `json:"text"`
++			LanguageCode  string  `json:"language_code"`
++			LanguageProb  float64 `json:"language_probability"`
++			Words         []any   `json:"words"` // We only need the text, so don't parse the full structure
 +		}
 +
-+		// Add prompt if specified
-+		if initialPrompt != "" {
-+			params.Prompt = param.NewOpt(initialPrompt)
++		err = json.NewDecoder(resp.Body).Decode(&result)
++		if err != nil {
++			return "", fmt.Errorf("error decoding response: %w", err)
 +		}
 +
-+		// Attempt to transcribe the audio
-+		return client.Audio.Transcriptions.New(attemptCtx, params)
++		return result.Text, nil
 +	}, policy)
++
 +	if err != nil {
-+		return "", fmt.Errorf("Failed %s prediction after %d attempts: %w", p.ModelName, maxTry, err)
++		return "", fmt.Errorf("API query failed after retries: %w", err)
 +	}
 +
-+	// Return the transcription text
-+	return transcription.Text, nil
++	return transcription, nil
 +}
 +
-+// Default provider instances for backward compatibility
-+var defaultGPT4oTranscribeProvider = NewOpenAIProvider("gpt-4o-transcribe")
-+var defaultGPT4oMiniTranscribeProvider = NewOpenAIProvider("gpt-4o-mini-transcribe")
++// Default provider instance for backward compatibility
++var defaultElevenLabsSTTProvider = NewElevenLabsSTTProvider()
 +
-+// GPT4oTranscribe is for backward compatibility
-+func GPT4oTranscribe(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
-+	return defaultGPT4oTranscribeProvider.TranscribeAudio(ctx, filepath, lang, initialPrompt, maxTry, timeout)
++// ElevenLabsScribe is kept for backward compatibility
++func ElevenLabsScribe(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
++	return defaultElevenLabsSTTProvider.TranscribeAudio(ctx, filepath, lang, "", maxTry, timeout)
 +}
 +
-+// GPT4oMiniTranscribe is for backward compatibility
-+func GPT4oMiniTranscribe(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
-+	return defaultGPT4oMiniTranscribeProvider.TranscribeAudio(ctx, filepath, lang, initialPrompt, maxTry, timeout)
-+}
-+
- func placeholder5() {
- 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
- 	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+ 
+ 
+ // AssemblyAIProvider implements SpeechToTextProvider using the AssemblyAI API

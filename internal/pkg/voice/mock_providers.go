@@ -183,6 +183,38 @@ func (p *MockOpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, lan
 		language), nil
 }
 
+// Mock ElevenLabs STT provider for tests
+type MockElevenLabsSTTProvider struct {
+	*MockProvider
+}
+
+// NewMockElevenLabsSTTProvider creates a new mock ElevenLabs STT provider
+func NewMockElevenLabsSTTProvider() *MockElevenLabsSTTProvider {
+	return &MockElevenLabsSTTProvider{
+		MockProvider: NewMockProvider("elevenlabs-scribe-mock"),
+	}
+}
+
+// IsAvailable always returns true for the mock provider
+func (p *MockElevenLabsSTTProvider) IsAvailable() bool {
+	return true
+}
+
+// GetName returns the provider name
+func (p *MockElevenLabsSTTProvider) GetName() string {
+	return "elevenlabs-scribe-mock"
+}
+
+// TranscribeAudio mocks the transcription process
+func (p *MockElevenLabsSTTProvider) TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error) {
+	// Record the call
+	p.MockProvider.TranscribeAudio(ctx, audioFile, language, initialPrompt, maxTry, timeout)
+	
+	return fmt.Sprintf("[Mock ElevenLabs Scribe transcription of %s in %s]", 
+		filepath.Base(audioFile), 
+		language), nil
+}
+
 // SeparateVoice simulates separating voice from audio
 func (p *MockProvider) SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error) {
 	callID := fmt.Sprintf("SeparateVoice:%s:%s", audioFile, outputFormat)
