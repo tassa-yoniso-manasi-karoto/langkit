@@ -19,8 +19,6 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	//"github.com/rivo/uniseg"
-	//"github.com/sergi/go-diff/diffmatchpatch"
 	replicate "github.com/replicate/replicate-go"
 	aai "github.com/AssemblyAI/assemblyai-go-sdk"
 	"github.com/failsafe-go/failsafe-go"
@@ -30,33 +28,8 @@ import (
 	"github.com/openai/openai-go/packages/param"
 )
 
-// Provider interfaces for better testing and flexibility
-
-// AIServiceProvider is a common interface for all external AI service providers
-type AIServiceProvider interface {
-	// GetName returns the name of the provider
-	GetName() string
-	// IsAvailable checks if the provider is available with valid API keys
-	IsAvailable() bool
-}
-
-// SpeechToTextProvider provides speech-to-text functionality
-type SpeechToTextProvider interface {
-	AIServiceProvider
-	// TranscribeAudio converts audio to text
-	TranscribeAudio(ctx context.Context, audioFile, language, initialPrompt string, maxTry, timeout int) (string, error)
-}
-
-// AudioSeparationProvider provides audio separation functionality
-type AudioSeparationProvider interface {
-	AIServiceProvider
-	// SeparateVoice extracts voice from a mixed audio file
-	SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error)
-}
-
 var (
 	APIKeys = &sync.Map{}
-	STTModels = []string{"whisper", "incredibly-fast-whisper", "universal-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "elevenlabs-scribe"}
 )
 
 func init() {
@@ -65,7 +38,6 @@ func init() {
 	APIKeys.Store("replicate", "")
 	APIKeys.Store("openai", "")
 }
-
 
 // ElevenLabsProvider implements AudioSeparationProvider using the ElevenLabs API
 type ElevenLabsProvider struct {}
@@ -273,7 +245,6 @@ var defaultElevenLabsSTTProvider = NewElevenLabsSTTProvider()
 func ElevenLabsScribe(ctx context.Context, filepath string, maxTry, timeout int, lang string) (string, error) {
 	return defaultElevenLabsSTTProvider.TranscribeAudio(ctx, filepath, lang, "", maxTry, timeout)
 }
-
 
 
 // AssemblyAIProvider implements SpeechToTextProvider using the AssemblyAI API
@@ -586,31 +557,6 @@ type r8RunParams struct {
 	Parser   parserT
 }
 
-// buildRetryPolicy is a single function that builds a generic retry policy for any type R.
-//
-// Make retries ignore all errors unless we have hit the max attempts, in which case
-// the last error is returned. The only early abort condition is context.Canceled.
-func buildRetryPolicy[R any](maxTry int) failsafe.Policy[R] {
-	return retrypolicy.Builder[R]().
-		// Handle any error for retry, except context.Canceled which we abort on.
-		HandleIf(func(_ R, err error) bool {
-			return err != nil && !errors.Is(err, context.Canceled)
-		}).
-		// Abort if context was canceled.
-		AbortOnErrors(context.Canceled).
-		// Retry up to maxTry attempts before returning last error.
-		WithMaxAttempts(maxTry).
-		// Return the last error upon exceeding attempts (instead of a special ExceededError).
-		ReturnLastFailure().
-		// Example exponential backoff from 500 ms up to 5 s, doubling each time.
-		WithBackoffFactor(500*time.Millisecond, 5*time.Second, 2.0).
-		// Log each failed attempt with more detailed error information.
-		OnRetry(func(evt failsafe.ExecutionEvent[R]) {
-			fmt.Fprintf(os.Stderr, "WARN: Attempt %d failed with error: %v; retrying...\n", 
-				evt.Attempts(), evt.LastError())
-		}).
-		Build()
-}
 
 // r8RunWithAudioFile runs a Replicate model with file input and returns the parsed result.
 //
@@ -904,6 +850,33 @@ func GPT4oTranscribe(ctx context.Context, filepath string, maxTry, timeout int, 
 // GPT4oMiniTranscribe is for backward compatibility
 func GPT4oMiniTranscribe(ctx context.Context, filepath string, maxTry, timeout int, lang, initialPrompt string) (string, error) {
 	return defaultGPT4oMiniTranscribeProvider.TranscribeAudio(ctx, filepath, lang, initialPrompt, maxTry, timeout)
+}
+
+
+// buildRetryPolicy is a single function that builds a generic retry policy for any type R.
+//
+// Make retries ignore all errors unless we have hit the max attempts, in which case
+// the last error is returned. The only early abort condition is context.Canceled.
+func buildRetryPolicy[R any](maxTry int) failsafe.Policy[R] {
+	return retrypolicy.Builder[R]().
+		// Handle any error for retry, except context.Canceled which we abort on.
+		HandleIf(func(_ R, err error) bool {
+			return err != nil && !errors.Is(err, context.Canceled)
+		}).
+		// Abort if context was canceled.
+		AbortOnErrors(context.Canceled).
+		// Retry up to maxTry attempts before returning last error.
+		WithMaxAttempts(maxTry).
+		// Return the last error upon exceeding attempts (instead of a special ExceededError).
+		ReturnLastFailure().
+		// Example exponential backoff from 500 ms up to 5 s, doubling each time.
+		WithBackoffFactor(500*time.Millisecond, 5*time.Second, 2.0).
+		// Log each failed attempt with more detailed error information.
+		OnRetry(func(evt failsafe.ExecutionEvent[R]) {
+			fmt.Fprintf(os.Stderr, "WARN: Attempt %d failed with error: %v; retrying...\n", 
+				evt.Attempts(), evt.LastError())
+		}).
+		Build()
 }
 
 func placeholder5() {

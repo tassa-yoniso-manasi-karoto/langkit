@@ -86,26 +86,32 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	item.Time = timePosition(foreignItem.StartAt)
 	item.Image = fmt.Sprintf("<img src=\"%s\">", path.Base(imageFile))
 	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
-	
+
 	if tsk.STT != "" {
 		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 			es.CurrentSTTOperation = tsk.STT
 			es.CurrentItemIndex = indexedSub.Index
 			es.CurrentItemTimecode = timePosition(foreignItem.StartAt)
 		}) // necessity: high
+		
 		tsk.Handler.ZeroLog().Trace().
-			Int("idx", indexedSub.Index). // FIXME discrepancies should be expected in closedcaptions trimmed to dubtitle
-			Msgf("Requesting %s prediction to remote API...", tsk.STT)
+			Int("idx", indexedSub.Index).
+			Msgf("Requesting %s transcription...", tsk.STT)
+		
+		// Get language info from media track
 		lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
-		dub := ""
-		switch tsk.STT {
-		case "whisper":
-			dub, err = voice.Whisper(childCtx, audiofile, tsk.MaxAPIRetries, tsk.TimeoutSTT, lang.Part1, tsk.InitialPrompt)
-		case "insanely-fast-whisper":
-			dub, err = voice.InsanelyFastWhisper(childCtx, audiofile, tsk.MaxAPIRetries, tsk.TimeoutSTT, lang.Part1)
-		case "universal-1":
-			dub, err = voice.Universal1(childCtx, audiofile, tsk.MaxAPIRetries, tsk.TimeoutSTT, lang.Part1)
-		}
+		
+		// Use the new transcription function that handles model selection
+		dub, err := voice.TranscribeAudioWithModel(
+			childCtx,
+			tsk.STT,
+			audiofile, 
+			lang.Part1, 
+			tsk.InitialPrompt,
+			tsk.MaxAPIRetries, 
+			tsk.TimeoutSTT,
+		)
+		
 		item.ForeignCurr = dub
 		if err != nil {
 			reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
@@ -114,15 +120,18 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 				es.FailedSubtitleIndex = indexedSub.Index
 				es.FailedSubtitleTimecode = timePosition(foreignItem.StartAt)
 			}) // necessity: critical
+			
 			if errors.Is(err, context.Canceled) {
 				return item, tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "STT: Processing canceled")
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				return item, tsk.Handler.LogErr(err, AbortTask, "STT: Operation timed out.")
 			}
-			return item, tsk.Handler.LogErrFields(err, AbortTask, tsk.STT + " error",
+			
+			return item, tsk.Handler.LogErrFields(err, AbortTask, tsk.STT+" error",
 				map[string]interface{}{"item": foreignItem.String()})
 		}
 	}
+
 	i := indexedSub.Index
 	
 	if i > 0 && i < len(tsk.TargSubs.Items) {

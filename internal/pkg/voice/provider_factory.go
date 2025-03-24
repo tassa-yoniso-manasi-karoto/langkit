@@ -23,6 +23,9 @@ type ProviderFactory struct {
 	
 	// MockAudioName is the name of the mock audio separation provider to use (if UseMocks is true)
 	MockAudioName string
+	
+	// modelCache caches provider instances to avoid repeated creation
+	modelCache map[string]SpeechToTextProvider
 }
 
 // NewProviderFactory creates a provider factory with default settings
@@ -31,6 +34,7 @@ func NewProviderFactory() *ProviderFactory {
 		UseMocks:      false,
 		MockSTTName:   "default-mock",
 		MockAudioName: "default-mock",
+		modelCache:    make(map[string]SpeechToTextProvider),
 	}
 	
 	// Check environment variables
@@ -51,44 +55,84 @@ func NewProviderFactory() *ProviderFactory {
 
 // GetSpeechToTextProvider gets an appropriate STT provider based on current settings
 func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProvider, error) {
+	// Check cache first
+	if provider, exists := f.modelCache[name]; exists {
+		return provider, nil
+	}
+	
+	var provider SpeechToTextProvider
+	
 	// Return mock provider if mocks are enabled
 	if f.UseMocks {
 		// For specific providers in mock mode, use specialized mocks
 		switch strings.ToLower(name) {
 		case "whisper":
-			return NewMockWhisperProvider(), nil
+			provider = NewMockWhisperProvider()
 		case "gpt-4o-transcribe":
-			return NewMockOpenAIProvider("gpt-4o-transcribe"), nil
+			provider = NewMockOpenAIProvider("gpt-4o-transcribe")
 		case "gpt-4o-mini-transcribe":
-			return NewMockOpenAIProvider("gpt-4o-mini-transcribe"), nil
+			provider = NewMockOpenAIProvider("gpt-4o-mini-transcribe")
 		case "elevenlabs-scribe":
-			return NewMockElevenLabsSTTProvider(), nil
+			provider = NewMockElevenLabsSTTProvider()
 		default:
 			// For all other providers, use the generic mock
-			return GetMockSpeechToTextProvider(f.MockSTTName), nil
+			provider = GetMockSpeechToTextProvider(f.MockSTTName)
 		}
-	}
-	
-	// Return real provider based on name
-	switch strings.ToLower(name) {
-	case "whisper":
-		return NewWhisperProvider(), nil
-	case "incredibly-fast-whisper":
-		return NewFastWhisperProvider(), nil
-	case "universal-1":
-		return &AssemblyAIProvider{}, nil
-	case "gpt-4o-transcribe":
-		return NewOpenAIProvider("gpt-4o-transcribe"), nil
-	case "gpt-4o-mini-transcribe":
-		return NewOpenAIProvider("gpt-4o-mini-transcribe"), nil
-	case "elevenlabs-scribe":
-		return NewElevenLabsSTTProvider(), nil
-	default:
-		return nil, fmt.Errorf("unknown speech-to-text provider: %s", name)
+		
+		// Cache the provider
+		f.modelCache[name] = provider
+		return provider, nil
+	} else {
+		// Return real provider based on name
+		switch strings.ToLower(name) {
+		case "whisper":
+			provider = NewWhisperProvider()
+		case "incredibly-fast-whisper":
+			provider = NewFastWhisperProvider()
+		case "universal-1":
+			provider = &AssemblyAIProvider{}
+		case "gpt-4o-transcribe":
+			provider = NewOpenAIProvider("gpt-4o-transcribe")
+		case "gpt-4o-mini-transcribe":
+			provider = NewOpenAIProvider("gpt-4o-mini-transcribe")
+		case "elevenlabs-scribe":
+			provider = NewElevenLabsSTTProvider()
+		default:
+			return nil, fmt.Errorf("unknown speech-to-text provider: %s", name)
+		}
+		
+		// Cache the provider
+		f.modelCache[name] = provider
+		return provider, nil
 	}
 }
 
+// GetSpeechToTextProviderWithAliases handles common aliases for STT models
+func (f *ProviderFactory) GetSpeechToTextProviderWithAliases(name string) (SpeechToTextProvider, error) {
+	// Normalize the model name
+	normalizedName := strings.ToLower(strings.TrimSpace(name))
+	
+	// Handle shortcuts/aliases
+	switch normalizedName {
+	case "wh":
+		normalizedName = "whisper"
+	case "fast", "ifw":
+		normalizedName = "incredibly-fast-whisper"
+	case "u1":
+		normalizedName = "universal-1"
+	case "4o":
+		normalizedName = "gpt-4o-transcribe"
+	case "4o-mini":
+		normalizedName = "gpt-4o-mini-transcribe"
+	case "11", "el":
+		normalizedName = "elevenlabs-scribe"
+	}
+	
+	return f.GetSpeechToTextProvider(normalizedName)
+}
+
 // GetAudioSeparationProvider gets an appropriate audio separation provider based on current settings
+// (This remains the same as before)
 func (f *ProviderFactory) GetAudioSeparationProvider(name string) (AudioSeparationProvider, error) {
 	// Return mock provider if mocks are enabled
 	if f.UseMocks {
@@ -124,7 +168,7 @@ func UpdateDefaultFactory() {
 func GetSpeechToTextProvider(name string) (SpeechToTextProvider, error) {
 	// Update factory first to ensure we have the latest environment variables
 	UpdateDefaultFactory()
-	return DefaultFactory.GetSpeechToTextProvider(name)
+	return DefaultFactory.GetSpeechToTextProviderWithAliases(name)
 }
 
 // GetAudioSeparationProvider gets an audio separation provider from the default factory

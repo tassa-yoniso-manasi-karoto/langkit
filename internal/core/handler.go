@@ -310,11 +310,11 @@ func (h *GUIHandler) IncrementProgress(
 	increment, total, priority int, 
 	operation, descr, size string,
 ) {
-	if _, found := h.progressMap[taskID]; !found {
-		h.ZeroLog().Trace().Msgf("handler: creating bar %s for  \"%s\"", taskID, operation)
-	} else {
-		h.ZeroLog().Trace().Msgf("handler: reusing bar %s for \"%s\"", taskID, operation)
-	}
+	// if _, found := h.progressMap[taskID]; !found {
+	// 	h.ZeroLog().Trace().Msgf("handler: creating bar %s for  \"%s\"", taskID, operation)
+	// } else {
+	// 	h.ZeroLog().Trace().Msgf("handler: reusing bar %s for \"%s\"", taskID, operation)
+	// }
 	h.progressMap[taskID] += increment
 	current := h.progressMap[taskID]
 

@@ -18,6 +18,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 
@@ -255,7 +256,6 @@ func (tsk *Task) ApplyConfig(settings config.Settings) {
 	}
 }
 
-
 func (tsk *Task) ApplyCLIFlags(cmd *cobra.Command) *ProcessingError {
 	// override config settings if specified
 	tsk.applyCLIFlags(cmd)
@@ -265,14 +265,31 @@ func (tsk *Task) ApplyCLIFlags(cmd *cobra.Command) *ProcessingError {
 	}
 	tsk.Handler.ZeroLog().Trace().Strs("langs", tsk.Langs).Msg("PrepareLangs done")
 	
-	switch tsk.STT {
-	case "wh":
-		tsk.STT = "whisper"
-	case "fast", "incredibly-fast-whisper":
-		tsk.STT = "insanely-fast-whisper"
-	case "u1":
-		tsk.STT = "universal-1"
+	// Normalize STT model name if one is specified
+	if tsk.STT != "" {
+		// Check if the model exists
+		provider, err := voice.GetSpeechToTextProvider(tsk.STT)
+		if err != nil {
+			tsk.Handler.ZeroLog().Warn().
+				Str("model", tsk.STT).
+				Msg("Unknown STT model specified")
+		} else {
+			// Special case for legacy naming compatibility
+			providerName := provider.GetName()
+			if providerName == "incredibly-fast-whisper" {
+				tsk.STT = "insanely-fast-whisper" // Maintain backward compatibility
+			} else {
+				// Use the normalized name
+				tsk.STT = providerName
+			}
+			
+			tsk.Handler.ZeroLog().Trace().
+				Str("normalizedSTT", tsk.STT).
+				Msg("Normalized STT model name")
+		}
 	}
+	
+	// Handle audio separation library aliases
 	switch tsk.SeparationLib {
 	case "de":
 		tsk.SeparationLib = "demucs"
@@ -283,6 +300,7 @@ func (tsk *Task) ApplyCLIFlags(cmd *cobra.Command) *ProcessingError {
 	case "11", "el":
 		tsk.SeparationLib = "elevenlabs"
 	}
+	
 	return nil
 }
 

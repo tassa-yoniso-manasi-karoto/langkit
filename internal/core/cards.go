@@ -556,14 +556,16 @@ func langkitMadeDubtitlesMarker(STTModel string) string {
 
 // allows rejecting those files during subfile screening (see lang.go)
 func isLangkitMadeDubtitles(s string) bool {
-	for _, STTModel := range voice.STTModels {
-		if strings.Contains(s, langkitMadeDubtitlesMarker(STTModel)) {
+	sttModelNames := voice.GetAvailableSTTModelNames()
+	
+	for _, modelName := range sttModelNames {
+		if strings.Contains(s, langkitMadeDubtitlesMarker(modelName)) {
 			return true
 		}
 	}
+	
 	return false
 }
-
 // allows rejecting those files during subfile screening (see lang.go)
 func isLangkitMadeTranslit(s string) bool {
 	for _, t := range []TranslitType{Tokenize, Romanize, Selective} {
