@@ -5,6 +5,7 @@ type Settings = {
         replicate: string;
         assemblyAI: string;
         elevenLabs: string;
+        openAI: string;
     };
     targetLanguage: string;
     nativeLanguages: string;
@@ -23,7 +24,8 @@ const initSettings: Settings = {
     apiKeys: {
         replicate: '',
         assemblyAI: '',
-        elevenLabs: ''
+        elevenLabs: '',
+        openAI: ''
     },
     targetLanguage: '',
     nativeLanguages: 'en, en-US',

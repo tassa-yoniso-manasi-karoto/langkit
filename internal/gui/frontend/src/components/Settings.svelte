@@ -19,7 +19,8 @@
         apiKeys: {
             replicate: '',
             assemblyAI: '',
-            elevenLabs: ''
+            elevenLabs: '',
+            openAI: ''
         },
         targetLanguage: '',
         nativeLanguages: '',
@@ -285,6 +286,21 @@
                                     Eleven Labs
                                 </span>
                             </div>
+                             <div class="relative glass-input-container">
+                                 <input
+                                     type="password"
+                                     bind:value={currentSettings.apiKeys.openAI}
+                                     class="w-full bg-black/20 backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                            hover:border-primary/55 hover:shadow-input tracking-wider text-lg
+                                            focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
+                                            focus:shadow-input-focus transition-all duration-200"
+                                 />
+                                 <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
+                                              w-[140px] bg-primary/10 border-r border-primary/30 rounded-l-lg
+                                              text-sm text-primary font-medium">
+                                     OpenAI
+                                 </span>
+                             </div>
                         </div>
                         <div class="flex items-center gap-4">
                             <label class="text-sm text-gray-200 whitespace-nowrap">

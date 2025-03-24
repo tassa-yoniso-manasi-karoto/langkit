@@ -17,6 +17,7 @@ type Settings struct {
 		Replicate  string `json:"replicate" mapstructure:"replicate"`
 		AssemblyAI string `json:"assemblyAI" mapstructure:"assemblyai"`
 		ElevenLabs string `json:"elevenLabs" mapstructure:"elevenlabs"`
+		OpenAI     string `json:"openAI" mapstructure:"openai"`
 	} `json:"apiKeys" mapstructure:"api_keys"`
 	TargetLanguage         string `json:"targetLanguage" mapstructure:"target_language"`
 	NativeLanguages        string `json:"nativeLanguages" mapstructure:"native_languages"`
@@ -61,8 +62,11 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("api_keys.replicate", "")
 	viper.SetDefault("api_keys.assemblyai", "")
 	viper.SetDefault("api_keys.elevenlabs", "")
+	viper.SetDefault("api_keys.openai", "")
+	
 	viper.SetDefault("target_language", "")
 	viper.SetDefault("native_languages", "en,en-US")
+	
 	viper.SetDefault("enable_glow", true)
 	viper.SetDefault("show_log_viewer_default", false)
 	viper.SetDefault("max_log_entries", 10000)
@@ -89,8 +93,11 @@ func SaveSettings(settings Settings) error {
 	viper.Set("api_keys.replicate", settings.APIKeys.Replicate)
 	viper.Set("api_keys.assemblyai", settings.APIKeys.AssemblyAI)
 	viper.Set("api_keys.elevenlabs", settings.APIKeys.ElevenLabs)
+	viper.Set("api_keys.openai", settings.APIKeys.OpenAI)
+	
 	viper.Set("target_language", settings.TargetLanguage)
 	viper.Set("native_languages", settings.NativeLanguages)
+	
 	viper.Set("enable_glow", settings.EnableGlow)
 	viper.Set("show_log_viewer_default", settings.ShowLogViewerByDefault)
 	viper.Set("max_log_entries", settings.MaxLogEntries)
@@ -121,7 +128,7 @@ func LoadSettings() (Settings, error) {
 
 // Apply API keys from config or environment
 func (settings Settings) LoadKeys() {
-	providers := []string{"replicate", "assemblyai", "elevenlabs"}
+	providers := []string{"replicate", "assemblyai", "elevenlabs", "openai"}
 	
 	for idx, name := range providers {
 		var key string
@@ -132,6 +139,8 @@ func (settings Settings) LoadKeys() {
 			key = settings.APIKeys.AssemblyAI
 		case 2:
 			key = settings.APIKeys.ElevenLabs
+		case 3:
+			key = settings.APIKeys.OpenAI
 		}
 		if s := os.Getenv(strings.ToUpper(name) + "_API_KEY"); s != "" {
 			key = s
