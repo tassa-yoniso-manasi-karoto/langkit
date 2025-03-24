@@ -89,15 +89,38 @@ func InitConfig(customPath string) error {
 }
 
 func SaveSettings(settings Settings) error {
-	// Update Viper config
-	viper.Set("api_keys.replicate", settings.APIKeys.Replicate)
-	viper.Set("api_keys.assemblyai", settings.APIKeys.AssemblyAI)
-	viper.Set("api_keys.elevenlabs", settings.APIKeys.ElevenLabs)
-	viper.Set("api_keys.openai", settings.APIKeys.OpenAI)
-	
+	// Define API key environment variables and their corresponding settings fields
+	apiKeyEnvMap := map[string]string{
+		"REPLICATE_API_KEY":  settings.APIKeys.Replicate,
+		"ASSEMBLYAI_API_KEY": settings.APIKeys.AssemblyAI,
+		"ELEVENLABS_API_KEY": settings.APIKeys.ElevenLabs,
+		"OPENAI_API_KEY":     settings.APIKeys.OpenAI,
+	}
+
+	// For each API key, only save to config if it's not the same as the environment variable
+	// This preserves user privacy by not duplicating environment variables in the config file
+	for envName, settingValue := range apiKeyEnvMap {
+		envValue := os.Getenv(envName)
+		configKey := "api_keys." + strings.ToLower(strings.TrimSuffix(envName, "_API_KEY"))
+		
+		if envValue != "" {
+			if settingValue == envValue {
+				// If the setting matches the environment variable, use empty string in config
+				// This prevents saving environment variable values to the config file
+				viper.Set(configKey, "")
+			} else {
+				// If different, save the setting value (user explicitly changed it in the UI)
+				viper.Set(configKey, settingValue)
+			}
+		} else {
+			// No environment variable, just save the setting
+			viper.Set(configKey, settingValue)
+		}
+	}
+
+	// Set all other non-sensitive settings
 	viper.Set("target_language", settings.TargetLanguage)
 	viper.Set("native_languages", settings.NativeLanguages)
-	
 	viper.Set("enable_glow", settings.EnableGlow)
 	viper.Set("show_log_viewer_default", settings.ShowLogViewerByDefault)
 	viper.Set("max_log_entries", settings.MaxLogEntries)

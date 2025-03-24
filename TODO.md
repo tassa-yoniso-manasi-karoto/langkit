@@ -1,8 +1,10 @@
 
+- dynamic loading of list of STT providers in the frontend
 - use selective translit tokenized inside TRANSLIT.GO
 - valid browser URL required even for Subs2Cards alone
 - fix progress bar yellow/red on abort without transition
-- banner in subs2cards for dub as spurce
+- bug in TH2EN
+- banner in subs2cards for dub as source when Dubtitles are selected too
 
 - GUI options:
   - condensed audio toggle
