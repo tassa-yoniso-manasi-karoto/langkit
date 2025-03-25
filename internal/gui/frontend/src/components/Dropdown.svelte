@@ -4,6 +4,10 @@
     export let label: string = '';
     export let optionKey: string = '';
     export let optionLabel: string = '';
+    export let labelFunction: ((option: string) => string) | null = null;
+    export let tooltipFunction: ((option: string) => string) | null = null;
+    export let disabledFunction: ((option: string) => boolean) | null = null;
+    
     import { createEventDispatcher } from 'svelte';
     const dispatch = createEventDispatcher();
 
@@ -15,10 +19,30 @@
     }
 
     function getLabel(option: any): string {
+        if (labelFunction && typeof option === 'string') {
+            return labelFunction(option);
+        }
+        
         if (optionLabel && typeof option === 'object') {
             return option[optionLabel] || option[optionKey] || option;
         }
         return option;
+    }
+
+    function getTooltip(option: any): string {
+        if (tooltipFunction && typeof option === 'string') {
+            return tooltipFunction(option);
+        }
+        return '';
+    }
+
+    // Fixed isDisabled function to properly handle options
+    function isDisabled(option: any): boolean {
+        const optionValue = getValue(option);
+        if (disabledFunction && typeof optionValue === 'string') {
+            return disabledFunction(optionValue);
+        }
+        return false;
     }
 
     function handleSelect(event: Event) {
@@ -27,8 +51,12 @@
         dispatch('change', target.value);
     }
 
+    // Updated to use isDisabled properly
     $: if (options.length > 0 && (!value || !options.some(opt => getValue(opt) === value))) {
-        const defaultValue = getValue(options[0]);
+        // Try to find first non-disabled option
+        const availableOption = options.find(opt => !isDisabled(opt));
+        const defaultValue = availableOption ? getValue(availableOption) : getValue(options[0]);
+        
         if (defaultValue !== value) {
             value = defaultValue;
             dispatch('change', defaultValue);
@@ -47,7 +75,12 @@
                    appearance-none cursor-pointer select-centered"
         >
             {#each options as option}
-                <option value={getValue(option)} class="bg-bgold">
+                <option 
+                    value={getValue(option)} 
+                    class="bg-bgold" 
+                    title={getTooltip(option)}
+                    disabled={isDisabled(getValue(option))}
+                >
                     {getLabel(option)}
                 </option>
             {/each}
@@ -59,6 +92,11 @@
 </div>
 
 <style>
+    select option:disabled {
+        color: rgba(255, 255, 255, 0.5);
+        font-style: italic;
+    }
+
     .select-centered {
         text-align: center;
         text-align-last: center;

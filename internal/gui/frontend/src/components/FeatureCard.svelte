@@ -1,8 +1,8 @@
 <script lang="ts">
     import { get } from 'svelte/store';
-    import { createEventDispatcher, onMount, tick, afterUpdate } from 'svelte';
+    import { createEventDispatcher, onMount, onDestroy, tick, afterUpdate } from 'svelte';
     
-    import { formatDisplayText, type FeatureDefinition } from '../lib/featureModel';
+    import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
     import { showSettings } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
@@ -75,11 +75,25 @@
         isTopmostFeatureForAnyGroup = foundTopmost;
         console.log(`Feature ${feature.id} topmost status check: ${isTopmostFeatureForAnyGroup}`);
     }
+
+    // Create a local variable to track store changes
+    let currentSTTModels = { models: [], names: [], available: false, suggested: "" };
+    let sttModelsUnsubscribe: () => void;
     
     onMount(() => {
+        sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
+            currentSTTModels = value;
+        });
+        
         // Initial measurement of the options height if enabled
         if (enabled && optionsWrapper) {
             optionsHeight = optionsWrapper.offsetHeight;
+        }
+    });
+    
+    onDestroy(() => {
+        if (sttModelsUnsubscribe) {
+            sttModelsUnsubscribe();
         }
     });
     
@@ -222,6 +236,13 @@
     // Check if option should be shown based on conditions
     function shouldShowOption(optionId: string, optionDef: any): boolean {
         if (!optionDef.showCondition) return true;
+        
+        // Special handling for initialPrompt condition
+        if (feature.id === 'dubtitles' && optionId === 'initialPrompt') {
+            const sttModel = options.stt;
+            const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
+            return modelInfo?.takesInitialPrompt || false;
+        }
         
         // Find which group this option belongs to (if any)
         let optionGroup = null;
@@ -830,6 +851,41 @@
                                             on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
                                         />
                                     </label>
+                                {:else if optionDef.type === 'dropdown' && optionId === 'stt'}
+									<Dropdown
+										options={optionDef.choices || []}
+										value={options[optionId]}
+										labelFunction={(option) => {
+											// Find the model in the models list
+											const model = currentSTTModels.models.find(m => m.name === option);
+											if (model) {
+												let label = `${model.displayName} @ ${model.providerName}`;
+												if (model.isRecommended) label += ' ✓';
+												if (model.isDepreciated) label += ' (deprecated)';
+												return label;
+											}
+											return option;
+										}}
+										tooltipFunction={(option) => {
+											// Find the model to get its description
+											const model = currentSTTModels.models.find(m => m.name === option);
+											if (model) {
+												let tooltip = model.description;
+												if (!model.isAvailable) {
+													tooltip += `\n\nRequires ${model.providerName} API key in settings.`;
+												}
+												return tooltip;
+											}
+											return '';
+										}}
+										disabledFunction={(option) => {
+											// Disable options that don't have API keys
+											const model = currentSTTModels.models.find(m => m.name === option);
+											return model ? !model.isAvailable : false;
+										}}
+										on:change={(e) => handleDropdownChange(optionId, e.detail)}
+										label={optionDef.label}
+									/>
                                 {:else if optionDef.type === 'dropdown'}
                                     <Dropdown
                                         options={optionDef.choices || []}

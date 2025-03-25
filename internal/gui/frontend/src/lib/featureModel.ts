@@ -419,6 +419,68 @@ export function createDefaultOptions() {
     return options;
 }
 
+// STT Model interface matching the backend response
+export interface STTModelInfo {
+  name: string;
+  displayName: string;
+  description: string;
+  providerName: string;
+  isDepreciated: boolean;
+  isRecommended: boolean;
+  takesInitialPrompt: boolean;
+  isAvailable: boolean;
+}
+
+export interface STTModelsResponse {
+  models: STTModelInfo[];
+  names: string[];
+  available: boolean;
+  suggested: string;
+}
+
+// Create a store for STT model information
+import { writable } from 'svelte/store';
+export const sttModelsStore = writable<STTModelsResponse>({
+  models: [],
+  names: [],
+  available: false,
+  suggested: ""
+});
+
+// Function to update choices for a specific feature option
+export function updateFeatureChoices(featureId: string, optionId: string, choices: string[], suggested?: string): void {
+  const feature = features.find(f => f.id === featureId);
+  if (feature && feature.options[optionId]) {
+    feature.options[optionId].choices = choices;
+    
+    // Update default value if suggested is provided and the current default is not in choices
+    if (suggested && !choices.includes(feature.options[optionId].default)) {
+      feature.options[optionId].default = suggested;
+    }
+  }
+}
+
+// Function to update feature model with available STT models
+export function updateSTTModels(sttModels: STTModelsResponse): void {
+  // Always update the store with all models
+  sttModelsStore.set(sttModels);
+  
+  // Always update choices for the STT dropdown with all models
+  updateFeatureChoices('dubtitles', 'stt', sttModels.names, sttModels.suggested);
+  
+  // Update the initialPrompt condition as before
+  const dubtitlesFeature = features.find(f => f.id === 'dubtitles');
+  if (dubtitlesFeature && dubtitlesFeature.options.initialPrompt) {
+    dubtitlesFeature.options.initialPrompt.showCondition = 
+      `(function() {
+         const sttModel = feature.dubtitles.stt;
+         const sttModels = ${JSON.stringify(sttModels.models)};
+         const modelInfo = sttModels.find(m => m.name === sttModel);
+         return modelInfo && modelInfo.takesInitialPrompt;
+       })()`;
+  }
+}
+
 // Helper to format display text (camelCase to Title Case)
 export function formatDisplayText(text: string): string {
     return text

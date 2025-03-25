@@ -5,7 +5,8 @@
     import { get } from 'svelte/store';
     import { debounce } from 'lodash';
     
-    import { settings } from '../lib/stores.ts';
+    import { settings, showSettings } from '../lib/stores.ts';
+    import { updateSTTModels, sttModelsStore } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
     import { logStore } from '../lib/logStore';
     import { 
@@ -24,7 +25,8 @@
         GetRomanizationStyles, 
         ValidateLanguageTag, 
         CheckMediaLanguageTags,
-        NeedsTokenization
+        NeedsTokenization,
+        GetAvailableSTTModelsForUI
     } from '../../wailsjs/go/gui/App';
     
     import FeatureCard from './FeatureCard.svelte';
@@ -70,7 +72,10 @@
     let providerGroups: Record<string, string[]> = {
         subtitle: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
     };
-
+    
+    let currentSTTModels = { models: [], names: [], available: false, suggested: "" };
+    let sttModelsUnsubscribe: () => void;
+    
     const dispatch = createEventDispatcher();
     
     // Language validation with debounce
@@ -604,7 +609,8 @@
         needsDocker,
         needsScraper,
         romanizationSchemes,
-        selectedFeatures
+        selectedFeatures,
+        sttModels: currentSTTModels.models || []
     };
     
     // Reactive statements
@@ -1008,9 +1014,45 @@
     });
     
     onMount(async () => {
+        sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
+            currentSTTModels = value;
+        });
+        
         console.log("FeatureSelector mounting - loading data...");
         
         try {
+            // Load STT models BEFORE any animation starts
+            try {
+                const sttModels = await GetAvailableSTTModelsForUI();
+                
+                // Update feature models and store
+                updateSTTModels(sttModels);
+                
+                if (!sttModels.available) {
+                    // Handle case where no models are available
+                    errorStore.addError({
+                        id: 'no-stt-models',
+                        message: 'No speech-to-text models available. Check API keys in settings.',
+                        severity: 'warning',
+                        action: {
+                            label: 'Open Settings',
+                            handler: () => {
+                                // Correct way to update a Svelte store
+                                showSettings.set(true);
+                            }
+                        }
+                    });
+                }
+                
+                // If dubtitles has a current model selected that's not available, update it
+                if (currentFeatureOptions?.dubtitles?.stt && 
+                    !sttModels.names.includes(currentFeatureOptions.dubtitles.stt)) {
+                    currentFeatureOptions.dubtitles.stt = sttModels.suggested;
+                }
+            } catch (error) {
+                console.error('Failed to load STT models:', error);
+            }
+            
             // Initialize canonical feature order from feature definitions
             const canonicalOrder = features.map(f => f.id);
             featureGroupStore.initializeCanonicalOrder(canonicalOrder);
@@ -1108,6 +1150,9 @@
 
     onDestroy(() => {
         console.log('FeatureSelector unmounting, cleaning up errors');
+        if (sttModelsUnsubscribe) {
+            sttModelsUnsubscribe();
+        }
         
         // Clear legacy errors
         errorStore.removeError('docker-required');
