@@ -73,7 +73,7 @@
         }
         
         isTopmostFeatureForAnyGroup = foundTopmost;
-        console.log(`Feature ${feature.id} topmost status check: ${isTopmostFeatureForAnyGroup}`);
+        //console.log(`Feature ${feature.id} topmost status check: ${isTopmostFeatureForAnyGroup}`);
     }
 
     // Create a local variable to track store changes
@@ -346,7 +346,6 @@
         }
     }
     
-    // Handle dropdown changes
     function handleDropdownChange(optionId: string, value: string) {
         options[optionId] = value;
         dispatch('optionChange', { featureId: feature.id, optionId, value });
@@ -413,7 +412,11 @@
                     // First measure height of the content
                     if (optionsWrapper) {
                         setTimeout(() => {
-                            optionsHeight = optionsWrapper.offsetHeight;
+                            if (optionsWrapper) {
+                                optionsHeight = optionsWrapper.offsetHeight;
+                            } else {
+                                optionsHeight = 0; // Default height when element doesn't exist
+                            }
                             optionsContainer.style.height = optionsHeight + 'px';
                             
                             // Animation complete

@@ -242,11 +242,6 @@
         }
     }
 
-    // Removed synchronizeMergeOptions - obsolete function no longer needed with the new group system
-    
-    // Removed updateMergeOptionsVisibility - obsolete function replaced by the centralized group system
-    
-    // API token checking
     function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
         const tokenType = providersRequiringTokens[provider];
         if (!tokenType) return { isValid: true, tokenType: null };
@@ -1019,7 +1014,7 @@
         });
         
         console.log("FeatureSelector mounting - loading data...");
-        
+
         try {
             // Load STT models BEFORE any animation starts
             try {
@@ -1150,10 +1145,10 @@
 
     onDestroy(() => {
         console.log('FeatureSelector unmounting, cleaning up errors');
+       
         if (sttModelsUnsubscribe) {
             sttModelsUnsubscribe();
         }
-        
         // Clear legacy errors
         errorStore.removeError('docker-required');
         errorStore.removeError('invalid-browser-url');

@@ -419,13 +419,13 @@ function createFeatureGroupStore() {
                 
                 const isTopmost = topmostFeature === featureId;
                 
-                console.log(`isTopmostInGroup check for merge group:`, {
+                /*console.log(`isTopmostInGroup check for merge group:`, {
                     featureId,
                     enabledFeatures,
                     globalOrder,
                     topmostFeature,
                     isTopmost
-                });
+                });*/
                 
                 return isTopmost;
             }
