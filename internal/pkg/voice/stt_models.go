@@ -35,7 +35,6 @@ func GetAllSTTModels() []STTModelInfo {
             Description:        "OpenAI's premium transcription model with high accuracy",
             ProviderName:       "openai",
             IsRecommended:      true,
-            TakesInitialPrompt: true,
         },
         {
             Name:               "gpt-4o-mini-transcribe",
@@ -43,7 +42,6 @@ func GetAllSTTModels() []STTModelInfo {
             Description:        "Lightweight and cost-effective version of GPT-4o transcription",
             ProviderName:       "openai",
             IsRecommended:      true,
-            TakesInitialPrompt: true,
         },
         {
             Name:               "scribe",
@@ -51,7 +49,6 @@ func GetAllSTTModels() []STTModelInfo {
             Description:        "ElevenLabs' specialized speech-to-text model",
             ProviderName:       "elevenlabs",
             IsRecommended:      true,
-            TakesInitialPrompt: false,
         },
         {
             Name:               "whisper",
