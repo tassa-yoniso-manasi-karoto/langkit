@@ -32,9 +32,47 @@
     --secondary-color: theme('colors.secondary.DEFAULT');
     --pink-color: theme('colors.pink');
     --bg-color: theme('colors.bgold.DEFAULT');
+    
     --error-task-color: theme('colors.error-task');
     --error-all-color: theme('colors.error-all');
     --user-cancel-color: theme('colors.user-cancel');
+    
+    --error-transition-duration: 2s;
+    
+    /* Error gradient definitions */
+    --error-task-gradient: linear-gradient(to right, 
+        hsl(45, 100%, 60%), /* Bright yellow/orange */
+        hsl(30, 100%, 50%)  /* Deep orange */
+    );
+
+    /* OPTION 1: Magenta to Crimson */
+    --error-all-gradient1: linear-gradient(to right, 
+        hsl(315, 85%, 35%),   /* Magenta (bridges primary purple and secondary pink) */
+        hsl(345, 90%, 45%)    /* Crimson-red */
+    );
+
+    /* OPTION 2: Deep Pink to Red (Secondary Color Based) */
+    --error-all-gradient: linear-gradient(to right, 
+        hsl(323, 85%, 30%),   /* Deep pink (matching secondary hue exactly) */
+        hsl(355, 90%, 45%)    /* Vibrant crimson */
+    );
+
+    /* OPTION 3: Purple-Red Fusion */
+    --error-all-gradient3: linear-gradient(to right, 
+        hsl(330, 80%, 30%),   /* Purple-red */
+        hsl(350, 90%, 45%)    /* Red with a hint of pink */
+    );
+
+    /* OPTION 4: Dark Fuchsia to Ruby (Most harmonious with theme) */
+    --error-all-gradient4: linear-gradient(to right, 
+        hsl(320, 70%, 25%),   /* Dark fuchsia (near secondary) */
+        hsl(335, 85%, 40%)    /* Ruby red */
+    );
+
+    --user-cancel-gradient: linear-gradient(to right, 
+      hsl(220, 15%, 40%),  /* Slate blue-gray */
+      hsl(210, 20%, 50%)   /* Lighter blue-gray */
+    );
     
     /* Progress bar animation customization variables */
     --sweep-edge-opacity: 0.15;  /* Opacity of the edge parts of the sweep gradient */
@@ -109,6 +147,11 @@
 @keyframes transitionToCancel {
   0% { background-color: var(--primary-color); }
   100% { background-color: var(--user-cancel-color); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* Sweeping gradient animation for progress bars

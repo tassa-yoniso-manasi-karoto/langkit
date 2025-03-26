@@ -340,10 +340,11 @@
 
         <!-- A minimal top row with a label & action buttons -->
         <div class="flex items-center justify-between">
-            <span class="font-bold text-base" class:text-gray-300={!isGlobalAbort && abortedTasksCount === 0} 
-                                              class:text-error-task={!isGlobalAbort && abortedTasksCount > 0 && !userCancelled}
-                                              class:text-error-all={isGlobalAbort && !userCancelled}
-                                              class:text-user-cancel={userCancelled}>
+            <span class="font-bold text-base 
+                         {!isGlobalAbort && abortedTasksCount === 0 && !userCancelled ? 'text-gray-300' : ''} 
+                         {!isGlobalAbort && abortedTasksCount > 0 && !userCancelled ? 'gradient-text-task' : ''}
+                         {isGlobalAbort && !userCancelled ? 'gradient-text-all' : ''}
+                         {userCancelled ? 'gradient-text-cancel' : ''}">
                 {statusText}
             </span>
             <div class="flex items-center gap-2">
@@ -404,43 +405,47 @@
                             </span>
                         </div>
                         <div class="relative w-full bg-black/20 rounded-full overflow-hidden {bar.size || 'h-2.5'}">
-                            <!-- Optimized progress bar rendering -->
-                            {#if !bar.errorState}
-                                <div
-                                    class="absolute inset-0 progress-gradient"
-                                    style="width: {bar.progress}%; --gradient-position: {getGradientPosition(bar.progress)}%;"
-                                />
-                            {:else}
-                                <!-- Error state coloring with !important to ensure it's applied -->
-                                <div
-                                    class="absolute inset-0 transition-colors duration-1000 ease-in-out {bar.errorState}"
-                                    style="width: {bar.progress}%;"
-                                />
-                            {/if}
-                            
-                            <!-- Only render sweeping gradient animation when bar is active and visible -->
-                            {#if bar.progress < 100 && !bar.errorState && bar.progress > 0}
-                                <div class="absolute h-full w-full overflow-hidden will-change-transform">
-                                    <!-- Main progress fill clipping container with contain property -->
-                                    <div class="absolute inset-0 overflow-hidden" 
-                                        style="width: {bar.progress}%; contain: strict;">
-                                        <!-- Gradient container with composite layers -->
-                                        <div class="absolute inset-0" style="width: calc(max(500px, 150%)); will-change: transform; contain: paint;">
-                                            <!-- Optimize gradient animation -->
-                                            <div id="gradient-{bar.id}" 
-                                                class="animate-sweep-gradient absolute inset-0 w-full h-full" 
-                                                style="opacity: var(--sweep-opacity, 0.5); will-change: transform;">
+                            <!-- Progress bar fill with conditional gradient rendering -->
+                            <div
+                                class="absolute inset-0 rounded-full transition-all duration-300"
+                                style="width: {bar.progress}%;"
+                            >
+                                <!-- Normal progress gradient - only shown in normal state -->
+                                {#if !bar.errorState}
+                                    <div class="absolute inset-0 progress-gradient"></div>
+                                <!-- Error task gradient - orange/yellow -->
+                                {:else if bar.errorState === 'error_task'}
+                                    <div class="absolute inset-0 layer-error-task animate-fade-in"></div>
+                                <!-- Error all gradient - red -->
+                                {:else if bar.errorState === 'error_all'}
+                                    <div class="absolute inset-0 layer-error-all animate-fade-in"></div>
+                                <!-- User cancel gradient - gray/blue -->
+                                {:else if bar.errorState === 'user_cancel'}
+                                    <div class="absolute inset-0 layer-user-cancel animate-fade-in"></div>
+                                {/if}
+                                
+                                <!-- Animated sweeping gradient effect (only for normal state) -->
+                                {#if bar.progress < 100 && !bar.errorState && bar.progress > 0}
+                                    <div class="absolute h-full w-full overflow-hidden will-change-transform">
+                                        <!-- Main progress fill clipping container -->
+                                        <div class="absolute inset-0 overflow-hidden" style="width: 100%;">
+                                            <!-- Gradient container -->
+                                            <div class="absolute inset-0" style="width: calc(max(500px, 150%));">
+                                                <div id="gradient-{bar.id}" 
+                                                    class="animate-sweep-gradient absolute inset-0 w-full h-full" 
+                                                    style="opacity: var(--sweep-opacity, 0.5);">
+                                                </div>
                                             </div>
                                         </div>
+                                        <!-- Edge glow -->
+                                        {#if bar.progress > 5}
+                                            <div class="absolute top-0 bottom-0 w-[1px] shadow-progress-edge" 
+                                                style="right: 0">
+                                            </div>
+                                        {/if}
                                     </div>
-                                    <!-- Only show edge glow if progress is significant -->
-                                    {#if bar.progress > 5}
-                                        <div class="absolute top-0 bottom-0 w-[1px] shadow-progress-edge" 
-                                            style="left: {bar.progress}%">
-                                        </div>
-                                    {/if}
-                                </div>
-                            {/if}
+                                {/if}
+                            </div>
                         </div>
                     </div>
                 {/each}
@@ -449,32 +454,127 @@
     </div>
 {/if}
 
+
 <style>
-    /* Progress bar styles */
+    /* Base gradient text styles with transitions */
+    .gradient-text-base {
+        position: relative;
+        transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+    }
+
+    /* Gradient text with transitions */
+    .gradient-text-task {
+        position: relative;
+        color: transparent;
+        background: var(--error-task-gradient, linear-gradient(to right, hsl(45, 100%, 60%), hsl(30, 100%, 50%)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
+                    color var(--error-transition-duration, 1.5s) ease-in-out;
+
+        /* Fallback for browsers that don't support background-clip: text */
+        @supports not (background-clip: text) {
+            color: theme('colors.error-task');
+            transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+        }
+    }
+
+    .gradient-text-all {
+        position: relative;
+        color: transparent;
+        background: var(--error-all-gradient, linear-gradient(to right, hsl(320, 70%, 25%), hsl(335, 85%, 40%)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
+                    color var(--error-transition-duration, 1.5s) ease-in-out;
+
+        /* Fallback for browsers that don't support background-clip: text */
+        @supports not (background-clip: text) {
+            color: theme('colors.error-all');
+            transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+        }
+    }
+
+    .gradient-text-cancel {
+        position: relative;
+        color: transparent;
+        background: var(--user-cancel-gradient, linear-gradient(to right, hsl(220, 15%, 40%), hsl(210, 20%, 50%)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
+                    color var(--error-transition-duration, 1.5s) ease-in-out;
+
+        /* Fallback for browsers that don't support background-clip: text */
+        @supports not (background-clip: text) {
+            color: theme('colors.user-cancel');
+            transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+        }
+    }
+
+    /* Normal text state with transition */
+    .text-normal {
+        transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+    }
     
-    /* Dynamic gradient for progress bars */
+    /* Progress bar animations */
+    @keyframes sweep {
+        0% { 
+            transform: translateX(-100%);
+            animation-timing-function: cubic-bezier(0.45, 0.3, 0.45, 0.7); /* Ease-in-out */
+        }
+        50% { 
+            transform: translateX(-50%);
+            animation-timing-function: cubic-bezier(0.4, 0, 0.6, 0.8); /* Accelerating */
+        }
+        100% { 
+            transform: translateX(100%);
+        }
+    }
+    
+    /* Progress gradient (normal state) */
     .progress-gradient {
         background: linear-gradient(to right, 
             hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 1), 
             hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 1));
         background-size: 200% 100%;
         background-position: calc(100% - var(--gradient-position, 0%)) 0;
-        transition: background-position 0.4s ease, width 0.4s ease;
         box-shadow: 0 0 8px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6);
     }
     
-    /* Error state styles with distinct class names matching errorState values */
+    /* Error state gradients */
+    .layer-error-task {
+        background: var(--error-task-gradient, linear-gradient(to right, hsl(45, 100%, 60%), hsl(30, 100%, 50%)));
+        box-shadow: 0 0 10px hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.7);
+    }
+    
+    .layer-error-all {
+        background: var(--error-all-gradient, linear-gradient(to right, hsl(0, 100%, 45%), hsl(350, 100%, 60%)));
+        box-shadow: 0 0 10px hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.7);
+    }
+    
+    .layer-user-cancel {
+        background: var(--user-cancel-gradient, linear-gradient(to right, hsl(220, 15%, 40%), hsl(210, 20%, 50%)));
+    }
+    
+    /* Animation utility class */
+    .animate-fade-in {
+        animation: fadeIn var(--error-transition-duration, 1.5s) ease-in-out forwards;
+    }
+    
+    /* For backward compatibility - preserved but not used with the new approach */
     .error_task { 
-        background-color: theme('colors.error-task') !important; /* Using orange color for task errors */
-        animation: fadeToOrange 1.5s ease-in-out forwards;
+        background-color: theme('colors.error-task');
+        animation: fadeToOrange var(--error-transition-duration, 1.5s) ease-in-out forwards;
     }
+    
     .error_all { 
-        background-color: theme('colors.error-all') !important; /* Using red color for critical errors */
-        animation: fadeToRed 1.5s ease-in-out forwards;
+        background-color: theme('colors.error-all');
+        animation: fadeToRed var(--error-transition-duration, 1.5s) ease-in-out forwards;
     }
+    
     .user_cancel { 
-        background-color: theme('colors.user-cancel') !important; /* Using gray for user cancellations */
-        animation: fadeToGray 1.5s ease-in-out forwards;
+        background-color: theme('colors.user-cancel');
+        animation: fadeToGray var(--error-transition-duration, 1.5s) ease-in-out forwards;
     }
     
     @keyframes fadeToOrange {

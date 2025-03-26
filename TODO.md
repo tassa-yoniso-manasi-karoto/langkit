@@ -7,7 +7,6 @@
 
 
 - progress bar
-  - yellow/red on abort without transition
   - subline total not reset on resume
   - UI lag while resume: must cache progress in backend for single UI update
   - 🤯 make consistent progress bars between GUI and CLI
@@ -15,6 +14,7 @@
   - processedCount for ETA calculation
   - ETA calculation itself
  
+- save appStartCount in config
 - use selective translit tokenized inside TRANSLIT.GO
 - banner in subs2cards for dub as source when Dubtitles are selected too
 
