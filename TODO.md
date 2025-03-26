@@ -1,11 +1,12 @@
 
+- bug in TH2EN
+
 - go-rod
   - atm valid browser URL required even for Subs2Cards alone
   - make browser url option to use go-rod's ability to download & manage the instance for noobs
 
 
 - progress bar
-  - sweep animation covering only 60% of the progressbar
   - yellow/red on abort without transition
   - subline total not reset on resume
   - UI lag while resume: must cache progress in backend for single UI update
@@ -14,7 +15,6 @@
   - processedCount for ETA calculation
   - ETA calculation itself
  
-- bug in TH2EN
 - use selective translit tokenized inside TRANSLIT.GO
 - banner in subs2cards for dub as source when Dubtitles are selected too
 

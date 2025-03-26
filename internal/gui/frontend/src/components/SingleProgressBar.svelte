@@ -75,10 +75,10 @@
                 <div class="absolute h-full w-full overflow-hidden">
                     <!-- Main progress fill clipping container -->
                     <div class="absolute inset-0 overflow-hidden" style="width: {$progress}%">
-                        <!-- Fixed-width gradient container that doesn't resize with progress changes -->
-                        <div class="absolute inset-0" style="width: 500px;">
+                        <!-- Wider gradient container to ensure full coverage -->
+                        <div class="absolute inset-0" style="width: calc(max(500px, 150%));">
                             <!-- Sweeping gradient that maintains consistent width -->
-                            <div id="gradient-{bar.id}" class="animate-sweep-gradient absolute inset-0 w-full h-full bg-sweep-gradient" style="opacity: var(--sweep-opacity, 0.5)"></div>
+                            <div id="gradient-{bar.id}" class="animate-sweep-gradient absolute inset-0 w-full h-full" style="opacity: var(--sweep-opacity, 0.5)"></div>
                         </div>
                     </div>
                     <!-- Subtle edge glow at progress boundary -->

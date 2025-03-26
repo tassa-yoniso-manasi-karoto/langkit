@@ -39,13 +39,60 @@
     /* Progress bar animation customization variables */
     --sweep-edge-opacity: 0.15;  /* Opacity of the edge parts of the sweep gradient */
     --sweep-peak-opacity: 0.6;   /* Opacity of the center/peak of the sweep gradient */
-    --sweep-duration: 1.5s;        /* Duration of one complete sweep animation cycle */
+    --sweep-duration: 2.5s;        /* Duration of one complete sweep animation cycle */
     --sweep-opacity: 0.85;        /* Overall opacity of the sweep effect */
     
     /* Progress edge glow customization */
     --progress-edge-blur: 8px;   /* Blur radius of the edge glow */
     --progress-edge-spread: 2px; /* Spread distance of the edge glow */
     --progress-edge-opacity: 0.4; /* Opacity of the edge glow */
+  
+    --sweep-gradient: linear-gradient(
+        90deg, 
+        transparent 0%, 
+        rgba(255, 255, 255, var(--sweep-edge-opacity, 0.045)) 35%, 
+        rgba(255, 255, 255, var(--sweep-peak-opacity, 0.3)) 50%, 
+        rgba(255, 255, 255, var(--sweep-edge-opacity, 0.045)) 65%, 
+        transparent 100%
+    );
+  
+  /* Unused but look neat*/
+  /* DOUBLE MARKER - Two distinct points for better movement tracking */
+  --sweep-gradient-double: linear-gradient(
+    90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0) 42%, 
+    rgba(255, 255, 255, 0.4) 45%, /* First peak */
+    rgba(255, 255, 255, 0.1) 47%, 
+    rgba(255, 255, 255, 0.7) 50%, /* Main peak */
+    rgba(255, 255, 255, 0.1) 53%, 
+    rgba(255, 255, 255, 0) 55%, 
+    transparent 100%
+  );
+  
+  /* TRIPLE MARKER - Three points for very clear movement tracking */
+  --sweep-gradient-triple: linear-gradient(
+    90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0) 40%, 
+    rgba(255, 255, 255, 0.2) 43%, /* First smaller peak */
+    rgba(255, 255, 255, 0) 46%, 
+    rgba(255, 255, 255, 0.6) 50%, /* Main peak */
+    rgba(255, 255, 255, 0) 54%, 
+    rgba(255, 255, 255, 0.2) 57%, /* Third peak */
+    rgba(255, 255, 255, 0) 60%, 
+    transparent 100%
+  );
+  
+}
+
+.animate-sweep-gradient {
+  animation-name: sweep;
+  animation-duration: var(--sweep-duration, 2.5s);
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  background-image: var(--sweep-gradient);
+  will-change: transform;
 }
 
 /* Progress bar animations */
@@ -64,10 +111,20 @@
   100% { background-color: var(--user-cancel-color); }
 }
 
-/* Sweeping gradient animation for progress bars */
+/* Sweeping gradient animation for progress bars
+   the multi-step on top of cubic really is the secret sauce */
 @keyframes sweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% { 
+    transform: translateX(-100%);
+    animation-timing-function: cubic-bezier(0.45, 0.3, 0.45, 0.7); /* Ease-in-out */
+  }
+  50% { 
+    transform: translateX(-50%);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 0.8); /* Accelerating */
+  }
+  100% { 
+    transform: translateX(100%);
+  }
 }
 
 :root {

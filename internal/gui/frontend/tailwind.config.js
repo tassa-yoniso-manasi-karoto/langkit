@@ -171,18 +171,6 @@ export default {
       },
       // Animation keyframes definitions
       keyframes: {
-        // Defines how the sweeping gradient moves across the progress bar
-        sweep: {
-          // Start position (left edge of gradient is offscreen to the left)
-          '0%': { 
-            backgroundPosition: '0% 0',
-          },
-          // End position (gradient has moved completely across and is offscreen to the right)
-          // The 200% value ensures the gradient completes a full sweep
-          '100%': { 
-            backgroundPosition: '200% 0',
-          },
-        },
         // Fade in animation for feature messages
         fadeIn: {
           '0%': {
@@ -217,18 +205,6 @@ export default {
           }
         },
       },
-      /**
-       * Progress bar animation configurations - these values control the appearance of the progress bars
-       * across the application. Adjusting these values will affect all progress animations.
-       */
-      
-      // Progress bar sweep gradient configuration
-      backgroundImage: {
-        // The gradient that forms the sweep effect on progress bars
-        // - First value (0.05): Edge gradient opacity - lower for subtle edges
-        // - Second value (0.3): Peak gradient brightness - determines the intensity of the sweep highlight
-        'sweep-gradient': 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,var(--sweep-edge-opacity, 0.05)) 25%, rgba(255,255,255,var(--sweep-peak-opacity, 0.3)) 50%, rgba(255,255,255,var(--sweep-edge-opacity, 0.05)) 75%, transparent 100%)',
-      }
     },
   },
   plugins: [],

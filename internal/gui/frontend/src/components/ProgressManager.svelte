@@ -424,11 +424,11 @@
                                     <!-- Main progress fill clipping container with contain property -->
                                     <div class="absolute inset-0 overflow-hidden" 
                                         style="width: {bar.progress}%; contain: strict;">
-                                        <!-- Fixed-width gradient container with composite layers-->
-                                        <div class="absolute inset-0" style="width: 500px; will-change: transform; contain: paint;">
+                                        <!-- Gradient container with composite layers -->
+                                        <div class="absolute inset-0" style="width: calc(max(500px, 150%)); will-change: transform; contain: paint;">
                                             <!-- Optimize gradient animation -->
                                             <div id="gradient-{bar.id}" 
-                                                class="animate-sweep-gradient absolute inset-0 w-full h-full bg-sweep-gradient" 
+                                                class="animate-sweep-gradient absolute inset-0 w-full h-full" 
                                                 style="opacity: var(--sweep-opacity, 0.5); will-change: transform;">
                                             </div>
                                         </div>
