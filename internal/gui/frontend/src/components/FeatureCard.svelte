@@ -20,8 +20,6 @@
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import GroupOption from './GroupOption.svelte';
     
-    // No longer needed - direct DOM check is more reliable
-    
     export let feature: FeatureDefinition;
     export let enabled = false;
     export let options: any = {};
@@ -347,8 +345,31 @@
     }
     
     function handleDropdownChange(optionId: string, value: string) {
+        // Get current value before updating for proper change detection
+        const oldValue = options[optionId];
+        
+        // Safety check to prevent duplicate processing
+        if (oldValue === value) {
+            console.log(`Ignoring redundant update: ${optionId} remains ${value}`);
+            return;
+        }
+        
+        // Log the change for debugging
+        console.log(`FeatureCard handleDropdownChange: ${optionId} from ${oldValue} to ${value}`);
+        
+        // Update local state
         options[optionId] = value;
-        dispatch('optionChange', { featureId: feature.id, optionId, value });
+        
+        // Special flag for STT model changes
+        const isSTTModelChange = feature.id === 'dubtitles' && optionId === 'stt';
+        
+        // Dispatch update to parent
+        dispatch('optionChange', { 
+            featureId: feature.id, 
+            optionId, 
+            value,
+            isSTTModelChange
+        });
     }
     
     // Cached visible options
@@ -482,7 +503,7 @@
     // Helper function to determine if we should show feature messages
     function hasFeatureMessages() {
         // API Provider error messages
-        if (enabled && get(errorStore).some(e => e.id === `provider-${feature.id}`)) {
+        if (enabled && $errorStore.some(e => e.id === `provider-${feature.id}`)) {
             return true;
         }
         
@@ -573,13 +594,13 @@
         <div class="feature-message-card ml-7 w-auto animate-fadeIn">
                 <div class="glassmorphism-card">
                     <!-- API Provider error messages -->
-                    {#if enabled && get(errorStore).some(e => e.id === `provider-${feature.id}`)}
+                    {#if enabled && $errorStore.some(e => e.id === `provider-${feature.id}`)}
                         <div class={messageItemClass}>
-                            <span class="material-icons text-[14px] text-error-all mt-0.5 group-hover:animate-subtlePulse">
+                            <span class="material-icons text-[14px] text-log-warn mt-0.5 group-hover:animate-subtlePulse">
                                 warning
                             </span>
                             <div class="flex-1 text-xs text-white/90">
-                                <span>{get(errorStore).find(e => e.id === `provider-${feature.id}`)?.message || ''}</span>
+                                <span>{$errorStore.find(e => e.id === `provider-${feature.id}`)?.message || ''}</span>
                                 <button 
                                     class="ml-1 text-primary hover:text-primary-300 transition-colors duration-200 underline"
                                     on:click={() => $showSettings = true}>
@@ -855,40 +876,31 @@
                                         />
                                     </label>
                                 {:else if optionDef.type === 'dropdown' && optionId === 'stt'}
-									<Dropdown
-										options={optionDef.choices || []}
-										value={options[optionId]}
-										labelFunction={(option) => {
-											// Find the model in the models list
-											const model = currentSTTModels.models.find(m => m.name === option);
-											if (model) {
-												let label = `${model.displayName} @ ${model.providerName}`;
-												if (model.isRecommended) label += ' ✓';
-												if (model.isDepreciated) label += ' (deprecated)';
-												return label;
-											}
-											return option;
-										}}
-										tooltipFunction={(option) => {
-											// Find the model to get its description
-											const model = currentSTTModels.models.find(m => m.name === option);
-											if (model) {
-												let tooltip = model.description;
-												if (!model.isAvailable) {
-													tooltip += `\n\nRequires ${model.providerName} API key in settings.`;
-												}
-												return tooltip;
-											}
-											return '';
-										}}
-										disabledFunction={(option) => {
-											// Disable options that don't have API keys
-											const model = currentSTTModels.models.find(m => m.name === option);
-											return model ? !model.isAvailable : false;
-										}}
-										on:change={(e) => handleDropdownChange(optionId, e.detail)}
-										label={optionDef.label}
-									/>
+                                    <Dropdown
+                                        options={optionDef.choices || []}
+                                        value={options[optionId]}
+                                        labelFunction={(option) => {
+                                            // Find the model in the models list
+                                            const model = currentSTTModels.models.find(m => m.name === option);
+                                            if (model) {
+                                                let label = `${model.displayName} @ ${model.providerName}`;
+                                                if (model.isRecommended) label += ' ✓';
+                                                if (model.isDepreciated) label += ' (deprecated)';
+                                                return label;
+                                            }
+                                            return option;
+                                        }}
+                                        tooltipFunction={(option) => {
+                                            // Find the model to get its description
+                                            const model = currentSTTModels.models.find(m => m.name === option);
+                                            if (model) {
+                                                return model.description;
+                                            }
+                                            return '';
+                                        }}
+                                        on:change={(e) => handleDropdownChange(optionId, e.detail)}
+                                        label={optionDef.label}
+                                    />
                                 {:else if optionDef.type === 'dropdown'}
                                     <Dropdown
                                         options={optionDef.choices || []}

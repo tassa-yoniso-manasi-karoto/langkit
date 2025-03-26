@@ -242,45 +242,61 @@
         }
     }
 
-    function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
-        const tokenType = providersRequiringTokens[provider];
-        if (!tokenType) return { isValid: true, tokenType: null };
-        
-        const currentSettings = get(settings);
-        const hasToken = currentSettings?.apiKeys?.[tokenType]?.trim().length > 0;
-        
-        return { 
-            isValid: hasToken,
-            tokenType: tokenType
-        };
-    }
-    
+    // Improved provider warning checks
     function updateProviderWarnings() {
+        console.log("Running updateProviderWarnings check");
+        
         // Check dubtitles STT provider
         if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
-            const sttProvider = currentFeatureOptions.dubtitles.stt;
-            const { isValid, tokenType } = checkProviderApiToken(sttProvider);
-            if (!isValid) {
-                errorStore.addError({
-                    id: 'provider-dubtitles',
-                    message: `${tokenType} API token is required for ${sttProvider}`,
-                    severity: 'critical'
-                });
+            const sttModel = currentFeatureOptions.dubtitles.stt;
+            console.log(`Checking provider requirements for STT model: ${sttModel}`);
+            
+            // Find the model info to get the provider
+            const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
+            
+            if (modelInfo) {
+                const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
+                console.log(`Model provider: ${providerName}`);
+                
+                // Check if this provider requires a token
+                const { isValid, tokenType } = checkProviderApiToken(providerName);
+                console.log(`Provider ${providerName} token check: valid=${isValid}, tokenType=${tokenType}`);
+                
+                if (!isValid) {
+                    // Use addError to add/update the error message
+                    const errorMessage = `${tokenType || providerName} API token is required for ${modelInfo.displayName}`;
+                    console.log(`Adding error: provider-dubtitles - ${errorMessage}`);
+                    
+                    errorStore.addError({
+                        id: 'provider-dubtitles',
+                        message: errorMessage,
+                        severity: 'critical'
+                    });
+                } else {
+                    // Remove the error if it exists
+                    console.log(`Token is valid, removing any existing provider-dubtitles error`);
+                    errorStore.removeError('provider-dubtitles');
+                }
             } else {
+                console.log(`Warning: Could not find model info for ${sttModel}`);
+                // Clear any existing error if model not found
                 errorStore.removeError('provider-dubtitles');
             }
         } else {
+            // Remove the error if the feature is disabled
+            console.log(`Feature not selected or options missing, removing provider-dubtitles error`);
             errorStore.removeError('provider-dubtitles');
         }
 
-        // Check voice enhancing provider
+        // Check voice enhancing provider with similar pattern
         if (selectedFeatures.voiceEnhancing && currentFeatureOptions.voiceEnhancing) {
             const sepLib = currentFeatureOptions.voiceEnhancing.sepLib;
             const { isValid, tokenType } = checkProviderApiToken(sepLib);
+            
             if (!isValid) {
                 errorStore.addError({
                     id: 'provider-voiceEnhancing',
-                    message: `${tokenType} API token is required for ${sepLib}`,
+                    message: `${tokenType || sepLib} API token is required for ${sepLib}`,
                     severity: 'critical'
                 });
             } else {
@@ -289,6 +305,55 @@
         } else {
             errorStore.removeError('provider-voiceEnhancing');
         }
+    }
+
+    // Improved provider check with explicit logging
+    function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
+        // Map provider names from STT models to their corresponding API key names in settings
+        const providerKeyMapping: Record<string, string> = {
+            'replicate': 'replicate',
+            'openai': 'openAI',
+            'assemblyai': 'assemblyAI',
+            'elevenlabs': 'elevenLabs'
+        };
+        
+        console.log(`Checking API token for provider: ${provider}`);
+        
+        // Normalize provider name to lowercase for case-insensitive matching
+        const normalizedProvider = provider.toLowerCase();
+        
+        // Get the appropriate token type using the mapping
+        let tokenType = providerKeyMapping[normalizedProvider];
+        
+        // Fallback to original mapping if not found
+        if (!tokenType) {
+            tokenType = providersRequiringTokens[normalizedProvider];
+        }
+        
+        console.log(`Token type for ${provider}: ${tokenType || 'none required'}`);
+        
+        // Check if token is needed
+        if (!tokenType) {
+            return { isValid: true, tokenType: null };
+        }
+        
+        // Check settings for the token
+        const currentSettings = get(settings);
+        
+        // Ensure settings and apiKeys exist
+        if (!currentSettings || !currentSettings.apiKeys) {
+            return { isValid: false, tokenType };
+        }
+        
+        // Check if token has a value
+        const hasToken = Boolean(currentSettings.apiKeys[tokenType]?.trim());
+        
+        console.log(`Token status for ${provider} (${tokenType}): ${hasToken ? 'valid' : 'missing'}`);
+        
+        return { 
+            isValid: hasToken,
+            tokenType
+        };
     }
     
     // Media file checking
@@ -484,10 +549,41 @@
     function updateSubtitleProviderVisibility(featureDef: FeatureDefinition) {
     }
 
+    let isProcessingSTTChange = false;
     function handleOptionChange(event: CustomEvent) {
-        const { featureId, optionId, value, isGroupOption, groupId, isUserInput } = event.detail;
+        const { featureId, optionId, value, isGroupOption, groupId, isSTTModelChange } = event.detail;
         
-        // Handle group option changes (new implementation)
+        // For non-group options, directly update the feature's options (if needed)
+        if (!isGroupOption) {
+            // Check if the value has already been updated by a previous handler
+            if (currentFeatureOptions[featureId][optionId] !== value) {
+                currentFeatureOptions[featureId][optionId] = value;
+            }
+        }
+        
+       // Special handling for STT model changes
+        if (isSTTModelChange && featureId === 'dubtitles' && optionId === 'stt') {
+            // Prevent duplicate processing
+            if (isProcessingSTTChange) {
+                console.log(`Ignoring recursive STT model change event for ${value}`);
+                return;
+            }
+            
+            // Set flag to prevent processing duplicates
+            isProcessingSTTChange = true;
+            
+            try {
+                console.log(`FeatureSelector handling STT model change to ${value}`);
+                
+                // Force provider warnings check immediately
+                updateProviderWarnings();
+            } finally {
+                // Always reset flag
+                isProcessingSTTChange = false;
+            }
+        }
+        
+        // Handle group option changes
         if (isGroupOption && groupId) {
             console.log(`FeatureSelector received group option change - ${groupId}.${optionId}: '${value}'`, 
                 isUserInput ? '(user input)' : '');
@@ -528,14 +624,12 @@
             currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
                 groupId, currentFeatureOptions
             );
-            
-            // Dispatch changes
+
+            // Dispatch changes to parent
             dispatch('optionsChange', currentFeatureOptions);
             return;
         }
         
-        // For non-group options, directly update the feature's options
-        currentFeatureOptions[featureId][optionId] = value;
         dispatch('optionsChange', currentFeatureOptions);
     }
     
@@ -584,6 +678,23 @@
             console.error("NeedsTokenization failed:", err);
             tokenizationAllowed = false;
         }
+    }
+
+    function ensureValidSTTModel() {
+      if (!currentFeatureOptions.dubtitles) return;
+      
+      // Always use the first available model if the model list exists
+      if (currentSTTModels && currentSTTModels.names && currentSTTModels.names.length > 0) {
+        const firstModel = currentSTTModels.names[0];
+        const currentModel = currentFeatureOptions.dubtitles.stt;
+        
+        // Update if current model doesn't exist in the list
+        if (!currentSTTModels.names.includes(currentModel)) {
+          console.log(`Current STT model ${currentModel} not in available models list. Resetting to ${firstModel}`);
+          currentFeatureOptions.dubtitles.stt = firstModel;
+          dispatch('optionChange', { featureId: 'dubtitles', optionId: 'stt', value: firstModel });
+        }
+      }
     }
 
     // Prepare context for conditions
@@ -734,11 +845,6 @@
         dispatch('optionsChange', currentFeatureOptions);
     }
     
-    // Keep feature warnings in sync with selection state
-    $: if (selectedFeatures) {
-        updateProviderWarnings();
-    }
-
     // Special initialization to clean up inconsistencies in feature options
     function cleanupFeatureOptions() {
         // Initialize all features with appropriate options
@@ -1007,6 +1113,8 @@
             setTimeout(registerFeatureDisplayOrder, 100);
         }
     });
+    // Subscribe to error store changes to verify updates are being applied
+    let errorStoreUnsubscribe: () => void;
     
     onMount(async () => {
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
@@ -1122,6 +1230,13 @@
                 const maxDelay = 100 * Math.pow(1.75, orderedFeatures.length / 1.2) + 200;
                 setTimeout(registerFeatureDisplayOrder, maxDelay);
             }
+            
+            // Do an initial provider warning check after everything is set up
+            setTimeout(() => {
+                updateProviderWarnings();
+                console.log("Initial provider warnings check completed");
+            }, 500);
+            
         } catch (error) {
             console.error("Error during FeatureSelector initialization:", error);
             // Mark as loaded anyway to prevent endless loading state
@@ -1138,10 +1253,6 @@
             });
         }
     });
-    
-    function softLanding(t) {
-       return 1 - Math.pow(1 - t, 3.5);
-    }
 
     onDestroy(() => {
         console.log('FeatureSelector unmounting, cleaning up errors');
@@ -1149,6 +1260,12 @@
         if (sttModelsUnsubscribe) {
             sttModelsUnsubscribe();
         }
+        
+        // Clean up error store subscription
+        if (errorStoreUnsubscribe) {
+            errorStoreUnsubscribe();
+        }
+        
         // Clear legacy errors
         errorStore.removeError('docker-required');
         errorStore.removeError('invalid-browser-url');
@@ -1164,6 +1281,37 @@
         errorStore.removeError('group-subtitle-browser-url');
         errorStore.removeError('group-subtitle-browser-url-validation');
     });
+    
+    function softLanding(t) {
+       return 1 - Math.pow(1 - t, 3.5);
+    }
+
+    // Call this method whenever the STT models change
+    $: if (currentSTTModels) {
+      ensureValidSTTModel();
+    }
+
+    // Also call it when settings change
+    settings.subscribe(value => {
+      if (value) {
+        // Wait for STT models to refresh before validating selection
+        setTimeout(ensureValidSTTModel, 100);
+        updateProviderWarnings();
+      }
+    });
+    
+    // update provider warnings when STT model changes
+    $: if (currentFeatureOptions?.dubtitles?.stt) {
+        // This ensures we update warnings whenever the STT model changes
+        console.log(`STT model changed reactively to: ${currentFeatureOptions.dubtitles.stt}`);
+        updateProviderWarnings();
+    }
+
+    // Also update warnings when selected features change
+    $: if (selectedFeatures) {
+        updateProviderWarnings();
+    }
+
 </script>
 
 <div class="space-y-6">

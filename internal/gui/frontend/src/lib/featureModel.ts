@@ -468,8 +468,13 @@ export function updateSTTModels(sttModels: STTModelsResponse): void {
   // Always update choices for the STT dropdown with all models
   updateFeatureChoices('dubtitles', 'stt', sttModels.names, sttModels.suggested);
   
-  // Update the initialPrompt condition as before
+  // Also update the default value to always be the first model in the list
   const dubtitlesFeature = features.find(f => f.id === 'dubtitles');
+  if (dubtitlesFeature && dubtitlesFeature.options.stt && sttModels.names.length > 0) {
+    dubtitlesFeature.options.stt.default = sttModels.names[0];
+  }
+  
+  // Update the initialPrompt condition as before
   if (dubtitlesFeature && dubtitlesFeature.options.initialPrompt) {
     dubtitlesFeature.options.initialPrompt.showCondition = 
       `(function() {

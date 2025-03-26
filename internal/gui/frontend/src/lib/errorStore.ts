@@ -49,49 +49,57 @@ function createErrorStore() {
         }
     }
 
+    function addError(error: ErrorMessage) {
+        // console.debug(`[Error Store] Adding error: ${error.id}`, error);
+        trackErrorMetric(error);
+
+        store.update(errors => {
+            // Always remove existing error with same ID first for proper reactivity
+            const filteredErrors = errors.filter(e => e.id !== error.id);
+            
+            // Create new error with timestamp
+            const newError = {
+                ...error,
+                timestamp: Date.now(),
+                dismissible: error.dismissible ?? (error.severity !== 'critical')
+            };
+            
+            // Setup auto-dismiss if needed
+            const timeout = AUTODISMISS_TIMEOUTS[error.severity];
+            if (timeout > 0) {
+                setTimeout(() => {
+                    // Remove the error after the timeout.
+                    removeError(error.id);
+                }, timeout);
+            }
+
+            // Return updated errors array to trigger reactivity
+            return [...filteredErrors, newError];
+        });
+    }
+
+    function removeError(id: string) {
+        // console.debug(`[Error Store] Removing error: ${id}`);
+        store.update(errors => errors.filter(e => e.id !== id));
+    }
+
+    function clearErrors() {
+        // console.debug('[Error Store] Clearing all errors');
+        store.set([]);
+    }
+
+    function clearErrorsOfType(severity: ErrorSeverity) {
+        // console.debug(`[Error Store] Clearing errors of type: ${severity}`);
+        store.update(errors => errors.filter(e => e.severity !== severity));
+    }
+
+    // Return the public API
     return {
         subscribe: store.subscribe,
-
-        addError: (error: ErrorMessage) => {
-            // console.debug(`[Error Store] Adding error: ${error.id}`, error);
-            trackErrorMetric(error);
-
-            store.update(errors => {
-                // Remove existing error with the same ID, if present.
-                const filteredErrors = errors.filter(e => e.id !== error.id);
-                const timeout = AUTODISMISS_TIMEOUTS[error.severity];
-                const newError = {
-                    ...error,
-                    timestamp: Date.now(),
-                    dismissible: error.dismissible ?? (error.severity !== 'critical')
-                };
-
-                if (timeout > 0) {
-                    setTimeout(() => {
-                        // Remove the error after the timeout.
-                        // (You can also call removeError if you want to reuse its logic)
-                        store.update(errs => errs.filter(e => e.id !== error.id));
-                    }, timeout);
-                }
-
-                return [...filteredErrors, newError];
-            });
-        },
-
-        removeError: (id: string) => {
-            // console.debug(`[Error Store] Removing error: ${id}`);
-            store.update(errors => errors.filter(e => e.id !== id));
-        },
-
-        clearErrors: () => {
-            // console.debug('[Error Store] Clearing all errors');
-            store.set([]);
-        },
-
-        clearErrorsOfType: (severity: ErrorSeverity) => {
-            // console.debug(`[Error Store] Clearing errors of type: ${severity}`);
-            store.update(errors => errors.filter(e => e.severity !== severity));
-        },
+        addError,
+        removeError,
+        clearErrors,
+        clearErrorsOfType,
 
         // Create derived stores using the entire store.
         hasErrors: derived(store, ($errors) =>

@@ -8,8 +8,27 @@
     export let tooltipFunction: ((option: string) => string) | null = null;
     export let disabledFunction: ((option: string) => boolean) | null = null;
     
-    import { createEventDispatcher } from 'svelte';
+    import { createEventDispatcher, onMount } from 'svelte';
     const dispatch = createEventDispatcher();
+    
+    // Track selection state internally
+    let selectElement: HTMLSelectElement;
+    let internalValue: string = '';
+    let initialRender = true;
+    
+    // Flag to prevent circular updates
+    let isProcessingChange = false;
+
+    onMount(() => {
+        // Initialize internal value on mount
+        internalValue = value;
+        initialRender = false;
+        
+        // Set the select element value directly to match
+        if (selectElement && value) {
+            selectElement.value = value;
+        }
+    });
 
     function getValue(option: any): string {
         if (optionKey && typeof option === 'object') {
@@ -36,30 +55,74 @@
         return '';
     }
 
-    // Fixed isDisabled function to properly handle options
+    // We're not using the disabled state anymore
     function isDisabled(option: any): boolean {
-        const optionValue = getValue(option);
-        if (disabledFunction && typeof optionValue === 'string') {
-            return disabledFunction(optionValue);
-        }
         return false;
     }
 
     function handleSelect(event: Event) {
-        const target = event.target as HTMLSelectElement;
-        value = target.value;
-        dispatch('change', target.value);
-    }
-
-    // Updated to use isDisabled properly
-    $: if (options.length > 0 && (!value || !options.some(opt => getValue(opt) === value))) {
-        // Try to find first non-disabled option
-        const availableOption = options.find(opt => !isDisabled(opt));
-        const defaultValue = availableOption ? getValue(availableOption) : getValue(options[0]);
+        // Prevent processing if we're already handling a change
+        if (isProcessingChange) return;
         
-        if (defaultValue !== value) {
-            value = defaultValue;
-            dispatch('change', defaultValue);
+        isProcessingChange = true;
+        
+        try {
+            const target = event.target as HTMLSelectElement;
+            const newValue = target.value;
+            
+            // Only dispatch if actually different
+            if (newValue !== internalValue) {
+                console.log(`Dropdown change: previous=${internalValue}, new=${newValue}`);
+                
+                // Update internal value first
+                internalValue = newValue;
+                
+                // Then dispatch the change event
+                dispatch('change', newValue);
+            }
+        } finally {
+            // Always reset the flag when done
+            isProcessingChange = false;
+        }
+    }
+    
+    // When external value changes, update our internal state
+    $: if (!initialRender && value !== internalValue && !isProcessingChange) {
+        // Set flag to prevent circular updates
+        isProcessingChange = true;
+        
+        // Update our internal value
+        internalValue = value;
+        
+        // Update the DOM element if it exists
+        if (selectElement) {
+            selectElement.value = value;
+        }
+        
+        // Reset flag
+        isProcessingChange = false;
+    }
+    
+    // Default value behavior - only run once after initial render
+    $: if (!initialRender && options.length > 0 && !internalValue && !isProcessingChange) {
+        // Set flag to prevent circular updates
+        isProcessingChange = true;
+        
+        try {
+            // Use first option as default
+            const defaultValue = getValue(options[0]);
+            internalValue = defaultValue;
+            
+            // Only dispatch if actually needed
+            if (defaultValue !== value) {
+                // Use setTimeout to avoid update during render
+                setTimeout(() => {
+                    dispatch('change', defaultValue);
+                }, 0);
+            }
+        } finally {
+            // Always reset flag
+            isProcessingChange = false;
         }
     }
 </script>
@@ -67,7 +130,7 @@
 <div class="relative w-full">
     <div class="relative flex items-center">
         <select
-            bind:value
+            bind:this={selectElement}
             on:change={handleSelect}
             class="w-full h-[42px] bg-sky-dark/50 border-2 border-primary/30 rounded-md
                    focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 
@@ -79,7 +142,6 @@
                     value={getValue(option)} 
                     class="bg-bgold" 
                     title={getTooltip(option)}
-                    disabled={isDisabled(getValue(option))}
                 >
                     {getLabel(option)}
                 </option>

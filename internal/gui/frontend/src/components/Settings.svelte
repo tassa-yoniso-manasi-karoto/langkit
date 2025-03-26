@@ -82,6 +82,15 @@
         if (!isValid) return;
         try {
             await window.go.gui.App.SaveSettings(currentSettings);
+            
+            // Trigger STT model refresh after API key changes
+            try {
+                // Explicitly request a refresh of STT models with new API keys
+                await window.go.gui.App.RefreshSTTModelsAfterSettingsUpdate();
+            } catch (error) {
+                console.error('Failed to refresh STT models:', error);
+            }
+            
             settings.set(currentSettings);
             onClose();
             window.dispatchEvent(new CustomEvent('settingsUpdated', {
