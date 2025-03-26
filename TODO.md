@@ -16,7 +16,6 @@
  
 - save appStartCount in config
 - use selective translit tokenized inside TRANSLIT.GO
-- banner in subs2cards for dub as source when Dubtitles are selected too
 
 - GUI options:
   - condensed audio toggle

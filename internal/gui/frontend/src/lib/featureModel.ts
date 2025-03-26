@@ -96,7 +96,9 @@ export const features: FeatureDefinition[] = [
                 label: 'Condensed Audio',
                 default: false
             }
-        }
+        },
+        dependentFeature: 'dubtitles',
+        dependencyMessage: "Dubtitles will be used as a source for subs2cards when both features are enabled"
     },
     {
         id: 'dubtitles',
