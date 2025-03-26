@@ -127,6 +127,18 @@
         return 'text-white/70';
     }
     
+    function formatProviderName(providerName: string): string {
+        const providerFormatMap: Record<string, string> = {
+            'openai': 'OpenAI',
+            'replicate': 'Replicate',
+            'assemblyai': 'AssemblyAI',
+            'elevenlabs': 'ElevenLabs'
+        };
+        
+        // Return formatted name or original if not in mapping
+        return providerFormatMap[providerName.toLowerCase()] || providerName;
+    }
+    
     // Handle feature click for toggling and unavailable features
     function handleFeatureClick(event: Event) {
         // Prevent toggling if clicking inside of the options drawer
@@ -883,9 +895,8 @@
                                             // Find the model in the models list
                                             const model = currentSTTModels.models.find(m => m.name === option);
                                             if (model) {
-                                                let label = `${model.displayName} @ ${model.providerName}`;
-                                                if (model.isRecommended) label += ' ✓';
-                                                if (model.isDepreciated) label += ' (deprecated)';
+                                                let label = `${model.displayName} @${formatProviderName(model.providerName)}`;
+                                                if (model.isDepreciated) label += ' (DEPRECATED)';
                                                 return label;
                                             }
                                             return option;

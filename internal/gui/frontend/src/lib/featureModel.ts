@@ -110,8 +110,8 @@ export const features: FeatureDefinition[] = [
             stt: {
                 type: 'dropdown',
                 label: 'Speech-To-Text',
-                default: 'whisper',
-                choices: ['whisper', 'insanely-fast-whisper', 'universal-1']
+                default: '', // 1st of slice returned by backend
+                choices: []  // now dynamically provided by backend
             },
             sttTimeout: {
                 type: 'number',

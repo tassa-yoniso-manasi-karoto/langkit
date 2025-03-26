@@ -1,22 +1,28 @@
 
-- dynamic loading of list of STT providers in the frontend
-- use selective translit tokenized inside TRANSLIT.GO
-- valid browser URL required even for Subs2Cards alone
-- fix progress bar yellow/red on abort without transition
+- go-rod
+  - atm valid browser URL required even for Subs2Cards alone
+  - make browser url option to use go-rod's ability to download & manage the instance for noobs
+
+
+- progress bar
+  - sweep animation covering only 60% of the progressbar
+  - yellow/red on abort without transition
+  - subline total not reset on resume
+  - UI lag while resume: must cache progress in backend for single UI update
+  - 🤯 make consistent progress bars between GUI and CLI
+  - correct sub line count, even accross resume
+  - processedCount for ETA calculation
+  - ETA calculation itself
+ 
 - bug in TH2EN
+- use selective translit tokenized inside TRANSLIT.GO
 - banner in subs2cards for dub as source when Dubtitles are selected too
 
 - GUI options:
   - condensed audio toggle
   - dubs allow user to request cached sep voice file deletion
   
-- fix sweep animation covering only 60% of the progressbar
 - coffee icon
-
-- 🤯 consistent progress bars between GUI and CLI
-  - sub line count
-  - processedCount for ETA calculation
-  - ETA algo bc progressbar pkg uses a rate-based on few past seconds to make an ETA and it is garbage when tasks are CPU bound + massive task pool
 
 - truncated feature card (left & right) when not maximized, buttons process and cancel too
 

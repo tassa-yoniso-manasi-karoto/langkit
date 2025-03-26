@@ -1306,12 +1306,28 @@
         console.log(`STT model changed reactively to: ${currentFeatureOptions.dubtitles.stt}`);
         updateProviderWarnings();
     }
-
-    // Also update warnings when selected features change
-    $: if (selectedFeatures) {
-        updateProviderWarnings();
+    
+    $: if (currentSTTModels && currentSTTModels.models && currentSTTModels.models.length > 0) {
+        console.log("STT models updated, checking default model selection");
+        
+        // Make sure dubtitles feature options exist
+        if (!currentFeatureOptions.dubtitles) {
+            currentFeatureOptions.dubtitles = {};
+        }
+        
+        // If no model is selected or the selected model isn't in the list, use the first one
+        const currentModel = currentFeatureOptions.dubtitles.stt;
+        if (!currentModel || !currentSTTModels.names.includes(currentModel)) {
+            const firstModel = currentSTTModels.names[0];
+            console.log(`Setting initial STT model to ${firstModel}`);
+            
+            // Update the feature options directly
+            currentFeatureOptions.dubtitles.stt = firstModel;
+            
+            // And dispatch the change
+            dispatch('optionsChange', currentFeatureOptions);
+        }
     }
-
 </script>
 
 <div class="space-y-6">
