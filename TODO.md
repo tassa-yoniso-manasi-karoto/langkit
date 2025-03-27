@@ -1,6 +1,10 @@
 
 - bug in TH2EN
 
+- Adaptive Event Throttling System
+  - virtual log view → must std log entry height
+  - progressbar no updating under low load
+
 - go-rod
   - atm valid browser URL required even for Subs2Cards alone
   - make browser url option to use go-rod's ability to download & manage the instance for noobs
@@ -8,7 +12,6 @@
 
 - progress bar
   - subline total not reset on resume
-  - UI lag while resume: must cache progress in backend for single UI update
   - 🤯 make consistent progress bars between GUI and CLI
   - correct sub line count, even accross resume
   - processedCount for ETA calculation

@@ -25,10 +25,14 @@ type AdaptiveEventThrottler struct {
 	lastRateReset      time.Time         // When the rate window was last reset
 	currentRate        float64           // Current events per second rate
 	
+	// Event rate tracking with sliding window
+	eventTimeWindow    []time.Time       // Sliding window of event timestamps
+	directPassThreshold float64          // Threshold below which to use direct pass-through
+	
 	// Throttling state
 	lastEmitTime       time.Time         // When the last batch was emitted
 	currentInterval    time.Duration     // Current throttling interval (dynamically adjusted)
-	minInterval        time.Duration     // Minimum throttling interval (0 means no throttling when quiet)
+	minInterval        time.Duration     // Minimum throttling interval (0 means no throttle when quiet)
 	maxInterval        time.Duration     // Maximum throttling interval (upper bound)
 	
 	// Control
@@ -56,20 +60,22 @@ func NewAdaptiveEventThrottler(
 	logger *zerolog.Logger,
 ) *AdaptiveEventThrottler {
 	t := &AdaptiveEventThrottler{
-		ctx:             ctx,
-		logBuffer:       make([]string, 0, 1000),
-		progressBuffer:  make(map[string]map[string]interface{}),
-		rateWindow:      rateWindow,
-		lastRateReset:   time.Now(),
-		minInterval:     minInterval,
-		maxInterval:     maxInterval,
-		lastEmitTime:    time.Now(),
-		enabled:         enabled,
-		isRunning:       true,
-		flushChan:       make(chan struct{}, 1),
-		highLoadMode:    false,
-		maxBufferSize:   5000, // Increased capacity for high-volume events
-		logger:          logger,
+		ctx:                ctx,
+		logBuffer:          make([]string, 0, 1000),
+		progressBuffer:     make(map[string]map[string]interface{}),
+		rateWindow:         rateWindow,
+		lastRateReset:      time.Now(),
+		minInterval:        minInterval,
+		maxInterval:        maxInterval,
+		lastEmitTime:       time.Now(),
+		enabled:            enabled,
+		isRunning:          true,
+		flushChan:          make(chan struct{}, 1),
+		highLoadMode:       false,
+		maxBufferSize:      5000, // Increased capacity for high-volume events
+		logger:             logger,
+		directPassThreshold: 20.0, // Direct pass-through for < 20 events/sec
+		eventTimeWindow:    make([]time.Time, 0, 100),
 	}
 	
 	// Start background processing goroutine
@@ -77,7 +83,7 @@ func NewAdaptiveEventThrottler(
 	return t
 }
 
-// AddLog adds a log entry to the buffer, or sends it immediately if it's critical
+// AddLog adds a log entry to the buffer, or sends it immediately if it's critical or direct pass-through applies
 func (t *AdaptiveEventThrottler) AddLog(log string) {
     // Early return if throttling is disabled
     if !t.enabled {
@@ -127,6 +133,15 @@ func (t *AdaptiveEventThrottler) AddLog(log string) {
         runtime.EventsEmit(t.ctx, "log", log)
         return
     }
+    
+    // Update event rate and check for direct pass-through
+    t.updateEventRate()
+    
+    // Use direct pass-through for normal operation (low event rates)
+    if t.currentRate < t.directPassThreshold && !t.highLoadMode {
+        runtime.EventsEmit(t.ctx, "log", log)
+        return
+    }
 
     // Lock for buffer modification
     t.mutex.Lock()
@@ -150,12 +165,22 @@ func (t *AdaptiveEventThrottler) AddLog(log string) {
 }
 
 // UpdateProgress stores only the latest update for each task ID
+// or sends directly for normal operation
 func (t *AdaptiveEventThrottler) UpdateProgress(id string, data map[string]interface{}) {
 	// Early return if throttling is disabled
 	if !t.enabled {
 		runtime.EventsEmit(t.ctx, "progress", data)
 		return
 	}
+
+    // Update event rate and check for direct pass-through
+    t.updateEventRate()
+    
+    // Use direct pass-through for normal operation (low event rates)
+    if t.currentRate < t.directPassThreshold && !t.highLoadMode {
+        runtime.EventsEmit(t.ctx, "progress", data)
+        return
+    }
 
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
@@ -180,6 +205,21 @@ func (t *AdaptiveEventThrottler) BulkUpdateProgress(updates map[string]map[strin
 		return
 	}
 	
+	// Automatically enable high load mode for bulk updates
+	wasHighLoad := t.highLoadMode
+	if !t.highLoadMode && len(updates) > 20 {
+	    t.SetHighLoadMode(true)
+	    
+	    // Schedule return to normal mode after processing
+	    go func() {
+	        time.Sleep(5 * time.Second)
+	        // Only disable if it was enabled by this call
+	        if !wasHighLoad {
+	            t.SetHighLoadMode(false)
+	        }
+	    }()
+	}
+	
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	
@@ -199,6 +239,45 @@ func (t *AdaptiveEventThrottler) BulkUpdateProgress(updates map[string]map[strin
 	} else {
 		t.adjustThrottling()
 	}
+}
+
+// updateEventRate tracks the event rate using a sliding window approach
+// and automatically detects high-load scenarios
+func (t *AdaptiveEventThrottler) updateEventRate() {
+    const highLoadThreshold = 100.0 // events per second
+    
+    now := time.Now()
+    t.mutex.Lock()
+    defer t.mutex.Unlock()
+    
+    // Add current time to a sliding window
+    t.eventTimeWindow = append(t.eventTimeWindow, now)
+    
+    // Keep only events within the rate window
+    cutoff := now.Add(-t.rateWindow)
+    for len(t.eventTimeWindow) > 0 && t.eventTimeWindow[0].Before(cutoff) {
+        t.eventTimeWindow = t.eventTimeWindow[1:]
+    }
+    
+    // Calculate current rate (events per second)
+    if len(t.eventTimeWindow) > 1 {
+        windowDuration := now.Sub(t.eventTimeWindow[0]).Seconds()
+        if windowDuration > 0 {
+            t.currentRate = float64(len(t.eventTimeWindow)) / windowDuration
+            
+            // Auto-enable high load mode if rate exceeds threshold
+            if t.currentRate > highLoadThreshold && !t.highLoadMode {
+                t.highLoadMode = true
+                t.logger.Info().Float64("rate", t.currentRate).Msg("Auto-enabled high load mode")
+            }
+            
+            // Auto-disable when rate drops significantly
+            if t.highLoadMode && t.currentRate < (highLoadThreshold * 0.5) {
+                t.highLoadMode = false
+                t.logger.Info().Float64("rate", t.currentRate).Msg("Auto-disabled high load mode")
+            }
+        }
+    }
 }
 
 // adjustThrottling dynamically adjusts the throttling interval based on event frequency
@@ -250,8 +329,10 @@ func (t *AdaptiveEventThrottler) adjustThrottling() {
 		}
 	}
 	
-	// Check if it's time to emit based on the adaptive interval
-	if t.currentInterval > 0 && now.Sub(t.lastEmitTime) >= t.currentInterval {
+	// FIX: Check if it's time to emit with special handling for zero interval
+	// This addresses the issue where progress bars don't update with zero interval
+	if (t.currentInterval > 0 && now.Sub(t.lastEmitTime) >= t.currentInterval) || 
+	   (t.currentInterval == 0 && len(t.progressBuffer) > 0 && now.Sub(t.lastEmitTime) >= 100*time.Millisecond) {
 		select {
 		case t.flushChan <- struct{}{}:
 			// Signal sent
@@ -263,6 +344,10 @@ func (t *AdaptiveEventThrottler) adjustThrottling() {
 
 // processBatches is a background goroutine that manages timed flushes
 func (t *AdaptiveEventThrottler) processBatches() {
+    // Add periodic flush timer for guaranteed updates
+    periodicFlushTicker := time.NewTicker(250 * time.Millisecond)
+    defer periodicFlushTicker.Stop()
+    
 	for t.isRunning {
 		select {
 		case <-t.ctx.Done():
@@ -273,6 +358,16 @@ func (t *AdaptiveEventThrottler) processBatches() {
 		case <-t.flushChan:
 			// Explicit flush requested
 			t.emitBatches()
+			
+        case <-periodicFlushTicker.C:
+            // Periodically flush any pending data regardless of other conditions
+            t.mutex.RLock()
+            hasData := len(t.logBuffer) > 0 || len(t.progressBuffer) > 0
+            t.mutex.RUnlock()
+            
+            if hasData {
+                t.emitBatches()
+            }
 			
 		case <-time.After(100 * time.Millisecond):
 			// Timeout check - see if we're due for a flush
@@ -373,6 +468,7 @@ func (t *AdaptiveEventThrottler) SetEnabled(enabled bool) {
 		if enabled {
 			t.eventCounter = 0
 			t.lastRateReset = time.Now()
+			t.eventTimeWindow = t.eventTimeWindow[:0]
 		} else {
 			// If disabling, flush any pending events
 			go t.Flush()
@@ -404,6 +500,17 @@ func (t *AdaptiveEventThrottler) SetMaxInterval(interval time.Duration) {
 	}
 }
 
+// SetDirectPassThreshold sets the threshold below which to use direct pass-through
+func (t *AdaptiveEventThrottler) SetDirectPassThreshold(threshold float64) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	
+	if t.directPassThreshold != threshold {
+		t.directPassThreshold = threshold
+		t.logger.Debug().Float64("threshold", threshold).Msg("Updated direct pass-through threshold")
+	}
+}
+
 // SetHighLoadMode activates or deactivates high load mode for resumption scenarios
 func (t *AdaptiveEventThrottler) SetHighLoadMode(enabled bool) {
 	t.mutex.Lock()
@@ -420,6 +527,7 @@ func (t *AdaptiveEventThrottler) SetHighLoadMode(enabled bool) {
 			// Reset to adaptive mode
 			t.eventCounter = 0
 			t.lastRateReset = time.Now()
+			t.eventTimeWindow = t.eventTimeWindow[:0]
 			t.logger.Debug().Msg("High load mode deactivated - returning to adaptive throttling")
 		}
 	}
@@ -438,6 +546,7 @@ func (t *AdaptiveEventThrottler) GetStatus() map[string]interface{} {
 		"pendingLogs":     len(t.logBuffer),
 		"pendingProgress": len(t.progressBuffer),
 		"maxBufferSize":   t.maxBufferSize,
+		"directPassThreshold": t.directPassThreshold,
 	}
 }
 
