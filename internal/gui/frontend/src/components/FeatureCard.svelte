@@ -580,7 +580,7 @@
      }}
      on:click={handleFeatureClick}
 >
-    <div class="p-4 border-b border-white/10
+    <div class="p-4 pr-1 border-b border-white/10
                 {(enabled && hasFeatureMessages()) ? 'pb-1' : 'pb-4'}"
     >
         <div class="flex items-center gap-3 cursor-pointer group
