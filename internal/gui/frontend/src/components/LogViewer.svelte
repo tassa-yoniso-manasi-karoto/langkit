@@ -1,39 +1,13 @@
 <script lang="ts">
-/* Large number of logs are a challenge for the web engine to handle.
-Accordingly, the implementation is currently as follows:
-
-Triple-layered auto-scroll mechanism:
-	Normal reactive updates trigger scrolling
-	A mutation observer watches for DOM changes and triggers scrolling
-	A periodic interval check ensures we stay at the bottom even if the other mechanisms fail
-
-
-Complete isolation of user vs. programmatic scrolling:
-	User scrolling is tracked with its own flag and timeout
-	Programmatic scrolling uses a separate timer and doesn't interfere with user actions
-
-
-More aggressive force-scrolling:
-	Uses both setTimeout and requestAnimationFrame for maximum reliability
-	Adds higher timeouts to ensure operations complete
-*/
-
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, tick } from 'svelte';
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
 
-    // Optional version prop to handle dev vs. prod initialization.
+    // Optional version prop to handle dev vs. prod initialization
     export let version: string = "dev";
 
     // Decide initial log filter
     let selectedLogLevel = version === "dev" ? "DEBUG" : "INFO";
-    
-    let scrollContainer: HTMLElement;
-    let autoScroll = true;
-    let scrollTimer: number | null = null;
-    let mutationObserver: MutationObserver | null = null;
-    let isUserScrolling = false;
-    let userScrollTimeout: number;
     
     // Log levels available
     const logLevels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
@@ -47,7 +21,6 @@ More aggressive force-scrolling:
     };
 
     // Match certain behaviors to text colors using the centralized colors
-    // Enhanced with additional styling classes
     const behaviorColors: Record<string, string> = {
         'abort_task': 'text-error-task log-behavior-abort-task',
         'abort_all': 'text-error-all log-behavior-abort-all',
@@ -55,9 +28,62 @@ More aggressive force-scrolling:
         'probe': 'text-log-warn log-behavior-probe'
     };
 
-    // Return a Tailwind class for each log level with enhanced styling
+    // DOM references
+    let scrollContainer: HTMLElement;
+    
+    // Scroll state
+    let autoScroll = true;
+    let isUserScrolling = false;
+    let userScrollTimeout: number | null = null;
+    let scrollResetTimeout: number | null = null;
+    let scheduledScrollToBottom = false;
+    
+    // Viewport anchoring for stable scrolling
+    let viewportAnchor: { 
+        sequence: number, 
+        offset: number,
+        height: number 
+    } | null = null;
+    
+    // Virtualization
+    let virtualStart = 0;
+    let virtualEnd = 0;
+    const BUFFER_SIZE = 50; // How many logs to render above/below viewport
+    let viewportHeight = 0;
+    let avgLogHeight = 25; // Initial estimate, will be refined
+    let totalHeight = 0;
+    let virtualEnabled = true;
+    let virtualContainerHeight = 0;
+    let documentHeight = 0;
+    let visibleLogCount = 0;
+    
+    // Log filtering
+    let cachedFilteredLogs: LogMessage[] = [];
+
+    // Filter logs by level
+    $: filteredLogs = $logStore.filter(log => 
+        logLevelPriority[log.level?.toLowerCase() || 'info'] >= 
+        logLevelPriority[selectedLogLevel.toLowerCase()]
+    );
+    
+    // Update virtual container height when logs change
+    $: {
+        // Only update if we have logs and container is mounted
+        if (filteredLogs.length > 0 && scrollContainer) {
+            updateVirtualization();
+        }
+    }
+    
+    // When log level changes, reset virtualization
+    $: {
+        if (selectedLogLevel) {
+            resetVirtualization();
+        }
+    }
+    
+    // Helper function to get log level styling
     function getLevelClass(level: string): string {
-        switch (level.toUpperCase()) {
+        switch (level?.toUpperCase()) {
             case 'DEBUG':
                 return 'text-log-debug log-level-debug';
             case 'INFO':
@@ -74,15 +100,9 @@ More aggressive force-scrolling:
     // Helper function: format additional fields
     function formatFields(fields: Record<string, any> | undefined): string {
         if (!fields) return '';
+        
+        const excluded = ['level', 'message', 'time', 'behavior', '_sequence', '_unix_time', '_original_time', '_visible', '_height'];
         return Object.entries(fields)
-            .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-            .join(' ');
-    }
-
-    // Helper function: format structured fields
-    function formatStructuredFields(log: LogMessage): string {
-        const excluded = ['level', 'message', 'time', 'behavior'];
-        const fields = Object.entries(log)
             .filter(([key]) => !excluded.includes(key))
             .map(([key, value]) => {
                 if (typeof value === 'object') {
@@ -91,212 +111,322 @@ More aggressive force-scrolling:
                 return `${key}=${value}`;
             })
             .join(' ');
-        return fields;
     }
-
-    // Config for log display
-    const MAX_VISIBLE_LOGS = 500;
-    let showAllLogs = false; // Track if user has explicitly chosen to see all logs
-    let cachedFilteredLogs: LogMessage[] = [];
-    let isLoadingAllLogs = false; // Track when logs are being loaded
     
-    // Optimize log filtering using memoization
-    $: {
-        // Only recompute when the log store or filter changes
-        const newFilteredLogs = $logStore.filter(log => 
-            logLevelPriority[log.level.toLowerCase()] >= logLevelPriority[selectedLogLevel.toLowerCase()]
-        );
+    // Check if we're at the bottom of the scroll container
+    function isScrolledToBottom(tolerance = 50): boolean {
+        if (!scrollContainer) return true;
         
-        // Apply length limit to filtered logs only if auto-scroll is enabled and not showing all logs
-        if (newFilteredLogs.length > MAX_VISIBLE_LOGS && autoScroll && !showAllLogs) {
-            // Keep the most recent logs (where the index is highest)
-            cachedFilteredLogs = newFilteredLogs.slice(-MAX_VISIBLE_LOGS);
-        } else {
-            // Show all logs when user is scrolling up or has explicitly chosen to see all logs
-            if (!showAllLogs && isLoadingAllLogs) {
-                // Simulate a brief loading delay for better UX
-                setTimeout(() => {
-                    cachedFilteredLogs = newFilteredLogs;
-                    isLoadingAllLogs = false;
-                    showAllLogs = true;
-                }, 300);
-            } else {
-                cachedFilteredLogs = newFilteredLogs;
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+        return scrollHeight - scrollTop - clientHeight <= tolerance;
+    }
+    
+    // Update virtualization calculations
+    function updateVirtualization(): void {
+        if (!scrollContainer || !virtualEnabled) return;
+        
+        const { scrollTop, clientHeight } = scrollContainer;
+        viewportHeight = clientHeight;
+        documentHeight = document.documentElement.clientHeight;
+        
+        // Calculate visible range based on scroll position
+        const estimatedTotalLogs = filteredLogs.length;
+        const estimatedTotalHeight = estimatedTotalLogs * avgLogHeight;
+        
+        // Calculate which logs should be visible
+        const estimatedStartIndex = Math.floor(scrollTop / avgLogHeight);
+        const estimatedVisibleCount = Math.ceil(clientHeight / avgLogHeight);
+        
+        // Add buffer for smoother scrolling
+        virtualStart = Math.max(0, estimatedStartIndex - BUFFER_SIZE);
+        virtualEnd = Math.min(estimatedTotalLogs - 1, estimatedStartIndex + estimatedVisibleCount + BUFFER_SIZE);
+        
+        // Calculate virtual container height
+        virtualContainerHeight = estimatedTotalHeight;
+        
+        // Update visible log count for debugging
+        visibleLogCount = virtualEnd - virtualStart + 1;
+    }
+    
+    // Reset virtualization settings
+    function resetVirtualization(): void {
+        virtualStart = 0;
+        virtualEnd = 0;
+        viewportAnchor = null;
+        
+        setTimeout(() => {
+            updateVirtualization();
+            
+            // If auto scroll enabled, scroll to bottom
+            if (autoScroll) {
+                scrollToBottom();
+            }
+        }, 0);
+    }
+    
+    // Calculate and update log heights for more accurate virtualization
+    function updateLogHeights(): void {
+        if (!scrollContainer) return;
+        
+        let totalMeasuredHeight = 0;
+        let measuredCount = 0;
+        
+        // Measure all visible log elements
+        const logElements = scrollContainer.querySelectorAll('.log-entry');
+        logElements.forEach(element => {
+            const height = element.getBoundingClientRect().height;
+            const sequenceAttr = element.getAttribute('data-log-sequence');
+            
+            if (sequenceAttr && height > 0) {
+                const sequence = parseInt(sequenceAttr, 10);
+                totalMeasuredHeight += height;
+                measuredCount++;
+            }
+        });
+        
+        // Update average height if we measured logs
+        if (measuredCount > 0) {
+            avgLogHeight = totalMeasuredHeight / measuredCount;
+        }
+    }
+    
+    // Save viewport anchor for stable scrolling
+    function saveScrollAnchor(): void {
+        if (!scrollContainer) return;
+        
+        // If already at bottom, don't create an anchor
+        if (isScrolledToBottom() && autoScroll) {
+            viewportAnchor = null;
+            return;
+        }
+        
+        // Find a log element in the middle of the viewport
+        const { scrollTop, clientHeight } = scrollContainer;
+        const middleY = scrollTop + (clientHeight / 2);
+        
+        // Find log element closest to middle
+        let closestElement: Element | null = null;
+        let closestDistance = Infinity;
+        
+        const logElements = scrollContainer.querySelectorAll('.log-entry');
+        logElements.forEach(element => {
+            const rect = element.getBoundingClientRect();
+            const elementMiddle = rect.top + (rect.height / 2);
+            const distance = Math.abs(elementMiddle - middleY);
+            
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestElement = element;
+            }
+        });
+        
+        // Save anchor if found
+        if (closestElement) {
+            const sequenceAttr = closestElement.getAttribute('data-log-sequence');
+            if (sequenceAttr) {
+                const sequence = parseInt(sequenceAttr, 10);
+                const rect = closestElement.getBoundingClientRect();
+                
+                viewportAnchor = {
+                    sequence,
+                    offset: rect.top - scrollContainer.getBoundingClientRect().top,
+                    height: rect.height
+                };
             }
         }
     }
     
-    // Use the cached value to prevent unnecessary re-renders
-    $: filteredLogs = cachedFilteredLogs;
-    
-    // Handle showing all logs
-    function showAllLogHistory() {
-        showAllLogs = true;
-        autoScroll = false; // Disable auto-scroll when viewing full history
+    // Restore scroll position based on viewport anchor
+    async function restoreScrollAnchor(): Promise<boolean> {
+        if (!scrollContainer || !viewportAnchor) return false;
+        
+        // Find the anchor element
+        const anchorElement = scrollContainer.querySelector(`[data-log-sequence="${viewportAnchor.sequence}"]`);
+        if (!anchorElement) return false;
+        
+        // Restore scroll position based on anchor
+        const rect = anchorElement.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const targetScrollTop = scrollContainer.scrollTop + 
+            (rect.top - containerRect.top) - viewportAnchor.offset;
+        
+        // Apply scroll
+        scrollContainer.scrollTop = targetScrollTop;
+        return true;
     }
     
-    // Improved user scroll handler
-    function handleUserScroll() {
-        // If we're scrolling programmatically, don't interfere
-        if (scrollTimer !== null) return;
+    // Scroll to bottom with better performance
+    function scrollToBottom(): void {
+        if (!scrollContainer || !autoScroll || isUserScrolling) return;
         
-        // Check scroll position
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-        const atBottom = scrollHeight - scrollTop - clientHeight <= 50;
-        const atTop = scrollTop < 50; // Near the top of the scroll container
+        // Avoid multiple calls
+        if (scheduledScrollToBottom) return;
+        scheduledScrollToBottom = true;
         
-        // Handle scroll away from bottom
+        // Use rAF for better performance
+        requestAnimationFrame(() => {
+            if (scrollContainer) {
+                // Use scrollIntoView on last element if possible
+                const lastLog = scrollContainer.querySelector('.log-entry:last-child');
+                if (lastLog) {
+                    lastLog.scrollIntoView({ behavior: 'auto', block: 'end' });
+                } else {
+                    // Fallback to direct scrollTop
+                    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                }
+            }
+            scheduledScrollToBottom = false;
+        });
+    }
+    
+    // Toggle auto-scroll with proper cleanup
+    function toggleAutoScroll(value: boolean): void {
+        if (autoScroll === value) return;
+        
+        autoScroll = value;
+        if (autoScroll) {
+            viewportAnchor = null;
+            scrollToBottom();
+        } else {
+            // Save scroll position before disabling auto-scroll
+            saveScrollAnchor();
+        }
+    }
+    
+    // Enhanced scroll handler
+    function handleScroll(event: Event): void {
+        // Skip if programmatically scrolling
+        if (scheduledScrollToBottom) return;
+        
+        // Clear any pending scroll timeouts
+        if (scrollResetTimeout) {
+            clearTimeout(scrollResetTimeout);
+            scrollResetTimeout = null;
+        }
+        
+        // Update virtualization
+        updateVirtualization();
+        
+        // Handle user scrolling detection
+        isUserScrolling = true;
+        
+        // Check if user scrolled to bottom
+        const atBottom = isScrolledToBottom(20);
+        
+        // If not at bottom and auto-scroll is on, disable it
         if (!atBottom && autoScroll) {
-            // User scrolled away from bottom - disable auto-scroll
             autoScroll = false;
-            isUserScrolling = true;
+            saveScrollAnchor();
+        } 
+        // If at bottom and auto-scroll is off, enable it
+        else if (atBottom && !autoScroll) {
+            autoScroll = true;
+            viewportAnchor = null;
         }
         
-        // Auto-load all logs when user scrolls to the top
-        if (atTop && !showAllLogs && !isLoadingAllLogs && $logStore.length > MAX_VISIBLE_LOGS) {
-            // Trigger loading spinner and load all logs
-            isLoadingAllLogs = true;
-            autoScroll = false;
-            // Loading and actual display happens in the reactive statement
-        }
-        
-        // Clear any existing timeout
-        if (userScrollTimeout !== null) {
+        // Clear any existing user scroll timeout
+        if (userScrollTimeout) {
             clearTimeout(userScrollTimeout);
         }
         
         // Set a timeout to detect when user finishes scrolling
         userScrollTimeout = window.setTimeout(() => {
-            if (isScrolledToBottom()) {
-                // Re-enable auto-scroll only if they scrolled to the bottom
-                autoScroll = true;
-                
-                // Reset to limit log display when auto-scroll is re-enabled
-                if (autoScroll && $logStore.length > MAX_VISIBLE_LOGS) {
-                    showAllLogs = false;
-                    isLoadingAllLogs = false;
-                }
-            }
             isUserScrolling = false;
-        }, 300);
-    }
-
-    // Optimized scroll position check
-    function isScrolledToBottom(tolerance = 50): boolean {
-        if (!scrollContainer) return true;
-        
-        // Use cached values for better performance
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-        return scrollHeight - scrollTop - clientHeight <= tolerance;
-    }
-
-    // Optimized scroll to bottom with better performance characteristics
-    function forceScrollToBottom() {
-        if (!scrollContainer || !autoScroll || isUserScrolling) return;
-        
-        // Cancel any existing scroll operation
-        if (scrollTimer !== null) {
-            clearTimeout(scrollTimer);
-        }
-        
-        // Use requestAnimationFrame for better performance
-        scrollTimer = window.setTimeout(() => {
-            // Use virtual scrolling technique for better performance
-            if (scrollContainer && autoScroll) {
-                // Use scrollIntoView for smoother scrolling
-                const lastChild = scrollContainer.lastElementChild;
-                if (lastChild) {
-                    lastChild.scrollIntoView({ behavior: 'auto' });
-                } else {
-                    // Fallback to direct scrollTop if no elements
-                    scrollContainer.scrollTop = scrollContainer.scrollHeight;
-                }
-                
-                // Clear timer after scrolling is complete
-                setTimeout(() => {
-                    scrollTimer = null;
-                }, 50);
-            }
-        }, 10);
-    }
-
-    // Function to toggle auto-scroll
-    function toggleAutoScroll(value: boolean) {
-        autoScroll = value;
-        
-        // When enabling auto-scroll
-        if (autoScroll) {
-            // Reset log view to truncated mode when enabling auto-scroll
-            if ($logStore.length > MAX_VISIBLE_LOGS) {
-                showAllLogs = false;
-            }
             
-            // Force scroll to bottom when enabling auto-scroll
-            forceScrollToBottom();
-        }
+            // Update log heights for better virtualization
+            updateLogHeights();
+            
+            // If auto-scroll and at bottom, ensure we stay at bottom
+            if (autoScroll && isScrolledToBottom()) {
+                scrollToBottom();
+            }
+        }, 200);
     }
-
+    
     // Setup observers and listeners on mount
-    onMount(() => {
-        // Initial scroll
+    onMount(async () => {
+        // Initial update
+        updateVirtualization();
+        
         if (autoScroll) {
-            setTimeout(forceScrollToBottom, 100);
+            await tick();
+            scrollToBottom();
         }
         
-        // Set up a mutation observer to detect when logs are added to the DOM
+        // Set up ResizeObserver to detect size changes
+        const resizeObserver = new ResizeObserver(() => {
+            // Save scroll position
+            const wasAtBottom = isScrolledToBottom();
+            
+            // Update layout
+            updateVirtualization();
+            updateLogHeights();
+            
+            // Restore scroll position
+            if (wasAtBottom && autoScroll) {
+                scrollToBottom();
+            } else if (viewportAnchor) {
+                restoreScrollAnchor();
+            }
+        });
+        
         if (scrollContainer) {
-            mutationObserver = new MutationObserver((mutations) => {
-                let logAdded = false;
-                
-                for (const mutation of mutations) {
-                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                        logAdded = true;
-                        break;
+            resizeObserver.observe(scrollContainer);
+            resizeObserver.observe(document.documentElement);
+        }
+        
+        // Set up interval to periodically update log heights
+        const heightUpdateInterval = setInterval(() => {
+            updateLogHeights();
+        }, 5000);
+        
+        // Set up MutationObserver to detect new logs
+        const mutationObserver = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    // If auto-scroll, scroll to bottom when new logs arrive
+                    if (autoScroll && !isUserScrolling) {
+                        scrollToBottom();
                     }
                 }
-                
-                if (logAdded && autoScroll) {
-                    forceScrollToBottom();
-                }
-            });
-            
-            mutationObserver.observe(scrollContainer, { 
-                childList: true, 
-                subtree: true 
+            }
+        });
+        
+        // Observe changes to the log container
+        if (scrollContainer) {
+            mutationObserver.observe(scrollContainer, {
+                childList: true,
+                subtree: true
             });
         }
         
-        // Additional interval to periodically check and force scroll if needed
-        const scrollCheckInterval = setInterval(() => {
-            if (autoScroll && !isUserScrolling && !isScrolledToBottom()) {
-                forceScrollToBottom();
-            }
-        }, 1000);
-        
         return () => {
-            clearInterval(scrollCheckInterval);
-            if (mutationObserver) {
-                mutationObserver.disconnect();
+            resizeObserver.disconnect();
+            mutationObserver.disconnect();
+            clearInterval(heightUpdateInterval);
+            
+            if (userScrollTimeout) {
+                clearTimeout(userScrollTimeout);
+            }
+            
+            if (scrollResetTimeout) {
+                clearTimeout(scrollResetTimeout);
             }
         };
     });
-
+    
     onDestroy(() => {
-        if (scrollTimer !== null) {
-            clearTimeout(scrollTimer);
+        // Clean up any remaining timeouts
+        if (userScrollTimeout) {
+            clearTimeout(userScrollTimeout);
+            userScrollTimeout = null;
         }
-        clearTimeout(userScrollTimeout);
-        if (mutationObserver) {
-            mutationObserver.disconnect();
+        
+        if (scrollResetTimeout) {
+            clearTimeout(scrollResetTimeout);
+            scrollResetTimeout = null;
         }
     });
-    
-    // Also force scroll when log store updates
-    $: {
-        if (filteredLogs.length > 0 && autoScroll) {
-            forceScrollToBottom();
-        }
-    }
 </script>
 
 <!-- Main container for the log viewer with glassmorphism -->
@@ -343,103 +473,142 @@ More aggressive force-scrolling:
                 Auto-scroll
             </button>
 
-            
             <!-- Clear button -->
             <button 
                 on:click={() => logStore.clearLogs()}
-                class="px-3 py-1 h-7 bg-[#333]  text-text rounded whitespace-nowrap 
+                class="px-3 py-1 h-7 bg-[#333] text-text rounded whitespace-nowrap 
                        flex-shrink-0 text-[11px] uppercase tracking-wider 
                        hover:bg-primary/10 hover:text-white hover:border-primary/55 hover:shadow-input 
                        transition-all duration-200"
             >
                 Clear
             </button>
+            
+            <!-- Virtual Rendering Toggle (for debugging) -->
+            {#if version === 'dev'}
+                <button 
+                    on:click={() => {
+                        virtualEnabled = !virtualEnabled;
+                        resetVirtualization();
+                    }}
+                    class="px-3 py-1 h-7 bg-[#333] text-text rounded whitespace-nowrap 
+                           flex-shrink-0 text-[11px] uppercase tracking-wider 
+                           hover:bg-primary/10 hover:text-white hover:border-primary/55 hover:shadow-input 
+                           transition-all duration-200"
+                >
+                    {virtualEnabled ? 'Virt: ON' : 'Virt: OFF'}
+                </button>
+            {/if}
         </div>
+        
+        <!-- Debug info (dev only) -->
+        {#if version === 'dev'}
+            <div class="text-xs text-primary/50">
+                {visibleLogCount}/{filteredLogs.length} logs | ~{avgLogHeight.toFixed(1)}px/log
+            </div>
+        {/if}
     </div>
     
-    <!-- Content area: logs and optional progress bar -->
+    <!-- Content area with virtualization -->
     <div class="relative flex flex-col flex-1 min-h-0">
         <!-- The scrollable container for log entries -->
         <div 
             class="flex-1 overflow-y-auto min-h-0 log-scroll-container"
             bind:this={scrollContainer}
-            on:scroll={handleUserScroll}
+            on:scroll={handleScroll}
         >
             {#if filteredLogs.length === 0}
+                <!-- Empty state -->
                 <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
                     <span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg">
                         No logs to display
                     </span>
                 </div>
             {:else}
-                <!-- Show loading spinner when loading all logs -->
-                {#if isLoadingAllLogs}
-                    <div class="py-2 px-3 text-primary text-center text-xs bg-primary/10 backdrop-blur-md border-b border-primary/20 flex items-center justify-center gap-2">
-                        <div class="spinner w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-                        <span>Loading all {$logStore.length} logs...</span>
-                    </div>
-                <!-- Show truncation message if we're limiting the number of logs -->
-                {:else if $logStore.length > MAX_VISIBLE_LOGS && !showAllLogs}
-                    <div class="py-1 px-3 text-yellow-400 text-center text-xs bg-yellow-500/10 backdrop-blur-md border-b border-yellow-500/20 flex items-center justify-center gap-2">
-                        <span>Showing only the most recent {MAX_VISIBLE_LOGS} logs of {$logStore.length} total.</span>
-                        <button 
-                            class="underline hover:text-yellow-300 transition-colors"
-                            on:click={showAllLogHistory}
-                            aria-label="Show all logs"
-                        >
-                            Show all logs
-                        </button>
-                    </div>
-                {/if}
-                
-                <!-- Use keyed each block for better performance -->
-                {#each filteredLogs as log, i (i)}
-                    <!-- Use contain property to isolate rendering -->
-                    <div 
-                    class="{log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
-                    py-1 px-3 border-b border-primary/10 whitespace-pre-wrap break-words leading-snug
-                    flex items-baseline justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
-                    style="contain: content;"
-                    >
-                        <!-- Timestamp -->
-                        <span class="text-primary/60 mr-2 text-xs flex-shrink-0">
-                            {log.time}
-                        </span>
-                        
-                        <!-- Log level with optimized class binding -->
-                        <span class={"font-bold text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)}>
-                            {log.level}
-                        </span>
-                        
-                        <!-- Message with optimized rendering of structured fields -->
-                        <span class="flex-grow text-sm text-left overflow-x-auto">
-                            <!-- Show message if it exists -->
-                            {#if log.message}
-                                {log.message}
-                            {/if}
-                            
-                            <!-- Always show structured fields if they exist, regardless of message -->
-                            {#if formatStructuredFields(log)}
-                                <span class="{log.message ? 'ml-2' : ''} text-primary/50 text-[12px] font-[DM_Mono]">
-                                    {formatStructuredFields(log)}
+                <!-- Virtual scroller container -->
+                <div 
+                    class="relative w-full" 
+                    style="height: {virtualEnabled ? `${virtualContainerHeight}px` : 'auto'}"
+                >
+                    <!-- Only render logs within the visible range -->
+                    {#if virtualEnabled}
+                        {#each filteredLogs.slice(virtualStart, virtualEnd + 1) as log, i (log._sequence)}
+                            <div 
+                                class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
+                                py-1 px-3 border-b border-primary/10 whitespace-pre-wrap break-words leading-snug
+                                flex items-baseline justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
+                                style="position: absolute; top: {virtualStart * avgLogHeight + i * 0}px; left: 0; right: 0; transform: translateY({i * avgLogHeight}px);"
+                                data-log-sequence={log._sequence}
+                                data-unix-time={log._unix_time}
+                            >
+                                <!-- Timestamp -->
+                                <span class="text-primary/60 mr-2 text-xs flex-shrink-0">
+                                    {log.time}
                                 </span>
-                            {/if}
-                        </span>
-                    </div>
-                {/each}
+                                
+                                <!-- Log level -->
+                                <span class={"font-bold text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)}>
+                                    {log.level}
+                                </span>
+                                
+                                <!-- Message with structured fields -->
+                                <span class="flex-grow text-sm text-left overflow-x-auto">
+                                    <!-- Show message if it exists -->
+                                    {#if log.message}
+                                        {log.message}
+                                    {/if}
+                                    
+                                    <!-- Always show structured fields if they exist -->
+                                    {#if formatFields(log)}
+                                        <span class="{log.message ? 'ml-2' : ''} text-primary/50 text-[12px] font-[DM_Mono]">
+                                            {formatFields(log)}
+                                        </span>
+                                    {/if}
+                                </span>
+                            </div>
+                        {/each}
+                    {:else}
+                        <!-- Non-virtualized rendering (all logs) -->
+                        {#each filteredLogs as log (log._sequence)}
+                            <div 
+                                class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
+                                py-1 px-3 border-b border-primary/10 whitespace-pre-wrap break-words leading-snug
+                                flex items-baseline justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
+                                data-log-sequence={log._sequence}
+                                data-unix-time={log._unix_time}
+                            >
+                                <!-- Timestamp -->
+                                <span class="text-primary/60 mr-2 text-xs flex-shrink-0">
+                                    {log.time}
+                                </span>
+                                
+                                <!-- Log level -->
+                                <span class={"font-bold text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)}>
+                                    {log.level}
+                                </span>
+                                
+                                <!-- Message with structured fields -->
+                                <span class="flex-grow text-sm text-left overflow-x-auto">
+                                    <!-- Show message if it exists -->
+                                    {#if log.message}
+                                        {log.message}
+                                    {/if}
+                                    
+                                    <!-- Always show structured fields if they exist -->
+                                    {#if formatFields(log)}
+                                        <span class="{log.message ? 'ml-2' : ''} text-primary/50 text-[12px] font-[DM_Mono]">
+                                            {formatFields(log)}
+                                        </span>
+                                    {/if}
+                                </span>
+                            </div>
+                        {/each}
+                    {/if}
+                </div>
             {/if}
         </div>
     </div>
 </div>
-
-<!--{#if import.meta.env.DEV}
-    <div class="debug-overlay">
-        Total logs: {logs.length}<br>
-        Filtered logs: {filteredLogs.length}<br>
-        Selected level: {selectedLogLevel}<br>
-        Log levels present: {[...new Set(logs.map(l => l.level))].join(', ')}
-    </div>
-{/if}-->
 
 <style>
     @keyframes spin {
@@ -528,7 +697,7 @@ More aggressive force-scrolling:
         letter-spacing: 0.5px;
     }
     
-    /* Add a subtle hover animation to log timestamps */
+    /* Add subtle hover animation to log timestamps */
     :global(.text-primary\/60) {
         transition: color 0.2s ease, text-shadow 0.2s ease;
     }

@@ -508,6 +508,99 @@
             logStore.addLog(rawLog);
         });
         
+        // Optimized log batch handler - delegates parsing and insertion to logStore
+        EventsOn("log-batch", (logBatch) => {
+            if (!Array.isArray(logBatch) || logBatch.length === 0) return;
+            
+            // Use the logStore's batch processing directly - it handles merging, ordering and chunking
+            logStore.addLogBatch(logBatch);
+            
+            // For very large batches, log a debug message
+            if (logBatch.length > 200) {
+                console.debug(`Processed large log batch: ${logBatch.length} entries`);
+            }
+        });
+
+        // Efficient progress batch handler with smart grouping
+        EventsOn("progress-batch", (progressBatch) => {
+            if (!Array.isArray(progressBatch) || progressBatch.length === 0) return;
+            
+            // Skip excessive updates when window is minimized to save resources
+            if (isWindowMinimized && progressBatch.length > 10) {
+                // Only process a few important updates for state maintenance
+                const consolidatedUpdates = {}; // Map task ID -> latest update
+                
+                // Keep only the latest update for each task ID
+                progressBatch.forEach(update => {
+                    if (update && update.id) {
+                        consolidatedUpdates[update.id] = update;
+                    }
+                });
+                
+                // Only add important states to pending queue
+                Object.values(consolidatedUpdates).forEach(update => {
+                    // Add critical updates (completed or error states)
+                    if (update.progress >= 100 || update.errorState) {
+                        pendingProgressUpdates.push(update);
+                    }
+                });
+            } else {
+                // Normal processing - still deduplicate by ID
+                const uniqueUpdates = new Map();
+                
+                // Keep only latest update for each ID
+                progressBatch.forEach(update => {
+                    if (update && update.id) {
+                        uniqueUpdates.set(update.id, update);
+                    }
+                });
+                
+                // Add all unique updates to pending queue
+                pendingProgressUpdates.push(...uniqueUpdates.values());
+            }
+            
+            // Process updates in next animation frame if not already scheduled
+            if (!progressUpdateDebounceTimer) {
+                progressUpdateDebounceTimer = window.requestAnimationFrame(() => {
+                    processProgressUpdates();
+                    progressUpdateDebounceTimer = null;
+                });
+            }
+        });
+
+        // Prepare the application for resumption with high-volume events
+        async function prepareForResumption() {
+            // Notify throttler to enable high load mode
+            try {
+                await window.go.gui.App.PrepareForResumption();
+                console.log("High load mode activated for task resumption");
+            } catch (error) {
+                console.warn("Failed to activate high load mode:", error);
+            }
+            
+            // Clear current progress bars for clean state
+            resetAllProgressBars();
+            
+            // Pre-allocate larger queue capacity
+            pendingProgressUpdates = [];
+            
+            // Notify user about resumption (optional)
+            const resumingMessage = "Resuming previous processing task...";
+            if (!isWindowMinimized) {
+                errorStore.addError({
+                    id: "resuming-task",
+                    message: resumingMessage,
+                    severity: "info",
+                    dismissible: true
+                });
+            }
+        }
+
+        // Add this event handler to detect resumption events from backend
+        EventsOn("resuming-task", () => {
+            prepareForResumption();
+        });
+        
         // Get version info on load
         GetVersion()
             .then((result: any) => {
@@ -566,6 +659,7 @@
         }) as EventListener;
         
         window.addEventListener("settingsUpdated", handleSettingsUpdated, { passive: true });
+        
         
         // Clean up all event listeners and timers on component destruction
         return () => {
@@ -764,6 +858,7 @@
 </div>
 
 <Settings
+    version={version}
     onClose={() => $showSettings = false}
 />
 

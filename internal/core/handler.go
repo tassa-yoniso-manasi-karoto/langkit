@@ -16,6 +16,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 )
@@ -163,7 +164,7 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	// Increment by the specified amount
 	bar.Add(increment)
 
-	// If we're done, clear & remove from map so we don’t keep unused bars
+	// If we're done, clear & remove from map so we don't keep unused bars
 	if bar.State().CurrentPercent >= 1.0 {
 		bar.Clear()
 		delete(h.progressBars, taskID)
@@ -179,16 +180,17 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 
 // GUI implementation
 type GUIHandler struct {
-	ctx	context.Context
-	logger  *zerolog.Logger
-	buffer  bytes.Buffer
-	
-	progressMap map[string]int
+	ctx	       context.Context
+	logger       *zerolog.Logger
+	buffer       bytes.Buffer
+	progressMap  map[string]int
+	throttler    *batch.AdaptiveEventThrottler
 }
 
-// LogWriter must implement io.Writer for zerolog.MultiLevelWriter
+// LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
-	ctx context.Context
+	ctx       context.Context
+	throttler *batch.AdaptiveEventThrottler
 }
 
 func (w *LogWriter) Write(p []byte) (n int, err error) {
@@ -207,24 +209,39 @@ func (w *LogWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	// Send non-TRACE logs to the frontend
-	runtime.EventsEmit(w.ctx, "log", string(p))
+	// Send logs through the throttler if available
+	if w.throttler != nil {
+		w.throttler.AddLog(string(p))
+	} else {
+		// Fall back to direct emission if throttler isn't available
+		runtime.EventsEmit(w.ctx, "log", string(p))
+	}
+	
 	return len(p), nil
 }
 
 
-func NewGUIHandler(ctx context.Context) *GUIHandler {
+func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler) *GUIHandler {
 	h := &GUIHandler{
 		ctx:         ctx,
 		progressMap: make(map[string]int),
+		throttler:   throttler,
 	}
 	crash.InitReporter(ctx)
 	
+	// Setup multi-writer for both console and crash buffer
 	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
 	
+	// Create a throttled log writer
+	logWriter := &LogWriter{
+		ctx:       ctx,
+		throttler: throttler,
+	}
+	
+	// Use the throttled writer in the MultiLevelWriter setup
 	multiWriter := zerolog.MultiLevelWriter(
-		// Raw JSON to send to the frontend directly
-		&LogWriter{ctx: ctx},
+		// Raw JSON through the throttler to the frontend
+		logWriter,
 		// Formatted output for console output & crash reports
 		zerolog.ConsoleWriter{
 			Out:        multiOut,
@@ -235,6 +252,7 @@ func NewGUIHandler(ctx context.Context) *GUIHandler {
 	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
 	h.logger = &logger
 	common.Log = logger.With().Timestamp().Str("module", "translitkit").Logger()
+	
 	return h
 }
 
@@ -310,11 +328,7 @@ func (h *GUIHandler) IncrementProgress(
 	increment, total, priority int, 
 	operation, descr, size string,
 ) {
-	// if _, found := h.progressMap[taskID]; !found {
-	// 	h.ZeroLog().Trace().Msgf("handler: creating bar %s for  \"%s\"", taskID, operation)
-	// } else {
-	// 	h.ZeroLog().Trace().Msgf("handler: reusing bar %s for \"%s\"", taskID, operation)
-	// }
+	// Update local progress tracking
 	h.progressMap[taskID] += increment
 	current := h.progressMap[taskID]
 
@@ -326,6 +340,7 @@ func (h *GUIHandler) IncrementProgress(
 		percent = float64(current)
 	}
 
+	// Create payload for event
 	payload := map[string]interface{}{
 		"id":          taskID,
 		"progress":    percent,
@@ -339,10 +354,48 @@ func (h *GUIHandler) IncrementProgress(
 		"animated":    true,
 		"priority":    priority,
 	}
-	runtime.EventsEmit(h.ctx, "progress", payload)
+	
+	// Send through throttler if available
+	if h.throttler != nil {
+		h.throttler.UpdateProgress(taskID, payload)
+	} else {
+		// Fallback to direct emission
+		runtime.EventsEmit(h.ctx, "progress", payload)
+	}
 
+	// Cleanup if complete
 	if total > 0 && current >= total {
 		delete(h.progressMap, taskID)
+	}
+}
+
+// BulkUpdateProgress handles multiple progress updates efficiently
+// Useful for task resumption with thousands of updates
+func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{}) {
+	// Track current progress states
+	for id, data := range updates {
+		if current, ok := data["current"].(int); ok {
+			h.progressMap[id] = current
+		}
+	}
+	
+	// Process through throttler if available
+	if h.throttler != nil {
+		h.throttler.BulkUpdateProgress(updates)
+	} else {
+		// Fallback to individual updates
+		for _, update := range updates {
+			runtime.EventsEmit(h.ctx, "progress", update)
+		}
+	}
+	
+	// Cleanup completed items
+	for id, data := range updates {
+		current, hasC := data["current"].(int)
+		total, hasT := data["total"].(int)
+		if hasC && hasT && total > 0 && current >= total {
+			delete(h.progressMap, id)
+		}
 	}
 }
 

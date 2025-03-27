@@ -9,6 +9,7 @@
     import NumericInput from './NumericInput.svelte';
 
     export let onClose: () => void;
+    export let version: string = "";
 
     interface LanguageCheckResponse {
         isValid: boolean;
@@ -28,7 +29,12 @@
         showLogViewerByDefault: false,
         maxAPIRetries: 10,
         maxLogEntries: 10000,
-        maxWorkers: 1
+        maxWorkers: 1,
+        eventThrottling: {
+            enabled: true,
+            minInterval: 0,
+            maxInterval: 250
+        }
     };
 
     let targetLangValid = false;
@@ -41,6 +47,9 @@
     let isExportingDebug = false;
     let exportSuccess = false;
     let exportError = '';
+
+    // Check if we should show dev-only features
+    $: isDevVersion = version === "dev";
 
     /*
       We define a reactive variable "exportGlowClass" that is set to:
@@ -123,7 +132,12 @@
             currentSettings = {
                 ...loadedSettings,
                 targetLanguage: loadedSettings.targetLanguage || '',
-                nativeLanguages: loadedSettings.nativeLanguages || ''
+                nativeLanguages: loadedSettings.nativeLanguages || '',
+                eventThrottling: loadedSettings.eventThrottling || {
+                    enabled: true,
+                    minInterval: 0,
+                    maxInterval: 250
+                }
             };
             await validateLanguages();
         } catch (error) {
@@ -143,7 +157,12 @@
             currentSettings = {
                 ...value,
                 targetLanguage: value.targetLanguage || currentSettings.targetLanguage || '',
-                nativeLanguages: value.nativeLanguages || currentSettings.nativeLanguages || ''
+                nativeLanguages: value.nativeLanguages || currentSettings.nativeLanguages || '',
+                eventThrottling: value.eventThrottling || currentSettings.eventThrottling || {
+                    enabled: true,
+                    minInterval: 0,
+                    maxInterval: 250
+                }
             };
         }
     });
@@ -393,6 +412,84 @@
                                                duration-200 bg-black/20 backdrop-blur-sm border-primary/40"
                                 />
                             </div>
+                            
+                            {#if isDevVersion}
+                                <!-- Throttling settings (dev only) -->
+                                <div class="mt-6 pt-4 border-t border-primary/10">
+                                    <h4 class="text-sm font-medium text-primary mb-3">UI Performance Optimization</h4>
+                                    
+                                    <div class="space-y-4">
+                                        <label class="flex items-center gap-3 cursor-pointer group checkbox-container">
+                                            <input
+                                                type="checkbox"
+                                                bind:checked={currentSettings.eventThrottling.enabled}
+                                                on:change={() => window.go.gui.App.SetEventThrottling(currentSettings.eventThrottling.enabled)}
+                                                class="w-4 h-4 accent-primary rounded custom-checkbox"
+                                            />
+                                            <span class="text-sm text-gray-200 group-hover:text-white transition-colors">
+                                                Event Throttling (improves UI responsiveness during processing)
+                                            </span>
+                                        </label>
+                                        
+                                        <div class="ml-7 space-y-4" class:disabled={!currentSettings.eventThrottling.enabled}>
+                                            <div class="space-y-2">
+                                                <label class="text-xs text-gray-300">
+                                                    Maximum Throttle Interval (ms):
+                                                </label>
+                                                <div class="flex items-center gap-3">
+                                                    <input 
+                                                        type="range" 
+                                                        min="50" 
+                                                        max="500" 
+                                                        step="50"
+                                                        disabled={!currentSettings.eventThrottling.enabled}
+                                                        bind:value={currentSettings.eventThrottling.maxInterval}
+                                                        class="w-full max-w-xs accent-primary"
+                                                    />
+                                                    <span class="text-xs text-gray-300 w-10">
+                                                        {currentSettings.eventThrottling.maxInterval}ms
+                                                    </span>
+                                                </div>
+                                                <p class="text-xs text-gray-400 italic mt-1">
+                                                    Higher values = better performance but less responsive UI
+                                                </p>
+                                            </div>
+                                            
+                                            <div class="space-y-2">
+                                                <label class="text-xs text-gray-300">
+                                                    Processing Mode:
+                                                </label>
+                                                <select 
+                                                    disabled={!currentSettings.eventThrottling.enabled}
+                                                    class="w-full max-w-xs px-3 py-2 bg-black/20 backdrop-blur-sm 
+                                                           border border-primary/40 rounded text-sm text-white
+                                                           hover:border-primary/55 hover:shadow-input
+                                                           focus:outline-none focus:border-primary focus:ring-1
+                                                           focus:ring-primary/50 focus:shadow-input-focus
+                                                           appearance-none bg-no-repeat bg-right pr-8"
+                                                    style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+                                                    background-size: 10px;"
+                                                    on:change={(e) => {
+                                                        const isHighPerformance = e.target.value === 'high';
+                                                        window.go.gui.App.PrepareForResumption(); // Enable high load mode temporarily
+                                                        if (isHighPerformance) {
+                                                            currentSettings.eventThrottling.maxInterval = 250;
+                                                        } else {
+                                                            currentSettings.eventThrottling.maxInterval = 100;
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="standard" selected={currentSettings.eventThrottling.maxInterval <= 100}>Standard</option>
+                                                    <option value="high" selected={currentSettings.eventThrottling.maxInterval > 100}>High Performance</option>
+                                                </select>
+                                                <p class="text-xs text-gray-400 italic mt-1">
+                                                    "High Performance" recommended for large batch operations
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/if}
                         </div>
                     </section>
 
@@ -527,6 +624,12 @@
     /* Debug export button with permanent border */
     .debug-export-button {
         box-shadow: 0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2);
+    }
+    
+    /* Additional styles for throttling controls */
+    .disabled {
+        opacity: 0.5;
+        pointer-events: none;
     }
 
     /*

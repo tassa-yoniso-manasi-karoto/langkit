@@ -26,6 +26,13 @@ type Settings struct {
 	MaxLogEntries          int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
 	MaxAPIRetries          int    `json:"maxAPIRetries" mapstructure:"max_api_retries"`
 	MaxWorkers             int    `json:"maxWorkers" mapstructure:"max_workers"`
+	
+	// Event throttling settings
+	EventThrottling struct {
+		Enabled     bool   `json:"enabled" mapstructure:"enabled"`
+		MinInterval int    `json:"minInterval" mapstructure:"min_interval"` // milliseconds
+		MaxInterval int    `json:"maxInterval" mapstructure:"max_interval"` // milliseconds
+	} `json:"eventThrottling" mapstructure:"event_throttling"`
 }
 
 
@@ -72,6 +79,11 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("max_log_entries", 10000)
 	viper.SetDefault("max_api_retries", 10)
 	viper.SetDefault("max_workers", runtime.NumCPU()-2)
+	
+	// Default throttling settings
+	viper.SetDefault("event_throttling.enabled", true)
+	viper.SetDefault("event_throttling.min_interval", 0)     // 0ms = no throttle when quiet
+	viper.SetDefault("event_throttling.max_interval", 250)   // 250ms max interval
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -126,6 +138,11 @@ func SaveSettings(settings Settings) error {
 	viper.Set("max_log_entries", settings.MaxLogEntries)
 	viper.Set("max_api_retries", settings.MaxAPIRetries)
 	viper.Set("max_workers", settings.MaxWorkers)
+	
+	// Save event throttling settings
+	viper.Set("event_throttling.enabled", settings.EventThrottling.Enabled)
+	viper.Set("event_throttling.min_interval", settings.EventThrottling.MinInterval)
+	viper.Set("event_throttling.max_interval", settings.EventThrottling.MaxInterval)
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()
@@ -171,4 +188,3 @@ func (settings Settings) LoadKeys() {
 		voice.APIKeys.Store(name, key)
 	}
 }
-

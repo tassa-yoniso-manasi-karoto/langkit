@@ -14,7 +14,7 @@
   - processedCount for ETA calculation
   - ETA calculation itself
  
-- save appStartCount in config
+- appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
 - use selective translit tokenized inside TRANSLIT.GO
 
 - GUI options:
