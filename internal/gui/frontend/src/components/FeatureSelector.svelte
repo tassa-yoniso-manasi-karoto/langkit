@@ -1366,7 +1366,7 @@
                     style="will-change: transform, opacity; overflow: visible;"
                     class="px-0 my-2"
                 >
-                    <div data-feature-id={feature.id} class="overflow-visible">
+                    <div data-feature-id={feature.id} class="overflow-visible px-2">
                         <FeatureCard
                             {feature}
                             enabled={selectedFeatures[feature.id]}

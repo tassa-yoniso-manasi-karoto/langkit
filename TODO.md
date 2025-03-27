@@ -23,8 +23,6 @@
   
 - coffee icon
 
-- truncated feature card (left & right) when not maximized, buttons process and cancel too
-
 - support Condensed Audio summaries
 
 - manual GUI tests
