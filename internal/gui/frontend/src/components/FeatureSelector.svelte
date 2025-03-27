@@ -1331,14 +1331,15 @@
 </script>
 
 <div class="space-y-6">
-    <div class="flex items-center justify-between pl-0 pr-0">
-        <h2 class="text-xl font-medium text-tertiary flex items-center pl-4 gap-2">
-            <span class="material-icons text-tertiary">tune</span>
-            Select Features
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center pl-0 pr-0">
+        <!-- Title that will shrink as needed -->
+        <h2 class="text-xl font-medium text-tertiary flex items-center pl-4 gap-2 overflow-hidden min-w-0">
+            <span class="material-icons text-tertiary flex-shrink-0">tune</span>
+            <span class="truncate">Select Features</span>
         </h2>
         
-        <!-- Language selector component -->
-        <div class="flex items-center ml-auto item-right gap-2 pr-3">
+        <!-- Language selector component - won't shrink -->
+        <div class="pr-3">
             <QuickAccessLangSelector 
                 languageTag={quickAccessLangTag}
                 {isValidLanguage}
@@ -1364,7 +1365,7 @@
                         opacity: 0
                     }}
                     style="will-change: transform, opacity; overflow: visible;"
-                    class="px-0 my-2"
+                    class="px-2 my-2"
                 >
                     <div data-feature-id={feature.id} class="overflow-visible px-2">
                         <FeatureCard

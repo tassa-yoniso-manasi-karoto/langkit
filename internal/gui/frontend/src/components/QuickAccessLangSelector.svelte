@@ -38,41 +38,48 @@
     }
 </script>
 
-<div class="flex items-center gap-2">
-    <!-- Target Language input -->
-    <div class="flex items-center gap-2 relative">
-        <span class="text-unobtrusive text-sm whitespace-nowrap">
-            Target Language
-        </span>
-        <input
-            type="text"
-            bind:value={languageTag}
-            maxlength="9"
-            placeholder="e.g. ja, zh-Hans"
-            class="w-24 bg-primary-900/30 backdrop-blur-sm border border-primary/30 rounded px-2 py-2
-                   hover:border-primary/90 focus:border-primary focus:ring-1 focus:ring-primary
-                   focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
-            on:input={updateLanguageTag}
-        />
-        {#if isChecking}
-            <span class="absolute right-2 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
-                refresh
+<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+    <!-- First column: Target Language section -->
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <!-- Label that will shrink to nothing if needed -->
+        <div class="overflow-hidden">
+            <span class="text-unobtrusive text-sm truncate block">
+                Target Language
             </span>
-        {:else if isValidLanguage === false}
-            <span class="absolute right-2 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
-                  title={validationError}>
-                error
-            </span>
-        {:else if isValidLanguage === true}
-            <span class="absolute right-2 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
-                check_circle
-            </span>
-        {/if}
+        </div>
+        
+        <!-- Input field with fixed width -->
+        <div class="relative">
+            <input
+                type="text"
+                bind:value={languageTag}
+                maxlength="9"
+                placeholder="e.g. ja, zh-Hans"
+                class="w-24 bg-primary-900/30 backdrop-blur-sm border border-primary/30 rounded px-2 py-2
+                       hover:border-primary/90 focus:border-primary focus:ring-1 focus:ring-primary
+                       focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
+                on:input={updateLanguageTag}
+            />
+            {#if isChecking}
+                <span class="absolute right-2 top-1 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                    refresh
+                </span>
+            {:else if isValidLanguage === false}
+                <span class="absolute right-2 top-1 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                      title={validationError}>
+                    error
+                </span>
+            {:else if isValidLanguage === true}
+                <span class="absolute right-2 top-1 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                    check_circle
+                </span>
+            {/if}
+        </div>
     </div>
 
-    <!-- Audio track selection with slide animation -->
-    <div class="flex overflow-hidden">
-        <!-- Disclosure arrow button with connected border and matching background -->
+    <!-- Second column: Audio track button with panel -->
+    <div class="audio-track-container flex items-center">
+        <!-- Disclosure arrow button -->
         <button
             class="flex items-center justify-center p-4 w-6 h-6
                    border border-primary/30 
@@ -91,24 +98,25 @@
             </span>
         </button>
 
-        <!-- Audio track input with slide animation -->
+        <!-- Audio track panel - with inline transition -->
         {#if showAudioTrackIndex}
-            <!-- Use negative left margin to overlap the shared border -->
             <div class="-ml-px flex items-center"
                  transition:slide={{ duration: 200, axis: 'x' }}>
-                <!-- Panel: use matching background and borders; remove left rounding -->
+                <!-- Panel with reduced content for better space usage -->
                 <div class="flex items-center bg-primary/5 backdrop-blur-sm
                            border border-primary/30 border-l-0
-                           rounded-r px-2 p-4 h-6 shadow-sm shadow-primary/10">
-                    <span class="text-primary text-sm whitespace-nowrap">
-                        Track Override
-                    </span>
+                           rounded-r px-2  p-4 h-6 shadow-sm shadow-primary/10">
+                    <div class="overflow-hidden min-w-0">
+                        <span class="text-primary text-sm truncate block whitespace-nowrap">
+                            Track Override
+                        </span>
+                    </div>
                     <Hovertip message={trackOverrideHovertip}>
-                        <span slot="trigger" class="material-icons text-primary cursor-help pr-1 leading-none material-icon-adjust">
+                        <span slot="trigger" class="material-icons material-icon-adjust flex-shrink-0 text-primary cursor-help pl-1 pr-1 leading-none text-sm">
                             help_outline
                         </span>
                     </Hovertip>
-                    <!-- The input field: reduced horizontal padding and fixed height -->
+                    <!-- Compact input field -->
                     <NumericInput
                         bind:value={audioTrackIndex}
                         min={1}
@@ -125,6 +133,13 @@
 
 <style>
     @import './featureStyles.css';
+    
+    /* Make the audio track container take up only the space it needs */
+    .audio-track-container {
+        width: fit-content;
+        white-space: nowrap;
+        z-index: 10;
+    }
     
     /* Add subtle glow on hover for the inputs */
     input:hover {
