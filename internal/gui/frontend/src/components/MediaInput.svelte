@@ -160,26 +160,31 @@
             <!-- No media selected state -->
             <div class="text-primary/80 flex flex-col items-center justify-center gap-2 py-1">
                 <div class="flex items-center flex-wrap justify-center gap-1 text-sm text-gray-300">
-                    <span>Drag &amp; drop here or select</span>
-                    <button 
-                        class="px-2 py-0.5 mx-1 text-sm font-medium rounded-md bg-primary/20 text-primary
-                               hover:bg-primary/30 hover:shadow-md hover:-translate-y-0.5
-                               transition-all duration-200 inline-flex items-center gap-1"
-                        on:click={handleDirectorySelect}
-                    >
-                        <span class="material-icons text-sm">folder</span>
-                        <span>directory</span>
-                    </button>
-                    <span>/</span>
-                    <button 
-                        class="px-2 py-0.5 mx-1 text-sm font-medium rounded-md bg-primary/20 text-primary
-                               hover:bg-primary/30 hover:shadow-md hover:-translate-y-0.5
-                               transition-all duration-200 inline-flex items-center gap-1"
-                        on:click={handleVideoSelect}
-                    >
-                        <span class="material-icons text-sm">movie</span>
-                        <span>video</span>
-                    </button>
+                    <!-- First item will wrap separately -->
+                    <span class="w-full text-center mb-1">Drag &amp; drop here or select</span>
+                    
+                    <!-- Group buttons together to keep them on same line -->
+                    <div class="flex items-center flex-nowrap">
+                        <button 
+                            class="px-2 py-0.5 mx-1 text-sm font-medium rounded-md bg-primary/20 text-primary
+                                   hover:bg-primary/30 hover:shadow-md hover:-translate-y-0.5
+                                   transition-all duration-200 inline-flex items-center gap-1"
+                            on:click={handleDirectorySelect}
+                        >
+                            <span class="material-icons text-sm">folder</span>
+                            <span>directory</span>
+                        </button>
+                        <span>/</span>
+                        <button 
+                            class="px-2 py-0.5 mx-1 text-sm font-medium rounded-md bg-primary/20 text-primary
+                                   hover:bg-primary/30 hover:shadow-md hover:-translate-y-0.5
+                                   transition-all duration-200 inline-flex items-center gap-1"
+                            on:click={handleVideoSelect}
+                        >
+                            <span class="material-icons text-sm">movie</span>
+                            <span>video</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         {:else}
