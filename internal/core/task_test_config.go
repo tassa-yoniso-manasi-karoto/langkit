@@ -555,6 +555,12 @@ func (h *TestMessageHandler) IsCLI() bool {
 	return true
 }
 
+// SetHighLoadMode is a no-op for tests
+func (h *TestMessageHandler) SetHighLoadMode(durations ...time.Duration) {
+	h.logs = append(h.logs, "SetHighLoadMode called (no-op in test mode)")
+}
+
+
 // Log logs a message
 func (h *TestMessageHandler) Log(level int8, behavior string, msg string) *ProcessingError {
 	h.logs = append(h.logs, fmt.Sprintf("[%d] %s: %s", level, behavior, msg))

@@ -48,7 +48,16 @@ type AdaptiveEventThrottler struct {
 	// Configuration
 	maxBufferSize      int               // Maximum buffer size to prevent memory issues
 	logger             *zerolog.Logger   // Logger for internal messages
+	
+	// High load mode timer management
+	highLoadModeMutex     sync.Mutex
+	highLoadModeTimer     *time.Timer
+	highLoadModeDuration  time.Duration
 }
+
+
+var defaultHighLoadTimeout = 5 * time.Second
+
 
 // NewAdaptiveEventThrottler creates a new throttler instance with the given parameters
 func NewAdaptiveEventThrottler(
@@ -69,6 +78,7 @@ func NewAdaptiveEventThrottler(
 		maxInterval:        maxInterval,
 		lastEmitTime:       time.Now(),
 		enabled:            enabled,
+		highLoadModeDuration: defaultHighLoadTimeout,
 		isRunning:          true,
 		flushChan:          make(chan struct{}, 1),
 		highLoadMode:       false,
@@ -206,18 +216,9 @@ func (t *AdaptiveEventThrottler) BulkUpdateProgress(updates map[string]map[strin
 	}
 	
 	// Automatically enable high load mode for bulk updates
-	wasHighLoad := t.highLoadMode
 	if !t.highLoadMode && len(updates) > 20 {
-	    t.SetHighLoadMode(true)
-	    
-	    // Schedule return to normal mode after processing
-	    go func() {
-	        time.Sleep(5 * time.Second)
-	        // Only disable if it was enabled by this call
-	        if !wasHighLoad {
-	            t.SetHighLoadMode(false)
-	        }
-	    }()
+		// Use the centralized timeout method
+		t.SetHighLoadModeWithTimeout()
 	}
 	
 	t.mutex.Lock()
@@ -265,9 +266,9 @@ func (t *AdaptiveEventThrottler) updateEventRate() {
         if windowDuration > 0 {
             t.currentRate = float64(len(t.eventTimeWindow)) / windowDuration
             
-            // Auto-enable high load mode if rate exceeds threshold
-            if t.currentRate > highLoadThreshold && !t.highLoadMode {
-                t.highLoadMode = true
+	    // Auto-enable high load mode if rate exceeds threshold
+	    if t.currentRate > highLoadThreshold && !t.highLoadMode {
+		t.SetHighLoadModeWithTimeout()
                 t.logger.Info().Float64("rate", t.currentRate).Msg("Auto-enabled high load mode")
             }
             
@@ -511,27 +512,100 @@ func (t *AdaptiveEventThrottler) SetDirectPassThreshold(threshold float64) {
 	}
 }
 
+// SetHighLoadModeWithTimeout activates high load mode for the specified duration
+// Multiple calls will simply reset the timer rather than creating multiple instances
+// If no duration is provided, it uses the default timeout
+func (t *AdaptiveEventThrottler) SetHighLoadModeWithTimeout(durations ...time.Duration) {
+	t.highLoadModeMutex.Lock()
+	defer t.highLoadModeMutex.Unlock()
+
+	// Determine the timeout duration (use provided or default)
+	duration := defaultHighLoadTimeout
+	if len(durations) > 0 && durations[0] > 0 {
+		duration = durations[0]
+	}
+
+	// Only log if state is changing or timer is being reset
+	shouldLog := !t.highLoadMode || t.highLoadModeTimer != nil
+
+	// Set high load mode
+	t.mutex.Lock()
+	t.highLoadMode = true
+	t.currentInterval = t.maxInterval
+	t.mutex.Unlock()
+
+	// Cancel existing timer if there is one
+	if t.highLoadModeTimer != nil {
+		t.highLoadModeTimer.Stop()
+	}
+
+	// Set the new timer
+	t.highLoadModeDuration = duration
+	t.highLoadModeTimer = time.AfterFunc(duration, func() {
+		t.disableHighLoadMode()
+	})
+
+	// Log only if state changed or timer reset
+	if shouldLog {
+		t.logger.Info().Dur("duration", duration).Msg("High load mode activated with timeout")
+	}
+}
+
+
+
 // SetHighLoadMode activates or deactivates high load mode for resumption scenarios
 func (t *AdaptiveEventThrottler) SetHighLoadMode(enabled bool) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	
-	if t.highLoadMode != enabled {
-		t.highLoadMode = enabled
-		
-		if enabled {
-			// Immediately set maximum throttling for resumption scenarios
-			t.currentInterval = t.maxInterval
-			t.logger.Debug().Msg("High load mode activated - using maximum throttling")
-		} else {
-			// Reset to adaptive mode
-			t.eventCounter = 0
-			t.lastRateReset = time.Now()
-			t.eventTimeWindow = t.eventTimeWindow[:0]
-			t.logger.Debug().Msg("High load mode deactivated - returning to adaptive throttling")
+	if enabled {
+		t.SetHighLoadModeWithTimeout() // Use default timeout
+	} else {
+		t.highLoadModeMutex.Lock()
+		defer t.highLoadModeMutex.Unlock()
+
+		// Cancel any existing timer
+		if t.highLoadModeTimer != nil {
+			t.highLoadModeTimer.Stop()
+			t.highLoadModeTimer = nil
+		}
+
+		// Disable high load mode
+		t.mutex.Lock()
+		wasEnabled := t.highLoadMode
+		t.highLoadMode = false
+		t.eventCounter = 0
+		t.lastRateReset = time.Now()
+		t.eventTimeWindow = t.eventTimeWindow[:0]
+		t.mutex.Unlock()
+
+		// Only log if state changed
+		if wasEnabled {
+			t.logger.Debug().Msg("High load mode manually disabled")
 		}
 	}
 }
+
+// disableHighLoadMode is called when the timer expires
+func (t *AdaptiveEventThrottler) disableHighLoadMode() {
+	t.highLoadModeMutex.Lock()
+	defer t.highLoadModeMutex.Unlock()
+
+	// Reset the timer reference
+	t.highLoadModeTimer = nil
+
+	// Switch back to normal mode
+	t.mutex.Lock()
+	wasEnabled := t.highLoadMode
+	t.highLoadMode = false
+	t.eventCounter = 0
+	t.lastRateReset = time.Now()
+	t.eventTimeWindow = t.eventTimeWindow[:0]
+	t.mutex.Unlock()
+
+	// Only log if state actually changed
+	if wasEnabled {
+		t.logger.Info().Msg("High load mode timeout expired - returning to adaptive throttling")
+	}
+}
+
 
 // GetStatus returns the current throttling status
 func (t *AdaptiveEventThrottler) GetStatus() map[string]interface{} {

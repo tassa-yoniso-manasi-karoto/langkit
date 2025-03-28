@@ -567,39 +567,6 @@
                 });
             }
         });
-
-        // Prepare the application for resumption with high-volume events
-        async function prepareForResumption() {
-            // Notify throttler to enable high load mode
-            try {
-                await window.go.gui.App.PrepareForResumption();
-                console.log("High load mode activated for task resumption");
-            } catch (error) {
-                console.warn("Failed to activate high load mode:", error);
-            }
-            
-            // Clear current progress bars for clean state
-            resetAllProgressBars();
-            
-            // Pre-allocate larger queue capacity
-            pendingProgressUpdates = [];
-            
-            // Notify user about resumption (optional)
-            const resumingMessage = "Resuming previous processing task...";
-            if (!isWindowMinimized) {
-                errorStore.addError({
-                    id: "resuming-task",
-                    message: resumingMessage,
-                    severity: "info",
-                    dismissible: true
-                });
-            }
-        }
-
-        // Add this event handler to detect resumption events from backend
-        EventsOn("resuming-task", () => {
-            prepareForResumption();
-        });
         
         // Get version info on load
         GetVersion()

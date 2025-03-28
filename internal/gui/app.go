@@ -147,25 +147,6 @@ func (a *App) GetEventThrottlingStatus() map[string]interface{} {
 	return a.throttler.GetStatus()
 }
 
-// PrepareForResumption sets high load mode before task resumption
-func (a *App) PrepareForResumption() {
-	if a.throttler != nil {
-		a.throttler.SetHighLoadMode(true)
-		a.logger.Info().Msg("High load mode activated for task resumption")
-		
-		// Schedule a return to normal mode after initial burst
-		go func() {
-			time.Sleep(5 * time.Second)
-			if a.throttler != nil {
-				a.throttler.SetHighLoadMode(false)
-				a.logger.Info().Msg("Returning to normal throttling mode after resumption")
-			}
-		}()
-	} else {
-		a.logger.Warn().Msg("Cannot prepare for resumption: throttler is nil")
-	}
-}
-
 // beforeClose is called when the application is about to quit,
 // either by clicking the window close button or calling runtime.Quit.
 // Returning true will cause the application to continue, false will continue shutdown as normal.

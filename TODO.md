@@ -3,11 +3,10 @@
 
 - Adaptive Event Throttling System
   - virtual log view → must std log entry height
-  - progressbar no updating under low load
 
 - go-rod
   - atm valid browser URL required even for Subs2Cards alone
-  - make browser url option to use go-rod's ability to download & manage the instance for noobs
+  - make browser url option optional to use go-rod's ability to download & manage the instance for noobs
 
 
 - progress bar

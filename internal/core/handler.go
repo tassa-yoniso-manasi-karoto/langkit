@@ -43,6 +43,10 @@ type MessageHandler interface {
 	
 	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
 	ResetProgress()
+	
+	// SetHighLoadMode enables high performance processing for intensive operations
+	// Optional duration parameter - defaults to 5 seconds if not provided
+	SetHighLoadMode(durations ...time.Duration)
 }
 
 // #############################################################################
@@ -169,6 +173,12 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 		bar.Clear()
 		delete(h.progressBars, taskID)
 	}
+}
+
+// SetHighLoadMode is a no-op for CLI mode since there's no throttling
+func (h *CLIHandler) SetHighLoadMode(durations ...time.Duration) {
+	// No-op for CLI mode
+	h.logger.Trace().Msg("handler.SetHighLoadMode called (no-op in CLI mode)")
 }
 
 
@@ -402,6 +412,25 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 func (h *GUIHandler) HandleStatus(status string) {
 	runtime.EventsEmit(h.ctx, "status", status)
 }
+
+// SetHighLoadMode pre-emptively enables high load mode of Adaptive Event Throttling System
+// This gives a "head start" instead of waiting for auto-detection
+// helpful for previousy interrupted task resumption
+func (h *GUIHandler) SetHighLoadMode(durations ...time.Duration) {
+	if h.throttler != nil {
+		// Pass the optional duration to the throttler
+		if len(durations) > 0 {
+			h.ZeroLog().Debug().Dur("duration", durations[0]).Msg("Entering high load mode with custom duration")
+			h.throttler.SetHighLoadModeWithTimeout(durations[0])
+		} else {
+			h.ZeroLog().Debug().Msg("Entering high load mode with default duration")
+			h.throttler.SetHighLoadModeWithTimeout()
+		}
+	} else {
+		h.ZeroLog().Warn().Msg("Cannot enter high load mode: throttler is nil")
+	}
+}
+
 
 
 func placeholder3456() {

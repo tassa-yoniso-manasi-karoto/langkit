@@ -43,6 +43,8 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 
 	toCheckChan := make(chan string)
 	isAlreadyChan := make(chan bool)
+	// FIXME Claude added a resumption service, see note added at the top of worker_pool.go
+	// TODO: merge/simplify checkStringsInFile and resumption_service.go
 	go func() {
 		if err := checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan); err != nil {
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("Error checking strings in file")
@@ -107,11 +109,14 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 			}
 			
 			if already {
+				// prevent self-ddos of GUI by update spam
+				tsk.Handler.SetHighLoadMode()
+				
 				// If the item was already processed, mark it as skipped
 				tsk.Handler.ZeroLog().Trace().
 					Int("idx", i).
 					Str("subline", getSubLineText(*astitem)).
-					Msg("Skipping subtitle line previously processed")
+					Msg("Skipping subtitle line previously processed (timePosition exists in file)")
 				skipped++
 				indexesToSkip[i] = true
 				// Decrease the total count as this item doesn't need processing
@@ -299,6 +304,7 @@ type WorkerConfig struct {
 }
 
 func (tsk *Task) worker(cfg WorkerConfig) {
+	reporter := crash.Reporter
 	defer tsk.Handler.ZeroLog().Trace().
 		Int("workerID", cfg.id).
 		Int("lenSubLineChan", len(cfg.subLineChan)).
@@ -319,6 +325,12 @@ func (tsk *Task) worker(cfg WorkerConfig) {
 			}
 			item, procErr := tsk.ProcessItem(cfg.ctx, indexedSub)
 			if procErr != nil {
+				reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+					// Record the subtitle index that caused the failure
+					es.FailedSubtitleIndex = indexedSub.Index
+					es.FailedSubtitleText = getSubLineText(*indexedSub.Item)
+				}) // necessity: critical
+				
 				// Try to send error, but don't block if canceled
 				select {
 				case cfg.errChan <- procErr:
