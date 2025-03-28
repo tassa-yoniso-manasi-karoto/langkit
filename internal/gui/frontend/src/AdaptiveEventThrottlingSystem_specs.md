@@ -12,56 +12,92 @@ The central orchestration component that manages event buffering, adaptive throt
 
 ```go
 type AdaptiveEventThrottler struct {
+    // Context
     ctx                context.Context
+    
+    // Buffers
     logBuffer          []string
     progressBuffer     map[string]map[string]interface{}
-    mutex              sync.RWMutex
     
-    // Adaptive parameters
+    // Command handling - the core of our design
+    commandChan        chan command
+    isRunning          bool
+    
+    // Event rate tracking
     eventCounter       int
     rateWindow         time.Duration
     lastRateReset      time.Time
     currentRate        float64
+    eventTimeWindow    []time.Time
+    directPassThreshold float64
     
     // Throttling state
-    lastEmitTime       time.Time
+    highLoadMode       bool
+    highLoadModeTimer  *time.Timer
     currentInterval    time.Duration
-    minInterval        time.Duration
-    maxInterval        time.Duration
-    
-    // Control
-    enabled            bool
-    isRunning          bool
-    flushChan          chan struct{}
-    highLoadMode       bool              // Special mode for high-volume scenarios
-    
-    // Sequence tracking for chronological ordering
-    logSequence        int64             // Monotonically increasing sequence number
-    sequenceMutex      sync.Mutex        // Dedicated mutex for sequence operations
+    lastEmitTime       time.Time
     
     // Configuration
-    maxBufferSize      int               // Maximum buffer size to prevent memory issues
-    logger             *zerolog.Logger   // Logger for internal messages
+    enabled            bool
+    minInterval        time.Duration
+    maxInterval        time.Duration
+    logSequence        int64
+    maxBufferSize      int
+    logger             *zerolog.Logger
 }
 ```
 
-Key methods:
-- `AddLog(log string)`: Buffers log events with sequence number and timestamp, or sends critical ones immediately
-- `UpdateProgress(id string, data map[string]interface{})`: Stores only the latest progress update for each task
-- `BulkUpdateProgress(updates map[string]map[string]interface{})`: Handles multiple progress updates efficiently
-- `adjustThrottling()`: Dynamically adjusts throttling based on event frequency
-- `processBatches()`: Background goroutine that manages timed flushes
-- `emitBatches()`: Sends pending events to the frontend
-- `Flush()`: Asynchronously flushes all pending events
-- `SyncFlush()`: Synchronously flushes all pending events (used before crash reports)
-- `SetEnabled(enabled bool)`: Toggles throttling on/off
-- `SetHighLoadMode(enabled bool)`: Activates special mode for resumption scenarios
-- `SetMinInterval/SetMaxInterval`: Configures throttling parameters
-- `GetStatus()`: Returns current throttling metrics
-- `isImportantLog()`: Determines if a log should be preserved during buffer pressure
-- `Shutdown()`: Gracefully shuts down the throttler
+### 2.2 Command Types
 
-### 2.2 ThrottledLogWriter
+Commands encapsulate operations for thread-safe execution:
+
+```go
+// Command interface for all operations
+type command interface {
+    execute(t *AdaptiveEventThrottler)
+}
+
+// Add log command
+type addLogCommand struct {
+    log string
+    direct bool // Whether to send directly (bypass batch)
+}
+
+// Update progress command
+type updateProgressCommand struct {
+    id   string
+    data map[string]interface{}
+    direct bool // Whether to send directly
+}
+
+// Bulk update progress command
+type bulkUpdateProgressCommand struct {
+    updates map[string]map[string]interface{}
+}
+
+// Set high load mode command
+type setHighLoadModeCommand struct {
+    enabled  bool
+    duration time.Duration
+    done     chan struct{} // Optional done signal for sync calls
+}
+
+// Flush command
+type flushCommand struct {
+    sync  bool         // Whether this is a synchronous flush
+    done  chan struct{} // Signal completion (for sync flushes)
+}
+
+// Shutdown command
+type shutdownCommand struct {
+    done chan struct{}
+}
+
+// Function command for one-off operations
+type command func(*AdaptiveEventThrottler)
+```
+
+### 2.3 ThrottledLogWriter
 
 An `io.Writer` implementation that ensures logs are both preserved for crash reports and sent to the throttler for UI updates.
 
@@ -76,7 +112,7 @@ type ThrottledLogWriter struct {
 Key methods:
 - `Write(p []byte) (n int, err error)`: Implements the io.Writer interface, writing to both destinations
 
-### 2.3 Settings Integration
+### 2.4 Settings Integration
 
 Configuration options for controlling throttling behavior:
 
@@ -93,7 +129,7 @@ type Settings struct {
 }
 ```
 
-### 2.4 Optimized LogStore Implementation
+### 2.5 Optimized LogStore Implementation
 
 A fully reworked log store that efficiently manages chronological ordering:
 
@@ -142,109 +178,11 @@ function createLogStore() {
 }
 ```
 
-### 2.5 Virtual Rendering LogViewer
-
-A highly optimized log viewer with virtual rendering and anchor-based scrolling:
-
-```typescript
-// Viewport anchoring for stable scrolling
-let viewportAnchor: { 
-    sequence: number, 
-    offset: number,
-    height: number 
-} | null = null;
-
-// Virtualization
-let virtualStart = 0;
-let virtualEnd = 0;
-const BUFFER_SIZE = 50; // How many logs to render above/below viewport
-let avgLogHeight = 25; // Initial estimate, will be refined
-
-// Update virtualization calculations
-function updateVirtualization(): void {
-    if (!scrollContainer || !virtualEnabled) return;
-    
-    const { scrollTop, clientHeight } = scrollContainer;
-    
-    // Calculate visible range based on scroll position
-    const estimatedStartIndex = Math.floor(scrollTop / avgLogHeight);
-    const estimatedVisibleCount = Math.ceil(clientHeight / avgLogHeight);
-    
-    // Add buffer for smoother scrolling
-    virtualStart = Math.max(0, estimatedStartIndex - BUFFER_SIZE);
-    virtualEnd = Math.min(filteredLogs.length - 1, estimatedStartIndex + estimatedVisibleCount + BUFFER_SIZE);
-    
-    // Calculate virtual container height
-    virtualContainerHeight = filteredLogs.length * avgLogHeight;
-}
-```
-
-### 2.6 Frontend Batch Handlers
-
-Optimized event handlers for processing batched events efficiently:
-
-```javascript
-// Optimized log batch handler
-EventsOn("log-batch", (logBatch) => {
-    if (!Array.isArray(logBatch) || logBatch.length === 0) return;
-    
-    // Use the logStore's batch processing directly - it handles merging, ordering and chunking
-    logStore.addLogBatch(logBatch);
-});
-
-// Efficient progress batch handler with smart grouping
-EventsOn("progress-batch", (progressBatch) => {
-    if (!Array.isArray(progressBatch) || progressBatch.length === 0) return;
-    
-    // Skip excessive updates when window is minimized to save resources
-    if (isWindowMinimized && progressBatch.length > 10) {
-        // Only process a few important updates for state maintenance
-        const consolidatedUpdates = {}; // Map task ID -> latest update
-        
-        // Keep only the latest update for each task ID
-        progressBatch.forEach(update => {
-            if (update && update.id) {
-                consolidatedUpdates[update.id] = update;
-            }
-        });
-        
-        // Only add important states to pending queue
-        Object.values(consolidatedUpdates).forEach(update => {
-            // Add critical updates (completed or error states)
-            if (update.progress >= 100 || update.errorState) {
-                pendingProgressUpdates.push(update);
-            }
-        });
-    } else {
-        // Normal processing - still deduplicate by ID
-        const uniqueUpdates = new Map();
-        
-        // Keep only latest update for each ID
-        progressBatch.forEach(update => {
-            if (update && update.id) {
-                uniqueUpdates.set(update.id, update);
-            }
-        });
-        
-        // Add all unique updates to pending queue
-        pendingProgressUpdates.push(...uniqueUpdates.values());
-    }
-    
-    // Process updates in next animation frame if not already scheduled
-    if (!progressUpdateDebounceTimer) {
-        progressUpdateDebounceTimer = window.requestAnimationFrame(() => {
-            processProgressUpdates();
-            progressUpdateDebounceTimer = null;
-        });
-    }
-});
-```
-
 ## 3. Architecture Details
 
-### 3.1 Dual-Path Event System with Chronological Ordering
+### 3.1 Command-Based Event Processing System
 
-The architecture follows a dual-path design pattern with enhanced ordering capabilities:
+The architecture follows a command-based design pattern with enhanced ordering capabilities:
 
 ```
 ┌───────────────┐     ┌─────────────────┐     ┌──────────────┐
@@ -253,19 +191,25 @@ The architecture follows a dual-path design pattern with enhanced ordering capab
 └───────┬───────┘     └─────────────────┘     └──────────────┘
         │
         │             ┌─────────────────┐     ┌──────────────┐
-        └────────────▶│ Adaptive        │────▶│ Frontend UI  │
-                      │ Throttler       │     │ (chronological│
-                      │ (with sequencing│     │  ordering)    │
-                      │ & timestamps)   │     │              │
-                      └─────────────────┘     └──────────────┘
+        └────────────▶│ Command Channel │────▶│ Single       │
+                      │ (serializes all │     │ Processor    │
+                      │  operations)    │     │ Goroutine    │
+                      └─────────────────┘     └──────┬───────┘
+                                                     │
+                                                     ▼
+                                              ┌──────────────┐
+                                              │ Frontend UI  │
+                                              │              │
+                                              └──────────────┘
 ```
 
 This architecture ensures:
 - All logs are immediately written to the buffer for crash reports
-- Only UI updates are throttled, not the data collection
+- All operations are encapsulated as commands and processed sequentially
+- No mutex contention or deadlocks with single-writer model
 - Critical events can bypass throttling entirely
 - All logs appear in proper chronological order regardless of when they arrive
-- Scroll positions remain stable even during batch insertions
+- Clean shutdown with synchronous command completion
 
 ### 3.2 GUIHandler Integration
 
@@ -306,39 +250,41 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 }
 ```
 
-### 3.3 Adaptive Throttling with High Load Mode
+### 3.3 Command Processor Loop
 
-The throttling algorithm now includes a high load mode for resumption scenarios:
+The throttling algorithm now executes all commands in a dedicated goroutine:
 
 ```go
-// Skip adaptive adjustments if in high load mode
-if t.highLoadMode {
-    // In high load mode, always use maximum throttling
-    t.currentInterval = t.maxInterval
+// Process commands in a single goroutine
+func (t *AdaptiveEventThrottler) processCommands() {
+    // Create a ticker for periodic flushes
+    periodicFlushTicker := time.NewTicker(250 * time.Millisecond)
+    defer periodicFlushTicker.Stop()
     
-    // Check if it's time to emit
-    now := time.Now()
-    if now.Sub(t.lastEmitTime) >= t.currentInterval {
+    for t.isRunning {
         select {
-        case t.flushChan <- struct{}{}:
-            // Signal sent
-        default:
-            // Channel full, already pending flush
+        case cmd, ok := <-t.commandChan:
+            if !ok {
+                // Channel closed, exit
+                return
+            }
+            
+            // Execute the command
+            cmd.execute(t)
+            
+        case <-periodicFlushTicker.C:
+            // Periodically check if we need to flush
+            if len(t.logBuffer) > 0 || len(t.progressBuffer) > 0 {
+                t.doFlush(false)
+            }
+            
+        case <-t.ctx.Done():
+            // Context canceled, shut down
+            t.isRunning = false
+            t.doFlush(true) // Final flush
+            return
         }
     }
-    return
-}
-
-// Normal adaptive throttling for regular operation
-switch {
-case t.currentRate < 10:
-    t.currentInterval = t.minInterval // Low rate: minimal/no throttling
-case t.currentRate < 100:
-    t.currentInterval = 50 * time.Millisecond
-case t.currentRate < 500:
-    t.currentInterval = 100 * time.Millisecond
-default:
-    t.currentInterval = t.maxInterval // Very high rate: max throttling
 }
 ```
 
@@ -360,9 +306,9 @@ Log messages now include additional metadata for efficient sorting and display:
 
 ## 4. Integration Points
 
-### 4.1 App Initialization with Resumption Detection
+### 4.1 App Initialization and Lifecycle
 
-The throttler is initialized with support for task resumption scenarios:
+The throttler is initialized and properly managed throughout the application lifecycle:
 
 ```go
 func (a *App) startup(ctx context.Context) {
@@ -385,25 +331,41 @@ func (a *App) startup(ctx context.Context) {
     handler = core.NewGUIHandler(ctx, a.throttler)
 }
 
-// Method to prepare for resumption
-func (a *App) PrepareForResumption() {
+// Clean shutdown handling
+func (a *App) beforeClose(ctx context.Context) (prevent bool) {
+    // Properly shut down the throttler
     if a.throttler != nil {
-        a.throttler.SetHighLoadMode(true)
-        a.logger.Info().Msg("High load mode activated for task resumption")
-        
-        // Schedule a return to normal mode after initial burst
-        go func() {
-            time.Sleep(5 * time.Second)
-            if a.throttler != nil {
-                a.throttler.SetHighLoadMode(false)
-                a.logger.Info().Msg("Returning to normal throttling mode after resumption")
-            }
-        }()
+        a.logger.Info().Msg("Application closing, shutting down throttler")
+        a.throttler.Shutdown()
+        a.throttler = nil
+    }
+    return false
+}
+```
+
+### 4.2 High Load Mode with EnterHighLoadMode
+
+Support for task resumption scenarios with proper handler integration:
+
+```go
+// EnterHighLoadMode signals the throttler to prepare for high-volume events
+func (h *GUIHandler) EnterHighLoadMode(durations ...time.Duration) {
+    if h.throttler != nil {
+        // Pass the optional duration to the throttler
+        if len(durations) > 0 {
+            h.ZeroLog().Info().Dur("duration", durations[0]).Msg("Entering high load mode with custom duration")
+            h.throttler.SetHighLoadModeWithTimeout(durations[0])
+        } else {
+            h.ZeroLog().Info().Msg("Entering high load mode with default duration")
+            h.throttler.SetHighLoadModeWithTimeout()
+        }
+    } else {
+        h.ZeroLog().Warn().Msg("Cannot enter high load mode: throttler is nil")
     }
 }
 ```
 
-### 4.2 Crash Report Integration with Synchronous Flushing
+### 4.3 Crash Report Integration with Synchronous Flushing
 
 The throttler is now synchronously flushed before generating crash reports to ensure all data is preserved:
 
@@ -428,89 +390,58 @@ func exitOnError(mainErr error) {
 }
 ```
 
-### 4.3 Settings UI with Processing Mode
-
-UI controls for throttling configuration with additional processing mode for resumption scenarios:
-
-```html
-<div class="setting-row" class:disabled={!$settings.eventThrottling.enabled}>
-    <div class="setting-label">
-        <span>Processing Mode</span>
-        <div class="setting-description">
-            "High Performance" recommended for large batch operations
-        </div>
-    </div>
-    <div class="setting-control">
-        <select 
-            disabled={!$settings.eventThrottling.enabled}
-            class="select-input"
-            on:change={(e) => {
-                const isHighPerformance = e.target.value === 'high';
-                window.go.gui.App.PrepareForResumption(); // Enable high load mode temporarily
-                if (isHighPerformance) {
-                    $settings.eventThrottling.maxInterval = 250;
-                } else {
-                    $settings.eventThrottling.maxInterval = 100;
-                }
-            }}
-        >
-            <option value="standard" selected={$settings.eventThrottling.maxInterval <= 100}>Standard</option>
-            <option value="high" selected={$settings.eventThrottling.maxInterval > 100}>High Performance</option>
-        </select>
-    </div>
-</div>
-```
-
 ## 5. Advanced Features Implemented
 
-### 5.1 Merge-Insert Algorithm for Efficient Log Processing
+### 5.1 Command-Based Concurrency Model
 
-A highly efficient merge-insert algorithm replaces the original sort approach:
+The system now implements a command-based concurrency model with several advantages:
 
-```typescript
-// Merge two sorted arrays in O(n+m) time instead of O((n+m)log(n+m))
-function mergeInsertLogs(existingLogs: LogMessage[], newLogs: LogMessage[]): LogMessage[] {
-    // Sort only the new logs (typically a small batch)
-    newLogs.sort((a, b) => {
-        // Use unix timestamp for extreme efficiency
-        const timeA = a._unix_time || 0;
-        const timeB = b._unix_time || 0;
-        
-        // Primary sort by time
-        if (timeA !== timeB) {
-            return timeA - timeB;
-        }
-        
-        // Secondary sort by sequence for stability
-        return (a._sequence || 0) - (b._sequence || 0);
-    });
+- **Deadlock Prevention**: Eliminates mutex contention and locking order problems
+- **Single Writer Model**: All state modifications happen in one goroutine
+- **Clean Shutdown**: Proper coordination with optional sync points
+- **Operation Encapsulation**: Each operation is a self-contained command
+- **Simple Synchronization**: Optional done channels for synchronous operations
+- **Timer Safety**: Timer callbacks dispatch commands rather than directly modifying state
+
+This approach greatly simplifies the concurrency model and prevents the lifecycle issues that were causing UI freezes and shutdown problems.
+
+### 5.2 High Load Mode with Timeout Extension
+
+The system supports extending high load mode duration with successive calls:
+
+```go
+// setHighLoadModeInternal enables high load mode with a timeout
+func (t *AdaptiveEventThrottler) setHighLoadModeInternal(duration time.Duration) {
+    // Only log if state is changing or timer is being reset
+    shouldLog := !t.highLoadMode || t.highLoadModeTimer != nil
     
-    // Merge the sorted arrays in linear time
-    const result: LogMessage[] = [];
-    let i = 0, j = 0;
+    // Set high load mode
+    t.highLoadMode = true
+    t.currentInterval = t.maxInterval
     
-    while (i < existingLogs.length && j < newLogs.length) {
-        const timeA = existingLogs[i]._unix_time || 0;
-        const timeB = newLogs[j]._unix_time || 0;
-        
-        if (timeA <= timeB) {
-            result.push(existingLogs[i++]);
-        } else {
-            result.push(newLogs[j++]);
-        }
+    // Cancel existing timer if there is one
+    if t.highLoadModeTimer != nil {
+        t.highLoadModeTimer.Stop()
     }
     
-    // Add remaining entries
-    while (i < existingLogs.length) result.push(existingLogs[i++]);
-    while (j < newLogs.length) result.push(newLogs[j++]);
+    // Set the new timer
+    t.highLoadModeTimer = time.AfterFunc(duration, func() {
+        // Create a command to disable high load mode when timer fires
+        if t.isRunning {
+            t.commandChan <- &setHighLoadModeCommand{enabled: false}
+        }
+    })
     
-    return result;
+    // Log only if state changed or timer reset
+    if shouldLog {
+        t.logger.Info().Dur("duration", duration).Msg("High load mode activated with timeout")
+    }
 }
 ```
 
-### 5.2 Virtual Rendering for Log Display
+### 5.3 Virtual Rendering for Log Display
 
-The LogViewer now implements virtual rendering for extreme performance:
+The LogViewer implements virtual rendering for extreme performance:
 
 ```svelte
 <!-- Virtual scroller container -->
@@ -537,92 +468,66 @@ The LogViewer now implements virtual rendering for extreme performance:
 </div>
 ```
 
-### 5.3 Anchor-Based Scroll Management
+### 5.4 Hybrid Pass-Through with Batching
 
-The system now maintains scroll position during batch updates using sequence-based anchoring:
+The system implements a hybrid approach that combines direct pass-through with batching:
 
-```typescript
-// Save viewport anchor for stable scrolling
-function saveScrollAnchor(): void {
-    if (!scrollContainer) return;
+```go
+func (c *addLogCommand) execute(t *AdaptiveEventThrottler) {
+    // Check if this is a critical log by parsing it
+    var logData map[string]interface{}
+    isCritical := false
     
-    // Find a log element in the middle of the viewport
-    const { scrollTop, clientHeight } = scrollContainer;
-    const middleY = scrollTop + (clientHeight / 2);
+    // ... metadata processing ...
     
-    // Find log element closest to middle
-    let closestElement: Element | null = null;
-    let closestDistance = Infinity;
-    
-    const logElements = scrollContainer.querySelectorAll('.log-entry');
-    logElements.forEach(element => {
-        const rect = element.getBoundingClientRect();
-        const elementMiddle = rect.top + (rect.height / 2);
-        const distance = Math.abs(elementMiddle - middleY);
-        
-        if (distance < closestDistance) {
-            closestDistance = distance;
-            closestElement = element;
-        }
-    });
-    
-    // Save anchor if found
-    if (closestElement) {
-        const sequenceAttr = closestElement.getAttribute('data-log-sequence');
-        if (sequenceAttr) {
-            const sequence = parseInt(sequenceAttr, 10);
-            const rect = closestElement.getBoundingClientRect();
-            
-            viewportAnchor = {
-                sequence,
-                offset: rect.top - scrollContainer.getBoundingClientRect().top,
-                height: rect.height
-            };
-        }
+    // Send critical logs and direct logs immediately
+    if isCritical || c.direct || !t.enabled {
+        runtime.EventsEmit(t.ctx, "log", c.log)
+        return
     }
-}
-
-// Restore scroll position based on viewport anchor
-async function restoreScrollAnchor(): Promise<boolean> {
-    if (!scrollContainer || !viewportAnchor) return false;
     
-    // Find the anchor element
-    const anchorElement = scrollContainer.querySelector(`[data-log-sequence="${viewportAnchor.sequence}"]`);
-    if (!anchorElement) return false;
+    // Update event rate tracking
+    t.updateEventRateInternal()
     
-    // Restore scroll position based on anchor
-    const rect = anchorElement.getBoundingClientRect();
-    const containerRect = scrollContainer.getBoundingClientRect();
-    const targetScrollTop = scrollContainer.scrollTop + 
-        (rect.top - containerRect.top) - viewportAnchor.offset;
+    // Use direct pass-through for normal operations (when not in high load mode)
+    if t.currentRate < t.directPassThreshold && !t.highLoadMode {
+        runtime.EventsEmit(t.ctx, "log", c.log)
+        return
+    }
     
-    // Apply scroll
-    scrollContainer.scrollTop = targetScrollTop;
-    return true;
+    // Add to buffer with overflow protection
+    if len(t.logBuffer) >= t.maxBufferSize {
+        // Force a flush if buffer is getting full
+        if float64(len(t.logBuffer)) > float64(t.maxBufferSize)*0.8 {
+            t.doFlush(false)
+        }
+        
+        // Keep only newer logs
+        t.logBuffer = append(t.logBuffer[len(t.logBuffer)/5:], c.log)
+    } else {
+        t.logBuffer = append(t.logBuffer, c.log)
+    }
+    
+    // Adjust throttling
+    t.adjustThrottlingInternal()
 }
 ```
 
-### 5.4 Adaptive Buffer Management
+### 5.5 Forced Periodic Flushes
 
-The throttler now implements intelligent buffer management:
+Guaranteed updates with periodic flush checking:
 
 ```go
-// Add to buffer with overflow protection
-if len(t.logBuffer) >= t.maxBufferSize {
-    // Force a flush if buffer is getting full
-    if len(t.logBuffer) > t.maxBufferSize*0.8 {
-        go t.Flush()
+// Add periodic flush timer for guaranteed updates
+periodicFlushTicker := time.NewTicker(250 * time.Millisecond)
+defer periodicFlushTicker.Stop()
+
+// In the select loop:
+case <-periodicFlushTicker.C:
+    // Periodically flush any pending data
+    if len(t.logBuffer) > 0 || len(t.progressBuffer) > 0 {
+        t.doFlush(false)
     }
-    
-    // Only keep the most recent logs when buffer is full
-    // Prioritize important logs when buffer is under pressure
-    if t.isImportantLog(logData) || len(t.logBuffer) < t.maxBufferSize*0.9 {
-        t.logBuffer = append(t.logBuffer[len(t.logBuffer)/5:], log)
-    }
-    // Otherwise, silently drop less important logs under extreme pressure
-} else {
-    t.logBuffer = append(t.logBuffer, log)
-}
 ```
 
 ## 6. Performance Characteristics
@@ -632,14 +537,14 @@ if len(t.logBuffer) >= t.maxBufferSize {
 - Log buffer: O(n) where n is the buffer size (configurable, default 5000)
 - Progress buffer: O(m) where m is the number of active progress bars
 - LogStore: O(n) where n is the maximum log entries setting (default 10000)
-- Index Maps: O(n) for sequence lookups
+- Command channel: O(k) where k is the channel buffer size (default 100)
 
 ### 6.2 Computational Complexity
 
+- Command processing: O(1) per command
 - Batch insertion: O(n+m) where n is existing logs and m is new logs
 - Log filtering: O(n) for filter operations
 - Virtual rendering: O(v) where v is the visible viewport size (typically ~20-50 logs)
-- Scroll position management: O(1) using sequence-based lookups
 
 ### 6.3 UI Performance Improvements
 
@@ -647,7 +552,7 @@ if len(t.logBuffer) >= t.maxBufferSize {
 - Batch efficiency: Processing multiple events in unified batches
 - Virtualization: Rendering only visible logs (20-50) instead of thousands
 - Throttling overhead: <0.5ms per event for internal processing
-- Scroll stability: Maintains reading position during batch arrivals
+- Thread safety: No locks in UI rendering path
 
 ## 7. Configuration Guidelines
 
@@ -668,10 +573,11 @@ if len(t.logBuffer) >= t.maxBufferSize {
 
 ## 8. Implementation Notes
 
-- All buffer operations protect against concurrent access with mutexes
+- Command-based concurrency eliminates mutex-related deadlocks
+- All state modifications happen in a single goroutine
 - Critical events use robust detection logic to bypass throttling
 - Log entries include Unix timestamps for efficient sorting
 - Sequence numbers ensure stable ordering regardless of arrival time
 - Virtual rendering minimizes DOM operations for smooth performance
-- Anchor-based scrolling maintains reading position during updates
-- Batch processing is optimized for both small and large update volumes
+- Clean lifecycle management with proper shutdown sequence
+- Hybrid approach combines immediate updates and efficient batching

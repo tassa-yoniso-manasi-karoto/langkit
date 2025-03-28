@@ -153,8 +153,9 @@ func (a *App) GetEventThrottlingStatus() map[string]interface{} {
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	// Properly shut down the throttler
 	if a.throttler != nil {
-		a.logger.Info().Msg("Shutting down throttler")
+		a.logger.Info().Msg("Application closing, shutting down throttler")
 		a.throttler.Shutdown()
+		a.throttler = nil
 	}
 	return false
 }

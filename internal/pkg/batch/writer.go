@@ -32,9 +32,10 @@ func (w *ThrottledLogWriter) Write(p []byte) (n int, err error) {
 		return n, err
 	}
 	
-	// Send to throttler for frontend updates
-	// We don't filter TRACE level logs here because that's already handled in the GUIHandler
-	w.throttler.AddLog(string(p))
+	// Send to throttler for frontend updates if available
+	if w.throttler != nil {
+		w.throttler.AddLog(string(p))
+	}
 	
 	return len(p), nil
 }
