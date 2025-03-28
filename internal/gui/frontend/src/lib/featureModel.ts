@@ -232,7 +232,7 @@ export const features: FeatureDefinition[] = [
                 type: 'string',
                 label: 'Browser access URL',
                 default: '',
-                hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
+                hovertip: "Optional URL to a Chromium-based browser's DevTools interface.\nIf not provided or invalid, a browser will be automatically downloaded and managed.\n\nTo get a URL: Run Chrome/Chromium with:\n --remote-debugging-port=9222 flag\nand use the WebSocket URL displayed in the terminal or in:\nchrome://inspect/#devices",
                 placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
                 showCondition: "context.isTopmostForOption && context.needsScraper"
             },

@@ -980,16 +980,9 @@
                 {
                     id: 'browser-url-validation',
                     optionId: 'browserAccessURL',
-                    // Fixed validation that runs only when needed
-                    validator: (url) => {
-                        // If scraper isn't needed, don't validate
-                        if (!needsScraper) return true;
-                        
-                        // Check for a valid WebSocket URL
-                        return Boolean(url && url.startsWith('ws://'));
-                    },
-                    errorMessage: 'Valid browser access URL is required for web scraping',
-                    severity: 'critical'
+                    validator: (url) => true, // optional field
+                    errorMessage: 'Automatic browser management will be used if no Browser access URL is provided',
+                    severity: 'info'
                 }
             ]
         };

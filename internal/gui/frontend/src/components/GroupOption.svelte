@@ -265,28 +265,32 @@
         {:else if optionDef.type === 'string'}
             <!-- Special handling for browser URL for immediate validation -->
             {#if optionId === 'browserAccessURL'}
-                <!-- Browser URL with immediate validation -->
-                <TextInput
-                    bind:value={localValue}
-                    placeholder={optionDef.placeholder || "ws://127.0.0.1:9222/..."}
-                    className="text-sm placeholder:text-gray-500"
-                    on:input={() => {
-                        // Set user input timestamp for authority
-                        lastUserUpdateTime = Date.now() + 100;
-                        
-                        // Special handling for browser URL - validate immediately
-                        featureGroupStore.setGroupOption(groupId, optionId, localValue);
-                        featureGroupStore.validateBrowserUrl(localValue, needsScraper, groupId);
-                        
-                        // Notify parent component
-                        dispatch('groupOptionChange', { 
-                            groupId, 
-                            optionId, 
-                            value: localValue,
-                            isUserInput: true
-                        });
-                    }}
-                />
+                <div class="relative">
+                    <TextInput
+                        bind:value={localValue}
+                        placeholder={optionDef.placeholder || "ws://127.0.0.1:9222/... (optional)"}
+                        className="text-sm placeholder:text-gray-500 pr-20" 
+                        on:input={() => {
+                            // Set user input timestamp for authority
+                            lastUserUpdateTime = Date.now() + 100;
+                            
+                            // Update the group option value but don't validate
+                            featureGroupStore.setGroupOption(groupId, optionId, localValue);
+                            
+                            // Notify parent component
+                            dispatch('groupOptionChange', { 
+                                groupId, 
+                                optionId, 
+                                value: localValue,
+                                isUserInput: true
+                            });
+                        }}
+                    />
+                    <!-- Add an "Optional" badge to the input -->
+                    <div class="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs px-2 py-0.5 bg-primary/20 text-primary-200 rounded-full pointer-events-none">
+                        Optional
+                    </div>
+                </div>
             {:else}
                 <TextInput
                     bind:value={localValue}

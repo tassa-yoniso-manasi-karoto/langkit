@@ -227,6 +227,23 @@ function createFeatureGroupStore() {
             
             if (!group) return;
             
+            // Check if any features in the group are enabled
+            const enabledFeaturesInGroup = state.enabledFeatures[groupId] || [];
+            const anyFeatureEnabled = enabledFeaturesInGroup.length > 0;
+            
+            // Skip validation if no features in the group are enabled
+            if (!anyFeatureEnabled) {
+                // Remove any existing errors
+                if (group.validationRules) {
+                    group.validationRules
+                        .filter(rule => rule.optionId === optionId)
+                        .forEach(rule => {
+                            errorStore.removeError(`group-${groupId}-${rule.id}`);
+                        });
+                }
+                return;
+            }
+            
             // Find validation rules for this option
             const rules = group.validationRules?.filter(rule => rule.optionId === optionId) || [];
             const optionValue = state.groupOptions[groupId]?.[optionId];
@@ -262,7 +279,23 @@ function createFeatureGroupStore() {
             
             if (!group) return;
             
-            // console.log(`Validating all options in group: ${groupId}`);
+            // Check if any features in the group are enabled
+            const enabledFeaturesInGroup = state.enabledFeatures[groupId] || [];
+            const anyFeatureEnabled = enabledFeaturesInGroup.length > 0;
+            
+            // console.log(`Validating all options in group: ${groupId}, features enabled: ${anyFeatureEnabled}`);
+            
+            // If no features are enabled, clear all validation errors for this group
+            if (!anyFeatureEnabled) {
+                if (group.validationRules) {
+                    group.validationRules.forEach(rule => {
+                        errorStore.removeError(`group-${groupId}-${rule.id}`);
+                    });
+                }
+                // Also clear the browser URL error
+                errorStore.removeError(`group-${groupId}-browser-url`);
+                return;
+            }
             
             // Get all shared options for this group
             const sharedOptions = group.sharedOptions || [];
@@ -533,42 +566,41 @@ function createFeatureGroupStore() {
         },
 
         /**
-         * Handle browser URL validation with improved checks
+         * Handle browser URL validation
          */
         validateBrowserUrl(url: string, needsScraper: boolean, groupId: string) {
-            // Clear any existing browser URL errors first to avoid duplicates
+            // Always clear any existing browser URL errors
             errorStore.removeError(`group-${groupId}-browser-url`);
             errorStore.removeError('invalid-browser-url'); // Legacy error
             
-            // Basic URL validation - must be a non-empty string starting with ws://
-            const isValidURL = Boolean(url && typeof url === 'string' && url.trim().startsWith('ws://'));
+            // Check if any subtitle features are actually enabled/selected
+            const state = get(store);
+            const enabledFeaturesInGroup = state.enabledFeatures[groupId] || [];
+            const anyFeatureEnabled = enabledFeaturesInGroup.length > 0;
             
-            console.log(`Browser URL validation for group ${groupId}:`, {
-                url: url,
-                needsScraper: needsScraper, 
-                isValidURL: isValidURL, 
-                type: typeof url,
-                isEmpty: !url
-            });
-            
-            // Only validate if we need a scraper
-            if (needsScraper) {
-                if (!isValidURL) {
-                    console.log(`❌ VALIDATION ERROR: Invalid browser URL: "${url}"`);
-                    
-                    // Register the error in the errorStore with a unique ID for this group
-                    errorStore.addError({
-                        id: `group-${groupId}-browser-url`,
-                        message: 'Valid browser access URL is required for web scraping',
-                        severity: 'critical'
-                    });
-                    return false;
-                } else {
-                    console.log(`✓ Valid browser URL: "${url}"`);
-                    return true;
-                }
+            // If no subtitle features are enabled, skip validation entirely
+            if (!anyFeatureEnabled) {
+                console.log(`No features in group ${groupId} are enabled, skipping browser URL validation`);
+                return true;
             }
             
+            // If URL is empty, it's valid as Go-Rod will handle browser automatically
+            if (!url || url.trim() === '') {
+                console.log(`Empty browser URL, automatic browser management will be used`);
+                return true;
+            }
+            
+            // If URL is provided, check if it starts with ws:// (but don't create errors)
+            const isValidURL = url.trim().startsWith('ws://');
+            
+            // Just log the validation result without creating errors
+            if (isValidURL) {
+                console.log(`✓ Valid browser URL: "${url}" will be used`);
+            } else {
+                console.log(`Non-standard browser URL: "${url}". If connection fails, automatic browser management will be used.`);
+            }
+            
+            // Always return true - never block the process button
             return true;
         },
 
