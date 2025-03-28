@@ -78,7 +78,7 @@
     </div>
 
     <!-- Second column: Audio track button with panel -->
-    <div class="audio-track-container flex items-center">
+    <div class="audio-track-container flex items-center overflow-hidden">
         <!-- Disclosure arrow button -->
         <button
             class="flex items-center justify-center p-4 w-6 h-6
