@@ -50,58 +50,39 @@
         // Store initial value in group store
         featureGroupStore.setGroupOption(groupId, optionId, value);
         
-        // Validate if needed
-        if (optionId === 'browserAccessURL') {
-            featureGroupStore.validateBrowserUrl(value, needsScraper, groupId);
-        }
-        
         // Mark as initialized and track external update time
         isInitialized = true;
         lastExternalUpdateTime = Date.now();
+        
+        console.log(`GroupOption mounted: ${groupId}.${optionId}=${value}`);
     });
     
     // Handle external value changes (from parent or store)
     $: {
         if (isInitialized && value !== undefined) {
-            // SPECIAL CASE: Empty value should never override a valid WebSocket URL
-            if (optionId === 'browserAccessURL' && !value && localValue && localValue.startsWith('ws://')) {
-                // Force re-propagation of the valid URL to preserve it
-                propagateUserValue(localValue);
-            } else {
-                // Only update timestamp for non-empty values
-                if (value) {
-                    lastExternalUpdateTime = Date.now();
-                }
-                
-                // User input should take precedence when timestamps indicate it's newer
-                if (lastUserUpdateTime > 0) {
-                    if (lastUserUpdateTime > lastExternalUpdateTime) {
-                        // Only re-propagate if values differ
-                        if (value !== localValue) {
-                            propagateUserValue(localValue);
-                        }
-                    } else {
-                        // If external update is newer than user input
-                        // Only apply the change if values actually differ
-                        if (value !== localValue) {
-                            localValue = value;
-                            
-                            // Validate if needed
-                            if (optionId === 'browserAccessURL') {
-                                featureGroupStore.validateBrowserUrl(value, needsScraper, groupId);
-                            }
-                        }
+            // Only update timestamp for non-empty values
+            if (value) {
+                lastExternalUpdateTime = Date.now();
+            }
+            
+            // User input should take precedence when timestamps indicate it's newer
+            if (lastUserUpdateTime > 0) {
+                if (lastUserUpdateTime > lastExternalUpdateTime) {
+                    // Only re-propagate if values differ
+                    if (value !== localValue) {
+                        propagateUserValue(localValue);
                     }
                 } else {
-                    // No user input yet - accept external value
+                    // If external update is newer than user input
+                    // Only apply the change if values actually differ
                     if (value !== localValue) {
                         localValue = value;
-                        
-                        // Validate if needed
-                        if (optionId === 'browserAccessURL') {
-                            featureGroupStore.validateBrowserUrl(value, needsScraper, groupId);
-                        }
                     }
+                }
+            } else {
+                // No user input yet - accept external value
+                if (value !== localValue) {
+                    localValue = value;
                 }
             }
         }
@@ -124,11 +105,6 @@
     function propagateUserValue(newValue: any) {
         // Store in group store
         featureGroupStore.setGroupOption(groupId, optionId, newValue);
-        
-        // Validate if needed
-        if (optionId === 'browserAccessURL') {
-            featureGroupStore.validateBrowserUrl(newValue, needsScraper, groupId);
-        }
         
         // Notify parent component
         dispatch('groupOptionChange', { 
@@ -157,37 +133,46 @@
     // Handle option changes from UI events
     function handleChange(event: any) {
         const newValue = event.detail || event.target.value;
-        
-        // Browser URL needs immediate handling
-        if (optionId === 'browserAccessURL') {
-            handleUserInput(newValue);
-        } else {
-            // Other fields use debounced handling
-            debouncedUserInput(newValue);
-        }
+        debouncedUserInput(newValue);
     }
 
     // Handle romanization style changes with special provider update logic
     function handleRomanizationChange(event: any) {
         const newValue = event.detail;
+        console.log(`Romanization style change: ${newValue}`);
         
         // Mark as user update with authority
         lastUserUpdateTime = Date.now() + 100;
         localValue = newValue;
         
-        // Also update the provider if this is a style change
-        if (optionId === 'style') {
-            const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
-            if (selectedScheme) {
-                // Update the provider in the group store so all features get updated
-                featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
-                
-                console.log(`Updated provider to ${selectedScheme.provider} based on style ${newValue}`);
-            }
+        // Update the style
+        featureGroupStore.setGroupOption(groupId, optionId, newValue);
+        
+        // Also update the provider if a matching scheme is found
+        const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
+        if (selectedScheme) {
+            const newProvider = selectedScheme.provider;
+            console.log(`Updating provider to ${newProvider} based on style ${newValue}`);
+            
+            // Update the provider in the group store
+            featureGroupStore.setGroupOption(groupId, 'provider', newProvider);
+            
+            // Notify about provider change too
+            dispatch('groupOptionChange', { 
+                groupId, 
+                optionId: 'provider', 
+                value: newProvider,
+                isUserInput: true
+            });
         }
         
-        // Propagate to store and parent
-        propagateUserValue(newValue);
+        // Notify about style change
+        dispatch('groupOptionChange', { 
+            groupId, 
+            optionId, 
+            value: newValue,
+            isUserInput: true
+        });
     }
 
     // Handle immediate changes like checkboxes
@@ -261,10 +246,11 @@
                 value={localValue}
                 on:change={handleChange}
                 label=""
+                placeholder={`Select ${optionDef.label}...`}
             />
         {:else if optionDef.type === 'string'}
-            <!-- Special handling for browser URL for immediate validation -->
             {#if optionId === 'browserAccessURL'}
+                <!-- Browser URL with optional badge -->
                 <div class="relative">
                     <TextInput
                         bind:value={localValue}
@@ -300,7 +286,7 @@
                 />
             {/if}
         {:else if optionDef.type === 'romanizationDropdown'}
-            <!-- Remove label to avoid duplication -->
+            <!-- Special handling for romanization style dropdown -->
             <Dropdown
                 options={romanizationSchemes}
                 optionKey="name"
@@ -308,6 +294,7 @@
                 value={localValue}
                 on:change={handleRomanizationChange}
                 label=""
+                placeholder="Select style..."
             />
         {:else if optionDef.type === 'provider'}
             <!-- Show provider with GitHub link if available -->

@@ -1,209 +1,145 @@
 <script lang="ts">
-    export let options: Array<any> = [];
-    export let value: string = '';
+    import { createEventDispatcher, onMount } from 'svelte';
+    import { clickOutside } from '../lib/clickOutside';
+    import { debounce } from 'lodash';
+    import { fly } from 'svelte/transition';
+    import Hovertip from './Hovertip.svelte';
+
+    // Props
+    export let options: any[] = [];
+    export let value: any = '';
     export let label: string = '';
+    export let placeholder: string = '';
+    export let disabled: boolean = false;
+    export let error: string = '';
     export let optionKey: string = '';
     export let optionLabel: string = '';
-    export let labelFunction: ((option: string) => string) | null = null;
-    export let tooltipFunction: ((option: string) => string) | null = null;
-    export let disabledFunction: ((option: string) => boolean) | null = null;
-    
-    import { createEventDispatcher, onMount } from 'svelte';
+    export let labelFunction: ((option: any) => string) | null = null;
+    export let tooltipFunction: ((option: any) => string) | null = null;
+
+    // Internal state
+    let isOpen = false;
+    let dropdownRef: HTMLDivElement;
+    let optionsContainerRef: HTMLDivElement;
+    let hasRenderedOptions = false;
     const dispatch = createEventDispatcher();
-    
-    // Track selection state internally
-    let selectElement: HTMLSelectElement;
-    let internalValue: string = '';
-    let initialRender = true;
-    
-    // Flag to prevent circular updates
-    let isProcessingChange = false;
 
-    onMount(() => {
-        // Initialize internal value on mount
-        internalValue = value;
-        initialRender = false;
-        
-        // Set the select element value directly to match
-        if (selectElement && value) {
-            selectElement.value = value;
+    function toggleDropdown() {
+        if (disabled) return;
+        isOpen = !isOpen;
+        if (isOpen) {
+            hasRenderedOptions = true;
         }
-    });
-
-    function getValue(option: any): string {
-        if (optionKey && typeof option === 'object') {
-            return option[optionKey];
-        }
-        return option;
     }
 
-    function getLabel(option: any): string {
-        if (labelFunction && typeof option === 'string') {
+    function closeDropdown() {
+        isOpen = false;
+    }
+
+    function selectOption(option: any) {
+        const selectedValue = optionKey && typeof option === 'object' ? option[optionKey] : option;
+        if (value !== selectedValue) {
+            value = selectedValue;
+            dispatch('change', selectedValue);
+        }
+        closeDropdown();
+    }
+
+    function findSelectedOption() {
+        if (!optionKey || !options.length || typeof options[0] !== 'object') {
+            return null;
+        }
+        return options.find(opt => opt[optionKey] === value);
+    }
+
+    function getOptionDisplayText(option: any): string {
+        if (labelFunction) {
             return labelFunction(option);
         }
-        
-        if (optionLabel && typeof option === 'object') {
-            return option[optionLabel] || option[optionKey] || option;
+        if (optionKey && optionLabel && typeof option === 'object') {
+            return option[optionLabel];
         }
-        return option;
+        return option.toString();
     }
 
-    function getTooltip(option: any): string {
-        if (tooltipFunction && typeof option === 'string') {
-            return tooltipFunction(option);
-        }
-        return '';
+    function getOptionTooltip(option: any): string | null {
+        return tooltipFunction ? tooltipFunction(option) : null;
     }
 
-    // We're not using the disabled state anymore
-    function isDisabled(option: any): boolean {
-        return false;
-    }
-
-    function handleSelect(event: Event) {
-        // Prevent processing if we're already handling a change
-        if (isProcessingChange) return;
-        
-        isProcessingChange = true;
-        
-        try {
-            const target = event.target as HTMLSelectElement;
-            const newValue = target.value;
-            
-            // Only dispatch if actually different
-            if (newValue !== internalValue) {
-                console.log(`Dropdown change: previous=${internalValue}, new=${newValue}`);
-                
-                // Update internal value first
-                internalValue = newValue;
-                
-                // Then dispatch the change event
-                dispatch('change', newValue);
-            }
-        } finally {
-            // Always reset the flag when done
-            isProcessingChange = false;
-        }
-    }
-    
-    // When external value changes, update our internal state
-    $: if (!initialRender && value !== internalValue && !isProcessingChange) {
-        // Set flag to prevent circular updates
-        isProcessingChange = true;
-        
-        // Update our internal value
-        internalValue = value;
-        
-        // Update the DOM element if it exists
-        if (selectElement) {
-            selectElement.value = value;
-        }
-        
-        // Reset flag
-        isProcessingChange = false;
-    }
-    
-    // Default value behavior - only run once after initial render
-    $: if (!initialRender && options.length > 0 && !internalValue && !isProcessingChange) {
-        // Set flag to prevent circular updates
-        isProcessingChange = true;
-        
-        try {
-            // Use first option as default
-            const defaultValue = getValue(options[0]);
-            internalValue = defaultValue;
-            
-            // Only dispatch if actually needed
-            if (defaultValue !== value) {
-                // Use setTimeout to avoid update during render
-                setTimeout(() => {
-                    dispatch('change', defaultValue);
-                }, 0);
-            }
-        } finally {
-            // Always reset flag
-            isProcessingChange = false;
-        }
-    }
+    onMount(() => {});
 </script>
 
-<div class="relative w-full">
-    <div class="relative flex items-center">
-        <select
-            bind:this={selectElement}
-            on:change={handleSelect}
-            class="w-full h-[42px] bg-sky-dark/50 border-2 border-primary/30 rounded-md
-                   focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 
-                   hover:border-primary/50 transition-all duration-200 text-sm font-medium
-                   appearance-none cursor-pointer select-centered"
-        >
-            {#each options as option}
-                <option 
-                    value={getValue(option)} 
-                    class="bg-bgold" 
-                    title={getTooltip(option)}
-                >
-                    {getLabel(option)}
-                </option>
+<div class="relative w-full text-sm" bind:this={dropdownRef} use:clickOutside on:clickoutside={closeDropdown}>
+    {#if options.length > 0}
+        <button type="button" class="w-full flex justify-between items-center glassmorphic-button border-2 {error ? 'border-error-all/70' : 'border-primary/30'} rounded-md h-[42px] px-3 py-2 text-sm font-medium text-left {disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary/50 focus:ring-offset-[3px] focus:ring-2 focus:ring-primary/30 focus:border-primary'} transition-all duration-200 relative overflow-hidden" aria-haspopup="listbox" aria-expanded={isOpen} aria-labelledby={label ? `${label}-label` : undefined} on:click={toggleDropdown} {disabled}>
+            <span class="truncate {!value ? 'text-gray-400' : ''}">
+                {#if value}
+                    {#if optionKey && optionLabel && typeof options[0] === 'object'}
+                        {#if findSelectedOption()}
+                            {getOptionDisplayText(findSelectedOption())}
+                        {:else}
+                            {value}
+                        {/if}
+                    {:else}
+                        {value}
+                    {/if}
+                {:else}
+                    {placeholder || `Select ${label || 'option'}...`}
+                {/if}
+            </span>
+            <span class="material-icons text-primary/70 ml-2 transition-transform duration-200 relative z-10" class:rotate-180={isOpen}>expand_more</span>
+        </button>
+    {:else}
+        <button type="button" class="w-full flex justify-between items-center glassmorphic-button border-2 border-primary/30 rounded-md h-[42px] px-3 py-2 text-sm font-medium text-gray-400 cursor-not-allowed opacity-70" disabled>
+            No options available
+            <span class="material-icons text-primary/70 ml-2">expand_more</span>
+        </button>
+    {/if}
+
+    {#if isOpen && hasRenderedOptions}
+        <div class="absolute z-50 w-full mt-1 glassmorphic-dropdown border-2 border-primary/30 rounded-md shadow-lg max-h-60 overflow-auto focus:outline-none py-1" bind:this={optionsContainerRef} transition:fly={{ duration: 200, y: -10 }} role="listbox">
+            {#each options as option, i (optionKey && typeof option === 'object' ? option[optionKey] : i)}
+                {@const isSelected = optionKey && typeof option === 'object' ? option[optionKey] === value : option === value}
+                {@const displayText = getOptionDisplayText(option)}
+                {@const tooltipText = getOptionTooltip(option)}
+                {#if tooltipText}
+                    <Hovertip message={tooltipText} position="right">
+                        <div slot="trigger" class="cursor-pointer px-3 py-2 text-sm hover:bg-white/20 {isSelected ? 'bg-primary/20 text-white' : 'text-white'} transition-colors duration-150" on:click={() => selectOption(option)} role="option" aria-selected={isSelected}>
+                            {displayText}
+                        </div>
+                    </Hovertip>
+                {:else}
+                    <div class="cursor-pointer px-3 py-2 text-sm hover:bg-white/20 {isSelected ? 'bg-primary/20 text-white' : 'text-white'} transition-colors duration-150" on:click={() => selectOption(option)} role="option" aria-selected={isSelected}>
+                        {displayText}
+                    </div>
+                {/if}
             {/each}
-        </select>
-        <span class="material-icons text-primary/70 absolute right-3 pointer-events-none">
-            expand_more
-        </span>
-    </div>
+        </div>
+    {/if}
+
+    {#if error}
+        <p class="mt-1 text-xs text-error-all">{error}</p>
+    {/if}
 </div>
 
+
 <style>
-    select option:disabled {
-        color: rgba(255, 255, 255, 0.5);
-        font-style: italic;
-    }
-
-    .select-centered {
-        text-align: center;
-        text-align-last: center;
-        -moz-text-align-last: center;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        padding-left: 24px !important;
-        padding-right: 24px !important;
-    }
-
-    /* Hide default arrow in Firefox */
-    .select-centered {
-        text-indent: 0;
-        text-overflow: '';
-    }
-
-    /* Hide default arrow in IE/Edge */
-    .select-centered::-ms-expand {
-        display: none;
-    }
-
-    /* Center text in options */
-    .select-centered option {
-        text-align: center;
-    }
-
-    /* Firefox specific centering */
-    @-moz-document url-prefix() {
-        .select-centered {
-            text-align: center !important;
-            text-align-last: center !important;
-        }
-        .select-centered option {
-            text-align: center !important;
-        }
-    }
-
-    /* Webkit browsers specific centering */
-    @media screen and (-webkit-min-device-pixel-ratio:0) {
-        .select-centered {
-            text-align: center !important;
-            text-align-last: center !important;
-        }
-        .select-centered option {
-            text-align: center !important;
-        }
-    }
+  /* Custom scrollbar for dropdown */
+  div[role="listbox"] {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(159, 110, 247, 0.4) transparent;
+  }
+  
+  div[role="listbox"]::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  div[role="listbox"]::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  div[role="listbox"]::-webkit-scrollbar-thumb {
+    background-color: rgba(159, 110, 247, 0.4);
+    border-radius: 20px;
+  }
 </style>

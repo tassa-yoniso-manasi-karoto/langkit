@@ -3,7 +3,6 @@
     import { fly } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { get } from 'svelte/store';
-    import { debounce } from 'lodash';
     
     import { settings, showSettings } from '../lib/stores.ts';
     import { updateSTTModels, sttModelsStore } from '../lib/featureModel';
@@ -68,6 +67,10 @@
     let audioTrackIndex = 0;
     let hasLanguageTags = true;
 
+    // New loading state flags
+    let isProcessingLanguage = false;
+    let isLoadingSchemes = false;
+
     // Group tracking for reference
     let providerGroups: Record<string, string[]> = {
         subtitle: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
@@ -78,53 +81,210 @@
     
     const dispatch = createEventDispatcher();
     
-    // Language validation with debounce
-    const validateLanguageTag = debounce(async (code: string, maxOne: boolean) => {
+    /**
+     * Main language validation function
+     * Separated from UI updates for cleaner architecture
+     */
+    async function validateLanguage(code: string, maxOne: boolean = true): Promise<void> {
         if (!code) {
             isValidLanguage = null;
-            isChecking = false;
             standardTag = '';
             validationError = '';
-            
-            // Reset all feature selections
-            resetAllFeatures();
-            
-            await updateRomanizationStyles('');
             return;
         }
         
         isChecking = true;
         try {
             const response = await ValidateLanguageTag(code, maxOne);
-            
-            const previousTag = standardTag;
             isValidLanguage = response.isValid;
             standardTag = response.standardTag || '';
             validationError = response.error || '';
-            
-            // If language has changed, reset all feature selections
-            if (previousTag !== standardTag) {
-                resetAllFeatures();
-            }
-            
-            if (response.isValid) {
-                await updateRomanizationStyles(standardTag);
-            } else {
-                await updateRomanizationStyles('');
-            }
+            console.log("Language validated: " + standardTag + " (valid: " + isValidLanguage + ")");
         } catch (error) {
             console.error('Error checking language code:', error);
             isValidLanguage = null;
             standardTag = '';
             validationError = 'Validation failed';
-            
-            // Reset all feature selections on error
-            resetAllFeatures();
-            
-            await updateRomanizationStyles('');
+        } finally {
+            isChecking = false;
         }
-        isChecking = false;
-    }, 300);
+    }
+    
+    /**
+     * Pure function to load romanization schemes
+     * Only performs the API call and updates scheme data
+     */
+    async function loadRomanizationSchemes(tag: string): Promise<boolean> {
+        if (!tag?.trim()) {
+            romanizationSchemes = [];
+            isRomanizationAvailable = false;
+            isSelectiveTransliterationAvailable = false;
+            needsDocker = false;
+            needsScraper = false;
+            return false;
+        }
+
+        isLoadingSchemes = true;
+        try {
+            const response = await GetRomanizationStyles(tag);
+            
+            romanizationSchemes = response.schemes || [];
+            isRomanizationAvailable = romanizationSchemes.length > 0;
+            
+            isSelectiveTransliterationAvailable = tag === 'jpn';
+            needsScraper = response.needsScraper || false;
+            dockerUnreachable = response.dockerUnreachable || false;
+            needsDocker = response.needsDocker || false;
+            dockerEngine = response.dockerEngine || 'Docker Desktop';
+            
+            console.log(`Loaded ${romanizationSchemes.length} romanization schemes for ${tag}`);
+            console.log(`needsDocker: ${needsDocker}, needsScraper: ${needsScraper}`);
+            
+            return isRomanizationAvailable;
+        } catch (error) {
+            console.error('Error fetching romanization styles:', error);
+            romanizationSchemes = [];
+            isRomanizationAvailable = false;
+            isSelectiveTransliterationAvailable = false;
+            return false;
+        } finally {
+            isLoadingSchemes = false;
+        }
+    }
+    
+    /**
+     * Applies the default romanization style when schemes are available
+     * This is a synchronous function that updates UI state
+     */
+    function applyDefaultRomanizationStyle(): void {
+        if (romanizationSchemes.length === 0) {
+            console.log("No romanization schemes available to set as default");
+            return;
+        }
+        
+        const newStyle = romanizationSchemes[0].name;
+        const newProvider = romanizationSchemes[0].provider;
+        
+        console.log("Setting default romanization style to " + newStyle + " with provider " + newProvider);
+        
+        // Update group store options
+        featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
+        featureGroupStore.setGroupOption('subtitle', 'provider', newProvider);
+        
+        // Update feature options for all subtitle features
+        ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
+            if (currentFeatureOptions[featureId]) {
+                currentFeatureOptions[featureId].style = newStyle;
+                currentFeatureOptions[featureId].provider = newProvider;
+            }
+        });
+        
+        // Force synchronization to all features
+        currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('subtitle', currentFeatureOptions);
+        
+        // Notify parent of changes
+        dispatch('optionsChange', currentFeatureOptions);
+    }
+    
+    /**
+     * Checks if tokenization is supported for a language
+     */
+    async function checkTokenization(code: string): Promise<boolean> {
+        try {
+            tokenizationAllowed = await NeedsTokenization(code);
+            console.log("Tokenization support for " + code + ": " + tokenizationAllowed);
+            return tokenizationAllowed;
+        } catch (err) {
+            console.error("Error checking tokenization support:", err);
+            tokenizationAllowed = false;
+            return false;
+        }
+    }
+    
+    /**
+     * Master function to handle language changes
+     * Coordinates all the steps in a clean, sequential way
+     */
+    async function processLanguageChange(newLanguage: string): Promise<void> {
+        if (isProcessingLanguage) {
+            console.log("Already processing language change, skipping");
+            return;
+        }
+        
+        isProcessingLanguage = true;
+        console.log("Processing language change to: " + newLanguage);
+        
+        try {
+            // Step 1: Reset all feature selections for safety
+            if (newLanguage) {
+                resetAllFeatures();
+            }
+            
+            // Step 2: Validate the language
+            await validateLanguage(newLanguage, true);
+            
+            if (!isValidLanguage && newLanguage) {
+                console.log(`Language ${newLanguage} is not valid`);
+                return;
+            }
+            
+            // Step 3: Use the standardized tag if available, otherwise use raw input
+            const effectiveTag = standardTag || newLanguage;
+            
+            // Step 4: Load romanization schemes
+            const schemesAvailable = await loadRomanizationSchemes(effectiveTag);
+            
+            // Step 5: Check tokenization support
+            await checkTokenization(effectiveTag);
+            
+            // Step 6: Apply default style if schemes are available
+            if (schemesAvailable) {
+                applyDefaultRomanizationStyle();
+            }
+            
+            // Step 7: Update errors based on availability
+            updateFeatureAvailabilityErrors();
+            
+        } catch (error) {
+            console.error("Error during language change processing:", error);
+            logStore.addLog({
+                level: 'ERROR',
+                message: `Error processing language change: ${error.message}`,
+                time: new Date().toISOString()
+            });
+        } finally {
+            isProcessingLanguage = false;
+        }
+    }
+    
+    /**
+     * Update error messages based on feature availability
+     */
+    function updateFeatureAvailabilityErrors(): void {
+        // Handle romanization availability
+        if (!isRomanizationAvailable && selectedFeatures.subtitleRomanization) {
+            selectedFeatures.subtitleRomanization = false;
+            errorStore.addError({
+                id: 'no-romanization',
+                message: 'No transliteration scheme available for selected language',
+                severity: 'warning'
+            });
+        } else {
+            errorStore.removeError('no-romanization');
+        }
+        
+        // Handle selective transliteration availability
+        if (!isSelectiveTransliterationAvailable && selectedFeatures.selectiveTransliteration) {
+            selectedFeatures.selectiveTransliteration = false;
+            errorStore.addError({
+                id: 'no-selective-transliteration',
+                message: 'Kanji to Kana transliteration is only available for Japanese',
+                severity: 'warning'
+            });
+        } else {
+            errorStore.removeError('no-selective-transliteration');
+        }
+    }
     
     // Function to reset all feature selections
     function resetAllFeatures() {
@@ -150,226 +310,7 @@
         dispatch('optionsChange', currentFeatureOptions);
     }
 
-    // Update romanization styles based on language
-    async function updateRomanizationStyles(tag: string) {
-        if (!tag?.trim()) {
-            romanizationSchemes = [];
-            isRomanizationAvailable = false;
-            isSelectiveTransliterationAvailable = false;
-            needsDocker = false;
-            needsScraper = false;
-            if (selectedFeatures.subtitleRomanization) {
-                selectedFeatures.subtitleRomanization = false;
-            }
-            if (selectedFeatures.selectiveTransliteration) {
-                selectedFeatures.selectiveTransliteration = false;
-            }
-            return;
-        }
-
-        try {
-            const response = await GetRomanizationStyles(tag);
-            
-            romanizationSchemes = response.schemes || [];
-            isRomanizationAvailable = romanizationSchemes.length > 0;
-            
-            // Check if selective transliteration is available for this language (only Japanese for now)
-            isSelectiveTransliterationAvailable = tag === 'jpn';
-            
-            needsScraper = response.needsScraper || false;
-            dockerUnreachable = response.dockerUnreachable || false;
-            needsDocker = response.needsDocker || false;
-            dockerEngine = response.dockerEngine || 'Docker Desktop';
-            
-            // Automatically set the first scheme if only one is available or if none is set yet
-            if (romanizationSchemes.length > 0) {
-                const currentStyle = featureGroupStore.getGroupOption('subtitle', 'style');
-                if (!currentStyle || romanizationSchemes.length === 1) {
-                    const newStyle = romanizationSchemes[0].name;
-                    
-                    // Update the style and provider in the group store
-                    featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
-                    featureGroupStore.setGroupOption('subtitle', 'provider', romanizationSchemes[0].provider);
-                    
-                    // Also update the individual feature options for backward compatibility
-                    currentFeatureOptions.subtitleRomanization.style = newStyle;
-                    currentFeatureOptions.subtitleRomanization.provider = romanizationSchemes[0].provider;
-                    
-                    // Set the same values for selectiveTransliteration when available
-                    if (isSelectiveTransliterationAvailable) {
-                        currentFeatureOptions.selectiveTransliteration.style = newStyle;
-                        currentFeatureOptions.selectiveTransliteration.provider = romanizationSchemes[0].provider;
-                    }
-                    
-                    // Set the same values for subtitleTokenization
-                    currentFeatureOptions.subtitleTokenization.style = newStyle;
-                    currentFeatureOptions.subtitleTokenization.provider = romanizationSchemes[0].provider;
-                    
-                    console.log(`Set default romanization style to ${newStyle} with provider ${romanizationSchemes[0].provider}`);
-                }
-            }
-            
-            // Disable subtitle romanization if not available
-            if (!isRomanizationAvailable && selectedFeatures.subtitleRomanization) {
-                selectedFeatures.subtitleRomanization = false;
-                errorStore.addError({
-                    id: 'no-romanization',
-                    message: 'No transliteration scheme available for selected language',
-                    severity: 'warning'
-                });
-            }
-            
-            // Disable selective transliteration if not available
-            if (!isSelectiveTransliterationAvailable && selectedFeatures.selectiveTransliteration) {
-                selectedFeatures.selectiveTransliteration = false;
-                errorStore.addError({
-                    id: 'no-selective-transliteration',
-                    message: 'Kanji to Kana transliteration is only available for Japanese',
-                    severity: 'warning'
-                });
-            }
-        } catch (error) {
-            console.error('Error fetching romanization styles:', error);
-            romanizationSchemes = [];
-            isRomanizationAvailable = false;
-            isSelectiveTransliterationAvailable = false;
-            if (selectedFeatures.subtitleRomanization) {
-                selectedFeatures.subtitleRomanization = false;
-            }
-            if (selectedFeatures.selectiveTransliteration) {
-                selectedFeatures.selectiveTransliteration = false;
-            }
-        }
-    }
-
-    // Improved provider warning checks
-    function updateProviderWarnings() {
-        console.log("Running updateProviderWarnings check");
-        
-        // Check dubtitles STT provider
-        if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
-            const sttModel = currentFeatureOptions.dubtitles.stt;
-            console.log(`Checking provider requirements for STT model: ${sttModel}`);
-            
-            // Find the model info to get the provider
-            const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
-            
-            if (modelInfo) {
-                const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
-                console.log(`Model provider: ${providerName}`);
-                
-                // Check if this provider requires a token
-                const { isValid, tokenType } = checkProviderApiToken(providerName);
-                console.log(`Provider ${providerName} token check: valid=${isValid}, tokenType=${tokenType}`);
-                
-                if (!isValid) {
-                    // Use addError to add/update the error message
-                    const errorMessage = `${tokenType || providerName} API token is required for ${modelInfo.displayName}`;
-                    console.log(`Adding error: provider-dubtitles - ${errorMessage}`);
-                    
-                    errorStore.addError({
-                        id: 'provider-dubtitles',
-                        message: errorMessage,
-                        severity: 'critical'
-                    });
-                } else {
-                    // Remove the error if it exists
-                    console.log(`Token is valid, removing any existing provider-dubtitles error`);
-                    errorStore.removeError('provider-dubtitles');
-                }
-            } else {
-                console.log(`Warning: Could not find model info for ${sttModel}`);
-                // Clear any existing error if model not found
-                errorStore.removeError('provider-dubtitles');
-            }
-        } else {
-            // Remove the error if the feature is disabled
-            console.log(`Feature not selected or options missing, removing provider-dubtitles error`);
-            errorStore.removeError('provider-dubtitles');
-        }
-
-        // Check voice enhancing provider with similar pattern
-        if (selectedFeatures.voiceEnhancing && currentFeatureOptions.voiceEnhancing) {
-            const sepLib = currentFeatureOptions.voiceEnhancing.sepLib;
-            const { isValid, tokenType } = checkProviderApiToken(sepLib);
-            
-            if (!isValid) {
-                errorStore.addError({
-                    id: 'provider-voiceEnhancing',
-                    message: `${tokenType || sepLib} API token is required for ${sepLib}`,
-                    severity: 'critical'
-                });
-            } else {
-                errorStore.removeError('provider-voiceEnhancing');
-            }
-        } else {
-            errorStore.removeError('provider-voiceEnhancing');
-        }
-    }
-
-    // Improved provider check with explicit logging
-    function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
-        // Map provider names from STT models to their corresponding API key names in settings
-        const providerKeyMapping: Record<string, string> = {
-            'replicate': 'replicate',
-            'openai': 'openAI',
-            'assemblyai': 'assemblyAI',
-            'elevenlabs': 'elevenLabs'
-        };
-        
-        console.log(`Checking API token for provider: ${provider}`);
-        
-        // Normalize provider name to lowercase for case-insensitive matching
-        const normalizedProvider = provider.toLowerCase();
-        
-        // Get the appropriate token type using the mapping
-        let tokenType = providerKeyMapping[normalizedProvider];
-        
-        // Fallback to original mapping if not found
-        if (!tokenType) {
-            tokenType = providersRequiringTokens[normalizedProvider];
-        }
-        
-        console.log(`Token type for ${provider}: ${tokenType || 'none required'}`);
-        
-        // Check if token is needed
-        if (!tokenType) {
-            return { isValid: true, tokenType: null };
-        }
-        
-        // Check settings for the token
-        const currentSettings = get(settings);
-        
-        // Ensure settings and apiKeys exist
-        if (!currentSettings || !currentSettings.apiKeys) {
-            return { isValid: false, tokenType };
-        }
-        
-        // Check if token has a value
-        const hasToken = Boolean(currentSettings.apiKeys[tokenType]?.trim());
-        
-        console.log(`Token status for ${provider} (${tokenType}): ${hasToken ? 'valid' : 'missing'}`);
-        
-        return { 
-            isValid: hasToken,
-            tokenType
-        };
-    }
-    
-    // Media file checking
-    async function checkMediaFiles() {
-        if (mediaSource) {
-            try {
-                const info = await CheckMediaLanguageTags(mediaSource.path);
-                hasLanguageTags = info.hasLanguageTags;
-                showAudioTrackIndex = !hasLanguageTags;
-            } catch (error) {
-                console.error('Error checking media files:', error);
-            }
-        }
-    }
-    
-    // Event handlers
+    // Handle feature click for toggling and unavailable features
     function handleFeatureEnabledChange(event: CustomEvent) {
         const { id, enabled } = event.detail;
         console.log(`Feature toggle: ${id} -> ${enabled}`);
@@ -393,8 +334,6 @@
             setTimeout(registerFeatureDisplayOrder, 50);
         }
 
-        // Removed legacy output merge group handling - now handled by feature groups system
-        
         // If a feature was enabled, scroll it into view but only if necessary
         if (enabled) {
             // Use requestAnimationFrame instead of setTimeout for better performance
@@ -543,10 +482,150 @@
         );
     }
 
-    /**
-     * Update subtitle provider settings visibility
-     */
-    function updateSubtitleProviderVisibility(featureDef: FeatureDefinition) {
+    // Improved provider warning checks
+    function updateProviderWarnings() {
+        console.log("Running updateProviderWarnings check");
+        
+        // Check dubtitles STT provider
+        if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
+            const sttModel = currentFeatureOptions.dubtitles.stt;
+            console.log(`Checking provider requirements for STT model: ${sttModel}`);
+            
+            // Find the model info to get the provider
+            const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
+            
+            if (modelInfo) {
+                const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
+                console.log(`Model provider: ${providerName}`);
+                
+                // Check if this provider requires a token
+                const { isValid, tokenType } = checkProviderApiToken(providerName);
+                console.log(`Provider ${providerName} token check: valid=${isValid}, tokenType=${tokenType}`);
+                
+                if (!isValid) {
+                    // Use addError to add/update the error message
+                    const errorMessage = `${tokenType || providerName} API token is required for ${modelInfo.displayName}`;
+                    console.log(`Adding error: provider-dubtitles - ${errorMessage}`);
+                    
+                    errorStore.addError({
+                        id: 'provider-dubtitles',
+                        message: errorMessage,
+                        severity: 'critical'
+                    });
+                } else {
+                    // Remove the error if it exists
+                    console.log(`Token is valid, removing any existing provider-dubtitles error`);
+                    errorStore.removeError('provider-dubtitles');
+                }
+            } else {
+                console.log(`Warning: Could not find model info for ${sttModel}`);
+                // Clear any existing error if model not found
+                errorStore.removeError('provider-dubtitles');
+            }
+        } else {
+            // Remove the error if the feature is disabled
+            console.log(`Feature not selected or options missing, removing provider-dubtitles error`);
+            errorStore.removeError('provider-dubtitles');
+        }
+
+        // Check voice enhancing provider with similar pattern
+        if (selectedFeatures.voiceEnhancing && currentFeatureOptions.voiceEnhancing) {
+            const sepLib = currentFeatureOptions.voiceEnhancing.sepLib;
+            const { isValid, tokenType } = checkProviderApiToken(sepLib);
+            
+            if (!isValid) {
+                errorStore.addError({
+                    id: 'provider-voiceEnhancing',
+                    message: `${tokenType || sepLib} API token is required for ${sepLib}`,
+                    severity: 'critical'
+                });
+            } else {
+                errorStore.removeError('provider-voiceEnhancing');
+            }
+        } else {
+            errorStore.removeError('provider-voiceEnhancing');
+        }
+    }
+
+    // Improved provider check with explicit logging
+    function checkProviderApiToken(provider: string): { isValid: boolean; tokenType: string | null } {
+        // Map provider names from STT models to their corresponding API key names in settings
+        const providerKeyMapping: Record<string, string> = {
+            'replicate': 'replicate',
+            'openai': 'openAI',
+            'assemblyai': 'assemblyAI',
+            'elevenlabs': 'elevenLabs'
+        };
+        
+        console.log(`Checking API token for provider: ${provider}`);
+        
+        // Normalize provider name to lowercase for case-insensitive matching
+        const normalizedProvider = provider.toLowerCase();
+        
+        // Get the appropriate token type using the mapping
+        let tokenType = providerKeyMapping[normalizedProvider];
+        
+        // Fallback to original mapping if not found
+        if (!tokenType) {
+            tokenType = providersRequiringTokens[normalizedProvider];
+        }
+        
+        console.log(`Token type for ${provider}: ${tokenType || 'none required'}`);
+        
+        // Check if token is needed
+        if (!tokenType) {
+            return { isValid: true, tokenType: null };
+        }
+        
+        // Check settings for the token
+        const currentSettings = get(settings);
+        
+        // Ensure settings and apiKeys exist
+        if (!currentSettings || !currentSettings.apiKeys) {
+            return { isValid: false, tokenType };
+        }
+        
+        // Check if token has a value
+        const hasToken = Boolean(currentSettings.apiKeys[tokenType]?.trim());
+        
+        console.log(`Token status for ${provider} (${tokenType}): ${hasToken ? 'valid' : 'missing'}`);
+        
+        return { 
+            isValid: hasToken,
+            tokenType
+        };
+    }
+    
+    // Media file checking
+    async function checkMediaFiles() {
+        if (mediaSource) {
+            try {
+                const info = await CheckMediaLanguageTags(mediaSource.path);
+                hasLanguageTags = info.hasLanguageTags;
+                showAudioTrackIndex = !hasLanguageTags;
+            } catch (error) {
+                console.error('Error checking media files:', error);
+            }
+        }
+    }
+    
+    // Handler for language tag changes from QuickAccessLangSelector
+    function handleLanguageTagChange(event: CustomEvent) {
+        const previousTag = quickAccessLangTag;
+        const newTag = event.detail.languageTag;
+        
+        console.log(`Language tag changing from ${previousTag} to ${newTag}`);
+        quickAccessLangTag = newTag;
+        
+        // Process language change if it's different (case-insensitive)
+        if (previousTag.toLowerCase() !== newTag.toLowerCase()) {
+            processLanguageChange(newTag);
+        }
+    }
+    
+    function handleAudioTrackChange(event: CustomEvent) {
+        showAudioTrackIndex = event.detail.showAudioTrackIndex;
+        audioTrackIndex = event.detail.audioTrackIndex;
     }
 
     let isProcessingSTTChange = false;
@@ -585,13 +664,7 @@
         
         // Handle group option changes
         if (isGroupOption && groupId) {
-            console.log(`FeatureSelector received group option change - ${groupId}.${optionId}: '${value}'`, 
-                isUserInput ? '(user input)' : '');
-            
-            // Always trust user input as authoritative
-            if (isUserInput) {
-                console.log(`Setting authoritative user value for ${groupId}.${optionId}: '${value}'`);
-            }
+            console.log(`FeatureSelector received group option change - ${groupId}.${optionId}: '${value}'`);
             
             // Special handling for romanization style changes
             if (groupId === 'subtitle' && optionId === 'style' && romanizationSchemes.length > 0) {
@@ -633,25 +706,6 @@
         dispatch('optionsChange', currentFeatureOptions);
     }
     
-    function handleLanguageTagChange(event: CustomEvent) {
-        const previousTag = quickAccessLangTag;
-        const newTag = event.detail.languageTag;
-        
-        quickAccessLangTag = newTag;
-        
-        // If tag has changed significantly (not just case or formatting), reset features
-        if (previousTag.toLowerCase() !== newTag.toLowerCase()) {
-            console.log(`Language changed from ${previousTag} to ${newTag}`);
-        }
-        
-        validateLanguageTag(quickAccessLangTag, true);
-    }
-    
-    function handleAudioTrackChange(event: CustomEvent) {
-        showAudioTrackIndex = event.detail.showAudioTrackIndex;
-        audioTrackIndex = event.detail.audioTrackIndex;
-    }
-    
     function shouldShowFeature(featureDef: any): boolean {
         if (!featureDef.showCondition) return true;
         
@@ -670,16 +724,6 @@
         }
     }
     
-    async function checkTokenization(code: string) {
-        try {
-            tokenizationAllowed = await NeedsTokenization(code);
-            console.log("NeedsTokenization returned:", tokenizationAllowed);
-        } catch (err) {
-            console.error("NeedsTokenization failed:", err);
-            tokenizationAllowed = false;
-        }
-    }
-
     function ensureValidSTTModel() {
       if (!currentFeatureOptions.dubtitles) return;
       
@@ -722,16 +766,26 @@
     // Reactive statements
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
 
-    $: if (quickAccessLangTag !== undefined) {
-        needsDocker = false;
-        needsScraper = false;
-        validateLanguageTag(quickAccessLangTag, true);
-        checkTokenization(quickAccessLangTag)
+    // Function to register the display order of features in the UI
+    function registerFeatureDisplayOrder() {
+        // Get all visible features in their current DOM order
+        const featureElements = Array.from(document.querySelectorAll('[data-feature-id]'));
         
-        if (!quickAccessLangTag) {
-            isRomanizationAvailable = false;
-            selectedFeatures.subtitleRomanization = false;
+        if (featureElements.length === 0) {
+            console.log('No feature elements found in the DOM yet');
+            return;
         }
+        
+        const orderedFeatureIds = featureElements
+            .map(el => el.getAttribute('data-feature-id'))
+            .filter(Boolean);
+        
+        console.log('Current feature display order:', orderedFeatureIds);
+        
+        // Update the display order for each group
+        Object.keys(featureGroupStore.getGroups()).forEach(groupId => {
+            featureGroupStore.updateFeatureDisplayOrder(groupId, orderedFeatureIds);
+        });
     }
     
     // Error management
@@ -739,111 +793,6 @@
     let prevFeaturesSelected = false;
     let prevLanguageValidState = null;
     let prevLanguageTag = '';
-    
-    // Optimize error handling with debounced updates
-    const updateErrorState = debounce(() => {
-        // Check if features selection state changed
-        const featuresSelected = Object.values(selectedFeatures).some(v => v);
-        if (prevFeaturesSelected !== featuresSelected) {
-            if (!featuresSelected) {
-                errorStore.addError({
-                    id: 'no-features',
-                    message: 'Select at least one processing feature',
-                    severity: 'critical'
-                });
-            } else {
-                errorStore.removeError('no-features');
-            }
-            prevFeaturesSelected = featuresSelected;
-        }
-
-        // Check if language validation state changed
-        if (prevLanguageValidState !== isValidLanguage || prevLanguageTag !== quickAccessLangTag) {
-            if (!isValidLanguage && quickAccessLangTag) {
-                errorStore.addError({
-                    id: 'invalid-language',
-                    message: validationError || 'Invalid language code',
-                    severity: 'critical'
-                });
-            } else {
-                errorStore.removeError('invalid-language');
-            }
-            prevLanguageValidState = isValidLanguage;
-            prevLanguageTag = quickAccessLangTag;
-        }
-    }, 100);
-    
-    // Trigger error state update when relevant state changes
-    $: {
-        if (selectedFeatures || isValidLanguage || quickAccessLangTag) {
-            requestAnimationFrame(updateErrorState);
-        }
-    }
-
-    // Settings subscription
-    settings.subscribe(value => {
-        if (value?.targetLanguage && value.targetLanguage !== quickAccessLangTag) {
-            const previousTag = quickAccessLangTag;
-            quickAccessLangTag = value.targetLanguage;
-            
-            // If changing to a completely different language, reset features
-            if (previousTag && previousTag.toLowerCase() !== value.targetLanguage.toLowerCase()) {
-                console.log(`Language changed from settings: ${previousTag} to ${value.targetLanguage}`);
-                // The resetAllFeatures call will be triggered by validateLanguageTag
-            }
-            
-            validateLanguageTag(value.targetLanguage, true);
-        }
-    });
-    
-    settings.subscribe(value => {
-        if (value) {
-            updateProviderWarnings();
-        }
-    });
-    
-    // Media source change
-    $: if (mediaSource) {
-        checkMediaFiles();
-    } else {
-        showAudioTrackIndex = false;
-        hasLanguageTags = true;
-        audioTrackIndex = 0;
-    }
-    
-    // Docker errors
-    $: {
-        if ((selectedFeatures.subtitleRomanization || selectedFeatures.selectiveTransliteration) && 
-            needsDocker && dockerUnreachable) {
-            errorStore.addError({
-                id: 'docker-required',
-                message: `${dockerEngine} is required but not reachable`,
-                severity: 'critical',
-                docsUrl: 'https://docs.docker.com/get-docker/'
-            });
-        } else {
-            errorStore.removeError('docker-required');
-        }
-    }
-    
-    // Remove all browser URL validation errors when the component is updated
-    $: {
-        // Clear any legacy browser URL errors
-        errorStore.removeError('invalid-browser-url');
-        
-        // Also clear any group browser URL errors if no subtitle features are enabled
-        const anySubtitleFeatureEnabled = features.some(f => 
-            f.featureGroups?.includes('subtitle') && selectedFeatures[f.id]);
-            
-        if (!anySubtitleFeatureEnabled) {
-            errorStore.removeError('group-subtitle-browser-url');
-        }
-    }
-    
-    // Options change dispatch
-    $: {
-        dispatch('optionsChange', currentFeatureOptions);
-    }
     
     // Special initialization to clean up inconsistencies in feature options
     function cleanupFeatureOptions() {
@@ -980,9 +929,16 @@
                 {
                     id: 'browser-url-validation',
                     optionId: 'browserAccessURL',
-                    validator: (url) => true, // optional field
-                    errorMessage: 'Automatic browser management will be used if no Browser access URL is provided',
-                    severity: 'info'
+                    // Fixed validation that runs only when needed
+                    validator: (url) => {
+                        // If scraper isn't needed, don't validate
+                        if (!needsScraper) return true;
+                        
+                        // Check for a valid WebSocket URL
+                        return Boolean(url && url.startsWith('ws://'));
+                    },
+                    errorMessage: 'Valid browser access URL is required for web scraping',
+                    severity: 'critical'
                 }
             ]
         };
@@ -1077,28 +1033,6 @@
         currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('merge', currentFeatureOptions);
     }
 
-    // Function to register the display order of features in the UI
-    function registerFeatureDisplayOrder() {
-        // Get all visible features in their current DOM order
-        const featureElements = Array.from(document.querySelectorAll('[data-feature-id]'));
-        
-        if (featureElements.length === 0) {
-            console.log('No feature elements found in the DOM yet');
-            return;
-        }
-        
-        const orderedFeatureIds = featureElements
-            .map(el => el.getAttribute('data-feature-id'))
-            .filter(Boolean);
-        
-        console.log('Current feature display order:', orderedFeatureIds);
-        
-        // Update the display order for each group
-        Object.keys(featureGroupStore.getGroups()).forEach(groupId => {
-            featureGroupStore.updateFeatureDisplayOrder(groupId, orderedFeatureIds);
-        });
-    }
-    
     // Update display order when features are fully rendered
     afterUpdate(() => {
         if (isInitialDataLoaded && visibleFeatures.length > 0) {
@@ -1106,6 +1040,7 @@
             setTimeout(registerFeatureDisplayOrder, 100);
         }
     });
+    
     // Subscribe to error store changes to verify updates are being applied
     let errorStoreUnsubscribe: () => void;
     
@@ -1164,9 +1099,8 @@
             if (currentSettings?.targetLanguage) {
                 quickAccessLangTag = currentSettings.targetLanguage;
                 
-                // Execute these operations sequentially to ensure consistent state
-                await validateLanguageTag(currentSettings.targetLanguage, true);
-                await checkTokenization(quickAccessLangTag);
+                // Process language change instead of direct validation
+                await processLanguageChange(currentSettings.targetLanguage);
             }
             
             // Prepare component by loading config and options
@@ -1345,6 +1279,20 @@
             />
         </div>
     </div>
+    
+    <!-- Loading state indicator when processing language -->
+    {#if isProcessingLanguage || isLoadingSchemes}
+        <div class="py-2 px-4 bg-primary/10 rounded-md flex items-center gap-2 animate-pulse">
+            <span class="material-icons animate-spin text-primary">sync</span>
+            <span class="text-sm text-white/80">
+                {#if isLoadingSchemes}
+                    Loading romanization schemes...
+                {:else}
+                    Processing language change...
+                {/if}
+            </span>
+        </div>
+    {/if}
     
     <!-- Feature cards container - only rendered after data is fully loaded -->
     <div class="space-y-4 overflow-visible">
