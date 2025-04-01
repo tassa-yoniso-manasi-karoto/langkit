@@ -865,124 +865,127 @@
                                 {/if}
                             </div>
                             <div class="option-input">
-                                {#if optionDef.type === 'number'}
-                                    <NumericInput 
-                                        bind:value={options[optionId]}
-                                        step={optionDef.step || '1'}
-                                        min={optionDef.min}
-                                        max={optionDef.max}
-                                        placeholder={optionDef.placeholder}
-                                        on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
-                                    />
-                                {:else if optionDef.type === 'boolean'}
-                                    <label class="inline-flex items-center cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            class="w-5 h-5 accent-primary rounded border-2 border-primary/50 
-                                                checked:bg-primary checked:border-primary
-                                                focus:ring-2 focus:ring-primary/30
-                                                transition-all duration-200
-                                                cursor-pointer"
-                                            bind:checked={options[optionId]}
+                                <div class="input-wrapper">
+                                    {#if optionDef.type === 'number'}
+                                        <NumericInput 
+                                            bind:value={options[optionId]}
+                                            step={optionDef.step || '1'}
+                                            min={optionDef.min}
+                                            max={optionDef.max}
+                                            placeholder={optionDef.placeholder}
                                             on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
                                         />
-                                    </label>
-                                {:else if optionDef.type === 'dropdown' && optionId === 'stt'}
-                                    <Dropdown
-                                        options={optionDef.choices || []}
-                                        value={options[optionId]}
-                                        labelFunction={(option) => {
-                                            // Find the model in the models list
-                                            const model = currentSTTModels.models.find(m => m.name === option);
-                                            if (model) {
-                                                let label = `${model.displayName} @${formatProviderName(model.providerName)}`;
-                                                if (model.isDepreciated) label += ' (DEPRECATED)';
-                                                return label;
-                                            }
-                                            return option;
-                                        }}
-                                        tooltipFunction={(option) => {
-                                            // Find the model to get its description
-                                            const model = currentSTTModels.models.find(m => m.name === option);
-                                            if (model) {
-                                                return model.description;
-                                            }
-                                            return '';
-                                        }}
-                                        on:change={(e) => handleDropdownChange(optionId, e.detail)}
-                                        label={optionDef.label}
-                                    />
-                                {:else if optionDef.type === 'dropdown'}
-                                    <Dropdown
-                                        options={optionDef.choices || []}
-                                        value={options[optionId]}
-                                        on:change={(e) => handleDropdownChange(optionId, e.detail)}
-                                        label={optionDef.label}
-                                    />
-                                {:else if optionDef.type === 'string'}
-                                    {#if optionId === 'initialPrompt'}
-                                        <textarea
-                                            bind:value={options[optionId]}
-                                            class="w-full bg-sky-dark/50 border-2 border-primary/30 rounded-md px-3 py-2 text-sm font-medium
-                                                focus:border-primary focus:ring-2 focus:ring-primary/30 hover:border-primary/50 focus:outline-none
-                                                transition-all duration-200 placeholder:text-gray-500"
-                                            rows="3"
-                                            maxlength="850"
-                                            placeholder={optionDef.placeholder}
-                                            on:input={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
+                                    {:else if optionDef.type === 'boolean'}
+                                        <!-- Boolean input (unchanged) -->
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                class="w-5 h-5 accent-primary rounded border-2 border-primary/50 
+                                                    checked:bg-primary checked:border-primary
+                                                    focus:ring-2 focus:ring-primary/30
+                                                    transition-all duration-200
+                                                    cursor-pointer"
+                                                bind:checked={options[optionId]}
+                                                on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
+                                            />
+                                        </label>
+                                    {:else if optionDef.type === 'dropdown' && optionId === 'stt'}
+                                        <Dropdown
+                                            options={optionDef.choices || []}
+                                            value={options[optionId]}
+                                            labelFunction={(option) => {
+                                                // Find the model in the models list
+                                                const model = currentSTTModels.models.find(m => m.name === option);
+                                                if (model) {
+                                                    let label = `${model.displayName} @${formatProviderName(model.providerName)}`;
+                                                    if (model.isDepreciated) label += ' (DEPRECATED)';
+                                                    return label;
+                                                }
+                                                return option;
+                                            }}
+                                            tooltipFunction={(option) => {
+                                                // Find the model to get its description
+                                                const model = currentSTTModels.models.find(m => m.name === option);
+                                                if (model) {
+                                                    return model.description;
+                                                }
+                                                return '';
+                                            }}
+                                            on:change={(e) => handleDropdownChange(optionId, e.detail)}
+                                            label={optionDef.label}
                                         />
-                                    {:else}
-                                        <TextInput
-                                            bind:value={options[optionId]}
-                                            placeholder={optionDef.placeholder}
-                                            className="text-sm placeholder:text-gray-500"
-                                            on:input={() =>
-                                                dispatch('optionChange', {
-                                                    featureId: feature.id,
-                                                    optionId,
-                                                    value: options[optionId]
-                                                })
-                                            }
+                                    {:else if optionDef.type === 'dropdown'}
+                                        <Dropdown
+                                            options={optionDef.choices || []}
+                                            value={options[optionId]}
+                                            on:change={(e) => handleDropdownChange(optionId, e.detail)}
+                                            label={optionDef.label}
                                         />
-                                    {/if}
-                                {:else if optionDef.type === 'romanizationDropdown'}
-                                    <Dropdown
-                                        options={romanizationSchemes}
-                                        optionKey="name"
-                                        optionLabel="description"
-                                        value={options[optionId]}
-                                        on:change={(e) => {
-                                            handleDropdownChange(optionId, e.detail);
-                                            const selectedScheme = romanizationSchemes.find(s => s.name === e.detail);
-                                            if (selectedScheme) {
-                                                options['provider'] = selectedScheme.provider;
-                                                dispatch('optionChange', { featureId: feature.id, optionId: 'provider', value: selectedScheme.provider });
-                                            }
-                                        }}
-                                        label="Select style"
-                                    />
-                                {:else if optionDef.type === 'provider'}
-                                    {@const provider = options['style'] ? (romanizationSchemes.find(s => s.name === options['style'])?.provider || '') : 'ichiran'}
-                                    <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
-                                       {provider}
-                                        
-                                        <div class="flex items-center justify-center gap-2">
-                                            <!-- GitHub link if available -->
-                                            {#if providerGithubUrls[provider]}
-                                                <ExternalLink 
-                                                    href={providerGithubUrls[provider]}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-primary/70 hover:text-primary transition-colors duration-200"
-                                                    title="View provider repository">
-                                                    <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                                                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                                                    </svg>
-                                                </ExternalLink>
-                                            {/if}
+                                    {:else if optionDef.type === 'string'}
+                                        {#if optionId === 'initialPrompt'}
+                                            <textarea
+                                                bind:value={options[optionId]}
+                                                class="w-full bg-sky-dark/50 border-2 border-primary/30 rounded-md px-3 py-2 text-sm font-medium
+                                                    focus:border-primary focus:ring-2 focus:ring-primary/30 hover:border-primary/50 focus:outline-none
+                                                    transition-all duration-200 placeholder:text-gray-500"
+                                                rows="3"
+                                                maxlength="850"
+                                                placeholder={optionDef.placeholder}
+                                                on:input={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
+                                            />
+                                        {:else}
+                                            <TextInput
+                                                bind:value={options[optionId]}
+                                                placeholder={optionDef.placeholder}
+                                                className="text-sm placeholder:text-gray-500"
+                                                on:input={() =>
+                                                    dispatch('optionChange', {
+                                                        featureId: feature.id,
+                                                        optionId,
+                                                        value: options[optionId]
+                                                    })
+                                                }
+                                            />
+                                        {/if}
+                                    {:else if optionDef.type === 'romanizationDropdown'}
+                                        <Dropdown
+                                            options={romanizationSchemes}
+                                            optionKey="name"
+                                            optionLabel="description"
+                                            value={options[optionId]}
+                                            on:change={(e) => {
+                                                handleDropdownChange(optionId, e.detail);
+                                                const selectedScheme = romanizationSchemes.find(s => s.name === e.detail);
+                                                if (selectedScheme) {
+                                                    options['provider'] = selectedScheme.provider;
+                                                    dispatch('optionChange', { featureId: feature.id, optionId: 'provider', value: selectedScheme.provider });
+                                                }
+                                            }}
+                                            label="Select style"
+                                        />
+                                    {:else if optionDef.type === 'provider'}
+                                        {@const provider = options['style'] ? (romanizationSchemes.find(s => s.name === options['style'])?.provider || '') : 'ichiran'}
+                                        <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
+                                           {provider}
+                                            
+                                            <div class="flex items-center justify-center gap-2">
+                                                <!-- GitHub link if available -->
+                                                {#if providerGithubUrls[provider]}
+                                                    <ExternalLink 
+                                                        href={providerGithubUrls[provider]}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-primary/70 hover:text-primary transition-colors duration-200"
+                                                        title="View provider repository">
+                                                        <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
+                                                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                                                        </svg>
+                                                    </ExternalLink>
+                                                {/if}
+                                            </div>
                                         </div>
-                                    </div>
-                                {/if}
+                                    {/if}
+                                </div>
                             </div>
                         </div>
                     {/if}
@@ -1021,37 +1024,6 @@
 
 <style>
     @import './featureStyles.css';
-    
-    /* Standardized grid layout for consistent spacing and alignment */
-    .options-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-    
-    .option-row {
-        display: grid;
-        grid-template-columns: 1fr 1.5fr; /* Match with group option layout */
-        gap: 1.5rem;
-        align-items: center;
-        /* Add very subtle left indentation to match with group options */
-        padding-left: 0.125rem;
-    }
-    
-    .option-label {
-        display: flex;
-        align-items: center;
-    }
-    
-    .option-input {
-        width: 100%; /* Ensure consistent width with group options */
-    }
-    
-    .feature-message-card {
-        position: relative;
-        left: 0;
-        text-align: left;
-    }
     
     /* Enhanced glassmorphism effect for feature message card 
     .glassmorphism-card {

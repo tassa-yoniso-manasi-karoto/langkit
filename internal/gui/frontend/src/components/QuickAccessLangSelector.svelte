@@ -55,22 +55,22 @@
                 bind:value={languageTag}
                 maxlength="9"
                 placeholder="e.g. ja, zh-Hans"
-                class="w-24 bg-primary-900/30 backdrop-blur-sm border border-primary/30 rounded px-2 py-2
-                       hover:border-primary/90 focus:border-primary focus:ring-1 focus:ring-primary
+                class="w-24 bg-ui-element backdrop-blur-sm border border-primary/30 rounded px-2 py-2
+                       hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
                        focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
                 on:input={updateLanguageTag}
             />
             {#if isChecking}
-                <span class="absolute right-2 top-1 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                <span class="absolute right-2 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
                     refresh
                 </span>
             {:else if isValidLanguage === false}
-                <span class="absolute right-2 top-1 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                <span class="absolute right-2 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
                       title={validationError}>
                     error
                 </span>
             {:else if isValidLanguage === true}
-                <span class="absolute right-2 top-1 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                <span class="absolute right-2 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
                     check_circle
                 </span>
             {/if}
@@ -83,11 +83,11 @@
         <button
             class="flex items-center justify-center p-4 w-6 h-6
                    border border-primary/30 
-                   hover:border-primary/60 hover:bg-primary/10 
+                   hover:border-primary/60 hover:bg-ui-element-hover 
                    transition-all duration-500 focus:outline-none
                    {showAudioTrackIndex 
-                      ? 'bg-primary/5 rounded-tl rounded-bl rounded-tr-none rounded-br-none shadow-sm shadow-primary/20'
-                      : 'rounded shadow-sm shadow-primary/10'}"
+                      ? 'bg-ui-element rounded-tl rounded-bl rounded-tr-none rounded-br-none shadow-sm shadow-primary/20'
+                      : 'bg-input-bg rounded shadow-sm shadow-primary/10'}"
             on:click={toggleAudioTrackIndex}
             title="Toggle method used to select audio track"
         >
@@ -103,16 +103,16 @@
             <div class="-ml-px flex items-center"
                  transition:slide={{ duration: 200, axis: 'x' }}>
                 <!-- Panel with reduced content for better space usage -->
-                <div class="flex items-center bg-primary/5 backdrop-blur-sm
+                <div class="flex items-center bg-ui-element backdrop-blur-sm
                            border border-primary/30 border-l-0
-                           rounded-r px-2  p-4 h-6 shadow-sm shadow-primary/10">
+                           rounded-r px-2 p-4 h-6 shadow-sm shadow-primary/10">
                     <div class="overflow-hidden min-w-0">
                         <span class="text-primary text-sm truncate block whitespace-nowrap">
                             Track Override
                         </span>
                     </div>
                     <Hovertip message={trackOverrideHovertip}>
-                        <span slot="trigger" class="material-icons material-icon-adjust flex-shrink-0 text-primary cursor-help pl-1 pr-1 leading-none text-sm">
+                        <span slot="trigger" class="material-icons material-icon-adjust flex-shrink-0 text-primary cursor-help pl-1 pr-1 p-1.5 leading-none text-sm">
                             help_outline
                         </span>
                     </Hovertip>
@@ -122,7 +122,7 @@
                         min={1}
                         max={99}
                         fullWidth={false}
-                        className="w-10 h-6 px-1 py-0 text-xs border focus:ring-1"
+                        className="!w-10 h-6 px-1 py-0 text-xs border focus:ring-1"
                         on:change={handleAudioTrackChange}
                     />
                 </div>
@@ -132,8 +132,6 @@
 </div>
 
 <style>
-    @import './featureStyles.css';
-    
     /* Make the audio track container take up only the space it needs */
     .audio-track-container {
         width: fit-content;

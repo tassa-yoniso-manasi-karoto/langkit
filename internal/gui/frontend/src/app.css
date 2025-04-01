@@ -3,6 +3,15 @@
 @tailwind utilities;
 
 :root {
+    font-family: DM Sans, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 500;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    
     color-scheme: dark;
     
     /* Color system variables - core values from tailwind.config.js */
@@ -121,8 +130,62 @@
     rgba(255, 255, 255, 0) 60%, 
     transparent 100%
   );
+
+  /* DROPDOWN STYLING */
+  /* Primary-colored transparent dropdown using HSL variables */
+  --dropdown-primary-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1); 
+  --dropdown-secondary-color: hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.1);
+
+  /* Input field styling using HSL variables */
+  --input-bg: hsla(240, 9%, 17%, 0.4);
+  --input-bg-hover: hsla(240, 8%, 19%, 0.45);
+  --input-bg-focus: hsla(240, 9%, 21%, 0.5);
+  --input-border: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4);
+  --input-border-hover: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6);
+  --input-border-focus: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.8);
+  --input-shadow: 0 0 6px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15);
+  --input-shadow-focus: 0 0 12px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25);
+  --input-backdrop-blur: 0;
+  --input-gradient: none;
+
+  /* Dropdown styling with primary/secondary colors */
+  --dropdown-primary-color: hsl(var(--primary-hue), var(--primary-saturation), var(--primary-lightness));
+  --dropdown-secondary-color: hsl(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness));
   
+  /* control base color separately */
+  --dropdown-base-color: hsla(240, 9%, 10%, 0.01);
+  
+  /* Combine them in the gradient background */
+  --dropdown-bg: linear-gradient(135deg, var(--dropdown-primary-color), var(--dropdown-secondary-color));
+  
+  /* Reduce blur for less color contamination */
+  --dropdown-backdrop-blur: 11px;
 }
+
+body {
+    margin: 0;
+    display: flex;
+    place-items: center;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+h1 {
+    font-size: 3.2em;
+    line-height: 1.1;
+}
+
+.card {
+    padding: 2em;
+}
+
+#app {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem;
+    text-align: center;
+}
+
 
 .animate-sweep-gradient {
   animation-name: sweep;
@@ -169,22 +232,6 @@
     transform: translateX(100%);
   }
 }
-
-:root {
-    font-family: DM Sans, system-ui, Avenir, Helvetica, Arial, sans-serif;
-    line-height: 1.5;
-    font-weight: 400;
-
-    color-scheme: light dark;
-    color: rgba(255, 255, 255, 0.87);
-    background-color: #242424;
-
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
-
 a {
     font-weight: 500;
     color: #646cff;
@@ -192,30 +239,6 @@ a {
 }
 a:hover {
     color: #535bf2;
-}
-
-body {
-    margin: 0;
-    display: flex;
-    place-items: center;
-    min-width: 320px;
-    min-height: 100vh;
-}
-
-h1 {
-    font-size: 3.2em;
-    line-height: 1.1;
-}
-
-.card {
-    padding: 2em;
-}
-
-#app {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 2rem;
-    text-align: center;
 }
 
 button {
@@ -232,10 +255,6 @@ button {
 button:hover {
     border-color: #646cff;
 }
-button:focus,
-button:focus-visible {
-    outline: 4px auto -webkit-focus-ring-color;
-}
 
 @media (prefers-color-scheme: light) {
     :root {
@@ -249,6 +268,70 @@ button:focus-visible {
         background-color: #f9f9f9;
     }
 }
+
+
+/* Apply to all input fields */
+.form-input,
+input[type="text"], 
+input[type="number"], 
+input[type="password"], 
+input[type="email"], 
+input[type="tel"], 
+input[type="search"], 
+input[type="url"],
+select,
+textarea,
+.dropdown-button {
+  background: var(--input-bg);
+  background-image: var(--input-gradient);
+  border: 2px solid var(--input-border);
+  box-shadow: var(--input-shadow);
+  backdrop-filter: blur(var(--input-backdrop-blur));
+  transition: all 0.2s ease-out;
+}
+
+/* Hover state */
+.form-input:hover,
+input[type="text"]:hover, 
+input[type="number"]:hover, 
+input[type="password"]:hover, 
+input[type="email"]:hover, 
+input[type="tel"]:hover, 
+input[type="search"]:hover, 
+input[type="url"]:hover,
+select:hover,
+textarea:hover,
+.dropdown-button:hover {
+  background: var(--input-bg-hover);
+  border-color: var(--input-border-hover);
+  box-shadow: var(--input-shadow);
+  background-image: var(--input-gradient-hover, var(--input-gradient));
+}
+
+/* Focus state */
+.form-input:focus,
+input[type="text"]:focus, 
+input[type="number"]:focus, 
+input[type="password"]:focus, 
+input[type="email"]:focus, 
+input[type="tel"]:focus, 
+input[type="search"]:focus, 
+input[type="url"]:focus,
+select:focus,
+textarea:focus,
+.dropdown-button:focus {
+  background: var(--input-bg-focus);
+  border-color: var(--input-border-focus);
+  box-shadow: var(--input-shadow-focus);
+}
+
+/* Apply to numeric input arrow buttons */
+input[type="number"]::-webkit-inner-spin-button, 
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  background: var(--input-bg-hover);
+}
+
 
 /* dm-sans-100 - latin_latin-ext */
 @font-face {

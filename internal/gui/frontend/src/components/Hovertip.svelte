@@ -4,6 +4,8 @@
 
 	// The tooltip content can be passed as a prop or via the default slot.
 	export let message = "";
+	// Position of the tooltip: top, right, bottom, left
+	export let position = "top";
 
 	// Controls tooltip visibility.
 	let visible = false;
@@ -30,14 +32,41 @@
 	function updatePosition() {
 		if (trigger) {
 			const rect = trigger.getBoundingClientRect();
-			// Position the tooltip above the trigger:
-			// - left: centered horizontally over the trigger.
-			// - top: placed a few pixels above the trigger.
-			tooltipStyle = `
-				left: ${rect.left + rect.width / 2}px;
-				top: ${rect.top - 8}px;
-				transform: translate(-50%, -100%);
-			`;
+			let styleString = "";
+			
+			// Position the tooltip based on the specified position
+			switch(position) {
+				case "right":
+					styleString = `
+						left: ${rect.right + 10}px;
+						top: ${rect.top + rect.height / 2}px;
+						transform: translateY(-50%);
+					`;
+					break;
+				case "bottom":
+					styleString = `
+						left: ${rect.left + rect.width / 2}px;
+						top: ${rect.bottom + 10}px;
+						transform: translateX(-50%);
+					`;
+					break;
+				case "left":
+					styleString = `
+						right: ${window.innerWidth - rect.left + 10}px;
+						top: ${rect.top + rect.height / 2}px;
+						transform: translateY(-50%);
+					`;
+					break;
+				case "top":
+				default:
+					styleString = `
+						left: ${rect.left + rect.width / 2}px;
+						top: ${rect.top - 8}px;
+						transform: translate(-50%, -100%);
+					`;
+			}
+			
+			tooltipStyle = styleString;
 		}
 	}
 
@@ -55,10 +84,10 @@
 	<slot name="trigger" />
 </div>
 
-<!-- Render the tooltip in a portal so it isn't clipped by parent overflow settings -->
+<!-- Render the tooltip in a portal with the globally defined z-index class -->
 {#if visible}
 	<Portal target="body">
-		<div bind:this={tooltip} style={tooltipStyle} class="fixed z-50">
+		<div bind:this={tooltip} style={tooltipStyle} class="fixed hovertip">
 			<div class="bg-gray-800 text-white text-xs rounded-lg p-2 max-w-64 shadow-lg relative">
 				{#if message}
 					<!-- Use Tailwind's whitespace-pre-line to respect newline characters -->
@@ -68,8 +97,12 @@
 				{:else}
 					<slot />
 				{/if}
-				<!-- Tooltip arrow -->
-				<div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-2 h-2 bg-gray-800 rotate-45"></div>
+				<!-- Tooltip arrow - position based on tooltip position -->
+				{#if position === 'top' || position === 'bottom'}
+					<div class="absolute {position === 'top' ? 'bottom-0 translate-y-full' : 'top-0 -translate-y-full'} left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45"></div>
+				{:else}
+					<div class="absolute {position === 'left' ? 'right-0 translate-x-full' : 'left-0 -translate-x-full'} top-1/2 transform -translate-y-1/2 w-2 h-2 bg-gray-800 rotate-45"></div>
+				{/if}
 			</div>
 		</div>
 	</Portal>

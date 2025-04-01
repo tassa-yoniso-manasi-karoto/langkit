@@ -352,7 +352,7 @@
     /* Styling for group options */
     .group-option {
         display: grid;
-        grid-template-columns: 1fr 1.5fr;
+        grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr);
         gap: 1.5rem;
         align-items: center;
         border-left: 2px solid; /* Color is applied dynamically */

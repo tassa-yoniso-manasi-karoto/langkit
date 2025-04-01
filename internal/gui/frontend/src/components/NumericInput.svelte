@@ -22,10 +22,10 @@
     }
     
     // Base classes that will always be applied
-    const baseClasses = "bg-sky-dark/50 focus:outline-none transition-all duration-200";
+    const baseClasses = "form-input focus:outline-none transition-all duration-200";
     
     // Default styling classes that can be overridden
-    const defaultClasses = "border-2 border-primary/30 rounded-md h-[42px] px-3 text-sm font-medium focus:border-primary focus:ring-2 focus:ring-primary/30 hover:border-primary/50";
+    const defaultClasses = "rounded-md h-[42px] px-3 text-sm font-medium";
     
     // Conditional classes based on the component's props
     const conditionalClasses = `${center ? 'text-center' : ''} ${fullWidth ? 'w-full' : ''}`;
@@ -44,3 +44,36 @@
     on:keydown={handleKeydown}
     class={inputClasses}
 />
+
+<style>
+    input {
+        width: 100%;
+        border: 2px solid var(--input-border);
+        background-color: var(--input-bg);
+        box-shadow: var(--input-shadow);
+    }
+    
+    input:hover {
+        background-color: var(--input-bg-hover);
+        border-color: var(--input-border-hover);
+    }
+    
+    input:focus {
+        background-color: var(--input-bg-focus);
+        border-color: var(--input-border-focus);
+        box-shadow: var(--input-shadow-focus);
+    }
+    
+    input:active {
+        transform: translateY(0) !important;
+        transition-duration: 50ms;
+    }
+    
+    /* Style number input arrows */
+    input::-webkit-inner-spin-button,
+    input::-webkit-outer-spin-button {
+        opacity: 1;
+        height: 24px;
+        margin-right: 2px;
+    }
+</style>

@@ -103,8 +103,12 @@ export default {
         'error-card-hover': '#321e41', // slightly lighter for hover state
         'tooltip-bg': '#1c1c24',        // dark background for tooltips
         'tooltip-border': '#3b3167',    // border color for tooltips
+        
+        // TODO cleanup bg, component bg etc
         'ui-element': uiElementBg,      // subtle background for UI elements like MediaInput and ProgressManager
         'ui-element-hover': uiElementHoverBg, // hover state for UI elements
+        'input-bg': 'var(--input-bg)',
+        
         accent: {
           50: '#fffce5',
           100: '#fffacc',

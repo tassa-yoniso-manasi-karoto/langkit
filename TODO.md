@@ -1,20 +1,20 @@
 
-- bug in TH2EN
+- ⭐ fix ui settings panel
+
+- ⭐ bug in translit.go
 
 - Adaptive Event Throttling System
   - virtual log view → must std log entry height
 
 - go-rod
-  - atm valid browser URL required even for Subs2Cards alone
-  - make browser url option optional to use go-rod's ability to download & manage the instance for noobs
-
+  - ⭐ make currenlty running browser download known in the GUI
 
 - progress bar
   - subline total not reset on resume
   - 🤯 make consistent progress bars between GUI and CLI
   - correct sub line count, even accross resume
   - processedCount for ETA calculation
-  - ETA calculation itself
+  - ⭐ ETA calculation itself
  
 - appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
 - use selective translit tokenized inside TRANSLIT.GO

@@ -1,3 +1,45 @@
+/* Grid layout for option rows with fixed widths */
+.option-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr); /* Match with group option layout */
+    gap: 1rem;
+    align-items: center;
+    padding-left: 0.125rem;
+}
+    
+/* Standardized grid layout for consistent spacing and alignment */
+.options-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.option-label {
+    display: flex;
+    align-items: center;
+    min-width: 120px; /* Ensure minimum width for labels */
+}
+
+.option-input {
+    width: 100%; /* Ensure consistent width with group options */
+    max-width: 100%; /* Ensure it doesn't exceed container */
+}
+
+/* Create a wrapper for input components to ensure consistent width */
+.input-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0; /* Allow shrinking if needed */
+}
+
+    
+.feature-message-card {
+    position: relative;
+    left: 0;
+    text-align: left;
+}
+    
+    
 .feature-card {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform, box-shadow;

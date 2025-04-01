@@ -1,6 +1,6 @@
 <script lang="ts">
     import { twMerge } from 'tailwind-merge';
-    import { createEventDispatcher, onMount } from 'svelte';
+    import { createEventDispatcher } from 'svelte';
 
     export let value: string = "";
     export let placeholder: string = "";
@@ -14,15 +14,12 @@
     const dispatch = createEventDispatcher();
 
     // Always-applied classes
-    const baseClasses = "bg-sky-dark/50 focus:outline-none transition-all duration-200";
+    const baseClasses = "form-input focus:outline-none transition-all duration-200";
 
-    // Same default hover/focus as NumericInput
-    const defaultClasses = `
-      border-2 border-primary/30 rounded-md h-[42px] px-3 text-sm font-medium
-      focus:border-primary focus:ring-2 focus:ring-primary/30
-      hover:border-primary/50
-    `;
+    // Core styling classes with Tailwind
+    const defaultClasses = "rounded-md h-[42px] px-3 text-sm font-medium";
 
+    // Conditional classes based on the component's props
     const conditionalClasses = `${center ? 'text-center' : ''} ${fullWidth ? 'w-full' : ''}`;
 
     $: inputClasses = twMerge(baseClasses, defaultClasses, conditionalClasses, className);
@@ -49,6 +46,24 @@
 />
 
 <style>
+    input {
+        width: 100%;
+        border: 2px solid var(--input-border);
+        background-color: var(--input-bg);
+        box-shadow: var(--input-shadow);
+    }
+    
+    input:hover {
+        background-color: var(--input-bg-hover);
+        border-color: var(--input-border-hover);
+    }
+    
+    input:focus {
+        background-color: var(--input-bg-focus);
+        border-color: var(--input-border-focus);
+        box-shadow: var(--input-shadow-focus);
+    }
+    
     input:active {
         transform: translateY(0) !important;
         transition-duration: 50ms;
