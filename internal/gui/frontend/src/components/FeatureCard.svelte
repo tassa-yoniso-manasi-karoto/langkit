@@ -805,13 +805,12 @@
                             featureGroupStore.addFeatureToGroup(groupId, feature.id)}
                     {/if}
                     
-                    <!-- No additional checks needed - isTopmostInGroup is the source of truth -->
-                    
-                    {#if isGroupOption && groupId && featureGroupStore.isTopmostInGroup(groupId, feature.id)}
+                    {#if isGroupOption && groupId && featureGroupStore.isTopmostInGroup(groupId, feature.id) && !(feature.id !== 'subtitleRomanization' && optionDef.type === 'romanizationDropdown')}
                         <!-- Using canonical ordering from the feature store -->
                         <div class="mb-4 w-full">
                             <GroupOption 
                                 {groupId}
+                                featureId={feature.id}
                                 {optionId}
                                 optionDef={optionDef}
                                 value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
@@ -838,31 +837,16 @@
                         <!-- Regular option with label and input -->
                         <div class="option-row">
                             <div class="option-label">
-                                {#if optionId === 'provider'}
-                                    <span class="text-gray-300 text-sm text-left flex items-center gap-2">
-                                        Provider
-                                        <!-- Group icon if this is a shared option -->
-                                        {#if feature.featureGroups && feature.groupSharedOptions && 
-                                             feature.featureGroups.some(gId => feature.groupSharedOptions[gId]?.includes('provider'))}
-                                            <Hovertip message="This option is shared across subtitle features">
-                                                <span slot="trigger" class="cursor-help">
-                                                    <GroupIcon size="1.5em" className="text-blue-400" />
-                                                </span>
-                                            </Hovertip>
-                                        {/if}
-                                    </span>
-                                {:else}
-                                    <span class="text-gray-300 text-sm text-left flex items-center gap-2">
-                                        {optionDef.label}
-                                        {#if optionDef.hovertip}
-                                            <Hovertip message={optionDef.hovertip}>
-                                                <span slot="trigger" class="material-icons text-primary/70 cursor-help pr-1 leading-none material-icon-adjust">
-                                                    help_outline
-                                                </span>
-                                            </Hovertip>
-                                        {/if}
-                                    </span>
-                                {/if}
+                                <span class="text-gray-300 text-sm text-left flex items-center gap-2">
+                                    {optionDef.label}
+                                    {#if optionDef.hovertip}
+                                        <Hovertip message={optionDef.hovertip}>
+                                            <span slot="trigger" class="material-icons text-primary/70 cursor-help pr-1 leading-none material-icon-adjust">
+                                                help_outline
+                                            </span>
+                                        </Hovertip>
+                                    {/if}
+                                </span>
                             </div>
                             <div class="option-input">
                                 <div class="input-wrapper">
@@ -947,43 +931,6 @@
                                                 }
                                             />
                                         {/if}
-                                    {:else if optionDef.type === 'romanizationDropdown'}
-                                        <Dropdown
-                                            options={romanizationSchemes}
-                                            optionKey="name"
-                                            optionLabel="description"
-                                            value={options[optionId]}
-                                            on:change={(e) => {
-                                                handleDropdownChange(optionId, e.detail);
-                                                const selectedScheme = romanizationSchemes.find(s => s.name === e.detail);
-                                                if (selectedScheme) {
-                                                    options['provider'] = selectedScheme.provider;
-                                                    dispatch('optionChange', { featureId: feature.id, optionId: 'provider', value: selectedScheme.provider });
-                                                }
-                                            }}
-                                            label="Select style"
-                                        />
-                                    {:else if optionDef.type === 'provider'}
-                                        {@const provider = options['style'] ? (romanizationSchemes.find(s => s.name === options['style'])?.provider || '') : 'ichiran'}
-                                        <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
-                                           {provider}
-                                            
-                                            <div class="flex items-center justify-center gap-2">
-                                                <!-- GitHub link if available -->
-                                                {#if providerGithubUrls[provider]}
-                                                    <ExternalLink 
-                                                        href={providerGithubUrls[provider]}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-primary/70 hover:text-primary transition-colors duration-200"
-                                                        title="View provider repository">
-                                                        <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                                                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                                                        </svg>
-                                                    </ExternalLink>
-                                                {/if}
-                                            </div>
-                                        </div>
                                     {/if}
                                 </div>
                             </div>

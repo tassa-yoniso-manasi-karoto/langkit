@@ -46,6 +46,10 @@
     --error-all-color: theme('colors.error-all');
     --user-cancel-color: theme('colors.user-cancel');
     
+    
+    --group-subtitle-color: theme('colors.group-subtitle');
+    --group-merge-color: theme('colors.group-merge');
+    
     --error-transition-duration: 2s;
     
     /* Error gradient definitions */

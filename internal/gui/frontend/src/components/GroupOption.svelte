@@ -206,7 +206,7 @@
                     ? "text-group-subtitle" 
                     : groupId === 'merge' 
                         ? "text-group-merge"
-                        : "text-blue-400"}
+                        : ""}
                 <Hovertip message={groupMessage}>
                     <span slot="trigger" class="cursor-help">
                         <GroupIcon size="1.5em" className={iconColorClass} />
@@ -355,18 +355,18 @@
         grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr);
         gap: 1.5rem;
         align-items: center;
-        border-left: 2px solid; /* Color is applied dynamically */
+        border-left: 3px solid; /* Color is applied dynamically */
         padding-left: 0.25rem; /* Reduced padding to minimize indentation */
         margin-left: 0;
     }
     
     /* Group-specific border colors using Tailwind color scheme */
     :global(.group-option[data-group-id='subtitle']) {
-        border-left-color: rgba(65, 145, 250, 0.3);
+        border-left-color: var(--group-subtitle-color);
     }
     
     :global(.group-option[data-group-id='merge']) {
-        border-left-color: rgba(0, 230, 100, 0.3);
+        border-left-color: var(--group-merge-color);
     }
     
     .option-label {

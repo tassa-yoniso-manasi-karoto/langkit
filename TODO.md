@@ -1,4 +1,5 @@
 
+- remove portal of dropdown, prefer !important overflow display
 - ⭐ fix ui settings panel
 
 - ⭐ bug in translit.go

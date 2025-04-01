@@ -269,12 +269,6 @@ export const features: FeatureDefinition[] = [
         id: 'selectiveTransliteration',
         label: 'Selective Transliteration',
         options: {
-            style: {
-                type: 'romanizationDropdown',
-                label: 'Romanization Style',
-                default: '',
-                showCondition: "context.isTopmostForOption"
-            },
             provider: {
                 type: 'provider',
                 label: 'Provider',
@@ -347,12 +341,6 @@ export const features: FeatureDefinition[] = [
         id: 'subtitleTokenization',
         label: 'Subtitle Tokenization',
         options: {
-            style: {
-                type: 'romanizationDropdown',
-                label: 'Romanization Style',
-                default: '',
-                showCondition: "context.isTopmostForOption"
-            },
             provider: {
                 type: 'provider',
                 label: 'Provider',

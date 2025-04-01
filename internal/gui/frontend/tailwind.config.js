@@ -146,8 +146,8 @@ export default {
         'user-cancel-lightness': userCancelLightness,
         
         // Feature group colors
-        'group-subtitle': 'hsl(210, 90%, 60%)',  // Blue for subtitle group
-        'group-merge': 'hsl(130, 90%, 50%)'  // Green for merge/output group
+        'group-subtitle': 'hsla(210, 90%, 60%, 0.35)',  // Blue for subtitle group
+        'group-merge': 'hsla(130, 90%, 50%, 0.35)'  // Green for merge/output group
       },
       fontFamily: {
         sans: ['"DM Sans"', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
