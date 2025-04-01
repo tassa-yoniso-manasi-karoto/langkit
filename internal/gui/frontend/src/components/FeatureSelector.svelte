@@ -1280,20 +1280,6 @@
         </div>
     </div>
     
-    <!-- Loading state indicator when processing language -->
-    {#if isProcessingLanguage || isLoadingSchemes}
-        <div class="py-2 px-4 bg-primary/10 rounded-md flex items-center gap-2 animate-pulse">
-            <span class="material-icons animate-spin text-primary">sync</span>
-            <span class="text-sm text-white/80">
-                {#if isLoadingSchemes}
-                    Loading romanization schemes...
-                {:else}
-                    Processing language change...
-                {/if}
-            </span>
-        </div>
-    {/if}
-    
     <!-- Feature cards container - only rendered after data is fully loaded -->
     <div class="space-y-4 overflow-visible">
         {#if isInitialDataLoaded}
