@@ -38,9 +38,12 @@
     function updateDropdownPosition() {
         if (!buttonRef) return;
         
+        // Get button position relative to viewport
         const rect = buttonRef.getBoundingClientRect();
+        
+        // Calculate positions
         dropdownPosition = {
-            top: rect.bottom + window.scrollY + 4, // Add small gap
+            top: rect.bottom + window.scrollY, // Position below button
             left: rect.left + window.scrollX,
             width: rect.width
         };
@@ -116,16 +119,26 @@
         return tooltipFunction ? tooltipFunction(option) : null;
     }
 
-    // Handle window resize to update dropdown position
+    // Event handlers to close dropdown
+    function handleScroll() {
+        if (isOpen) {
+            closeDropdown();
+        }
+    }
+
     function handleResize() {
         if (isOpen) {
-            updateDropdownPosition();
+            closeDropdown();
         }
     }
 
     onMount(() => {
+        // Add listeners for events that should close the dropdown
+        window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
         window.addEventListener('resize', handleResize);
+        
         return () => {
+            window.removeEventListener('scroll', handleScroll, { capture: true });
             window.removeEventListener('resize', handleResize);
         };
     });
@@ -167,7 +180,7 @@
                 class="dropdown-options fixed max-h-60 overflow-auto focus:outline-none" 
                 bind:this={optionsContainerRef} 
                 role="listbox"
-                style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px; width: {dropdownPosition.width}px;"
+                style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px; width: {dropdownPosition.width}px; z-index: 9999;"
             >
                 {#each options as option, i (optionKey && typeof option === 'object' ? option[optionKey] : i)}
                     {@const isSelected = optionKey && typeof option === 'object' 
@@ -230,11 +243,12 @@
     backdrop-filter: blur(var(--dropdown-backdrop-blur, 12px));
     -webkit-backdrop-filter: blur(var(--dropdown-backdrop-blur, 12px));
     
+    /* Appearance */
     border: 1px solid var(--dropdown-border, var(--input-border));
     border-radius: 8px;
     box-shadow: var(--dropdown-shadow, 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 12px rgba(159, 110, 247, 0.15));
-    z-index: 1000;
     padding: 2px 0;
+    margin-top: 4px;
     font-size: 11px;
     font-weight: 500;
     transition: all 0.2s ease;
