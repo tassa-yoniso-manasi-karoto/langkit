@@ -393,8 +393,7 @@
                     <!-- Single bar row with subtle styling matching MediaInput -->
                     <div 
                         class="flex flex-col gap-1 p-2 rounded-md
-                               transition-all duration-300 ease-in-out 
-                               bg-ui-element hover:bg-ui-element-hover"
+                               transition-all duration-300 ease-in-out"
                     >
                         <div class="flex items-center justify-between text-sm text-white/90">
                             <span class="truncate max-w-[80%] font-medium">

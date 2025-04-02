@@ -5,6 +5,7 @@
   - virtual log view → must std log entry height
 
 - go-rod
+  - correct reverted Hovertip for Browser Access URL + GIT BLAME
   - ⭐ make currenlty running browser download known in the GUI
 
 - progress bar
@@ -15,7 +16,8 @@
   - ⭐ ETA calculation itself
  
 - appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
-- use selective translit tokenized inside TRANSLIT.GO
+
+- merge checkbox locked in GUI?
 
 - GUI options:
   - condensed audio toggle
