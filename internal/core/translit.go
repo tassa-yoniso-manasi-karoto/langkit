@@ -14,7 +14,6 @@ import (
 	"slices"
 	
 	"github.com/k0kubun/pp"
-	//"github.com/schollz/progressbar/v3"
 	"github.com/gookit/color"
 	
 	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
@@ -22,7 +21,6 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
@@ -55,16 +53,19 @@ func (m TranslitType) ToSuffix() string {
 	return "_" + m.String() + ".srt"
 }
 
-// TranslitProvider defines an interface for transliteration providers.
-// translitkit already acts a layer of abstraction but for selective transliteration
-// it is better to access the dedicated lib for a given language directly.
+// StringResult holds complete strings for each transliteration type
+type StringResult struct {
+	Tokenized string // Complete tokenized text
+	Romanized string // Complete romanized text
+	Selective string // Complete selective transliteration (for Japanese)
+}
+
+// TranslitProvider defines an interface for transliteration providers
 type TranslitProvider interface {
 	Initialize(ctx context.Context, tsk *Task) error
-	GetTokens(ctx context.Context, text string, handler MessageHandler) (tokenized []string, transliterated []string, err error)
-	GetSelectiveTranslit(ctx context.Context, threshold int) (string, error)
-	PostProcess(text string) string
-	ProviderName() string
+	ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error)
 	Close(ctx context.Context, langCode, RomanizationStyle string) error
+	ProviderName() string
 }
 
 
@@ -106,21 +107,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		return nil
 	}
 	
-	// Start CPU profiling if enabled via environment variable
-	var profileFile *os.File
-	if WantCPUProfiling() {
-		var err error
-		profileFile, err = profiling.StartCPUProfile("translit_" + langCode)
-		if err != nil {
-			// Log error but continue with transliteration
-			tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to start CPU profiling for transliteration")
-		} else if profileFile != nil {
-			tsk.Handler.ZeroLog().Info().Msg("CPU profiling enabled for transliteration")
-			defer profiling.StopCPUProfile(profileFile)
-		}
-	}
-	
-	// Record overall timing - we always collect timings, but only write the profile/summary if profiling is enabled
+	// Record overall timing
 	startTime := time.Now()
 	
 	common.BrowserAccessURL = tsk.BrowserAccessURL
@@ -169,180 +156,70 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		Dur("init_duration", initDuration).
 		Msgf("translit: %s successfully initialized", provider.ProviderName())
 	
-	// deep copy allows reusing trimmed closed captions directly without disk io
-	SubTranslit  := subs.DeepCopy(tsk.TargSubs)
-	SubTokenized := subs.DeepCopy(tsk.TargSubs)
+	// Get complete subtitle text
+	subtitleText := GetCompleteSubtitleText(tsk.TargSubs)
+	tsk.Handler.ZeroLog().Trace().Msgf("translit: subtitleText: len=%d", len(subtitleText))
 	
-	mergedSubsStr, _ := Subs2StringBlock(SubTranslit)
-	tsk.Handler.ZeroLog().Trace().Msgf("translit: mergedSubsStr: len=%d", len(mergedSubsStr))
+	// Process text - measure performance
+	processStartTime := time.Now()
 	
-	// Get tokens - measure performance
-	tokenStartTime := time.Now()
-	
-	tsk.Handler.ZeroLog().Warn().Msgf("requesting tokens from %s, please wait...", provider.ProviderName())
-	tokenizeds, translits, err := provider.GetTokens(ctx, mergedSubsStr, tsk.Handler)
-	tsk.Handler.ZeroLog().Info().Msgf("tokens received from %s", provider.ProviderName())
-	tokenDuration := time.Since(tokenStartTime)
+	tsk.Handler.ZeroLog().Warn().Msgf("processing text with %s, please wait...", provider.ProviderName())
+	result, err := provider.ProcessText(ctx, subtitleText, tsk.Handler)
+	processEndTime := time.Now()
+	processDuration := processEndTime.Sub(processStartTime)
 	if err != nil {
-		reporter.SaveSnapshot("Token extraction failed", tsk.DebugVals()) // necessity: high
+		reporter.SaveSnapshot("Text processing failed", tsk.DebugVals()) // necessity: high
 		if errors.Is(err, context.Canceled) {
-			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: tkns: operation canceled by user")
+			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: process: operation canceled by user")
 		} else if errors.Is(err, context.DeadlineExceeded) {
-			return tsk.Handler.LogErr(err, AbortTask, "translit: tkns: operation timed out.")
+			return tsk.Handler.LogErr(err, AbortTask, "translit: process: operation timed out.")
 		}
-		return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't get tokens from provider")
+		return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't process text with provider")
 	}
-	tsk.Handler.ZeroLog().Trace().
-		Dur("token_duration", tokenDuration).
-		Int("token_count", len(tokenizeds)).
-		Msgf("translit: %s returned tokens", provider.ProviderName())
-	
-	// Get selective transliteration if supported (for Japanese) - measure performance
-	var SubSelective *subs.Subtitles
-	var mergedSubsStrSelective string
-	var selectiveDuration time.Duration
-	
-	if langCode == "jpn" && tsk.KanjiThreshold > -1 {
-		SubSelective = subs.DeepCopy(tsk.TargSubs)
-		
-		selectiveStartTime := time.Now()
-		mergedSubsStrSelective, err = provider.GetSelectiveTranslit(ctx, tsk.KanjiThreshold)
-		selectiveDuration = time.Since(selectiveStartTime)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: selectiveTranslit: operation canceled by user")
-			} else if errors.Is(err, context.DeadlineExceeded) {
-				return tsk.Handler.LogErr(err, AbortTask, "translit: selectiveTranslit: operation timed out.")
-			}
-			return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't get selective transliteration")
-		}
-		tsk.Handler.ZeroLog().Trace().
-			Dur("selective_duration", selectiveDuration).
-			Msg("Selective transliteration completed")
-	}
-	
-	tsk.Handler.ZeroLog().Trace().Msg("Tokenization/transliteration query finished")
-	
-	// this convoluted replacement system of processed word on the original subtitle line was
-	// designed to workaround the fact that some NLP providers trim non-lexical elements such as
-	// punctuation and therefore deformed the original string's format but after recent updates on
-	// translitkit it is not needed anymore. However for japanese go-ichiran is used directly
-	// because I didn't bother to reimplement selective transliteration through translitkit.
-	// Because go-ichiran doesn't have that kind of extra processing this code will remain for now. 
-	
-	// Common replacement logic - measure performance
-	replaceStartTime := time.Now()
-	mergedSubsStrTranslit := mergedSubsStr
-	for i, tokenized := range tokenizeds {
-		translit := translits[i]
-		mergedSubsStrTranslit = strings.Replace(mergedSubsStrTranslit, tokenized, translit+" ", 1)
-	}
-	
-	mergedSubsStrTokenized := mergedSubsStrTranslit
-	for i, tokenized := range tokenizeds {
-		translit := translits[i]
-		mergedSubsStrTokenized = strings.Replace(mergedSubsStrTokenized, translit, tokenized, 1)
-	}
-	replaceDuration := time.Since(replaceStartTime)
-	tsk.Handler.ZeroLog().Trace().
-		Dur("replace_duration", replaceDuration).
-		Msg("Replacement operations completed")
-	
-	// Split results - measure performance
-	splitStartTime := time.Now()
-	idx := 0
-	subSliceTranslit := strings.Split(mergedSubsStrTranslit, Splitter)
-	subSliceTokenized := strings.Split(mergedSubsStrTokenized, Splitter)
-	
-	// Add selective slice for Japanese if available
-	var subSliceSelective []string
-	if langCode == "jpn" && tsk.KanjiThreshold > -1 && mergedSubsStrSelective != "" {
-		subSliceSelective = strings.Split(mergedSubsStrSelective, Splitter)
-		
-		tsk.Handler.ZeroLog().Trace().
-			Int("len(subSliceTranslit)", len(subSliceTranslit)).
-			Int("len(subSliceTokenized)", len(subSliceTokenized)).
-			Int("len(subSliceSelective)", len(subSliceSelective)).
-			Dur("split_duration", time.Since(splitStartTime)).
-			Msg("")
-	} else {
-		tsk.Handler.ZeroLog().Trace().
-			Int("len(subSliceTranslit)", len(subSliceTranslit)).
-			Int("len(subSliceTokenized)", len(subSliceTokenized)).
-			Dur("split_duration", time.Since(splitStartTime)).
-			Msg("")
-	}
-	splitDuration := time.Since(splitStartTime)
-	
-	// Apply changes to subtitles - measure performance
-	applyStartTime := time.Now()
-	for i := range (*SubTranslit).Items {
-		for j := range (*SubTranslit).Items[i].Lines {
-			for k := range (*SubTranslit).Items[i].Lines[j].Items {
-				(*SubTokenized).Items[i].Lines[j].Items[k].Text = clean(subSliceTokenized[idx])
-				
-				// Process transliteration
-				if langCode == "jpn" {
-					(*SubTranslit).Items[i].Lines[j].Items[k].Text = subSliceTranslit[idx]
-				} else {
-					(*SubTranslit).Items[i].Lines[j].Items[k].Text = provider.PostProcess(subSliceTranslit[idx])
-				}
-				
-				// Add selective transliteration for Japanese
-				if langCode == "jpn" && tsk.KanjiThreshold > -1 && SubSelective != nil {
-					(*SubSelective).Items[i].Lines[j].Items[k].Text = subSliceSelective[idx]
-				}
-				
-				idx++
-			}
-		}
-	}
-	applyDuration := time.Since(applyStartTime)
-	tsk.Handler.ZeroLog().Trace().
-		Dur("apply_duration", applyDuration).
-		Int("len(SubTokenized.Items)", len(SubTokenized.Items)).
-		Int("len(SubTranslit.Items)", len(SubTranslit.Items)).
-		Msg("")
+	tsk.Handler.ZeroLog().Info().
+		Dur("process_duration", processDuration).
+		Msgf("translit: %s finished processing text", provider.ProviderName())
 	
 	// Write output files - measure performance
 	writeStartTime := time.Now()
-	
-	for _, out := range []struct {
-		ttype TranslitType
-		subs  *subs.Subtitles
-		path  string
+
+	// Create and write output subtitles for each requested type
+	outputTypes := []struct {
+		ttype      TranslitType
+		text       string
+		path       string
 		outputType MediaOutputType
-		priority int
+		priority   int
+		feature    string
 	}{
-		{Tokenize,  SubTokenized, subsFilepathTokenized, OutputTokenized, 70},
-		{Romanize,  SubTranslit,  subsFilepathTranslit,  OutputRomanized, 80},
-		{Selective, SubSelective, subsFilepathSelective, OutputTranslit,  75},
-	} {
-		// Only proceed if user selected this translit type
-		if !slices.Contains(tsk.TranslitTypes, out.ttype) {
-			tsk.Handler.ZeroLog().Trace().
-				Msgf("Subtitle type %s isn't wanted", out.ttype.String())
+		{Tokenize, result.Tokenized, subsFilepathTokenized, OutputTokenized, 70, "tokenization"},
+		{Romanize, result.Romanized, subsFilepathTranslit, OutputRomanized, 80, "romanization"},
+		{Selective, result.Selective, subsFilepathSelective, OutputTranslit, 75, "selective_transliteration"},
+	}
+	
+	for _, output := range outputTypes {
+		// Skip if not requested or not applicable
+		if !slices.Contains(tsk.TranslitTypes, output.ttype) {
 			continue
 		}
-
-		// For selective transliteration, skip if not Japanese or threshold < 0
-		if out.ttype == Selective && (langCode != "jpn" || tsk.KanjiThreshold < 0) {
+		
+		// Skip selective if not Japanese or threshold not set
+		if output.ttype == Selective && (langCode != "jpn" || tsk.KanjiThreshold <= -1 || output.text == "") {
 			continue
 		}
-
-		// Attempt writing
-		if err := out.subs.Write(out.path); err != nil {
+		
+		// Create and write subtitle
+		newSubs := CreateSubtitlesFromText(tsk.TargSubs, output.text)
+		if err := newSubs.Write(output.path); err != nil {
 			tsk.Handler.ZeroLog().Error().
 				Err(err).
-				Msgf("Failed to write %s subtitles", out.ttype.String())
+				Msgf("Failed to write %s subtitles", output.ttype.String())
 		} else {
 			tsk.Handler.ZeroLog().Info().
-				Msgf("Created %s subtitles", out.ttype.String())
+				Msgf("Created %s subtitles", output.ttype.String())
 			
-			// Register the subtitle file for final output merging if merging is enabled
 			if tsk.MergeOutputFiles {
-				feature := "subtitle" + strings.Title(out.ttype.String())
-				tsk.RegisterOutputFile(out.path, out.outputType, tsk.Targ, feature, out.priority)
+				tsk.RegisterOutputFile(output.path, output.outputType, tsk.Targ, output.feature, output.priority)
 			}
 		}
 	}
@@ -355,59 +232,11 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		Str("language", langCode).
 		Dur("total_duration", totalDuration).
 		Dur("init_duration", initDuration).
-		Dur("token_duration", tokenDuration).
-		Dur("replacement_duration", replaceDuration).
-		Dur("split_duration", splitDuration).
-		Dur("apply_duration", applyDuration).
+		Dur("process_duration", processDuration).
 		Dur("write_duration", writeDuration).
-		Int("token_count", len(tokenizeds)).
 		Msg("Transliteration performance metrics")
 	
-	// Create a performance summary text file if profiling is enabled
-	if WantCPUProfiling() || profiling.IsCPUProfilingEnabled() {
-		pprofDir, err := profiling.GetPprofDir()
-		if err == nil {
-			timestamp := time.Now().Format("20060102-150405")
-			summaryFile, err := os.Create(filepath.Join(pprofDir, fmt.Sprintf("translit_summary_%s_%s.txt", langCode, timestamp)))
-			if err == nil {
-				defer summaryFile.Close()
-				fmt.Fprintf(summaryFile, "Transliteration Performance Summary\n")
-				fmt.Fprintf(summaryFile, "==============================\n\n")
-				fmt.Fprintf(summaryFile, "Language: %s\n", langCode)
-				fmt.Fprintf(summaryFile, "Provider: %s\n", provider.ProviderName())
-				fmt.Fprintf(summaryFile, "Input file: %s\n", tsk.TargSubFile)
-				fmt.Fprintf(summaryFile, "Output files:\n")
-				fmt.Fprintf(summaryFile, "  - %s\n", subsFilepathTokenized)
-				fmt.Fprintf(summaryFile, "  - %s\n", subsFilepathTranslit)
-				if langCode == "jpn" && tsk.KanjiThreshold > -1 {
-					fmt.Fprintf(summaryFile, "  - %s\n", subsFilepathSelective)
-				}
-				fmt.Fprintf(summaryFile, "\nToken count: %d\n", len(tokenizeds))
-				fmt.Fprintf(summaryFile, "\nPerformance Breakdown:\n")
-				fmt.Fprintf(summaryFile, "---------------------\n")
-				fmt.Fprintf(summaryFile, "Total duration:       %v\n", totalDuration)
-				fmt.Fprintf(summaryFile, "Provider init:        %v (%.1f%%)\n", initDuration, float64(initDuration)/float64(totalDuration)*100)
-				fmt.Fprintf(summaryFile, "Token extraction:     %v (%.1f%%)\n", tokenDuration, float64(tokenDuration)/float64(totalDuration)*100)
-				if langCode == "jpn" && tsk.KanjiThreshold > -1 {
-					fmt.Fprintf(summaryFile, "Selective translit:   %v (%.1f%%)\n", selectiveDuration, float64(selectiveDuration)/float64(totalDuration)*100)
-				}
-				fmt.Fprintf(summaryFile, "String replacements:  %v (%.1f%%)\n", replaceDuration, float64(replaceDuration)/float64(totalDuration)*100)
-				fmt.Fprintf(summaryFile, "String splitting:     %v (%.1f%%)\n", splitDuration, float64(splitDuration)/float64(totalDuration)*100)
-				fmt.Fprintf(summaryFile, "Applying text:        %v (%.1f%%)\n", applyDuration, float64(applyDuration)/float64(totalDuration)*100)
-				fmt.Fprintf(summaryFile, "File writing:         %v (%.1f%%)\n", writeDuration, float64(writeDuration)/float64(totalDuration)*100)
-				fmt.Fprintf(summaryFile, "\nToken processing rate: %.2f tokens/second\n", float64(len(tokenizeds))/totalDuration.Seconds())
-			}
-		}
-		
-		// Also write a memory profile if memory profiling is enabled
-		if profiling.IsMemoryProfilingEnabled() {
-			if err := profiling.WriteMemoryProfile("translit_" + langCode); err != nil {
-				tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to write memory profile")
-			}
-		}
-	}
-	
-	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s shuting down provider, please wait...", provider.ProviderName())
+	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s shutting down provider, please wait...", provider.ProviderName())
 	if err := provider.Close(ctx, langCode, tsk.RomanizationStyle); err != nil {
 		if errors.Is(err, context.Canceled) {
 			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: close: operation canceled by user")
@@ -422,19 +251,45 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	return nil
 }
 
-func Subs2StringBlock(subs *subs.Subtitles) (mergedSubsStr string, subSlice []string) {
-	for _, Item := range (*subs).Subtitles.Items {
-		for _, Line := range Item.Lines {
-			for _, LineItem := range Line.Items {
-				subSlice = append(subSlice, LineItem.Text)
-				mergedSubsStr += LineItem.Text +Splitter
+// GetCompleteSubtitleText extracts all text from subtitles into a single string with splitters
+func GetCompleteSubtitleText(subs *subs.Subtitles) string {
+	var result strings.Builder
+	
+	for _, item := range (*subs).Subtitles.Items {
+		for _, line := range item.Lines {
+			for _, lineItem := range line.Items {
+				result.WriteString(lineItem.Text)
+				result.WriteString(Splitter)
 			}
 		}
 	}
-	return
+	
+	return result.String()
 }
 
-
+// CreateSubtitlesFromText creates a new subtitle file from processed text
+func CreateSubtitlesFromText(originalSubs *subs.Subtitles, processedText string) *subs.Subtitles {
+	// Create a deep copy of the original subtitles
+	newSubs := subs.DeepCopy(originalSubs)
+	
+	// Split the processed text into parts by splitter
+	parts := strings.Split(processedText, Splitter)
+	partIndex := 0
+	
+	// Apply processed parts to the subtitle structure
+	for i := range (*newSubs).Items {
+		for j := range (*newSubs).Items[i].Lines {
+			for k := range (*newSubs).Items[i].Lines[j].Items {
+				if partIndex < len(parts) {
+					(*newSubs).Items[i].Lines[j].Items[k].Text = clean(parts[partIndex])
+					partIndex++
+				}
+			}
+		}
+	}
+	
+	return newSubs
+}
 
 
 // GenericProvider implements the transliteration for most languages
@@ -457,7 +312,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, tsk *Task) error {
 	return p.module.InitRecreateWithContext(ctx, true)
 }
 
-func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
+func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {
 	// Generate a unique task ID for this operation
 	taskID := fmt.Sprintf("transliteration-%d", time.Now().UnixNano())
 	m := p.module
@@ -495,7 +350,7 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 	m.WithProgressCallback(func(idx, length int) {
 		handler.IncrementProgress(
 			taskID,
-			1,
+			idx+1,
 			length,
 			30,
 			"Transliterating",
@@ -504,30 +359,28 @@ func (p *GenericProvider) GetTokens(ctx context.Context, text string, handler Me
 		)
 	})
 	
-	
+	// Get tokens only once
 	tokens, err := m.TokensWithContext(ctx, text)
-	
 	if err != nil {
-		return nil, nil, fmt.Errorf("error processing text: %w", err)
+		return StringResult{}, fmt.Errorf("error processing text: %w", err)
 	}
 	
-	return tokens.TokenizedParts(), tokens.RomanParts(), nil
-}
-
-
-func (p *GenericProvider) GetSelectiveTranslit(ctx context.Context, threshold int) (string, error) {
-	// Most languages don't support selective transliteration
-	return "", nil
-}
-
-func (p *GenericProvider) PostProcess(text string) string {
-	return p.module.RomanPostProcess(text, func(s string) string { return s })
+	// Get all formats from the tokens
+	tokenized := tokens.Tokenized()
+	romanized := tokens.Roman()
+	
+	// Apply post-processing if needed
+	romanized = p.module.RomanPostProcess(romanized, func(s string) string { return s })
+	
+	return StringResult{
+		Tokenized: tokenized,
+		Romanized: romanized,
+	}, nil
 }
 
 func (p *GenericProvider) ProviderName() string {
 	return fmt.Sprintf("%s-%s", p.module.Lang, p.module.ProviderNames())
 }
-
 
 func (p *GenericProvider) Close(ctx context.Context, languageCode, RomanizationStyle string) error {
 	schemes, err := common.GetSchemes(languageCode)
@@ -565,8 +418,8 @@ func (p *GenericProvider) Close(ctx context.Context, languageCode, RomanizationS
 
 // JapaneseProvider handles Japanese-specific transliteration
 type JapaneseProvider struct {
-	// Cache the tokens to avoid redundant Analyze calls for selective tlit
-	tokensSlice  []*ichiran.JSONTokens
+	tokensSlice    []*ichiran.JSONTokens
+	kanjiThreshold int
 }
 
 func NewJapaneseProvider() *JapaneseProvider {
@@ -574,14 +427,14 @@ func NewJapaneseProvider() *JapaneseProvider {
 }
 
 func (p *JapaneseProvider) Initialize(ctx context.Context, tsk *Task) error {
+	p.kanjiThreshold = tsk.KanjiThreshold
 	if !tsk.DockerRecreate {
 		return ichiran.InitWithContext(ctx)
 	}
 	return ichiran.InitRecreateWithContext(ctx, true)
 }
 
-
-func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler MessageHandler) ([]string, []string, error) {
+func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {
 	// Generate a unique task ID for this operation
 	taskID := fmt.Sprintf("jp-transliteration-%d", time.Now().UnixNano())
 	
@@ -598,111 +451,79 @@ func (p *JapaneseProvider) GetTokens(ctx context.Context, text string, handler M
 	// Split text into chunks using Chunkify
 	chunks, err := common.NewChunkifier(maxChunkSize).Chunkify(text)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error splitting text into chunks: %w", err)
+		return StringResult{}, fmt.Errorf("error splitting text into chunks: %w", err)
 	}
 	totalChunks := len(chunks)
 	
-
 	handler.ZeroLog().Trace().
 		Int("actualNumChunks", totalChunks).
 		Msg("")
 	
-	// Initialize result variables
-	var allTokenizedParts []string
-	var allRomanParts []string
-	
-	// spawn bar
 	handler.IncrementProgress(
 		taskID,
 		0,
 		totalChunks,
 		30,
-		"Starting transliteration...",
+		"Starting Japanese analysis...",
 		"",
 		"h-2",
 	)
 	
+	var tokenizedResult, romanizedResult, selectiveResult strings.Builder
+	p.tokensSlice = make([]*ichiran.JSONTokens, 0, totalChunks)
+	
 	// Process each chunk
 	for i, chunk := range chunks {
-		// Check for context cancellation
 		select {
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return StringResult{}, ctx.Err()
 		default:
-			// Continue processing
-		}
-		handler.ZeroLog().Trace().Msgf("Analyzing chunk %d/%d", i+1, len(chunks))
-		tokens, err := p.analyzeText(ctx, chunk)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error analyzing chunk %d: %w", i+1, err)
 		}
 		
-		// Merge results
-		allTokenizedParts = append(allTokenizedParts, tokens.TokenizedParts()...)
-		allRomanParts = append(allRomanParts, tokens.RomanParts()...)
+		// Analyze each chunk only once
+		tokens, err := ichiran.AnalyzeWithContext(ctx, chunk)
+		if err != nil {
+			return StringResult{}, fmt.Errorf("error analyzing chunk %d: %w", i+1, err)
+		}
+		
+		// Cache tokens for potential future use
+		p.tokensSlice = append(p.tokensSlice, tokens)
+		
+		// Extract all formats from the tokens
+		tokenizedResult.WriteString(tokens.Tokenized())
+		romanizedResult.WriteString(tokens.Roman())
+		
+		// Handle selective transliteration if enabled
+		if p.kanjiThreshold > -1 {
+			selective, err := tokens.SelectiveTranslit(p.kanjiThreshold)
+			if err != nil {
+				return StringResult{}, fmt.Errorf("error getting selective transliteration: %w", err)
+			}
+			selectiveResult.WriteString(selective)
+		}
 		
 		// Update progress
 		handler.IncrementProgress(
 			taskID,
-			1,
+			i+1,
 			totalChunks,
 			30,
-			"Transliterating",
-			fmt.Sprintf("Processing Japanese text (%d/%d)", i+1, totalChunks),
+			"Analyzing Japanese",
+			fmt.Sprintf("Processing chunk %d/%d", i+1, totalChunks),
 			"h-2",
 		)
 	}
 	
-	return allTokenizedParts, allRomanParts, nil
-}
-
-// analyzeText ensures we only call ichiran.Analyze once for the same text
-func (p *JapaneseProvider) analyzeText(ctx context.Context, text string) (*ichiran.JSONTokens, error) {
-	// Analyze the text and cache the results
-	tokens, err := ichiran.AnalyzeWithContext(ctx, text)
-	if err != nil {
-		return nil, err
-	}
-	
-	// Cache the tokens for future use
-	p.tokensSlice = append(p.tokensSlice, tokens)
-	
-	return tokens, nil
-}
-
-
-func (p *JapaneseProvider) GetSelectiveTranslit(ctx context.Context, threshold int) (string, error) {
-	if threshold <= -1 || len(p.tokensSlice) == 0 {
-		return "", nil
-	}
-	
-	var result strings.Builder
-	
-	for _, tokens := range p.tokensSlice {
-		if tokens == nil {
-			continue
-		}
-		
-		transliterated, err := tokens.SelectiveTranslit(threshold)
-		if err != nil {
-			return "", fmt.Errorf("error applying selective transliteration: %w", err)
-		}
-		
-		result.WriteString(transliterated)
-	}
-	
-	return result.String(), nil
-}
-
-func (p *JapaneseProvider) PostProcess(text string) string {
-	// Japanese doesn't need post-processing for transliteration
-	return text
+	return StringResult{
+		Tokenized: tokenizedResult.String(),
+		Romanized: romanizedResult.String(),
+		Selective: selectiveResult.String(),
+	}, nil
 }
 
 func (p *JapaneseProvider) ProviderName() string {
 	return "jpn-ichiran"
 }
-
 
 func (p *JapaneseProvider) Close(ctx context.Context, _, _ string) error {
 	return ichiran.Close()
@@ -761,14 +582,6 @@ func fileExistsAndNotEmpty(filepath string) (bool, error) {
         }
 
         return fileInfo.Size() > 0, nil
-}
-
-
-// WantCPUProfiling returns true if CPU profiling is enabled for transliteration
-func WantCPUProfiling() bool {
-	return os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "1" || 
-	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "true" ||
-	       os.Getenv("LANGKIT_PROFILE_TRANSLIT") == "yes"
 }
 
 
