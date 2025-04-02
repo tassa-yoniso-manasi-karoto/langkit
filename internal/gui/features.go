@@ -215,25 +215,45 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 				Msg("Configured Subtitle Provider")
 		}
 		
-		// Process feature-specific settings and add the corresponding TranslitType
-		
 		// Selective Transliteration
 		if request.SelectedFeatures["selectiveTransliteration"] {
 			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Selective)
-			
+
 			// Get selective transliteration specific options
 			featureOpts, ok := request.Options.Options["selectiveTransliteration"]
 			if ok {
+				if tokenizeOutput, ok := featureOpts["tokenizeOutput"]; ok {
+					if tokenize, ok := tokenizeOutput.(bool); ok {
+						tsk.TokenizeSelectiveTranslit = tokenize
+					} else {
+						// Default to true if not a boolean
+						tsk.TokenizeSelectiveTranslit = true
+					}
+				} else {
+					// Default to true if not specified (matching UI default)
+					tsk.TokenizeSelectiveTranslit = true
+				}
+
+				// Add TokenizedSelective type if tokenization is enabled
+				if tsk.TokenizeSelectiveTranslit {
+					tsk.TranslitTypes = append(tsk.TranslitTypes, core.TokenizedSelective)
+				}
+
 				if kanjiThreshold, ok := featureOpts["kanjiFrequencyThreshold"]; ok {
 					if threshold, ok := kanjiThreshold.(float64); ok {
 						tsk.KanjiThreshold = int(threshold)
 					}
 				}
-			
+
 				tsk.Handler.ZeroLog().Debug().
 					Interface("selective_transliteration_options", featureOpts).
 					Int("kanji_threshold", tsk.KanjiThreshold).
+					Bool("tokenized_selective", tsk.TokenizeSelectiveTranslit).
 					Msg("Configured Selective Transliteration")
+			} else {
+				// No options found, use defaults
+				tsk.TokenizeSelectiveTranslit = true
+				tsk.TranslitTypes = append(tsk.TranslitTypes, core.TokenizedSelective)
 			}
 		}
 		

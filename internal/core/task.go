@@ -138,12 +138,13 @@ type Task struct {
 	InitialPrompt        string
 	
 	// Subtitle processing options
-	WantTranslit         bool
-	TranslitTypes        []TranslitType
-	RomanizationStyle    string
-	KanjiThreshold       int
-	BrowserAccessURL     string
-	DockerRecreate       bool
+	WantTranslit               bool // TODO use len(TranslitTypes) > 0 instead
+	TranslitTypes              []TranslitType
+	RomanizationStyle          string
+	KanjiThreshold             int
+	TokenizeSelectiveTranslit  bool
+	BrowserAccessURL           string
+	DockerRecreate             bool
 	
 	// Output merging options
 	MergeOutputFiles     bool                // Whether to merge all output files

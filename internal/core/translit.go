@@ -43,22 +43,25 @@ const (
 	Tokenize  TranslitType = iota
 	Romanize
 	Selective
+	TokenizedSelective
 )
 
-func (m TranslitType) String() string{
-	return []string{"tokenized", "romanized", "selective"}[m]
+func (m TranslitType) String() string {
+	return []string{"tokenized", "romanized", "selective", "selective_tokenized"}[m]
 }
 
 func (m TranslitType) ToSuffix() string {
 	return "_" + m.String() + ".srt"
 }
 
-// StringResult holds complete strings for each transliteration type
+
 type StringResult struct {
-	Tokenized string // Complete tokenized text
-	Romanized string // Complete romanized text
-	Selective string // Complete selective transliteration (for Japanese)
+	Tokenized         string // Complete tokenized text
+	Romanized         string // Complete romanized text
+	Selective         string // Complete selective transliteration
+	TokenizedSelective string // Complete tokenized selective transliteration
 }
+
 
 // TranslitProvider defines an interface for transliteration providers
 type TranslitProvider interface {
@@ -68,6 +71,18 @@ type TranslitProvider interface {
 	ProviderName() string
 }
 
+
+// Previously, a complex word-by-word replacement system was used to handle how NLP providers
+// often trimmed non-lexical elements like punctuation, which deformed the original text format.
+// Now translitkit handles this already so we've simplified by obtaining complete processed
+// strings directly and applying them to the subtitle structure.
+
+// this convoluted replacement system of processed word on the original subtitle line was
+// designed to workaround the fact that some NLP providers trim non-lexical elements such as
+// punctuation and therefore deformed the original string's format but after recent updates on
+// translitkit it is not needed anymore. However for japanese go-ichiran is used directly
+// because I didn't bother to reimplement selective transliteration through translitkit.
+// TODO: Implement selective transliteration through translitkit
 
 func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	langCode := tsk.Targ.Language.Part3
@@ -116,6 +131,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	subsFilepathTokenized := base + Tokenize.ToSuffix()
 	subsFilepathTranslit  := base + Romanize.ToSuffix()
 	subsFilepathSelective := base + Selective.ToSuffix()
+	subsFilepathTokenizedSelective := base + TokenizedSelective.ToSuffix()
 	
 	// Check if transliteration already exists
 	if alreadyDone, err := fileExistsAndNotEmpty(subsFilepathTranslit); err != nil {
@@ -183,7 +199,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	// Write output files - measure performance
 	writeStartTime := time.Now()
 
-	// Create and write output subtitles for each requested type
+
 	outputTypes := []struct {
 		ttype      TranslitType
 		text       string
@@ -195,16 +211,28 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		{Tokenize, result.Tokenized, subsFilepathTokenized, OutputTokenized, 70, "tokenization"},
 		{Romanize, result.Romanized, subsFilepathTranslit, OutputRomanized, 80, "romanization"},
 		{Selective, result.Selective, subsFilepathSelective, OutputTranslit, 75, "selective_transliteration"},
+		{TokenizedSelective, result.TokenizedSelective, subsFilepathTokenizedSelective, OutputTranslit, 76, "tokenized_selective_transliteration"},
 	}
 	
 	for _, output := range outputTypes {
-		// Skip if not requested or not applicable
+		// Skip if not requested
 		if !slices.Contains(tsk.TranslitTypes, output.ttype) {
 			continue
 		}
 		
-		// Skip selective if not Japanese or threshold not set
-		if output.ttype == Selective && (langCode != "jpn" || tsk.KanjiThreshold <= -1 || output.text == "") {
+		if output.ttype == Selective || output.ttype == TokenizedSelective {
+			if langCode != "jpn" || tsk.KanjiThreshold <= -1 {
+				continue
+			}
+			
+			if output.ttype == TokenizedSelective && !tsk.TokenizeSelectiveTranslit ||
+				output.ttype == Selective && tsk.TokenizeSelectiveTranslit {
+				continue
+			}
+		}
+		
+		// Skip if text is empty
+		if output.text == "" {
 			continue
 		}
 		
@@ -469,7 +497,7 @@ func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler
 		"h-2",
 	)
 	
-	var tokenizedResult, romanizedResult, selectiveResult strings.Builder
+	var tokenizedResult, romanizedResult, selectiveResult, tokenizedSelectiveResult strings.Builder
 	p.tokensSlice = make([]*ichiran.JSONTokens, 0, totalChunks)
 	
 	// Process each chunk
@@ -500,6 +528,12 @@ func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler
 				return StringResult{}, fmt.Errorf("error getting selective transliteration: %w", err)
 			}
 			selectiveResult.WriteString(selective)
+			
+			tokenizedSelective, err := tokens.SelectiveTranslitTokenized(p.kanjiThreshold)
+			if err != nil {
+				return StringResult{}, fmt.Errorf("error getting tokenized selective transliteration: %w", err)
+			}
+			tokenizedSelectiveResult.WriteString(tokenizedSelective)
 		}
 		
 		// Update progress
@@ -518,6 +552,7 @@ func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler
 		Tokenized: tokenizedResult.String(),
 		Romanized: romanizedResult.String(),
 		Selective: selectiveResult.String(),
+		TokenizedSelective: tokenizedSelectiveResult.String(),
 	}, nil
 }
 

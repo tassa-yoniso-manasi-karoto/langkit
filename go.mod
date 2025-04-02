@@ -2,14 +2,6 @@ module github.com/tassa-yoniso-manasi-karoto/langkit
 
 go 1.23.4
 
-replace github.com/tassa-yoniso-manasi-karoto/translitkit => /home/voiduser/go/src/translitkit
-
-replace github.com/tassa-yoniso-manasi-karoto/dockerutil => /home/voiduser/go/src/dockerutil
-
-replace github.com/tassa-yoniso-manasi-karoto/go-aksharamukha => /home/voiduser/go/src/go-aksharamukha
-
-replace github.com/tassa-yoniso-manasi-karoto/go-ichiran => /home/voiduser/go/src/go-ichiran
-
 require (
 	github.com/AssemblyAI/assemblyai-go-sdk v1.10.0
 	github.com/Masterminds/semver/v3 v3.3.1
@@ -25,6 +17,7 @@ require (
 	github.com/klauspost/compress v1.17.11
 	github.com/ncruces/zenity v0.10.14
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/openai/openai-go v0.1.0-beta.2
 	github.com/replicate/replicate-go v0.26.0
 	github.com/rs/zerolog v1.33.0
 	github.com/schollz/progressbar/v3 v3.18.0
@@ -33,10 +26,10 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250125053402-0ba60f8e6ba7
+	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250402055055-5169dec2dfb7
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v0.0.0-00010101000000-000000000000
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-00010101000000-000000000000
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.2-beta
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250402043425-6757e4e55314
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.10.0
 )
@@ -220,8 +213,11 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-00010101000000-000000000000 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250321133057-249cfd96068f // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
