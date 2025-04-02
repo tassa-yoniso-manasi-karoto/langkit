@@ -163,14 +163,10 @@
   --input-gradient: none;
 
   /* Dropdown styling with primary/secondary colors */
-  --dropdown-primary-color: hsl(var(--primary-hue), var(--primary-saturation), var(--primary-lightness));
-  --dropdown-secondary-color: hsl(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness));
-  
-  /* control base color separately */
-  --dropdown-base-color: hsla(240, 9%, 10%, 0.01);
-  
-  /* Combine them in the gradient background */
-  --dropdown-bg: linear-gradient(135deg, var(--dropdown-primary-color), var(--dropdown-secondary-color));
+  --dropdown-gradient-opacity: 0.15;
+  --dropdown-base-color: hsla(240, 9%, 10%, var(--dropdown-gradient-opacity));
+  --dropdown-primary-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), var(--dropdown-gradient-opacity));
+  --dropdown-secondary-color: hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), var(--dropdown-gradient-opacity));
   
   /* Reduce blur for less color contamination */
   --dropdown-backdrop-blur: 11px;

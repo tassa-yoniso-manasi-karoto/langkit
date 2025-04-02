@@ -190,7 +190,7 @@
                     {@const tooltipText = getOptionTooltip(option)}
                     {#if tooltipText}
                         <Hovertip message={tooltipText} position="right">
-                            <div slot="trigger" class="cursor-pointer text-center truncate" on:click={() => selectOption(option)} role="option" aria-selected={isSelected}>
+                            <div slot="trigger" class="cursor-pointer font-semibold text-center truncate" on:click={() => selectOption(option)} role="option" aria-selected={isSelected}>
                                 {displayText}
                             </div>
                         </Hovertip>
@@ -214,30 +214,26 @@
   .dropdown-button {
     width: 100%;
     border: 2px solid var(--input-border);
-    background-color: var(--input-bg);
+    background-color: hsla(var(--input-bg), 0.4);
     box-shadow: var(--input-shadow);
   }
   
   /* Hover styles */
   .dropdown-button:hover:not(:disabled) {
-    background-color: var(--input-bg-hover);
+    background-color: hsla(var(--input-bg-hover), 0.45);
     border-color: var(--input-border-hover);
   }
   
   /* Focus styles */
   .dropdown-button:focus:not(:disabled) {
-    background-color: var(--input-bg-focus);
+    background-color: hsla(var(--input-bg-focus), 0.5);
     border-color: var(--input-border-focus);
     box-shadow: var(--input-shadow-focus);
   }
 
   /* Dropdown options styling */
   .dropdown-options {
-    /* Add a solid base color with transparency */
-    background-color: var(--dropdown-base-color);
-    
-    /* Then layer the gradient on top */
-    background-image: var(--dropdown-base-color, linear-gradient(135deg, var(--dropdown-primary-color), var(--dropdown-secondary-color)));
+    background: linear-gradient(135deg, var(--dropdown-primary-color), var(--dropdown-base-color), var(--dropdown-secondary-color));
     
     /* Control blur effect */
     backdrop-filter: blur(var(--dropdown-backdrop-blur, 12px));
