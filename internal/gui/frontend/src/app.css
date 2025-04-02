@@ -141,9 +141,19 @@
   --dropdown-secondary-color: hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.1);
 
   /* Input field styling using HSL variables */
-  --input-bg: hsla(240, 9%, 17%, 0.4);
-  --input-bg-hover: hsla(240, 8%, 19%, 0.45);
-  --input-bg-focus: hsla(240, 9%, 21%, 0.5);
+  --input-bg-hue: 240;
+  --input-bg-saturation: 9%;
+  --input-bg-lightness: 17%;
+
+  --input-bg-hover-lightness: 19%;
+
+  --input-bg-focus-lightness: 21%;
+
+  /* Composed variables for components */
+  --input-bg: var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-lightness);
+  --input-bg-hover: var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-hover-lightness);
+  --input-bg-focus: var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-focus-lightness);
+
   --input-border: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4);
   --input-border-hover: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6);
   --input-border-focus: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.8);

@@ -49,17 +49,17 @@
     input {
         width: 100%;
         border: 2px solid var(--input-border);
-        background-color: var(--input-bg);
+        background-color: hsla(var(--input-bg), 0.4);
         box-shadow: var(--input-shadow);
     }
-    
+
     input:hover {
-        background-color: var(--input-bg-hover);
+        background-color: hsla(var(--input-bg-hover), 0.45);
         border-color: var(--input-border-hover);
     }
-    
+
     input:focus {
-        background-color: var(--input-bg-focus);
+        background-color: hsla(var(--input-bg-focus), 0.5);
         border-color: var(--input-border-focus);
         box-shadow: var(--input-shadow-focus);
     }

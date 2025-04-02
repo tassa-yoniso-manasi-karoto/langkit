@@ -1,6 +1,4 @@
 
-- ⭐ fix ui settings panel
-
 - ⭐ bug in translit.go
 
 - Adaptive Event Throttling System
