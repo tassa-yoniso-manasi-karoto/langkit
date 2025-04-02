@@ -8,7 +8,35 @@
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
 
-    export let onClose: () => void;
+    // Track if we're currently resetting the animation state
+    let isResetting = false;
+    
+    export let onClose: () => void = () => { /* FIXME this reset doesn't work but claude keeps outputing the same code... whatever honestly.*/ 
+        // Set flag to prevent reactive updates during reset
+        isResetting = true;
+        
+        // First directly manipulate the DOM to forcefully remove animation classes
+        const button = document.querySelector('.debug-export-button');
+        if (button) {
+            // Force remove all animation classes
+            button.classList.remove('glow-success', 'glow-error', 'glow-reset');
+            // Force a repaint by adding a special force-reset class
+            button.classList.add('force-reset');
+        }
+        
+        // Reset state variables after DOM manipulation
+        exportSuccess = false;
+        exportError = '';
+        
+        // Use a timeout to allow the DOM to update before clearing reset state
+        setTimeout(() => {
+            if (button) {
+                button.classList.remove('force-reset');
+            }
+            isResetting = false;
+        }, 150);
+    };
+    
     export let version: string = "";
 
     interface LanguageCheckResponse {
@@ -105,17 +133,14 @@
     // Check if we should show dev-only features
     $: isDevVersion = version === "dev";
 
-    /*
-      We define a reactive variable "exportGlowClass" that is set to:
-        - "glow-success" if export succeeded,
-        - "glow-error" if export failed,
-        - "glow-default" otherwise.
-    */
-    $: exportGlowClass = exportSuccess
-        ? 'glow-success'
-        : exportError
-            ? 'glow-error'
-            : 'glow-default';
+    // Modified reactive declaration to handle reset state
+    $: exportGlowClass = isResetting
+        ? 'force-reset'
+        : exportSuccess
+            ? 'glow-success'
+            : exportError
+                ? 'glow-error'
+                : '';
 
     async function validateLanguages() {
         if (currentSettings.targetLanguage) {
@@ -483,14 +508,13 @@
                             <div class="space-y-4">
                                 <div class="flex items-center gap-4">
                                     <button
-                                        class="px-6 py-3 text-white rounded-lg font-semibold bg-bg-800/70 backdrop-blur-sm 
-                                               border-primary/80 transition-all duration-200 focus:outline-none 
-                                               hover:shadow-input hover:border-primary focus:shadow-input-focus
-                                               debug-export-button"
+                                        class="debug-export-button px-6 py-3 text-white rounded-lg font-semibold
+                                               bg-input-bg/50 backdrop-blur-sm focus:outline-none"
                                         on:click={exportDebugReport}
                                         disabled={isExportingDebug}
-                                        class:glow-success={exportGlowClass==='glow-success'}
-                                        class:glow-error={exportGlowClass==='glow-error'}
+                                        class:glow-success={exportGlowClass === 'glow-success'}
+                                        class:glow-error={exportGlowClass === 'glow-error'}
+                                        class:force-reset={exportGlowClass === 'force-reset'}
                                     >
                                         Export Debug Report
                                     </button>
@@ -519,7 +543,7 @@
                     <div class="p-6 border-t border-primary/30 flex justify-end gap-3 bg-bg-800/50">
                         <button
                             bind:this={cancelButton}
-                            class="px-4 py-2 text-white/90 border border-primary/30 transition-all duration-200 rounded-lg 
+                            class="px-4 py-2 text-white/90 border border-primary/30 transition-all duration-300 rounded-lg 
                                   hover:text-white hover:border-red-500/80 cancel-button"
                             on:click={onClose}
                             on:mouseenter={handleMouseEnter}
@@ -549,18 +573,6 @@
         backdrop-filter: blur(10px) !important; 
         -webkit-backdrop-filter: blur(10px) !important;
     }
-
-    /*:global(.settings-modal input:hover) {
-        background-color: hsla(var(--input-bg-hover), 0.8) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
-    }
-
-    :global(.settings-modal input:focus) {
-        background-color: hsla(var(--input-bg-focus), 0.9) !important;
-        backdrop-filter: blur(10px) !important;
-        -webkit-backdrop-filter: blur(10px) !important;
-    }*/
     
     /* Animated cancel button with propagating hover effect from entry point */
     :global(.settings-modal .cancel-button) {
@@ -601,9 +613,6 @@
       transform: scale(3);
     }
     
-    
-    
-
     /* Enhanced glassmorphic effect */
     .glass-input-container input:focus {
         backdrop-filter: blur(12px);
@@ -628,6 +637,170 @@
         background-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.8);
     }
 
+    /* Enhanced hover effect for section headers */
+    .settings-heading {
+        transition: text-shadow 0.2s ease;
+        position: relative;
+    }
+
+    .settings-heading:hover {
+        text-shadow: 0 0 10px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7);
+    }
+    
+    .settings-heading:hover .material-icons {
+        text-shadow: 0 0 15px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.9);
+    }
+    
+    /* Enhanced checkbox styles */
+    .checkbox-container:hover .custom-checkbox {
+        box-shadow: 0 0 8px 2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4);
+    }
+    
+    /* Enhanced debug export button with ambient glow */
+    .debug-export-button {
+        /* Base state - always have an ambient glow */
+        border: 2px solid hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.8);
+        box-shadow: 
+            0 0 8px 2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.35),
+            inset 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2);
+        
+        /* Define CSS variables for various states */
+        --ambient-glow-opacity: 0.35;
+        --hover-glow-opacity: 0.7; 
+        --focus-glow-opacity: 0.5;
+        --active-glow-opacity: 0.4;
+        
+        --ambient-glow-spread: 2px;
+        --hover-glow-spread: 4px;
+        --focus-glow-spread: 3px;
+        --active-glow-spread: 2px;
+        
+        --ambient-glow-blur: 8px;
+        --hover-glow-blur: 15px;
+        --focus-glow-blur: 10px;
+        --active-glow-blur: 10px;
+        
+        --success-color-light: hsla(145, 63%, 49%, 1);
+        --success-color-dark: hsla(145, 63%, 30%, 1);
+        --error-color-light: hsla(0, 84%, 60%, 1);
+        --error-color-dark: hsla(0, 84%, 45%, 1);
+        
+        /* Transition for all properties */
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    /* Hover state with stronger glow */
+    .debug-export-button:hover {
+        transform: translateY(-1px);
+        border-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 1);
+        box-shadow:
+            0 0 var(--hover-glow-blur) var(--hover-glow-spread) 
+                hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), var(--hover-glow-opacity)),
+            0 0 calc(var(--hover-glow-blur) * 1.5) calc(var(--hover-glow-spread) * 0.5) 
+                hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), calc(var(--hover-glow-opacity) * 0.5)),
+            inset 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25);
+    }
+    
+    /* Focus state with mild glow */
+    .debug-export-button:focus {
+        outline: none;
+        border-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.9);
+        box-shadow:
+            0 0 var(--focus-glow-blur) var(--focus-glow-spread) 
+                hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), var(--focus-glow-opacity)),
+            inset 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2);
+    }
+    
+    /* Keep mild glow when active */
+    .debug-export-button:active {
+        transform: translateY(0);
+        box-shadow:
+            0 0 var(--active-glow-blur) var(--active-glow-spread) 
+                hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), var(--active-glow-opacity)),
+            inset 0 0 4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25);
+    }
+    
+    /* Define CSS variables for focus state that will be used by animations */
+    .debug-export-button {
+        --focus-glow-shadow: 
+            0 0 var(--focus-glow-blur) var(--focus-glow-spread) 
+                hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), var(--focus-glow-opacity)),
+            inset 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2);
+        --focus-border-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.9);
+    }
+    
+    /* Success animation starting from focus state */
+    @keyframes glowSuccess {
+        0% {
+            box-shadow: var(--focus-glow-shadow);
+            border-color: var(--focus-border-color);
+        }
+        100% {
+            border-color: var(--success-color-light);
+            box-shadow:
+                0 0 8px 2px var(--success-color-light),
+                0 0 16px 4px hsla(145, 63%, 49%, 0.6),
+                0 0 24px 6px hsla(145, 63%, 49%, 0.4),
+                inset 0 0 3px hsla(145, 63%, 60%, 0.3);
+        }
+    }
+    
+    /* Error animation starting from focus state */
+    @keyframes glowError {
+        0% {
+            box-shadow: var(--focus-glow-shadow);
+            border-color: var(--focus-border-color);
+        }
+        100% {
+            border-color: var(--error-color-light);
+            box-shadow:
+                0 0 8px 2px var(--error-color-light),
+                0 0 16px 4px hsla(0, 84%, 60%, 0.6),
+                0 0 24px 6px hsla(0, 84%, 60%, 0.4),
+                inset 0 0 3px hsla(0, 84%, 70%, 0.3);
+        }
+    }
+    
+    /* Apply success animation */
+    :global(.glow-success) {
+        animation: glowSuccess 1s cubic-bezier(0.2, 0, 0.3, 1) forwards !important;
+    }
+    
+    /* Apply error animation */
+    :global(.glow-error) {
+        animation: glowError 1s cubic-bezier(0.2, 0, 0.3, 1) forwards !important;
+    }
+    
+    /* Force reset class to completely clear animation state 
+       This is more aggressive than glow-reset and directly manipulates the DOM */
+    :global(.force-reset) {
+        /* Kill all animations */
+        animation: none !important;
+        animation-fill-mode: none !important;
+        animation-play-state: paused !important;
+        
+        /* Force reset all properties that might be animated */
+        border-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.8) !important;
+        box-shadow: 
+            0 0 8px 2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.35) !important,
+            inset 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2) !important;
+        
+        /* Kill transitions to ensure immediate effect */
+        transition: none !important;
+        transform: none !important;
+        opacity: 1 !important;
+        
+        /* Force a repaint to clear any animation state */
+        will-change: transform !important;
+        transform: translateZ(0) !important;
+    }
+
+    /* Enhanced throttling control styles */
+    .disabled {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
     /* Enhanced settings panel drop shadow */
     .shadow-settings {
         box-shadow: 
@@ -648,74 +821,6 @@
             inset 0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
     }
 
-    /* Enhanced hover effect for section headers */
-    .settings-heading {
-        transition: text-shadow 0.2s ease;
-        position: relative;
-    }
-
-    .settings-heading:hover {
-        text-shadow: 0 0 10px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7);
-    }
-    
-    .settings-heading:hover .material-icons {
-        text-shadow: 0 0 15px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.9);
-    }
-    
-    /* Enhanced checkbox styles */
-    .checkbox-container:hover .custom-checkbox {
-        box-shadow: 0 0 8px 2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4);
-    }
-    
-    /* Enhanced debug export button */
-    .debug-export-button {
-        box-shadow: 0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
-    }
-    
-    /* Enhanced throttling control styles */
-    .disabled {
-        opacity: 0.5;
-        pointer-events: none;
-    }
-
-    @keyframes glowSuccess {
-        0% {
-            box-shadow: 
-                0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
-            border-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5);
-        }
-        100% {
-            border-color: #22c55e;
-            box-shadow:
-                0 0 8px 2px rgba(34, 197, 94, 0.5),
-                0 0 16px 4px rgba(34, 197, 94, 0.3),
-                0 0 24px 6px rgba(34, 197, 94, 0.2);
-        }
-    }
-
-    :global(.glow-success) {
-        animation: glowSuccess 1s forwards;
-    }
-
-    @keyframes glowError {
-        0% {
-            box-shadow: 
-                0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
-            border-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5);
-        }
-        100% {
-            border-color: #ef4444;
-            box-shadow:
-                0 0 8px 2px rgba(239, 68, 68, 0.5),
-                0 0 16px 4px rgba(239, 68, 68, 0.3),
-                0 0 24px 6px rgba(239, 68, 68, 0.15);
-        }
-    }
-
-    :global(.glow-error) {
-        animation: glowError 1s forwards;
-    }
-    
     /* Add text shadows to make white text more legible on translucent backgrounds */
     input, select {
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
