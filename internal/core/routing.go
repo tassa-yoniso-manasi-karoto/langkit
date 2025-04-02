@@ -96,6 +96,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		}
 	} else {
 		var tasks []Task
+		// initial scanning
 		err = filepath.Walk(userProvided, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return tsk.Handler.LogErr(err, AbortAllTasks,
@@ -108,12 +109,14 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			if !strings.HasSuffix(path, ".mp4") && !strings.HasSuffix(filename, ".mkv")  {
 				return nil
 			}
+			
 			tsk.NativeSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
 			if ok := tsk.checkIntegrity(); !ok  {
 				return nil
 			}
+			
 			if procErr := tsk.Autosub(); procErr != nil {
 				return nil // don't return err, other files may be processable
 			}
@@ -133,7 +136,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		}
 		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 			es.BulkProcessingDir = userProvided
-			es.ExpectedFileCount = len(tasks) // Will be populated after the walk function
+			es.ExpectedFileCount = len(tasks)
 		}) // necessity: high
 		
 		tsk.Handler.IncrementProgress(
@@ -145,7 +148,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			"Total media files done...",
 			"h-5",
 		)
-		//mediabar := mkMediabar(len(tasks))
+		
 		for idx, tsk := range tasks {
 			reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 				es.CurrentFileIndex = idx
@@ -249,3 +252,32 @@ func placeholder23456345467() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
 	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }
+
+
+			/* copypaste for debugging progressManager and progressbars (frontend's NotifySystem)
+			
+			if !changed {
+				rand.Seed(time.Now().UnixNano())
+				i := rand.Intn(10)
+				if idx > 7  &&  i > 5  {
+					return tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortAllTasks, "TEST ABORT ALL")
+					changed = true
+				} else if idx > 4000  && i < 5  {
+					tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortTask, "TEST ABORT ONE")
+					//tsk.Handler.ZeroLog().Error().Err(fmt.Errorf("error itself")).Msg("test simple error")
+					changed = true
+				}
+				time.Sleep(1 * time.Second)
+				if true { //idx < len(tasks)-1 {
+					tsk.Handler.IncrementProgress(
+						"media-bar",
+						1,
+						len(tasks),
+						10,
+						"Processing",
+						"Total media files done...",
+						"h-5",
+					)
+				}
+			}
+			continue*/
