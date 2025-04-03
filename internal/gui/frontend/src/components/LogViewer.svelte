@@ -52,24 +52,15 @@
     
     // Animation state tracking
     let animationInProgress = false;
-    let lastAnimationStartTime = 0;
-    let scrollAfterAnimationTimer: number | null = null;
     let pendingScrollToBottom = false;
     let forceScrollTimer: number | null = null;
     
-    // Processing state tracking
-    type ProcessingState = 'idle' | 'active' | 'winding-down';
-    let processingState: ProcessingState = 'idle';
-    let lastProcessingStateChange = Date.now();
+    // Timer management
     let postProcessingTimers: number[] = [];
-    let processingEndTime = 0;
     
     // Mass log addition detection
     let recentLogAdditions = 0;
     let lastLogRateCheck = Date.now();
-    let logRatePerSecond = 0;
-    let previousLogRatePerSecond = 0;
-    let logRateHistory: number[] = [0, 0, 0]; // Track recent rates
     
     // Viewport anchoring for stable scrolling
     let viewportAnchor: { 
@@ -186,7 +177,7 @@
         }
     }
     
-    // Track log volume rate for high volume scrolling
+    // Check for high log volume to handle scroll appropriately
     $: {
         if (filteredLogs.length > 0) {
             recentLogAdditions++;
@@ -194,15 +185,10 @@
             // Check log rate periodically
             const now = Date.now();
             if (now - lastLogRateCheck > 1000) { // Check every second
-                previousLogRatePerSecond = logRatePerSecond;
-                logRatePerSecond = recentLogAdditions;
-                
-                // Update log rate history
-                logRateHistory.shift();
-                logRateHistory.push(logRatePerSecond);
+                const currentRate = recentLogAdditions;
                 
                 // Schedule forced scroll for high volume scenarios
-                if (logRatePerSecond > 30 && autoScroll) {
+                if (currentRate > 30 && autoScroll) {
                     scheduleForceScroll();
                 }
                 
@@ -238,7 +224,6 @@
             
             // Set animation in progress flag
             animationInProgress = true;
-            lastAnimationStartTime = Date.now();
             
             // Schedule animation end after transition duration
             setTimeout(() => {
@@ -297,17 +282,12 @@
         }
     });
     
-    // Post-processing auto-scroll based on direct isProcessing signal
+    // Schedule scroll checks after processing completes
     function schedulePostProcessingScrolls() {
         // Cancel any existing timers
         cancelPostProcessingChecks();
         
-        // Use staggered timing to catch all rendering
-        // These carefully chosen times account for: 
-        // 1. Log batch processing time
-        // 2. DOM rendering time
-        // 3. Animation completion
-        // 4. UI stability
+        // Use staggered timing to catch all rendering phases
         const checkTimes = [100, 300, 600, 1000, 1500];
         
         checkTimes.forEach((delay, index) => {
@@ -811,7 +791,7 @@
             // Additionally, schedule a forced scroll to handle any edge cases
             scheduleForceScroll(100);
             
-            // If processing recently ended, schedule post-processing scrolls
+            // If processing just ended, schedule post-processing scrolls
             if (!isProcessing && prevIsProcessing === false) {
                 schedulePostProcessingScrolls();
             }
@@ -1085,11 +1065,6 @@
             batchMeasurementTimer = null;
         }
         
-        if (scrollAfterAnimationTimer) {
-            clearTimeout(scrollAfterAnimationTimer);
-            scrollAfterAnimationTimer = null;
-        }
-        
         if (forceScrollTimer) {
             clearTimeout(forceScrollTimer);
             forceScrollTimer = null;
@@ -1169,7 +1144,7 @@
                 
                 <!-- Debug info -->
                 <span class="text-xs text-primary/50">
-                    {filteredLogs.length} logs {virtualEnabled ? '| ' + visibleLogCount + ' visible' : ''} {processingState !== 'idle' ? '| ' + processingState.toUpperCase() : ''}
+                    {filteredLogs.length} logs {virtualEnabled ? '| ' + visibleLogCount + ' visible' : ''} {isProcessing ? '| PROCESSING' : ''}
                 </span>
             {/if}
         </div>
