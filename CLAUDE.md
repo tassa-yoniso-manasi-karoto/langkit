@@ -9,7 +9,7 @@
 - Install Wails CLI (required): `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 
 ## Code Style Guidelines
-- In Svelte / Typescript, the template literals with interpolation (${variable}) can break syntax highlightingin some IDE, avoid using then and prefer simple string concatenations.
+- In Svelte / Typescript, the template literals with interpolation (${variable}) break syntax highlighting in my IDE, don't use them and prefer simple string concatenations.
 - **Imports**: Standard library first, third-party next, internal packages last
 - **Naming**: 
   - Variables/Functions: camelCase

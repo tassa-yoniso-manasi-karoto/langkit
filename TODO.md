@@ -12,7 +12,7 @@
  
 - appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
 
-- merge checkbox locked in GUI?
+- merge option checkbox locked in GUI?
 
 - GUI options:
   - condensed audio toggle
