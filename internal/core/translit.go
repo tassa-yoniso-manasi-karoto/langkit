@@ -421,7 +421,7 @@ func (p *GenericProvider) Close(ctx context.Context, languageCode, RomanizationS
 	}
 	for _, scheme := range schemes {
 		if RomanizationStyle == scheme.Name && scheme.NeedsScraper {
-			color.Redln("not closing instance for %s provider since it's a user-started browser", languageCode)
+			color.Redf("not closing instance for %s provider since it's a user-started browser", languageCode)
 			return nil
 		}
 	}

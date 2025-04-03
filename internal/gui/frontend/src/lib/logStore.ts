@@ -43,13 +43,13 @@ function createLogStore() {
             // Extract the original timestamp
             const originalTime = logData.time || new Date().toISOString();
             
-            // Format display time (HH:MM:SS)
+            // Format display time (HH:MM:SS) - no milliseconds
             const displayTime = new Date(originalTime).toLocaleTimeString('en-US', {
                 hour12: false,
                 hour: '2-digit',
                 minute: '2-digit',
-                second: '2-digit',
-                fractionalSecondDigits: 3
+                second: '2-digit'
+                // fractionalSecondDigits removed as requested
             });
             
             // Use unix timestamp if available, otherwise parse ISO string
@@ -209,6 +209,7 @@ function createLogStore() {
     
     /**
      * Process accumulated logs in a batch for efficiency
+     * UPDATED: No longer caps logs at maxEntries - keeps all logs
      */
     function processLogBatch() {
         if (processingBatch || pendingBatch.length === 0) return;
@@ -223,23 +224,15 @@ function createLogStore() {
         const batchToProcess = [...pendingBatch];
         pendingBatch = [];
         
-        // Update the store
+        // Update the store - NO longer capping logs
         update(logs => {
-            // Get settings for max entries
-            const maxEntries = get(settings).maxLogEntries || 10000;
-            
-            // Merge-insert the logs
+            // Merge-insert all logs without capping
             const mergedLogs = mergeInsertLogs(logs, batchToProcess);
             
-            // Cap logs if needed
-            const cappedLogs = mergedLogs.length > maxEntries
-                ? mergedLogs.slice(-maxEntries)
-                : mergedLogs;
-            
             // Rebuild index
-            rebuildIndex(cappedLogs);
+            rebuildIndex(mergedLogs);
             
-            return cappedLogs;
+            return mergedLogs;
         });
         
         processingBatch = false;
@@ -325,6 +318,12 @@ function createLogStore() {
     const debugLogs = derived(subscribe, ($logs) => 
         $logs.filter(log => log.level?.toUpperCase() === 'DEBUG')
     );
+    
+    // NEW: Derived store to check if logs exceed max entries
+    const exceededMaxEntries = derived([subscribe, settings], ([$logs, $settings]) => {
+        const maxEntries = $settings?.maxLogEntries || 5000;
+        return $logs.length > maxEntries;
+    });
 
     return {
         subscribe,
@@ -335,11 +334,15 @@ function createLogStore() {
         getLogIndexBySequence,
         hasVisibleLogs,
         setLogsVisible,
-        // Derived stores for each log level
+        
+        // Derived stores for log levels
         errorLogs,
         warnLogs,
         infoLogs,
-        debugLogs
+        debugLogs,
+        
+        // NEW: Derived store to check if logs exceed max entries
+        exceededMaxEntries
     };
 }
 

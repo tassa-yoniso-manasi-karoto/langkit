@@ -1,9 +1,4 @@
 
-- ⭐ bug in translit.go
-
-- Adaptive Event Throttling System
-  - virtual log view → must std log entry height
-
 - go-rod
   - correct reverted Hovertip for Browser Access URL + GIT BLAME
   - ⭐ make currenlty running browser download known in the GUI
@@ -21,7 +16,7 @@
 
 - GUI options:
   - condensed audio toggle
-  - dubs allow user to request cached sep voice file deletion
+  - dubs allow user to request cached sep voice file deletion → in Settings
   
 - coffee icon
 

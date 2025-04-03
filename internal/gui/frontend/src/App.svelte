@@ -818,7 +818,7 @@
                  role="region"
                  aria-live="polite"
             >
-                <LogViewer version={version} />
+                <LogViewer version={version} isProcessing={isProcessing} />
             </div>
         {/if}
     </div>

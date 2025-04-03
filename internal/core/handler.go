@@ -420,10 +420,10 @@ func (h *GUIHandler) SetHighLoadMode(durations ...time.Duration) {
 	if h.throttler != nil {
 		// Pass the optional duration to the throttler
 		if len(durations) > 0 {
-			h.ZeroLog().Debug().Dur("duration", durations[0]).Msg("Entering high load mode with custom duration")
+			h.ZeroLog().Trace().Dur("duration", durations[0]).Msg("Entering high load mode with custom duration")
 			h.throttler.SetHighLoadModeWithTimeout(durations[0])
 		} else {
-			h.ZeroLog().Debug().Msg("Entering high load mode with default duration")
+			h.ZeroLog().Trace().Msg("Entering high load mode with default duration")
 			h.throttler.SetHighLoadModeWithTimeout()
 		}
 	} else {
