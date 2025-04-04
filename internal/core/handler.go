@@ -47,6 +47,9 @@ type MessageHandler interface {
 	// SetHighLoadMode enables high performance processing for intensive operations
 	// Optional duration parameter - defaults to 5 seconds if not provided
 	SetHighLoadMode(durations ...time.Duration)
+	
+	// GetContext returns the context for operations like crash reporting
+	GetContext() context.Context
 }
 
 // #############################################################################
@@ -179,6 +182,11 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 func (h *CLIHandler) SetHighLoadMode(durations ...time.Duration) {
 	// No-op for CLI mode
 	h.logger.Trace().Msg("handler.SetHighLoadMode called (no-op in CLI mode)")
+}
+
+// GetContext returns the handler's context for use in crash handling
+func (h *CLIHandler) GetContext() context.Context {
+	return h.ctx
 }
 
 
@@ -429,6 +437,11 @@ func (h *GUIHandler) SetHighLoadMode(durations ...time.Duration) {
 	} else {
 		h.ZeroLog().Warn().Msg("Cannot enter high load mode: throttler is nil")
 	}
+}
+
+// GetContext returns the handler's context for use in crash handling
+func (h *GUIHandler) GetContext() context.Context {
+	return h.ctx
 }
 
 

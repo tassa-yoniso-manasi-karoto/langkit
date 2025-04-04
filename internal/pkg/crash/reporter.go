@@ -217,6 +217,28 @@ func (r *ReporterInstance) GetUptime() time.Duration {
 	return time.Since(r.startTime)
 }
 
+// GetSnapshot returns the state for a specific snapshot step
+func (r *ReporterInstance) GetSnapshot(step string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
+	// Check global snapshots first
+	for i := len(r.globalSnapshots) - 1; i >= 0; i-- {
+		if r.globalSnapshots[i].Step == step {
+			return r.globalSnapshots[i].State
+		}
+	}
+	
+	// If not found in global, check execution snapshots
+	for i := len(r.currentSnapshots) - 1; i >= 0; i-- {
+		if r.currentSnapshots[i].Step == step {
+			return r.currentSnapshots[i].State
+		}
+	}
+	
+	return "" // Return empty string if snapshot not found
+}
+
 
 func placeholder45654() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")

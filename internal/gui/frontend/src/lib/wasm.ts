@@ -1,4 +1,4 @@
-// src/lib/wasm.ts - Incorporating Phase 4 changes
+// src/lib/wasm.ts - Simplified direct implementation without command pattern
 import { wasmLogger, WasmLogLevel } from './wasm-logger';
 import { 
   WasmInitStatus, 
@@ -11,7 +11,6 @@ import {
 } from './wasm-state';
 import { settings } from './stores';
 import { get } from 'svelte/store';
-import { getCommandExecutor, UpdateMemoryCommand, SetErrorCommand } from './wasm-commands';
 
 // --- State ---
 let wasmModule: any = null;
@@ -228,14 +227,8 @@ export async function initializeWasm(): Promise<boolean> {
       wasmState.initStatus = WasmInitStatus.FAILED; // Update state directly
       wasmState.initTime = initTime; // Record init time even on failure
       
-      // Use command pattern for error handling if executor is available
-      try {
-        const executor = getCommandExecutor();
-        executor.enqueue(new SetErrorCommand(error));
-      } catch (cmdError) {
-        // Fallback to direct method if command executor not available
-        setWasmError(error); // This also calls reportWasmState
-      }
+      // Update error state directly
+      setWasmError(error); // This also calls reportWasmState
       
       wasmLogger.log(
         WasmLogLevel.ERROR, 
@@ -271,15 +264,20 @@ function scheduleMemoryCheck() {
       try {
         const memoryInfo = wasmModule.get_memory_usage();
         
-        // Use command pattern for memory updates
-        try {
-          const executor = getCommandExecutor();
-          executor.enqueue(new UpdateMemoryCommand(memoryInfo));
-        } catch (cmdError) {
-          // Fallback to direct method if command executor not available
-          updateMemoryUsage(memoryInfo); 
-          // The UpdateMemoryCommand in wasm-commands already logs warnings
-        }
+        // Update memory usage directly
+        updateMemoryUsage(memoryInfo);
+        
+        // Log memory info periodically
+        wasmLogger.log(
+          WasmLogLevel.DEBUG, 
+          'memory', 
+          'Memory usage check', 
+          {
+            utilization: (memoryInfo.utilization * 100).toFixed(1) + '%',
+            used: (memoryInfo.used_bytes / 1024 / 1024).toFixed(2) + 'MB',
+            total: (memoryInfo.total_bytes / 1024 / 1024).toFixed(2) + 'MB'
+          }
+        );
         
       } catch (e: any) {
         wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Memory check failed: ${e.message}`);

@@ -9,12 +9,9 @@
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
-    // Remove command executor imports
-    // import { initializeCommandExecutor, ShutdownCommand } from './lib/wasm-commands'; 
-    import { enableWasm, setWasmSizeThreshold, isWasmEnabled } from './lib/wasm'; // Added isWasmEnabled
-    import { wasmLogger, WasmLogLevel } from './lib/wasm-logger'; // Phase 1
-    import { reportWasmState, syncWasmStateForReport } from './lib/wasm-state'; // Phase 1 & 3
-    // import { errorStore } from './lib/errorStore'; // Already imported above
+    import { enableWasm, setWasmSizeThreshold, isWasmEnabled, getWasmModule } from './lib/wasm'; 
+    import { wasmLogger, WasmLogLevel } from './lib/wasm-logger';
+    import { reportWasmState, syncWasmStateForReport } from './lib/wasm-state';
 
     // Import window API from Wails
     import { WindowIsMinimised, WindowIsMaximised } from '../wailsjs/runtime/runtime';
@@ -514,85 +511,185 @@
         // Check window state every 2 seconds to optimize resource usage
         windowCheckInterval = window.setInterval(checkWindowState, 2000);
         
-        // --- WASM Initialization (Phase 1 & 4, simplified) ---
+        // --- WebAssembly Initialization ---
         try {
-            // No command executor initialization needed
-            // wasmLogger.log(WasmLogLevel.INFO, 'init', 'Command executor initialized.'); // Removed log
-
-            // Load settings before initializing WASM
+            // First, log the WebAssembly startup
+            wasmLogger.log(WasmLogLevel.INFO, 'init', 'Starting WebAssembly subsystem initialization');
+            
+            // Load settings before initializing WebAssembly
             await loadSettings(); 
-            const $currentSettings = get(settings); // Get latest settings after load
-
+            const $currentSettings = get(settings);
+            
+            // Check if WebAssembly is supported by the browser
+            if (!await import('./lib/wasm').then(m => m.isWasmSupported())) {
+                wasmLogger.log(WasmLogLevel.WARN, 'init', 'WebAssembly is not supported by this browser');
+                errorStore.addError({
+                    id: 'wasm-not-supported',
+                    message: 'WebAssembly is not supported by your browser. Some optimizations will be disabled.',
+                    severity: 'warning',
+                    dismissible: true,
+                });
+                
+                // Update settings to disable WebAssembly if it was enabled
+                if ($currentSettings.useWasm) {
+                    const updatedSettings = {
+                        ...$currentSettings,
+                        useWasm: false
+                    };
+                    settings.set(updatedSettings);
+                    await SaveSettings(updatedSettings);
+                }
+                
+                // Skip remaining WebAssembly initialization
+                return;
+            }
+            
+            // Setup the request-wasm-state event handler for crash reporting
+            EventsOn("request-wasm-state", () => {
+                wasmLogger.log(WasmLogLevel.DEBUG, 'backend', 'Backend requested WebAssembly state');
+                
+                // Update memory info if WebAssembly is active
+                try {
+                    const module = getWasmModule();
+                    if (module && module.get_memory_usage) {
+                        const memInfo = module.get_memory_usage();
+                        // Direct update via imported function - no command pattern
+                        import('./lib/wasm-state').then(m => m.updateMemoryUsage(memInfo));
+                    }
+                } catch (e: any) {
+                    wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Failed to get memory info: ${e.message}`);
+                }
+                
+                // Send current state to backend
+                syncWasmStateForReport();
+            });
+            
             // Listen for settings changes to enable/disable WebAssembly
-            settings.subscribe(async ($settingsValue) => {
-                // Check if useWasm exists and has changed
-                if ($settingsValue.useWasm !== undefined && $settingsValue.useWasm !== $currentSettings.useWasm) { 
+            settings.subscribe(async ($newSettings) => {
+                // Only process WebAssembly settings if they've changed
+                if ($newSettings.useWasm !== undefined && $newSettings.useWasm !== $currentSettings.useWasm) {
+                    wasmLogger.log(
+                        WasmLogLevel.INFO, 
+                        'config', 
+                        `WebAssembly setting changed to: ${$newSettings.useWasm ? 'enabled' : 'disabled'}`
+                    );
+                    
                     try {
-                        const wasEnabled = await enableWasm($settingsValue.useWasm);
-                        if (wasEnabled) {
+                        const wasEnabled = await enableWasm($newSettings.useWasm);
+                        
+                        if ($newSettings.useWasm) {
+                            if (wasEnabled) {
+                                wasmLogger.log(
+                                    WasmLogLevel.INFO,
+                                    'config', 
+                                    'WebAssembly successfully enabled via settings'
+                                );
+                                
+                                // Apply threshold from settings
+                                if ($newSettings.wasmSizeThreshold) {
+                                    setWasmSizeThreshold($newSettings.wasmSizeThreshold);
+                                    wasmLogger.log(
+                                        WasmLogLevel.INFO, 
+                                        'config', 
+                                        `Set WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
+                                    );
+                                }
+                            } else {
+                                // Handle case where enabling failed
+                                errorStore.addError({
+                                    id: 'wasm-init-failed',
+                                    message: 'Failed to initialize WebAssembly optimization.',
+                                    severity: 'warning',
+                                    dismissible: true,
+                                });
+                            }
+                        } else {
                             wasmLogger.log(
                                 WasmLogLevel.INFO,
                                 'config', 
-                                'WebAssembly enabled and initialized successfully via settings change.'
+                                'WebAssembly disabled via settings'
                             );
-                            // Set size threshold from settings
-                            if ($settingsValue.wasmSizeThreshold) {
-                                setWasmSizeThreshold($settingsValue.wasmSizeThreshold);
-                            }
-                        } else if ($settingsValue.useWasm) {
-                            // Handle case where enabling was requested but failed
-                            errorStore.addError({
-                                id: 'wasm-init-failed-setting',
-                                message: 'Failed to initialize WebAssembly optimization after enabling in settings.',
-                                severity: 'warning',
-                                dismissible: true,
-                            });
                         }
                     } catch (error: any) {
-                        wasmLogger.log(WasmLogLevel.ERROR, 'config', `Error handling WASM setting change: ${error.message}`);
+                        wasmLogger.log(
+                            WasmLogLevel.ERROR, 
+                            'config', 
+                            `Error applying WebAssembly setting: ${error.message}`
+                        );
+                        
                         errorStore.addError({
                             id: 'wasm-setting-error',
                             message: `Error applying WebAssembly setting: ${error.message}`,
-                            severity: 'critical',
+                            severity: 'warning',
                             dismissible: true,
                         });
                     }
-                } else if ($settingsValue.wasmSizeThreshold !== $currentSettings.wasmSizeThreshold) {
-                     // Handle threshold change if WASM is already enabled
-                     if (isWasmEnabled()) {
-                         setWasmSizeThreshold($settingsValue.wasmSizeThreshold);
-                     }
+                } 
+                // Handle threshold changes separately
+                else if ($newSettings.wasmSizeThreshold !== undefined && 
+                         $newSettings.wasmSizeThreshold !== $currentSettings.wasmSizeThreshold) {
+                    if (isWasmEnabled()) {
+                        setWasmSizeThreshold($newSettings.wasmSizeThreshold);
+                        wasmLogger.log(
+                            WasmLogLevel.INFO, 
+                            'config', 
+                            `Updated WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
+                        );
+                    }
                 }
             });
 
-            // Initialize WASM on startup if enabled in loaded settings
+            // Initialize WebAssembly on startup if enabled in settings
             if ($currentSettings.useWasm) {
-                wasmLogger.log(WasmLogLevel.INFO, 'init', 'Attempting initial WASM initialization based on settings...');
-                await enableWasm(true); // This will trigger initializeWasm if needed
+                wasmLogger.log(
+                    WasmLogLevel.INFO, 
+                    'init', 
+                    'Initializing WebAssembly based on saved settings'
+                );
+                
+                const wasEnabled = await enableWasm(true);
+                
+                if (wasEnabled) {
+                    wasmLogger.log(
+                        WasmLogLevel.INFO, 
+                        'init', 
+                        'WebAssembly initialized successfully on application startup'
+                    );
+                    
+                    // Apply threshold from settings
+                    if ($currentSettings.wasmSizeThreshold) {
+                        setWasmSizeThreshold($currentSettings.wasmSizeThreshold);
+                    }
+                } else {
+                    wasmLogger.log(
+                        WasmLogLevel.WARN, 
+                        'init', 
+                        'WebAssembly initialization failed on startup, check browser console for details'
+                    );
+                }
+            } else {
+                wasmLogger.log(
+                    WasmLogLevel.INFO, 
+                    'init', 
+                    'WebAssembly optimization is disabled in settings'
+                );
             }
 
-            // Listen for request to send WASM state from backend (Phase 3)
-            EventsOn("request-wasm-state", async () => {
-                wasmLogger.log(WasmLogLevel.DEBUG, 'backend', 'Backend requested WebAssembly state sync for report');
-                try {
-                    // syncWasmStateForReport is synchronous now
-                    syncWasmStateForReport(); 
-                    wasmLogger.log(WasmLogLevel.INFO, 'backend', 'WebAssembly state synchronized for report');
-                } catch (error: any) {
-                    wasmLogger.log(WasmLogLevel.ERROR, 'backend', `Failed to sync WebAssembly state: ${error.message}`);
-                }
-            });
-
         } catch (initError: any) {
-            wasmLogger.log(WasmLogLevel.CRITICAL, 'init', `Critical error during WASM setup: ${initError.message}`); // Simplified message
+            wasmLogger.log(
+                WasmLogLevel.CRITICAL, 
+                'init', 
+                `Critical error during WebAssembly setup: ${initError.message}`
+            );
+            
             errorStore.addError({
                 id: 'wasm-critical-init-error',
-                message: `Critical error during application initialization: ${initError.message}`,
-                severity: 'critical',
-                dismissible: false, // This might be a fatal error
+                message: `Error during application initialization: ${initError.message}`,
+                severity: 'warning',
+                dismissible: true,
             });
         }
-        // --- End WASM Initialization ---
+        // --- End WebAssembly Initialization ---
         
         // Defer loading of the Feature Selector component until main UI has rendered
         // This improves perceived performance and creates a nicer sequential reveal effect
@@ -697,15 +794,30 @@
     // Cleanup on component destruction
     onDestroy(() => {
         if (windowCheckInterval) clearInterval(windowCheckInterval);
-        // Need to remove listeners added in onMount
-        if (handleTransitionEnd) { // Check if function is defined before removing
+        // Remove listeners added in onMount
+        if (handleTransitionEnd) {
            document.removeEventListener('transitionend', handleTransitionEnd); 
         }
-        if (updateLogViewerButtonPosition) { // Check if function is defined before removing
+        if (updateLogViewerButtonPosition) {
            window.removeEventListener('resize', updateLogViewerButtonPosition); 
         }
         
-        // No command executor shutdown needed
+        // Log application shutdown
+        wasmLogger.log(WasmLogLevel.INFO, 'shutdown', 'Application shutting down, performing cleanup');
+        
+        // Force garbage collection if WebAssembly is active
+        try {
+            const module = getWasmModule();
+            if (module && module.force_garbage_collection) {
+                module.force_garbage_collection();
+                wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Performed final garbage collection during shutdown');
+            }
+        } catch (e: any) {
+            wasmLogger.log(WasmLogLevel.WARN, 'shutdown', `Failed to perform final cleanup: ${e.message}`);
+        }
+        
+        // Report final state for crash reporting
+        syncWasmStateForReport();
     });
 </script>
 

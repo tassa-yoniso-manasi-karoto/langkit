@@ -26,4 +26,25 @@ export default defineConfig({
     postcss: './postcss.config.cjs',
     devSourcemap: true,
   },
+  // Add optimized WebAssembly handling
+  optimizeDeps: {
+    // Exclude WebAssembly files from dependency optimization
+    exclude: ['log_engine']
+  },
+  build: {
+    // Ensure WebAssembly files are properly handled in production builds
+    rollupOptions: {
+      external: [
+        // Prevent Vite from trying to process these files
+        /\/wasm\/log_engine\.js/,
+        /\/wasm\/log_engine_bg\.wasm/
+      ],
+      output: {
+        // Preserve the WebAssembly module structure
+        manualChunks: {}
+      }
+    },
+    // Increase chunk size limit for WASM files
+    chunkSizeWarningLimit: 1000
+  }
 })

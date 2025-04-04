@@ -2,6 +2,8 @@
 name = "log-engine"
 version = "0.1.0"
 edition = "2021"
+description = "WebAssembly optimization module for log processing in Langkit"
+authors = ["tassa-yoniso-manasi-karoto <awp4imdrdpwh@posteo.de>"]
 
 [lib]
 crate-type = ["cdylib"]

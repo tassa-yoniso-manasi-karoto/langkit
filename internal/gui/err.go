@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"io"
+	"time"
 	
 	"github.com/ncruces/zenity"
 	"github.com/gookit/color"
@@ -21,6 +22,13 @@ func (a *App) ExportDebugReport() error {
 		a.logger.Debug().Msg("Flushing throttler before generating debug report")
 		a.throttler.SyncFlush()
 	}
+	
+	// Request WebAssembly state for the report
+	a.RequestWasmState()
+	
+	// Small delay to allow frontend to respond with state
+	a.logger.Debug().Msg("Waiting for WebAssembly state response...")
+	time.Sleep(300 * time.Millisecond) // Slightly longer delay for debug report to ensure response
 	
 	settings, err := config.LoadSettings()
 	if err != nil {
@@ -106,6 +114,13 @@ func exitOnError(mainErr error) {
 	// Flush any pending events if throttler is available
 	if appThrottler != nil {
 		appThrottler.SyncFlush()
+	}
+	
+	// In case of crash, try to get WebAssembly state
+	// This is a best-effort attempt - there's no guarantee it will succeed in crash scenarios
+	if handler != nil && handler.GetContext() != nil {
+		runtime.EventsEmit(handler.GetContext(), "request-wasm-state")
+		time.Sleep(200 * time.Millisecond) // Brief delay to allow frontend to respond
 	}
 	
 	_, err = crash.WriteReport(crash.ModeCrash, mainErr, settings, handler.GetLogBuffer(), false)

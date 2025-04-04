@@ -2,6 +2,7 @@ package crash
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -183,6 +184,39 @@ func writeReportContent(
 
 		// 6. Execution snapshots
 		fmt.Fprintf(w, "%s\n", Reporter.GetSnapshotsString())
+	}
+
+	// 6.5 WebAssembly status (if available)
+	if Reporter != nil {
+		fmt.Fprintln(w, "WEBASSEMBLY STATUS")
+		fmt.Fprintln(w, "==================")
+		
+		// Check for WebAssembly snapshot
+		wasmSnapshot := Reporter.GetSnapshot("wasm_state")
+		if wasmSnapshot != "" {
+			var state map[string]interface{}
+			if err := json.Unmarshal([]byte(wasmSnapshot), &state); err == nil {
+				fmt.Fprintf(w, "Status: %v\n", state["initStatus"])
+				
+				if metrics, ok := state["performanceMetrics"].(map[string]interface{}); ok {
+					fmt.Fprintf(w, "Operations: %v\n", state["totalOperations"])
+					fmt.Fprintf(w, "Speed Ratio: %.2fx\n", metrics["speedupRatio"])
+				}
+				
+				if memUsage, ok := state["memoryUsage"].(map[string]interface{}); ok {
+					fmt.Fprintf(w, "Memory Usage: %.1f%%\n", memUsage["utilization"].(float64)*100)
+				}
+				
+				if err, ok := state["lastError"].(map[string]interface{}); ok {
+					fmt.Fprintf(w, "Last Error: %s\n", err["message"])
+				}
+			} else {
+				fmt.Fprintln(w, "WebAssembly state available but failed to parse")
+			}
+		} else {
+			fmt.Fprintln(w, "WebAssembly: Not initialized or state not available")
+		}
+		fmt.Fprintln(w, "")
 	}
 
 	// 7. System / runtime info
