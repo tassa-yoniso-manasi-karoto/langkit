@@ -53,8 +53,48 @@ import {
 import { settings } from './stores';
 import { get } from 'svelte/store';
 
+// Add this interface for proper type safety
+// Add these error classes for better error handling
+export class WasmInitializationError extends Error {
+  constructor(message: string, public context?: any) {
+    super(message);
+    this.name = 'WasmInitializationError';
+  }
+}
+
+export class WasmMemoryError extends Error {
+  constructor(message: string, public memoryInfo?: any) {
+    super(message);
+    this.name = 'WasmMemoryError';
+  }
+}
+
+export class WasmOperationError extends Error {
+  constructor(message: string, public operation: string, public details?: any) {
+    super(message);
+    this.name = 'WasmOperationError';
+  }
+}
+
+export interface WasmModule {
+  merge_insert_logs: (existingLogs: any[], newLogs: any[]) => any[];
+  get_memory_usage: () => {
+    total_bytes: number;
+    used_bytes: number;
+    utilization: number;
+    peak_bytes?: number;
+    allocation_count?: number;
+  };
+  force_garbage_collection: () => void;
+  estimate_memory_for_logs: (logCount: number) => {
+    estimated_bytes: number;
+    current_available: number;
+    would_fit: boolean;
+  };
+}
+
 // --- State ---
-let wasmModule: any = null;
+let wasmModule: WasmModule | null = null;
 let wasmInitialized = false;
 let wasmEnabled = false;
 let initializePromise: Promise<boolean> | null = null;
@@ -159,7 +199,7 @@ export function isWasmSupported(): boolean {
  * Gets the WebAssembly module with proper type checking
  * @returns The WebAssembly module or null if not initialized
  */
-export function getWasmModule(): any | null {
+export function getWasmModule(): WasmModule | null {
   return wasmModule;
 }
 
@@ -189,7 +229,10 @@ export async function initializeWasm(): Promise<boolean> {
     
     try {
       if (!isWasmSupported()) {
-        throw new Error("WebAssembly not supported in this browser");
+        throw new WasmInitializationError("WebAssembly not supported in this browser", {
+          runtime: "wails",
+          timestamp: Date.now()
+        });
       }
       
       // First, fetch build info to get version for cache busting (Phase 4)
@@ -204,7 +247,10 @@ export async function initializeWasm(): Promise<boolean> {
             `WebAssembly build info loaded - version ${wasmBuildInfo?.version}`
           );
         } else {
-           throw new Error(`Failed to fetch build info: ${buildInfoResponse.statusText}`);
+           throw new WasmInitializationError(`Failed to fetch build info: ${buildInfoResponse.statusText}`, {
+             status: buildInfoResponse.status,
+             url: buildInfoResponse.url
+           });
         }
       } catch (buildInfoError: any) {
         wasmLogger.log(
@@ -290,6 +336,40 @@ export async function initializeWasm(): Promise<boolean> {
   return initializePromise;
 }
 
+// Check memory thresholds and issue warnings when needed
+function checkMemoryThresholds(): void {
+  if (!isWasmEnabled() || !wasmModule) return;
+  
+  try {
+    const memoryInfo = wasmModule.get_memory_usage();
+    
+    // Define warning thresholds
+    if (memoryInfo.utilization > 0.85) {
+      wasmLogger.log(
+        WasmLogLevel.WARN,
+        'memory',
+        `Critical memory pressure: ${(memoryInfo.utilization * 100).toFixed(1)}% used`,
+        { memoryInfo }
+      );
+      // Force garbage collection at critical levels
+      wasmModule.force_garbage_collection();
+    } else if (memoryInfo.utilization > 0.7) {
+      wasmLogger.log(
+        WasmLogLevel.WARN,
+        'memory',
+        `High memory pressure: ${(memoryInfo.utilization * 100).toFixed(1)}% used`,
+        { memoryInfo }
+      );
+    }
+  } catch (e: any) {
+    wasmLogger.log(
+      WasmLogLevel.ERROR, 
+      'memory', 
+      `Memory check failed: ${e.message}`
+    );
+  }
+}
+
 // Schedule regular memory checks when WASM is in use
 function scheduleMemoryCheck() {
   if (!wasmInitialized || !wasmModule) return;
@@ -311,6 +391,9 @@ function scheduleMemoryCheck() {
         // Update memory usage directly
         updateMemoryUsage(memoryInfo);
         
+        // Check memory thresholds
+        checkMemoryThresholds();
+        
         // Log memory info periodically
         wasmLogger.log(
           WasmLogLevel.DEBUG, 
@@ -328,41 +411,52 @@ function scheduleMemoryCheck() {
       }
     }
   }, 30000);
+  
+  // Run more frequent memory threshold checks (every 10 seconds)
+  setInterval(() => {
+    if (wasmModule && wasmState.lastUsed && Date.now() - wasmState.lastUsed < 300000) {
+      checkMemoryThresholds();
+    }
+  }, 10000);
 }
 
 /**
  * Automatic garbage collection scheduler to prevent memory leaks
- * in long-running sessions
+ * in long-running sessions with adaptive intervals based on memory pressure
  */
 function setupAutomaticGarbageCollection(): void {
   let lastGcTime = Date.now();
   let consecutiveHighMemory = 0;
+  let adaptiveGcInterval = 60000; // Start with 1 minute
   
-  // Check memory every 30 seconds
-  setInterval(() => {
+  // Adaptive interval adjustment based on memory pressure
+  const checkAndAdjustInterval = () => {
     if (!isWasmEnabled() || !wasmModule) return;
     
     try {
       // Get memory info
       const memoryInfo = wasmModule.get_memory_usage();
       
-      // Determine if GC is needed based on thresholds and time
-      const needsGc = (
-        // Always GC after 5 minutes of continuous use
-        Date.now() - lastGcTime > 5 * 60 * 1000 ||
-        // Or when utilization is high
-        memoryInfo.utilization > 0.7
-      );
-      
-      // Track consecutive high memory readings
-      if (memoryInfo.utilization > 0.7) {
+      // Adjust interval based on utilization
+      if (memoryInfo.utilization > 0.8) {
+        adaptiveGcInterval = 15000; // Every 15 seconds under high pressure
         consecutiveHighMemory++;
+      } else if (memoryInfo.utilization > 0.6) {
+        adaptiveGcInterval = 30000; // Every 30 seconds under moderate pressure
+        consecutiveHighMemory = Math.max(0, consecutiveHighMemory - 1);
       } else {
+        adaptiveGcInterval = 60000; // Every minute under low pressure
         consecutiveHighMemory = 0;
       }
       
-      // Force GC on sustained high memory usage
-      if (consecutiveHighMemory >= 3 || needsGc) {
+      // Determine if GC is needed
+      const needsGc = (
+        Date.now() - lastGcTime > adaptiveGcInterval ||
+        memoryInfo.utilization > 0.7 ||
+        consecutiveHighMemory >= 3
+      );
+      
+      if (needsGc) {
         wasmLogger.log(
           WasmLogLevel.INFO,
           'memory',
@@ -370,6 +464,7 @@ function setupAutomaticGarbageCollection(): void {
           {
             utilization: (memoryInfo.utilization * 100).toFixed(1) + '%',
             timeSinceLastGc: formatTime(Date.now() - lastGcTime),
+            adaptiveGcInterval: formatTime(adaptiveGcInterval),
             consecutiveHighMemory
           }
         );
@@ -386,7 +481,13 @@ function setupAutomaticGarbageCollection(): void {
         `Automatic garbage collection failed: ${e.message}`
       );
     }
-  }, 30000);
+    
+    // Schedule next check using the adaptive interval
+    setTimeout(checkAndAdjustInterval, adaptiveGcInterval);
+  };
+  
+  // Start the adaptive check cycle
+  checkAndAdjustInterval();
 }
 
 /**
@@ -608,6 +709,78 @@ function setupMetricsPersistence(): void {
 setupMetricsPersistence();
 
 /**
+ * Updates the optimal threshold for WebAssembly usage based on measured performance
+ * This function adjusts the threshold automatically to maximize performance
+ */
+function updateOptimalThreshold(): void {
+  if (!wasmInitialized || wasmState.performanceMetrics.operationsCount < 10) {
+    return; // Not enough data to make good decisions
+  }
+  
+  const metrics = wasmState.performanceMetrics;
+  
+  // Only adjust if we have enough data points with a clear performance difference
+  if (metrics.avgWasmTime > 0 && metrics.avgTsTime > 0) {
+    const currentSpeedup = metrics.speedupRatio;
+    const currentThreshold = getWasmSizeThreshold();
+    
+    // Adjust threshold based on measured performance
+    if (currentSpeedup > 3.0) {
+      // Significant speedup - consider lowering threshold
+      const newThreshold = Math.max(
+        WASM_CONFIG.MIN_THRESHOLD,
+        Math.min(currentThreshold, Math.round(currentThreshold * 0.8))
+      );
+      
+      if (newThreshold !== currentThreshold) {
+        wasmLogger.log(
+          WasmLogLevel.INFO,
+          'threshold',
+          `Auto-adjusting threshold based on performance metrics`,
+          {
+            previousThreshold: currentThreshold,
+            newThreshold: newThreshold,
+            speedupRatio: currentSpeedup,
+            reason: 'high performance gain'
+          }
+        );
+        
+        setWasmSizeThreshold(newThreshold);
+      }
+    } else if (currentSpeedup < 1.2) {
+      // Minimal speedup - consider raising threshold
+      const newThreshold = Math.min(
+        WASM_CONFIG.MAX_THRESHOLD,
+        Math.max(currentThreshold, Math.round(currentThreshold * 1.2))
+      );
+      
+      if (newThreshold !== currentThreshold) {
+        wasmLogger.log(
+          WasmLogLevel.INFO,
+          'threshold',
+          `Auto-adjusting threshold based on performance metrics`,
+          {
+            previousThreshold: currentThreshold,
+            newThreshold: newThreshold,
+            speedupRatio: currentSpeedup,
+            reason: 'low performance gain'
+          }
+        );
+        
+        setWasmSizeThreshold(newThreshold);
+      }
+    }
+  }
+}
+
+// Check for optimal threshold adjustments periodically
+setInterval(() => {
+  if (wasmInitialized && wasmState.performanceMetrics.operationsCount > 10) {
+    updateOptimalThreshold();
+  }
+}, 10 * 60 * 1000); // Check every 10 minutes
+
+/**
  * Centralized error handler for WebAssembly operations
  * Logs errors, updates state, and performs recovery actions
  * 
@@ -626,17 +799,31 @@ export function handleWasmError(
   const isCritical = isCriticalWasmError(error);
   const logLevel = isCritical ? WasmLogLevel.CRITICAL : WasmLogLevel.ERROR;
   
-  // Log the error with context
+  // Add stack trace and browser information
+  const enhancedContext = {
+    ...context,
+    errorName: error.name,
+    errorStack: error.stack,
+    operation,
+    browserInfo: {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      timestamp: new Date().toISOString()
+    },
+    wasmState: {
+      initStatus: wasmState.initStatus,
+      totalOperations: wasmState.totalOperations,
+      memoryUtilization: wasmState.memoryUsage?.utilization
+    }
+  };
+  
+  // Log the error with enhanced context
   wasmLogger.log(
     logLevel,
     'error',
     `WebAssembly ${operation} failed: ${error.message}`,
-    {
-      ...context,
-      errorName: error.name,
-      errorStack: error.stack,
-      operation
-    }
+    enhancedContext
   );
   
   // Update error state

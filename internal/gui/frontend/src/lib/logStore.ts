@@ -6,7 +6,9 @@ import {
   getWasmSizeThreshold,
   shouldUseWasm,
   canProcessSafely,
-  handleWasmError
+  handleWasmError,
+  WasmOperationError,
+  WasmModule
 } from './wasm';
 import { wasmLogger, WasmLogLevel } from './wasm-logger';
 // Remove command pattern imports
@@ -217,7 +219,10 @@ function createLogStore() {
             try {
                 const wasmModule = getWasmModule();
                 if (!wasmModule || typeof wasmModule.merge_insert_logs !== 'function') {
-                    throw new Error('WebAssembly module not properly initialized');
+                    throw new WasmOperationError('WebAssembly module not properly initialized', 'mergeInsertLogs', {
+                      moduleAvailable: !!wasmModule,
+                      functionAvailable: !!wasmModule && typeof wasmModule.merge_insert_logs === 'function'
+                    });
                 }
                 
                 // Measure serialization time (approximated)
@@ -229,7 +234,11 @@ function createLogStore() {
                 
                 // Measure WebAssembly execution time
                 const wasmStartTime = performance.now();
-                const result = wasmModule.merge_insert_logs(existingLogs, newLogs);
+                // Ensure logs are properly typed to avoid serialization issues
+                const result = wasmModule.merge_insert_logs(
+                  existingLogs as LogMessage[], 
+                  newLogs as LogMessage[]
+                );
                 const wasmEndTime = performance.now();
                 const wasmTime = wasmEndTime - wasmStartTime;
                 
@@ -273,7 +282,7 @@ function createLogStore() {
                     }
                 }
                 
-                return result;
+                return result as LogMessage[];
             } catch (error: any) {
                 // Use the centralized error handler
                 handleWasmError(error, 'mergeInsertLogs', {
