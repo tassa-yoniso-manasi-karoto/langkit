@@ -76,7 +76,7 @@
   
   // Get color based on ratio
   function getSpeedupColor(ratio: number | undefined): string {
-    if (ratio === null || ratio === undefined || isNaN(ratio)) return "text-gray-400"; // Handle undefined/NaN
+    if (ratio === undefined || ratio === null || isNaN(ratio)) return "text-gray-400";
     if (ratio <= 1) return "text-red-500";
     if (ratio < 1.5) return "text-yellow-500";
     if (ratio < 2.5) return "text-green-400";
@@ -88,33 +88,46 @@
     showChart = !showChart;
   }
 
-  // Add function to force garbage collection (from Phase 2 refinement)
+  // Force garbage collection with improved null safety
   function forceGarbageCollection() {
-    if (wasmState?.initStatus === WasmInitStatus.SUCCESS) { // Use enum member
-      try {
-        const wasmModule = getWasmModule();
-        if (wasmModule && wasmModule.force_garbage_collection) {
-          wasmModule.force_garbage_collection();
-          wasmLogger.log(
-            WasmLogLevel.INFO,
-            'memory',
-            'Manual garbage collection performed',
-            { source: 'user_action' }
-          );
-          // Refresh state after GC
-          setTimeout(updateWasmState, 100); 
-        } else {
-           wasmLogger.log(WasmLogLevel.WARN, 'memory', 'force_garbage_collection function not found in WASM module.');
-        }
-      } catch (error: any) {
+    const currentState = getWasmState();
+    
+    if (currentState?.initStatus !== WasmInitStatus.SUCCESS) {
+      wasmLogger.log(
+        WasmLogLevel.WARN, 
+        'memory', 
+        'Cannot force GC: WebAssembly not initialized successfully'
+      );
+      return;
+    }
+    
+    try {
+      const wasmModule = getWasmModule();
+      if (!wasmModule || typeof wasmModule.force_garbage_collection !== 'function') {
         wasmLogger.log(
-          WasmLogLevel.ERROR,
-          'memory',
-          `Failed to perform garbage collection: ${error.message}`
+          WasmLogLevel.WARN, 
+          'memory', 
+          'force_garbage_collection function not found in WASM module'
         );
+        return;
       }
-    } else {
-        wasmLogger.log(WasmLogLevel.WARN, 'memory', 'Cannot force GC: WASM not initialized successfully.');
+      
+      wasmModule.force_garbage_collection();
+      wasmLogger.log(
+        WasmLogLevel.INFO,
+        'memory',
+        'Manual garbage collection performed',
+        { source: 'user_action' }
+      );
+      
+      // Refresh state after GC
+      setTimeout(updateWasmState, 100);
+    } catch (e: any) {
+      wasmLogger.log(
+        WasmLogLevel.ERROR,
+        'memory',
+        `Failed to perform garbage collection: ${e.message}`
+      );
     }
   }
 
@@ -162,9 +175,12 @@
   <!-- Performance metrics summary -->
   <div class="grid grid-cols-2 gap-3 mb-4">
     <div class="bg-gray-700/70 rounded p-3">
-      <div class="text-sm text-gray-400">Avg. Speedup</div>
+      <div class="text-sm text-gray-400">Speedup Metrics</div>
       <div class="text-xl font-bold {getSpeedupColor(wasmState?.performanceMetrics?.speedupRatio)}">
         {wasmState?.performanceMetrics?.speedupRatio?.toFixed(2) ?? 'N/A'}x
+      </div>
+      <div class="text-xs text-gray-400 mt-1">
+        Net: {wasmState?.performanceMetrics?.netSpeedupRatio?.toFixed(2) ?? 'N/A'}x
       </div>
       <div class="text-xs text-gray-500 mt-1">
         Based on {wasmState?.performanceMetrics?.operationsCount ?? 0} operations
@@ -172,7 +188,7 @@
     </div>
     
     <div class="bg-gray-700/70 rounded p-3">
-      <div class="text-sm text-gray-400">Average Times</div>
+      <div class="text-sm text-gray-400">Processing Times</div>
       <div class="flex flex-col">
         <div class="text-sm">
           <span class="text-green-400">WASM:</span> 
@@ -181,6 +197,10 @@
         <div class="text-sm">
           <span class="text-blue-400">TS:</span> 
           <span class="font-bold">{formatTime(wasmState?.performanceMetrics?.avgTsTime)}</span>
+        </div>
+        <div class="text-xs text-gray-400">
+          <span>Serialization:</span> 
+          <span>{formatTime(wasmState?.performanceMetrics?.avgSerializationTime)}</span>
         </div>
       </div>
     </div>
@@ -204,10 +224,12 @@
     </div>
     
     <div class="bg-gray-700/70 rounded p-3">
-      <div class="text-sm text-gray-400">Operations</div>
+      <div class="text-sm text-gray-400">Distribution</div>
       <div class="text-xl font-bold text-white">{wasmState?.totalOperations ?? 0}</div>
       <div class="text-xs text-gray-500 mt-1">
-        Total WASM operations
+        <span>S: {wasmState?.performanceMetrics?.logSizeDistribution?.small ?? 0}</span> /
+        <span>M: {wasmState?.performanceMetrics?.logSizeDistribution?.medium ?? 0}</span> /
+        <span>L: {wasmState?.performanceMetrics?.logSizeDistribution?.large ?? 0}</span>
       </div>
     </div>
   </div>

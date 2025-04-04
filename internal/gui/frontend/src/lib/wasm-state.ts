@@ -25,8 +25,22 @@ export interface WasmState {
   performanceMetrics: {
     avgWasmTime: number;          // Running average of WASM execution time
     avgTsTime: number;            // Running average of TS execution time
+    avgSerializationTime: number; // Running average of serialization time
+    avgDeserializationTime: number; // Running average of deserialization time
     speedupRatio: number;         // TS time / WASM time
+    netSpeedupRatio: number;      // TS time / (WASM time + serialization overhead)
     operationsCount: number;      // Number of operations measured
+    logSizeDistribution: {        // Distribution of log sizes processed
+      small: number;              // < 500 logs
+      medium: number;             // 500-2000 logs
+      large: number;              // > 2000 logs
+    };
+    operationTimings: {           // Timings by operation type
+      [operation: string]: {
+        avgTime: number;          // Average time for this operation
+        count: number;            // Number of operations measured
+      };
+    };
   };
 }
 
@@ -38,8 +52,17 @@ const initialState: WasmState = {
   performanceMetrics: {
     avgWasmTime: 0,
     avgTsTime: 0,
+    avgSerializationTime: 0,
+    avgDeserializationTime: 0,
     speedupRatio: 0,
-    operationsCount: 0
+    netSpeedupRatio: 0,
+    operationsCount: 0,
+    logSizeDistribution: {
+      small: 0,
+      medium: 0,
+      large: 0
+    },
+    operationTimings: {}
   }
 };
 
@@ -72,34 +95,99 @@ export function resetWasmMetricsInternal(): void {
   reportWasmState();
 }
 
-// Update performance metrics after each operation
-export function updatePerformanceMetrics(wasmTime: number, tsTime: number, logCount: number): void {
+/**
+ * Updates performance metrics with detailed breakdown
+ * 
+ * @param wasmTime Pure WebAssembly execution time
+ * @param tsTime TypeScript execution time
+ * @param logCount Number of logs processed
+ * @param operation Operation type
+ * @param serializationTime Time spent on serialization (optional)
+ * @param deserializationTime Time spent on deserialization (optional)
+ */
+export function updatePerformanceMetrics(
+  wasmTime: number,
+  tsTime: number,
+  logCount: number,
+  operation: string = 'mergeInsertLogs',
+  serializationTime: number = 0,
+  deserializationTime: number = 0
+): void {
   const m = wasmState.performanceMetrics;
   
   // Update running averages
   const newCount = m.operationsCount + 1;
-  m.avgWasmTime = ((m.avgWasmTime * m.operationsCount) + wasmTime) / newCount;
-  // Ensure tsTime is valid before calculating average
+  const oldWeight = m.operationsCount / newCount;
+  const newWeight = 1 / newCount;
+  
+  // Use exponential moving average for more stable metrics
+  m.avgWasmTime = m.avgWasmTime * oldWeight + wasmTime * newWeight;
+  
+  // Only update TS time if it's valid
   if (tsTime > 0) {
-      m.avgTsTime = ((m.avgTsTime * m.operationsCount) + tsTime) / newCount;
+    m.avgTsTime = m.avgTsTime * oldWeight + tsTime * newWeight;
   }
+  
+  // Track serialization overhead
+  if (serializationTime > 0) {
+    m.avgSerializationTime = m.avgSerializationTime * oldWeight + serializationTime * newWeight;
+  }
+  
+  // Track deserialization overhead
+  if (deserializationTime > 0) {
+    m.avgDeserializationTime = m.avgDeserializationTime * oldWeight + deserializationTime * newWeight;
+  }
+  
   m.operationsCount = newCount;
   
-  // Calculate speedup ratio, handle division by zero
-  m.speedupRatio = (m.avgWasmTime > 0 && m.avgTsTime > 0) ? m.avgTsTime / m.avgWasmTime : 0;
+  // Update speedup ratios
+  if (m.avgWasmTime > 0 && m.avgTsTime > 0) {
+    // Pure WebAssembly/TypeScript ratio
+    m.speedupRatio = m.avgTsTime / m.avgWasmTime;
+    
+    // Net ratio including serialization overhead
+    const totalWasmTime = m.avgWasmTime + m.avgSerializationTime + m.avgDeserializationTime;
+    m.netSpeedupRatio = totalWasmTime > 0 ? m.avgTsTime / totalWasmTime : 0;
+  }
   
-  wasmLogger.log(
-    WasmLogLevel.DEBUG,
-    'metrics',
-    `Updated performance metrics`,
-    {
-      avgWasmTime: m.avgWasmTime.toFixed(2),
-      avgTsTime: m.avgTsTime.toFixed(2),
-      speedupRatio: m.speedupRatio.toFixed(2),
-      operationsCount: m.operationsCount,
-      logCount
-    }
-  );
+  // Update log size distribution
+  if (logCount < 500) {
+    m.logSizeDistribution.small++;
+  } else if (logCount < 2000) {
+    m.logSizeDistribution.medium++;
+  } else {
+    m.logSizeDistribution.large++;
+  }
+  
+  // Update operation-specific timings
+  if (!m.operationTimings[operation]) {
+    m.operationTimings[operation] = { avgTime: 0, count: 0 };
+  }
+  
+  const opStats = m.operationTimings[operation];
+  const opOldWeight = opStats.count / (opStats.count + 1);
+  const opNewWeight = 1 / (opStats.count + 1);
+  
+  opStats.avgTime = opStats.avgTime * opOldWeight + wasmTime * opNewWeight;
+  opStats.count++;
+  
+  // Log metrics update for significant changes
+  if (newCount % 10 === 0 || newCount < 10) {
+    wasmLogger.log(
+      WasmLogLevel.INFO,
+      'metrics',
+      `Performance metrics updated (${m.operationsCount} operations)`,
+      {
+        avgWasmTime: m.avgWasmTime.toFixed(2) + 'ms',
+        avgTsTime: m.avgTsTime.toFixed(2) + 'ms',
+        serializationOverhead: m.avgSerializationTime.toFixed(2) + 'ms',
+        deserializationOverhead: m.avgDeserializationTime.toFixed(2) + 'ms',
+        speedupRatio: m.speedupRatio.toFixed(2) + 'x',
+        netSpeedupRatio: m.netSpeedupRatio.toFixed(2) + 'x',
+        logSizeDistribution: m.logSizeDistribution
+      }
+    );
+  }
 }
 
 // Track operation for metrics
