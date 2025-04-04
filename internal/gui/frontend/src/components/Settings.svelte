@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte'; // Added onDestroy
     import { slide, fade } from 'svelte/transition';
     import { settings, showSettings } from '../lib/stores';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
@@ -7,6 +7,9 @@
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
+    import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte'; // Import dashboard
+    import { isWasmSupported, getWasmState, resetWasmMetrics } from '../lib/wasm'; // Import WASM utils
+    import { WasmInitStatus } from '../lib/wasm-state'; // Import enum
 
     // Track if we're currently resetting the animation state
     let isResetting = false;
@@ -20,8 +23,7 @@
         if (button) {
             // Force remove all animation classes
             button.classList.remove('glow-success', 'glow-error', 'glow-reset');
-            // Force a repaint by adding a special force-reset class
-            button.classList.add('force-reset');
+            // button.classList.add('force-reset'); // Removed this problematic class manipulation
         }
         
         // Reset state variables after DOM manipulation
@@ -30,9 +32,9 @@
         
         // Use a timeout to allow the DOM to update before clearing reset state
         setTimeout(() => {
-            if (button) {
-                button.classList.remove('force-reset');
-            }
+            // if (button) { // No need to remove force-reset anymore
+            //     button.classList.remove('force-reset');
+            // }
             isResetting = false;
         }, 150);
     };
@@ -44,26 +46,8 @@
         error?: string;
     }
 
-    let currentSettings = {
-        apiKeys: {
-            replicate: '',
-            assemblyAI: '',
-            elevenLabs: '',
-            openAI: ''
-        },
-        targetLanguage: '',
-        nativeLanguages: '',
-        enableGlow: true,
-        showLogViewerByDefault: false,
-        maxAPIRetries: 10,
-        maxLogEntries: 10000,
-        maxWorkers: 1,
-        eventThrottling: {
-            enabled: true,
-            minInterval: 0,
-            maxInterval: 250
-        }
-    };
+    // Use $settings directly for reactivity where possible, keep local copy for validation/saving
+    let currentSettings = { ...$settings }; // Initialize with store value
 
     let targetLangValid = false;
     let nativeLangValid = false;
@@ -76,9 +60,14 @@
     let exportSuccess = false;
     let exportError = '';
     
-    let cancelButton;
+    // WASM state for UI binding
+    let wasmState = getWasmState();
+    // Update wasmState periodically for the dashboard
+    let wasmStateUpdateInterval: number | null = null;
+    
+    let cancelButton: HTMLButtonElement | null = null; // Add type
 
-    function handleMouseEnter(event) {
+    function handleMouseEnter(event: MouseEvent) { // Add type
       if (!cancelButton) return;
       
       // Get exact coordinates relative to the button
@@ -126,7 +115,7 @@
       // Remove all fill elements when mouse leaves
       if (cancelButton) {
         const fills = cancelButton.querySelectorAll('div');
-        fills.forEach(fill => cancelButton.removeChild(fill));
+        fills.forEach((fill: Element) => cancelButton?.removeChild(fill)); // Add type and optional chaining
       }
     }
 
@@ -135,7 +124,7 @@
 
     // Modified reactive declaration to handle reset state
     $: exportGlowClass = isResetting
-        ? 'force-reset'
+        ? '' // No special class needed if force-reset is removed
         : exportSuccess
             ? 'glow-success'
             : exportError
@@ -148,7 +137,7 @@
             targetLangValid = targetResponse.isValid;
             targetLangError = targetResponse.error || '';
         } else {
-            targetLangValid = false;
+            targetLangValid = true; // Allow empty target language
             targetLangError = '';
         }
 
@@ -157,35 +146,39 @@
             nativeLangValid = nativeResponse.isValid;
             nativeLangError = nativeResponse.error || '';
         } else {
-            nativeLangValid = false;
+            nativeLangValid = true; // Allow empty native languages
             nativeLangError = '';
         }
 
-        isValid = (!currentSettings.targetLanguage || targetLangValid) &&
-                  (!currentSettings.nativeLanguages || nativeLangValid);
+        isValid = targetLangValid && nativeLangValid; // Both must be valid if provided
     }
 
-    async function saveSettings() {
+    async function updateSettings() {
         await validateLanguages();
         if (!isValid) return;
         try {
-            await window.go.gui.App.SaveSettings(currentSettings);
+            // Save the current local state to the backend and the store
+            await (window as any).go.gui.App.SaveSettings(currentSettings); // Add type assertion
+            settings.set(currentSettings); // Update the main store
             
-            // Trigger STT model refresh after API key changes
+            // Trigger STT model refresh after API key changes (if applicable)
+            // This might be better handled based on which specific setting changed
             try {
-                // Explicitly request a refresh of STT models with new API keys
-                await window.go.gui.App.RefreshSTTModelsAfterSettingsUpdate();
+                await (window as any).go.gui.App.RefreshSTTModelsAfterSettingsUpdate(); // Add type assertion
             } catch (error) {
                 console.error('Failed to refresh STT models:', error);
             }
             
-            settings.set(currentSettings);
-            onClose();
-            window.dispatchEvent(new CustomEvent('settingsUpdated', {
-                detail: currentSettings
-            }));
+            // Update local wasmState if needed, though dashboard does this via interval
+            wasmState = getWasmState(); 
+            
+            // Optionally emit event (though direct store update might be sufficient)
+            // window.dispatchEvent(new CustomEvent('settingsUpdated', {
+            //     detail: currentSettings
+            // }));
         } catch (error) {
             console.error('Failed to save settings:', error);
+            // TODO: Add user feedback for save failure
         }
     }
 
@@ -196,7 +189,7 @@
         try {
             await ExportDebugReport();
             exportSuccess = true;
-        } catch (err) {
+        } catch (err: any) { // Type the error
             console.error('Failed to export debug report:', err);
             exportError = err?.message || 'Unknown error occurred.';
         } finally {
@@ -205,25 +198,19 @@
     }
 
     onMount(async () => {
-        try {
-            const loadedSettings = await window.go.gui.App.LoadSettings();
-            settings.set(loadedSettings);
-            currentSettings = {
-                ...loadedSettings,
-                targetLanguage: loadedSettings.targetLanguage || '',
-                nativeLanguages: loadedSettings.nativeLanguages || '',
-                eventThrottling: loadedSettings.eventThrottling || {
-                    enabled: true,
-                    minInterval: 0,
-                    maxInterval: 250
-                }
-            };
-            await validateLanguages();
-        } catch (error) {
-            console.error('Failed to load settings:', error);
-        }
+        // Initialize currentSettings from the store
+        currentSettings = { ...$settings }; 
+        await validateLanguages(); // Validate initial settings
+
+        // Update local wasmState on mount as well
+        wasmState = getWasmState();
+        // Start interval to keep dashboard updated
+        wasmStateUpdateInterval = window.setInterval(() => {
+            wasmState = getWasmState();
+        }, 1000); // Update every second
     });
 
+    // Re-validate whenever relevant parts of currentSettings change
     $: {
         if (currentSettings.targetLanguage !== undefined ||
             currentSettings.nativeLanguages !== undefined) {
@@ -231,18 +218,18 @@
         }
     }
 
-    settings.subscribe(value => {
-        if (value) {
-            currentSettings = {
-                ...value,
-                targetLanguage: value.targetLanguage || currentSettings.targetLanguage || '',
-                nativeLanguages: value.nativeLanguages || currentSettings.nativeLanguages || '',
-                eventThrottling: value.eventThrottling || currentSettings.eventThrottling || {
-                    enabled: true,
-                    minInterval: 0,
-                    maxInterval: 250
-                }
-            };
+    // Keep currentSettings synced with the store if it changes elsewhere (less likely in modal)
+    // settings.subscribe(value => {
+    //     if (value) {
+    //         currentSettings = { ...value };
+    //         validateLanguages(); // Re-validate if store changes externally
+    //     }
+    // });
+    
+    // Clear interval on component destroy
+    onDestroy(() => {
+        if (wasmStateUpdateInterval) {
+            clearInterval(wasmStateUpdateInterval);
         }
     });
 </script>
@@ -291,15 +278,16 @@
                                     <div class="relative">
                                         <TextInput
                                             bind:value={currentSettings.targetLanguage}
+                                            minLength={1}
                                             maxLength={9}
                                             placeholder="e.g. es, yue or pt-BR"
                                             className="px-3 py-2.5 hover:border-primary/55 hover:shadow-input
                                                       focus:border-primary focus:ring-1 focus:shadow-input-focus
-                                                      focus:ring-primary/50 placeholder:text-white/40 pr-10 
+                                                      focus:ring-primary/50 placeholder:text-white/40 pr-10
                                                       bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                            customBackground="rgba(0, 0, 0, 0.4)"
+                                            
                                         />
-                                        {#if targetLangValid}
+                                        {#if targetLangValid && currentSettings.targetLanguage}
                                             <span class="absolute right-3 top-1/2 -translate-y-1/2
                                                          material-icons text-pale-green text-sm">
                                                 check_circle
@@ -322,14 +310,16 @@
                                     <div class="relative">
                                         <TextInput
                                             bind:value={currentSettings.nativeLanguages}
+                                            minLength={1}
+                                            maxLength={100}
                                             placeholder="e.g. en, fr, es"
                                             className="px-3 py-2.5 hover:border-primary/55 hover:shadow-input
                                                       focus:border-primary focus:ring-1 focus:shadow-input-focus
-                                                      focus:ring-primary/50 placeholder:text-white/40 pr-10 
+                                                      focus:ring-primary/50 placeholder:text-white/40 pr-10
                                                       bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                            customBackground="rgba(0, 0, 0, 0.4)"
+                                            
                                         />
-                                        {#if nativeLangValid}
+                                        {#if nativeLangValid && currentSettings.nativeLanguages}
                                             <span class="absolute right-3 top-1/2 -translate-y-1/2
                                                          material-icons text-pale-green text-sm">
                                                 check_circle
@@ -453,6 +443,78 @@
                                 />
                             </div>
                         </section>
+                        
+                        <!-- WebAssembly Performance Settings -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">memory</span> <!-- Using memory icon -->
+                                Performance Optimization (WebAssembly)
+                            </h3>
+                            <div class="setting-item flex items-center gap-3"> <!-- Added flex layout -->
+                                <label class="toggle-switch">
+                                    <input
+                                        type="checkbox"
+                                        bind:checked={currentSettings.useWasm} 
+                                        disabled={!isWasmSupported()}
+                                        on:change={updateSettings} 
+                                    />
+                                    <span class="slider"></span>
+                                </label>
+                                <div class="setting-label">
+                                    <span>Use WebAssembly optimization</span>
+                                    <span class="setting-description block"> <!-- Ensure description is block -->
+                                        Improves performance for large log processing. Requires browser support.
+                                        {#if !isWasmSupported()}
+                                            <br>
+                                            <span class="text-warning-all">WebAssembly is not supported in your browser.</span>
+                                        {/if}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {#if currentSettings.useWasm && isWasmSupported()}
+                                <div class="setting-item">
+                                    <div class="w-full">
+                                        <label class="block mb-1 text-sm text-gray-200">WebAssembly Size Threshold</label>
+                                        <input
+                                            type="range"
+                                            min="50"
+                                            max="5000" 
+                                            step="50"
+                                            bind:value={currentSettings.wasmSizeThreshold}
+                                            on:change={updateSettings} 
+                                            class="w-full"
+                                        />
+                                        <div class="flex justify-between text-xs text-gray-400">
+                                            <span>50 logs</span>
+                                            <span>{currentSettings.wasmSizeThreshold} logs</span>
+                                            <span>5000 logs</span>
+                                        </div>
+                                        <span class="text-xs text-gray-400">
+                                            Only use WebAssembly for processing more than {currentSettings.wasmSizeThreshold} logs at once.
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Performance dashboard -->
+                                {#if wasmState?.initStatus === WasmInitStatus.SUCCESS}
+                                    <div class="mt-4">
+                                        <WasmPerformanceDashboard />
+                                    </div>
+                                {:else if wasmState?.initStatus === WasmInitStatus.INITIALIZING}
+                                    <div class="p-4 bg-gray-800/60 text-center rounded-lg mt-4">
+                                        <div class="animate-pulse text-gray-400">
+                                            Initializing WebAssembly...
+                                        </div>
+                                    </div>
+                                {:else if wasmState?.initStatus === WasmInitStatus.FAILED}
+                                    <div class="p-4 bg-error-all/10 border border-error-all/30 rounded-lg mt-4">
+                                        <div class="text-error-all text-sm mb-2">WebAssembly initialization failed</div>
+                                        <div class="text-xs text-gray-300">{wasmState.lastError?.message || 'Unknown error'}</div>
+                                    </div>
+                                {/if}
+                            {/if}
+                        </section>
 
                         <!-- UI Settings with improved styling -->
                         <section class="space-y-6">
@@ -466,6 +528,7 @@
                                         type="checkbox"
                                         bind:checked={currentSettings.enableGlow}
                                         class="w-4 h-4 accent-primary rounded custom-checkbox"
+                                        on:change={updateSettings}
                                     />
                                     <span class="text-sm text-gray-200 group-hover:text-white transition-colors">
                                         Enable glow effects (disable if you experience performance issues)
@@ -476,6 +539,7 @@
                                         type="checkbox"
                                         bind:checked={currentSettings.showLogViewerByDefault}
                                         class="w-4 h-4 accent-primary rounded custom-checkbox"
+                                        on:change={updateSettings}
                                     />
                                     <span class="text-sm text-gray-200 group-hover:text-white transition-colors">
                                         Show log viewer by default
@@ -494,6 +558,7 @@
                                                    focus:border-primary focus:ring-1
                                                    focus:ring-primary/50 transition-all
                                                    duration-200 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                        on:change={updateSettings}
                                     />
                                 </div>
                             </div>
@@ -555,7 +620,7 @@
                             class="px-6 py-2 bg-primary/90 backdrop-blur-sm text-white rounded-lg font-medium 
                                   transition-all duration-200 hover:bg-primary disabled:opacity-50 
                                   disabled:cursor-not-allowed shadow-md shadow-primary/30"
-                            on:click={saveSettings}
+                            on:click={updateSettings} 
                             disabled={!isValid}
                         >
                             Save Changes
@@ -771,29 +836,7 @@
         animation: glowError 1s cubic-bezier(0.2, 0, 0.3, 1) forwards !important;
     }
     
-    /* Force reset class to completely clear animation state 
-       This is more aggressive than glow-reset and directly manipulates the DOM */
-    :global(.force-reset) {
-        /* Kill all animations */
-        animation: none !important;
-        animation-fill-mode: none !important;
-        animation-play-state: paused !important;
-        
-        /* Force reset all properties that might be animated */
-        border-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.8) !important;
-        box-shadow: 
-            0 0 8px 2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.35) !important,
-            inset 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2) !important;
-        
-        /* Kill transitions to ensure immediate effect */
-        transition: none !important;
-        transform: none !important;
-        opacity: 1 !important;
-        
-        /* Force a repaint to clear any animation state */
-        will-change: transform !important;
-        transform: translateZ(0) !important;
-    }
+    /* Removed potentially corrupted :global(.force-reset) rule */
 
     /* Enhanced throttling control styles */
     .disabled {

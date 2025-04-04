@@ -14,6 +14,9 @@ type Settings = {
     maxLogEntries: number;
     maxAPIRetries: number;
     maxWorkers: number;
+    // WebAssembly settings
+    useWasm: boolean;
+    wasmSizeThreshold: number;
     // Internal settings (not exposed in UI)
     appStartCount?: number;
     hasSeenLogViewerTooltip?: boolean;
@@ -34,6 +37,9 @@ const initSettings: Settings = {
     maxLogEntries: 10000,
     maxAPIRetries: 10,
     maxWorkers: 1,
+    // Default values for WebAssembly settings
+    useWasm: false,
+    wasmSizeThreshold: 500, // Default from spec
     // Default values for internal settings
     appStartCount: 0,
     hasSeenLogViewerTooltip: false,

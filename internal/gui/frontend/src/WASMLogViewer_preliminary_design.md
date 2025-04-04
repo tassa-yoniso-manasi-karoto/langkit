@@ -20,28 +20,35 @@ Primary optimization target:
 Secondary target (future consideration):
 - `findLogAtScrollPosition` in LogViewer.svelte - Used during scrolling operations
 
-## 2. Architecture Overview
+## 2. SIMPLIFIED Architecture Overview
 
 ```
 Frontend (Svelte/TypeScript)                  Backend (Go)
 ┌─────────────────────────────┐              ┌─────────────────────────────┐
 │                             │              │                             │
-│  ┌─────────┐    ┌─────────┐ │    Events    │  ┌─────────┐   ┌─────────┐  │
-│  │LogStore │───▶│TS Impl. │◀┼──────┐       │  │         │   │ Crash   │  │
-│  └─────────┘    └─────────┘ │      │       │  │         │   │ Report  │  │
-│       │                     │      │       │  │ GUI     │   │ System  │  │
-│       ▼                     │      └───────┼─▶│ Handler │──▶│         │  │
-│  ┌─────────┐    ┌─────────┐ │   RecordWasm │  │         │   │         │  │
-│  │Wasm     │───▶│WASM Impl│ │      Log/    │  │         │   │         │  │
-│  │Logger   │    └─────────┘ │      State   │  │         │   │         │  │
-│  └─────────┘        ▲      │              │  └─────────┘   └─────────┘  │
-│       │             │      │              │                             │
-│  ┌─────────┐    ┌─────────┐ │              └─────────────────────────────┘
-│  │Wasm     │───▶│WASM     │ │
-│  │State    │    │Module   │ │
-│  └─────────┘    └─────────┘ │
-│                             │
-└─────────────────────────────┘
+│  ┌─────────┐    ┌─────────┐ │              │  ┌─────────┐                │
+│  │LogStore │───▶│TS Impl. │ │              │  │  CORE / │                │
+│  └─────────┘    └─────────┘ │              │  │ Log Srcs│                │
+│       │                     │              │  └────┬────┘                │
+│       ▼                     │              │       │                     │
+│  ┌─────────┐    ┌─────────┐ │ RecordWasm   │  ┌────▼────┐   ┌─────────┐  │
+│  │Wasm     │───▶│WASM Impl│ │ Log/State    │  │ GUI     │   │ Crash   │  │
+│  │Logger   │    └─────────┘ │──────────▶   │  │ Handler │──▶│ Report  │  │
+│  └─────────┘        ▲       │              │  │         │   │ System  │  │
+│       │             │       │              │  └────┬────┘   └─────────┘  │
+│       │             │       │              │       │                     │
+│  ┌─────────┐    ┌─────────┐ │              │  ┌────▼─────┐               │
+│  │Wasm     │───▶│WASM     │ │              │  │ Adaptive │               │
+│  │State    │    │Module   │ │              │  │ Event    │               │
+│  └─────────┘    └─────────┘ │              │  │ Throttler│               │
+│       ▲                     │              │  └────┬─────┘               │
+│       │                     │              │       │                     │
+│  ┌────▼────┐                │  log/progress│       ▼                     │
+│  │Frontend │◀───────────────┼──────────────┼───────┘                     │
+│  │Event    │                │    events    │                             │
+│  │Handlers │                │              │                             │
+│  └─────────┘                │              │                             │
+└─────────────────────────────┘              └─────────────────────────────┘
 ```
 
 ### 2.1 Component Overview
@@ -1725,8 +1732,8 @@ runBenchmarks().catch(console.error);
 
 1. **Serialization Overhead for Small Datasets**
    - **Challenge**: WebAssembly requires serialization/deserialization of data which can offset performance gains for small datasets
-   - **Mitigation**: Implement adaptive thresholds that only use WebAssembly for datasets above a certain size
-   - **Implementation**: The `WASM_SIZE_THRESHOLD` determines when to use WebAssembly vs. TypeScript
+   - **Mitigation**: Implement thresholds (potentially adaptive based on metrics) that only use WebAssembly for datasets above a certain size
+   - **Implementation**: The `shouldUseWasm` function in `wasm.ts` determines when to use WebAssembly vs. TypeScript based on size and performance metrics.
 
 2. **Browser Compatibility**
    - **Challenge**: Not all browsers support WebAssembly
@@ -1760,9 +1767,8 @@ runBenchmarks().catch(console.error);
    - Avoid unnecessary cloning when possible
 
 3. **Intelligent Thresholds**
-   - Start with conservative thresholds
-   - Adjust based on measured performance
-   - Allow user customization via settings
+   - Use a combination of static size threshold and measured performance gain.
+   - Allow user customization of the base size threshold via settings.
 
 4. **Memory Optimization**
    - Monitor WebAssembly memory usage
@@ -1778,8 +1784,8 @@ runBenchmarks().catch(console.error);
    - Add settings toggle
 
 2. **Phase 2: Performance Monitoring and Tuning**
-   - Add detailed performance metrics tracking
-   - Implement adaptive thresholds
+   - Add detailed performance metrics tracking (Implemented)
+   - Implement adaptive threshold logic based on metrics (Implemented in `shouldUseWasm`)
    - Refine memory management
    - Enhance error handling
 
