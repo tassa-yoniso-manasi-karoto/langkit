@@ -240,7 +240,7 @@
     }
     
     // Memoization cache for expensive option evaluations
-    const optionVisibilityCache = new Map<string, boolean>();
+    const optionVisibilityCache: Map<string, boolean> = new Map();
     let lastContextHash = '';
     
     // Check if option should be shown based on conditions

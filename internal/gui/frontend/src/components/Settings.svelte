@@ -886,4 +886,79 @@
     input, select {
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
+    
+    /* Toggle switch styles for WebAssembly settings */
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 46px;
+        height: 24px;
+    }
+    
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(60, 60, 80, 0.6);
+        transition: .4s;
+        border-radius: 12px;
+        border: 1px solid hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
+    }
+    
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 4px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+        background-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.8);
+    }
+    
+    input:focus + .slider {
+        box-shadow: 0 0 4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7);
+    }
+    
+    input:checked + .slider:before {
+        transform: translateX(22px);
+    }
+    
+    /* Setting row styles */
+    .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1);
+    }
+    
+    .setting-label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .setting-description {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .setting-control {
+        min-width: 120px;
+    }
 </style>

@@ -215,7 +215,7 @@ pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Res
 
 
     // Standard path for mixed logs
-    let existing_logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value(existing_logs_js) {
+    let existing_logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value::<Vec<LogMessage>>(existing_logs_js) {
         Ok(logs) => {
             // Track this allocation approximately
             let estimated_size: usize = logs.iter().map(estimate_log_message_size).sum();
@@ -225,7 +225,7 @@ pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Res
         Err(e) => return Err(Error::new(&format!("Failed to deserialize existing logs: {:?}", e)).into()),
     };
 
-    let mut new_logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value(new_logs_js) {
+    let mut new_logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value::<Vec<LogMessage>>(new_logs_js) {
         Ok(logs) => {
             // Track this allocation too
             let estimated_size: usize = logs.iter().map(estimate_log_message_size).sum();

@@ -2,16 +2,16 @@
     import { fade, slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { onMount, onDestroy } from 'svelte';
-    import { get } from 'svelte/store'; // Added missing import
+    import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive } from './lib/stores'; // Import wasmActive
+    import { settings, showSettings, wasmActive } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
     import { enableWasm, setWasmSizeThreshold, isWasmEnabled, getWasmModule } from './lib/wasm';
     import { wasmLogger, WasmLogLevel } from './lib/wasm-logger';
-    import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state'; // Import getWasmState
+    import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
     // Import window API from Wails
     import { WindowIsMinimised, WindowIsMaximised } from '../wailsjs/runtime/runtime';
@@ -27,10 +27,9 @@
     import ProgressManager from './components/ProgressManager.svelte';
     import LogViewerNotification from './components/LogViewerNotification.svelte';
 
-    // Comment out CheckDocker as it's not exported
-    import { SendProcessingRequest, CancelProcessing, GetVersion, LoadSettings, SaveSettings, RefreshSTTModelsAfterSettingsUpdate /*, CheckDocker*/ } from '../wailsjs/go/gui/App'; 
+    import { SendProcessingRequest, CancelProcessing, GetVersion, LoadSettings, SaveSettings, RefreshSTTModelsAfterSettingsUpdate } from '../wailsjs/go/gui/App'; 
     import { EventsOn } from '../wailsjs/runtime/runtime';
-    import type { gui } from '../wailsjs/go/models'; // Import backend models for typing
+    import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces
     interface VideoInfo {
@@ -440,11 +439,9 @@
             
             // Process only the most recent update for each unique progress bar ID
             // This ensures state is maintained even when visual updates are skipped
-            const latestUpdatesByID = new Map<string, any>(); // Add type annotation
+            const latestUpdatesByID = new Map();
             pendingProgressUpdates.forEach(update => {
-                if (update && update.id) { // Check if update and id exist
-                   latestUpdatesByID.set(update.id, update);
-                }
+                latestUpdatesByID.set(update.id, update);
             });
             
             // Apply only the latest update for each bar to maintain state
@@ -843,154 +840,330 @@
     });
 </script>
 
-<main class="relative min-h-screen w-full overflow-hidden bg-bg-900 text-white font-sans">
-    <!-- Background Effects -->
-    <BackgroundGradient />
-    {#if showGlow}
-        <GlowEffect />
-    {/if}
-
-    <!-- Settings Modal -->
-    <Settings {version} onClose={() => $showSettings = false} />
-
-    <!-- Main Content Area -->
-    <div class="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 md:p-8">
-        <!-- Header -->
-        <header class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20">
-            <div class="text-xs text-gray-400">
-                Langkit v{version}
-                {#if updateAvailable}
-                    <UpdateNotification />
-                {/if}
-            </div>
-            <div class="flex items-center gap-2">
-                 <!-- WASM Status Indicator -->
-                 {#if isWasmEnabled()}
-                   <div class="wasm-status-indicator flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary text-xs"
-                        class:active={$wasmActive}
-                        title={$wasmActive ? 'WebAssembly is currently processing' : 'WebAssembly is enabled'}>
-                     <span class="material-icons text-xs">speed</span>
-                     <span>WASM</span>
-                   </div>
-                 {/if}
-                 <!-- Log Viewer Button -->
-                 <button 
-                    bind:this={logViewerButton}
-                    class="relative w-10 h-10 flex items-center justify-center rounded-full 
-                           bg-input-bg/60 backdrop-blur-sm text-gray-300 transition-all duration-200 
-                           hover:bg-primary/30 hover:text-white focus:outline-none focus:ring-2 
-                           focus:ring-primary/50 shadow-md"
-                    on:click={toggleLogViewer}
-                    on:mouseenter={handleLogButtonHover} 
-                    on:mouseleave={() => tooltipVisible = false}
-                    title={showLogViewer ? "Hide Logs" : "Show Logs"}
-                >
-                    <span class="material-icons text-lg">description</span>
-                    {#if hasErrorLogs() && !showLogViewer}
-                        <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-bg-900 animate-pulse"></span>
-                    {/if}
-                </button>
-                
-                <!-- Settings Button -->
-                <button 
-                    class="w-10 h-10 flex items-center justify-center rounded-full 
-                           bg-input-bg/60 backdrop-blur-sm text-gray-300 transition-all duration-200 
-                           hover:bg-primary/30 hover:text-white focus:outline-none focus:ring-2 
-                           focus:ring-primary/50 shadow-md"
-                    on:click={() => $showSettings = true}
-                    title="Settings"
-                >
-                    <span class="material-icons text-lg">settings</span>
-                </button>
-            </div>
-        </header>
-
-        <!-- Core UI -->
-        <div class="w-full max-w-3xl flex flex-col items-center gap-8 md:gap-12 pt-16 pb-8">
-            <!-- Media Input -->
-            <MediaInput 
-                bind:mediaSource={mediaSource as any}
-                bind:previewFiles={previewFiles as any}
-                on:error={(e) => errorStore.addError({ id: 'media-input-error', message: e.detail, severity: 'critical' })}
-            />
-
-            <!-- Feature Selector (Deferred Loading) -->
-            {#if showFeatureSelector}
-                <div in:fade={{ duration: 500, delay: 100 }} class="w-full">
-                    <FeatureSelector
-                        bind:selectedFeatures
-                        on:optionsChange={handleOptionsChange}
-                        mediaSource={mediaSource as any}
-                        showLogViewer={showLogViewer}
-                    />
-                </div>
-            {:else}
-                 <div class="w-full h-48 flex items-center justify-center text-gray-500"> 
-                     <!-- Placeholder --> Loading features... 
-                  </div>
-            {/if}
-
-            <!-- Processing Controls & Progress -->
-            <div class="w-full flex flex-col items-center gap-6">
-                 {#if !isProcessing}
-                    <div in:fade={{ duration: 300 }}>
-                        <ProcessButton 
-                            on:click={handleProcess} 
-                            isProcessing={isProcessing} 
-                        />
-                    </div>
-                 {:else}
-                    <div class="w-full flex flex-col items-center gap-4"
-                         in:fade={{ duration: 300 }}>
-                        <ProgressManager />
-                        <button 
-                            class="px-6 py-2 bg-red-600/80 backdrop-blur-sm text-white rounded-lg font-medium 
-                                   transition-all duration-200 hover:bg-red-500 shadow-md shadow-red-500/30"
-                            on:click={handleCancel}
-                        >
-                            Cancel Processing
-                        </button>
-                    </div>
-                 {/if}
-            </div>
-        </div>
-        
-        <!-- Log Viewer Panel -->
-        {#if showLogViewer}
-            <div transition:slide={{ duration: 300, easing: cubicOut }} 
-                 class="fixed bottom-0 left-0 right-0 h-1/2 md:h-1/3 z-30 shadow-top bg-bg-800/80 backdrop-blur-md border-t border-primary/30">
-                <LogViewer />
-            </div>
+<!-- Version display (fixed, using Tailwind and DM Mono) -->
+<div class="fixed top-[0.5rem] right-[3.9rem] z-50 p-0 text-[0.6rem] text-gray-500 text-xs font-dm-mono">
+    {#if version}
+        {#if version === "dev"}
+            {version}
+        {:else}
+            v{version}
         {/if}
-        
-        <!-- Log Viewer Notification -->
-        <LogViewerNotification
-            position={logViewerButtonPosition}
-            onOpenLogViewer={toggleLogViewer}
-        />
+        {#if updateAvailable}
+            <UpdateNotification href="https://github.com/tassa-yoniso-manasi-karoto/langkit/releases">
+                an update is available
+            </UpdateNotification>
+        {/if}
+    {/if}
 </div>
 
-<!-- Performance notice that appears when significant gains are detected -->
-{#if showPerformanceNotice}
- <div
-   transition:fade={{ duration: 300 }}
-   class="fixed bottom-4 right-4 bg-green-800/80 text-white px-4 py-3 rounded shadow-lg backdrop-blur-sm z-50 flex items-center gap-2"
- >
-   <span class="material-icons text-green-300">rocket</span>
-   <div>
-     <div class="font-semibold">Performance Boost Active</div>
-     <div class="text-sm">WebAssembly is making this {Math.round(getWasmState().performanceMetrics.speedupRatio)}× faster</div>
-   </div>
- </div>
-{/if}
-</main>
+<!-- Main container now spans full viewport -->
+<div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
+    <BackgroundGradient />
+    {#if showGlow && !isWindowMinimized}
+        <GlowEffect {isProcessing} />
+    {/if}
+
+    <!-- Settings button container -->
+    <div class="absolute top-4 right-4 z-20 flex items-center gap-4">
+        <!-- WASM Status Indicator -->
+        {#if isWasmEnabled()}
+          <div class="wasm-status-indicator flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary text-xs"
+               class:active={$wasmActive}
+               title={$wasmActive ? 'WebAssembly is currently processing' : 'WebAssembly is enabled'}>
+            <span class="material-icons text-xs">speed</span>
+            <span>WASM</span>
+          </div>
+        {/if}
+        
+        <button
+            class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
+                   transition-all duration-200 hover:bg-white/15 hover:text-white
+                   hover:-translate-y-0.5 hover:shadow-lg hover:shadow-white/5
+                   focus:outline-none focus:ring-2 focus:ring-primary/50"
+            on:click={() => $showSettings = true}
+            aria-label="Open settings"
+        >
+            <span class="material-icons text-[20px]">settings</span>
+        </button>
+    </div>
+
+    <div class="flex h-full p-8 gap-8 relative z-10">
+        <!-- Main content area with width optimization to prevent layout thrashing -->
+        <div class="flex-1 relative will-change-transform" 
+             style="width: {showLogViewer ? '55%' : '100%'}; transition: width 300ms ease-out;">
+            <div class="h-full flex flex-col">
+                <!-- Scrollable content with optimizations -->
+                <div class="flex-1 no-scrollbar overflow-y-auto pr-4 mask-fade">
+                    <div class="max-w-2xl mx-auto space-y-6 will-change-transform contain-layout">
+                        <MediaInput
+                            bind:mediaSource
+                            bind:previewFiles
+                            class="drop-zone"
+                        />
+                        
+                        <!-- Deferred loading of the FeatureSelector component -->
+                        {#if showFeatureSelector}
+                            <!-- Use fade-in animation for the feature selector -->
+                            <div in:fade={{ duration: 300 }}>
+                                <FeatureSelector
+                                    bind:selectedFeatures
+                                    bind:quickAccessLangTag
+                                    bind:showLogViewer
+                                    on:optionsChange={handleOptionsChange}
+                                    {mediaSource}
+                                    class="feature-selector"
+                                />
+                            </div>
+                        {:else}
+                            <!-- Placeholder with same height to prevent layout shift -->
+                            <div class="h-20 rounded-lg bg-white/5 border-2 border-dashed border-primary/10 animate-pulse"></div>
+                        {/if}
+                    </div>
+                </div>
+
+                <!-- Fixed bottom area -->
+                <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
+                    <!-- Progress Manager with minimal spacing -->
+                    <div class="mb-2">
+                        <ProgressManager {isProcessing}/>
+                    </div>
+                    
+                    <!-- Process Button Row with hardware acceleration -->
+                    <div class="max-w-2xl mx-auto flex justify-center items-center gap-4 pb-0 will-change-transform">
+                        <ProcessButton
+                            {isProcessing}
+                            on:process={handleProcess}
+                        />
+                        
+                        <!-- Cancel button with optimized transitions -->
+                        {#if isProcessing}
+                            <div class="h-12 w-12" style="contain: strict;">
+                                <button
+                                    class="h-12 w-12 flex items-center justify-center rounded-lg
+                                           bg-red-500/30 text-white transition-all duration-200
+                                           hover:bg-red-500/90 hover:-translate-y-0.5
+                                           hover:shadow-lg hover:shadow-red-500/20
+                                           focus:outline-none focus:ring-2 focus:ring-red-500/50
+                                           focus:ring-offset-2 focus:ring-offset-bg"
+                                    on:click={handleCancel}
+                                    in:slide={{ duration: 200, axis: "x" }}
+                                    out:slide={{ duration: 200, axis: "x" }}
+                                    aria-label="Cancel processing"
+                                >
+                                    <span class="material-icons">close</span>
+                                </button>
+                            </div>
+                        {/if}
+                        
+                        <!-- Log viewer toggle button with notifications and pulsing effects -->
+                        <div class="relative">
+                            <button
+                                class="h-12 w-12 flex items-center justify-center rounded-lg
+                                       transition-all duration-200 will-change-transform
+                                       {showLogViewer ? 'bg-primary text-sky-dark' : 'bg-white/10 text-white'}
+                                       hover:bg-opacity-80 hover:-translate-y-0.5
+                                       hover:shadow-lg
+                                       focus:outline-none focus:ring-2
+                                       {showLogViewer ? 'focus:ring-primary/50' : 'focus:ring-white/30'}
+                                       focus:ring-offset-2 focus:ring-offset-bg
+                                       {isProcessing && !showLogViewer && !hasErrorLogs() ? 'log-button-pulse' : ''}
+                                       {hasErrorLogs() && !showLogViewer ? 'log-button-error-pulse' : ''}"
+                                on:mouseenter={handleLogButtonHover}
+                                on:click={toggleLogViewer}
+                                aria-label="{showLogViewer ? 'Hide log viewer' : 'Show log viewer'}"
+                                bind:this={logViewerButton}
+                            >
+                                <span class="material-icons">
+                                    {showLogViewer ? "chevron_right" : "chevron_left"}
+                                </span>
+                                
+                                <!-- Error indicator badge -->
+                                {#if !showLogViewer && hasErrorLogs()}
+                                    <span class="absolute -top-1 -right-1 h-4 w-4 bg-error-all rounded-full border border-white flex items-center justify-center text-[10px] text-white font-bold animate-pulse">
+                                        !
+                                    </span>
+                                {/if}
+                            </button>
+                            
+                            <!-- Log Viewer Notification -->
+                            {#if ((isProcessing && !tooltipDismissed) || 
+                                 hasErrorLogs() || 
+                                 tooltipVisible
+                                ) && !showLogViewer && logViewerButtonPosition}
+                                <LogViewerNotification 
+                                    position={logViewerButtonPosition} 
+                                    mode={hasErrorLogs() ? 'error' : 'processing'}
+                                    onOpenLogViewer={toggleLogViewer}
+                                    onDismiss={() => {
+                                        tooltipDismissed = true;
+                                        tooltipVisible = false;
+                                    }}
+                                />
+                            {/if}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log viewer panel with optimized rendering -->
+        {#if showLogViewer}
+            <div class="w-[45%] rounded-lg overflow-hidden will-change-transform
+                        shadow-[4px_4px_0_0_rgba(159,110,247,0.4),8px_8px_16px_-2px_rgba(159,110,247,0.35)]
+                        hover:shadow-[4px_4px_0_0_rgba(159,110,247,0.5),8px_8px_20px_-2px_rgba(159,110,247,0.4)]"
+                 style="transform: translateZ(0); contain: content;"
+                 in:slide={{ duration: 400, delay: 100, axis: "x", easing: cubicOut }}
+                 out:slide={{ duration: 400, axis: "x", easing: cubicOut }}
+                 role="region"
+                 aria-live="polite"
+            >
+                <LogViewer version={version} isProcessing={isProcessing} />
+            </div>
+        {/if}
+    </div>
+
+    <!-- Performance notice that appears when significant gains are detected -->
+    {#if showPerformanceNotice}
+        <div
+          transition:fade={{ duration: 300 }}
+          class="fixed bottom-4 right-4 bg-green-800/80 text-white px-4 py-3 rounded shadow-lg backdrop-blur-sm z-50 flex items-center gap-2"
+        >
+          <span class="material-icons text-green-300">rocket</span>
+          <div>
+            <div class="font-semibold">Performance Boost Active</div>
+            <div class="text-sm">WebAssembly is making this {Math.round(getWasmState().performanceMetrics.speedupRatio)}× faster</div>
+          </div>
+        </div>
+    {/if}
+</div>
+
+<Settings
+    version={version}
+    onClose={() => $showSettings = false}
+/>
 
 <style>
-    .shadow-top {
-        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.3);
+    /* Smooth fade mask for scrollable content */
+    .mask-fade {
+        mask-image: linear-gradient(
+            to bottom,
+            transparent,
+            black 7%,
+            black 93%,
+            transparent
+        );
+        -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent,
+            black 7%,
+            black 93%,
+            transparent
+        );
+        scrollbar-gutter: stable;
     }
+
+    /* Smooth scrolling with inertia */
+    .mask-fade {
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    /* Hide scrollbar but keep functionality */
+    .mask-fade::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .mask-fade::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .mask-fade::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        border: 3px solid transparent;
+        background-clip: content-box;
+    }
+
+    .mask-fade::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Loading animations */
+    @keyframes pulse {
+        0% { opacity: 0.5; }
+        50% { opacity: 0.2; }
+        100% { opacity: 0.5; }
+    }
+    
+    .animate-pulse {
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    :global(.settings-modal) {
+        transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    :global(.settings-modal.opened) {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    
+    .no-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;     /* Firefox */
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;             /* Chrome, Safari, Opera */
+    }
+    
+    /* Log viewer button animations */
+    @keyframes log-button-pulse {
+        0% { box-shadow: 0 0 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4); }
+        70% { box-shadow: 0 0 0 10px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0); }
+        100% { box-shadow: 0 0 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0); }
+    }
+    
+    @keyframes log-button-error-pulse {
+        0% { box-shadow: 0 0 0 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.4); }
+        70% { box-shadow: 0 0 0 10px hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0); }
+        100% { box-shadow: 0 0 0 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0); }
+    }
+    
+    .log-button-pulse {
+        animation: log-button-pulse 2s infinite;
+    }
+    
+    .log-button-error-pulse {
+        animation: log-button-error-pulse 1.5s infinite;
+        border: 1px solid hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.5);
+    }
+    
     /* Ensure drop zone click handler works */
     .drop-zone {
         cursor: pointer;
+    }
+    
+    /* WASM status indicator */
+    .wasm-status-indicator {
+        position: relative;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    
+    .wasm-status-indicator.active {
+        background-color: rgba(var(--primary-rgb), 0.25);
+        animation: wasm-pulse 2s infinite;
+    }
+    
+    @keyframes wasm-pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4);
+        }
+        70% {
+            box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0);
+        }
     }
 </style>
