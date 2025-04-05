@@ -217,7 +217,7 @@ function createLogStore() {
       const memCheck = checkMemoryAvailability(totalLogCount);
       if (!memCheck.canProceed) {
         wasmLogger.log(
-          WasmLogLevel.DEBUG, // Changed from INFO to DEBUG to reduce log spam
+          WasmLogLevel.DEBUG, // Keep at DEBUG level to reduce log spam
           'memory',
           `Using TypeScript fallback due to memory constraints: ${memCheck.actionTaken}`,
           { memoryInfo: memCheck.memoryInfo }

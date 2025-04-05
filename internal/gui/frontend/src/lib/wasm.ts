@@ -275,16 +275,84 @@ export function getWasmModule(): WasmModule | null {
   return wasmModule;
 }
 
+// Environment-aware path resolution for WebAssembly loading
+export function getEnvironmentOptimizedPaths(
+  basePath: string,
+  cacheBuster: string,
+  version: string = 'unknown'
+): string[] {
+  // Determine if we're in development mode
+  const isDev = version === 'dev';
+  
+  if (isDev) {
+    // Development environment - prioritize Wails protocol
+    return [
+      // Wails protocol path (most likely to succeed in development)
+      `wails://wails.localhost:34115/wasm/${basePath}${cacheBuster}`,
+      
+      // Fallbacks for development
+      `/wasm/${basePath}${cacheBuster}`,
+      `${window.location.pathname}${basePath.startsWith('/') ? basePath.substring(1) : basePath}${cacheBuster}`,
+      `${window.location.origin}/wasm/${basePath}${cacheBuster}`
+    ];
+  } else {
+    // Production environment - prioritize standard web paths
+    return [
+      // Standard web paths (most likely to succeed in production)
+      `/wasm/${basePath}${cacheBuster}`,
+      `${window.location.origin}/wasm/${basePath}${cacheBuster}`,
+      
+      // Fallback paths
+      `${window.location.pathname}${basePath.startsWith('/') ? basePath.substring(1) : basePath}${cacheBuster}`,
+      `/public/wasm/${basePath}${cacheBuster}`
+    ];
+  }
+}
+
 // --- Start Phase 4.1: loadBuildInfo ---
 /**
  * Load WebAssembly build information for versioning and cache management
  */
-async function loadBuildInfo(): Promise<WasmBuildInfo | null> {
+async function loadBuildInfo(version: string = 'unknown'): Promise<WasmBuildInfo | null> {
   try {
-    // Use the aliased path defined in vite.config.ts
-    const response = await fetch(`@wasm/build-info.json?t=${Date.now()}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch build info: ${response.statusText}`);
+    const buildInfoPaths = getEnvironmentOptimizedPaths('build-info.json', `?t=${Date.now()}`, version);
+    
+    wasmLogger.log(
+      WasmLogLevel.INFO,
+      'init',
+      `Attempting to load WebAssembly build info with paths`,
+      { paths: buildInfoPaths, environment: version }
+    );
+    
+    // Try each path until successful
+    let response = null;
+    let loadError = null;
+    
+    for (const path of buildInfoPaths) {
+      try {
+        wasmLogger.log(
+          WasmLogLevel.DEBUG, // Use DEBUG level to reduce log spam
+          'init',
+          `Trying to load build info from: ${path}`
+        );
+        
+        const fetchResponse = await fetch(path);
+        if (fetchResponse.ok) {
+          response = fetchResponse;
+          wasmLogger.log(
+            WasmLogLevel.INFO,
+            'init',
+            `Successfully loaded build info from: ${path}`
+          );
+          break; // Success, exit loop
+        }
+      } catch (err) {
+        loadError = err;
+      }
+    }
+    
+    if (!response) {
+      throw new Error(`Failed to fetch build info from any path: ${loadError?.message}`);
     }
 
     const buildInfo = await response.json();
@@ -299,7 +367,12 @@ async function loadBuildInfo(): Promise<WasmBuildInfo | null> {
     wasmLogger.log(
       WasmLogLevel.WARN,
       'init',
-      `Failed to load WebAssembly build info: ${error.message}`
+      `Failed to load WebAssembly build info: ${error.message}`,
+      {
+        errorStack: error.stack,
+        errorType: error.name,
+        networkStatus: navigator.onLine ? 'online' : 'offline'
+      }
     );
     return null;
   }
@@ -310,78 +383,132 @@ async function loadBuildInfo(): Promise<WasmBuildInfo | null> {
 export async function initializeWasm(): Promise<boolean> {
   if (initializePromise) return initializePromise;
 
-  let currentWasmState = getWasmStateInternal(); // Use internal getter
+  let currentWasmState = getWasmStateInternal();
   if (currentWasmState.initStatus === WasmInitStatus.SUCCESS) {
     return true; // Already initialized
   }
 
-  // Update state to initializing (directly, as this happens before command executor might be ready)
+  // Update state to initializing
   wasmState.initStatus = WasmInitStatus.INITIALIZING;
-  reportWasmState(); // Report initializing state
+  reportWasmState();
 
   initializePromise = new Promise<boolean>(async (resolve) => {
     if (!wasmEnabled) {
-      wasmState.initStatus = WasmInitStatus.NOT_STARTED; // Reset if disabled before finishing
+      wasmState.initStatus = WasmInitStatus.NOT_STARTED;
       reportWasmState();
       resolve(false);
       return;
     }
 
     const startTime = performance.now();
-    let modulePath = ''; // Declare modulePath outside the try block
     wasmLogger.log(WasmLogLevel.INFO, 'init', 'Initializing WebAssembly module');
 
     try {
       if (!isWasmSupported()) {
         throw new WasmInitializationError("WebAssembly not supported in this browser", {
-          runtime: "wails", // Assuming Wails context, adjust if needed
+          runtime: "wails",
           timestamp: Date.now()
         });
       }
 
-      // First, fetch build info to get version for cache busting (Phase 4)
-      wasmBuildInfo = await loadBuildInfo(); // Use the new function
-
-      // Build cache buster based on build info or current time (Phase 4)
+      // Get version from window if available
+      const version = (window as any).__LANGKIT_VERSION || 'unknown';
+      wasmLogger.log(
+        WasmLogLevel.INFO,
+        'init',
+        `Initializing WebAssembly with environment: ${version}`
+      );
+      
+      // Load build info first using environment-aware paths
+      wasmBuildInfo = await loadBuildInfo(version);
+      
+      // Create cache buster
       const cacheBuster = wasmBuildInfo
         ? `?v=${wasmBuildInfo.version}&t=${wasmBuildInfo.timestamp}`
         : `?t=${Date.now()}`;
 
-      // Dynamic import of WebAssembly module with cache busting (Phase 4)
-      // Use relative path from public/index.html
-      // Use the aliased path defined in vite.config.ts
-      modulePath = `@wasm/log_engine.js${cacheBuster}`; 
-      wasmLogger.log(WasmLogLevel.DEBUG, 'init', `Loading module from: ${modulePath}`);
+      // Get optimized paths for environment
+      const modulePaths = getEnvironmentOptimizedPaths('log_engine.js', cacheBuster, version);
+      
+      // Enhanced logging
+      wasmLogger.log(
+        WasmLogLevel.INFO,
+        'init',
+        `Attempting to load WebAssembly module with environment: ${version}`,
+        {
+          paths: modulePaths,
+          buildInfo: wasmBuildInfo || 'unavailable',
+          documentBasePath: document.baseURI,
+          locationHref: window.location.href
+        }
+      );
+      
+      // Try loading from each path until success
+      let module = null;
+      let loadError = null;
+      
+      for (const path of modulePaths) {
+        try {
+          wasmLogger.log(
+            WasmLogLevel.INFO,
+            'init',
+            `Trying to load WASM module from: ${path}`
+          );
+          
+          module = await import(/* @vite-ignore */ path);
+          
+          wasmLogger.log(
+            WasmLogLevel.INFO,
+            'init',
+            `Successfully loaded WASM module from: ${path}`
+          );
+          
+          break; // Success, exit loop
+        } catch (err) {
+          wasmLogger.log(
+            WasmLogLevel.WARN, // Change to WARN to reduce error noise
+            'init',
+            `Failed to load WASM module from: ${path}`,
+            { error: err.message }
+          );
+          
+          loadError = err;
+          // Continue to next path
+        }
+      }
+      
+      if (!module) {
+        throw new Error(`Failed to load WebAssembly module from any path: ${loadError?.message}`);
+      }
 
-      // @ts-ignore - This file is generated by the build process
-      const module = await import(/* @vite-ignore */ modulePath);
-      await module.default(); // Initialize the WASM module
-
+      // Initialize the module
+      await module.default();
+      
+      // Set references and update state
       wasmModule = module;
       wasmInitialized = true;
-      wasmState.initStatus = WasmInitStatus.SUCCESS; // Update state directly
+      wasmState.initStatus = WasmInitStatus.SUCCESS;
 
       const endTime = performance.now();
       const initTime = endTime - startTime;
-      wasmState.initTime = initTime; // Record init time
+      wasmState.initTime = initTime;
 
-      // Log successful initialization with metrics
+      // Log success
       wasmLogger.log(
         WasmLogLevel.INFO,
         'init',
         'WebAssembly module initialized successfully',
         {
           initTime,
-          wasmSize: getWasmSize(), // Calculate size after load
-          version: wasmBuildInfo?.version || 'unknown', // Phase 4
-          buildDate: wasmBuildInfo?.buildDate || 'unknown', // Phase 4
+          wasmSize: getWasmSize(),
+          version: wasmBuildInfo?.version || 'unknown',
+          buildDate: wasmBuildInfo?.buildDate || 'unknown',
+          environment: version
         }
       );
 
-      // Schedule memory usage check
+      // Perform initial setup
       scheduleMemoryCheck();
-
-      // Load saved metrics from localStorage (Phase 4)
       loadSavedMetrics();
 
       // Initial threshold from settings
@@ -395,6 +522,21 @@ export async function initializeWasm(): Promise<boolean> {
     } catch (error: any) {
       const endTime = performance.now();
       const initTime = endTime - startTime;
+
+      // Enhanced error logging for better debugging
+      wasmLogger.log(
+        WasmLogLevel.ERROR,
+        'init',
+        `WebAssembly module load error: ${error.message}`,
+        { 
+          modulePath,
+          fullPath: window.location.origin + modulePath,
+          errorStack: error.stack,
+          errorType: error.name,
+          networkStatus: navigator.onLine ? 'online' : 'offline',
+          buildInfo: wasmBuildInfo || 'unavailable'
+        }
+      );
 
       // Use the enhanced error handler
       handleWasmError(error, 'initialization', {
@@ -1189,7 +1331,7 @@ export function shouldUseWasm(
   const memCheck = checkMemoryAvailability(totalLogCount);
   if (!memCheck.canProceed) {
       wasmLogger.log(
-          WasmLogLevel.DEBUG, // Changed from INFO to DEBUG to reduce log spam
+          WasmLogLevel.DEBUG, // Keep at DEBUG level to reduce log spam
           'threshold',
           `Using TypeScript fallback due to memory constraints: ${memCheck.actionTaken}`,
           { memoryInfo: memCheck.memoryInfo, operation, logCount: totalLogCount }

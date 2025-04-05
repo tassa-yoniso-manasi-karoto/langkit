@@ -803,8 +803,19 @@
             updateAvailable = true;
         });
         
-        // Get initial version
-        GetVersion().then(v => version = v.version); // Access the version property
+        // Get initial version and pass it to WebAssembly for environment-aware loading
+        GetVersion().then(v => {
+            version = v.version; // Access the version property 
+            // Add version to window for WebAssembly to access
+            (window as any).__LANGKIT_VERSION = version;
+            
+            wasmLogger.log(
+                WasmLogLevel.INFO,
+                'init',
+                `Application version detected: ${version}`,
+                { isDevMode: version === 'dev' }
+            );
+        });
         
         // Check Docker availability on startup
         // checkDockerAvailability(); // Commented out

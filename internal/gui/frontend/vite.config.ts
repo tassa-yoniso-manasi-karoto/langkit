@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [svelte()],
   resolve: {
     alias: {
-      'svelte-portal/src/Portal.svelte': path.resolve(__dirname, 'node_modules/svelte-portal/src/Portal.svelte'),
-      '@wasm': path.resolve(__dirname, 'src/wasm/pkg')
+      'svelte-portal/src/Portal.svelte': path.resolve(__dirname, 'node_modules/svelte-portal/src/Portal.svelte')
+      // Removed @wasm alias as we're using absolute paths to public directory
     }
   },
   server: {
@@ -16,12 +16,21 @@ export default defineConfig({
       interval: 1000,
     },
     host: true,
-    strictPort: true,
+    strictPort: false, // Allow fallback to another port if 34115 is in use
     port: 34115,
     hmr: {
       protocol: 'ws',
       host: 'localhost',
     },
+    // Allow importing from public directory
+    fs: {
+      allow: [
+        // Project root and all subdirectories
+        path.resolve(__dirname)
+      ],
+      // Disable strict mode to avoid path restrictions
+      strict: false
+    }
   },
   css: {
     postcss: './postcss.config.cjs',
