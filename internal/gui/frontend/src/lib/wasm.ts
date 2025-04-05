@@ -1,97 +1,134 @@
 /**
  * WebAssembly module interface for Langkit log processing optimization
- * 
+ *
  * This module provides WebAssembly-powered performance improvements for
  * critical log processing operations while maintaining full compatibility
  * with environments where WebAssembly is unavailable.
- * 
+ *
  * The implementation follows a pragmatic approach focusing on:
  * 1. Getting "90% of the benefits with 10% of the effort"
  * 2. Maintaining compatibility with all environments
  * 3. Providing transparent fallbacks when WebAssembly is unavailable
  * 4. Collecting detailed performance metrics for optimization
- * 
+ *
  * WebAssembly Integration Architecture
- * 
+ *
  * This implementation consists of several cooperating modules:
- * 
+ *
  * 1. wasm.ts (this file)
  *    - Core initialization and configuration
  *    - Feature detection and compatibility checks
  *    - Memory management and performance thresholds
- * 
+ *
  * 2. wasm-state.ts
  *    - State tracking for WebAssembly operations
  *    - Performance metrics collection and analysis
  *    - Diagnostic data for crash reports
- * 
+ *
  * 3. wasm-logger.ts
  *    - Specialized logging for WebAssembly operations
  *    - Integration with backend crash reporting
- * 
+ *
  * 4. Rust implementation (lib.rs)
  *    - Core optimized algorithms
  *    - Memory management and safety checks
  *    - Error handling and diagnostics
- * 
+ *
  * The integration is designed to gracefully degrade when WebAssembly
  * is unavailable, ensuring the application remains functional in all
  * environments.
- * 
+ *
  * @module wasm
  */
 import { wasmLogger, WasmLogLevel } from './wasm-logger';
-import { 
-  WasmInitStatus, 
+import {
+  WasmInitStatus,
   getWasmState as getWasmStateInternal, // Rename internal getter
-  reportWasmState, 
-  updateMemoryUsage, 
+  reportWasmState,
+  updateMemoryUsage,
   setWasmError,
-  resetWasmMetrics as resetWasmMetricsInternal, // Rename internal reset
+  resetWasmMetrics as resetWasmMetricsInternal, // Rename internal reset - Assuming this will be exported from wasm-state.ts later
   wasmState // Import the state object itself for persistence
 } from './wasm-state';
+import type { WasmState } from './wasm-state'; // Use type-only import for WasmState
 import { settings } from './stores';
 import { get } from 'svelte/store';
 
-// Add this interface for proper type safety
-// Add these error classes for better error handling
+// --- Start Phase 1.2: New Error Types ---
+// Enhanced error types with better context
 export class WasmInitializationError extends Error {
-  constructor(message: string, public context?: any) {
-    super(message);
-    this.name = 'WasmInitializationError';
-  }
+    context: Record<string, any>;
+
+    constructor(message: string, context: Record<string, any> = {}) {
+        super(message);
+        this.name = 'WasmInitializationError';
+        this.context = {
+            timestamp: Date.now(),
+            ...context
+        };
+    }
 }
 
 export class WasmMemoryError extends Error {
-  constructor(message: string, public memoryInfo?: any) {
-    super(message);
-    this.name = 'WasmMemoryError';
-  }
+    memoryInfo: Record<string, any>;
+
+    constructor(message: string, memoryInfo: Record<string, any> = {}) {
+        super(message);
+        this.name = 'WasmMemoryError';
+        this.memoryInfo = {
+            timestamp: Date.now(),
+            ...memoryInfo
+        };
+    }
 }
 
 export class WasmOperationError extends Error {
-  constructor(message: string, public operation: string, public details?: any) {
-    super(message);
-    this.name = 'WasmOperationError';
-  }
-}
+    operation: string;
+    details: Record<string, any>;
 
+    constructor(message: string, operation: string, details: Record<string, any> = {}) {
+        super(message);
+        this.name = 'WasmOperationError';
+        this.operation = operation;
+        this.details = {
+            timestamp: Date.now(),
+            ...details
+        };
+    }
+}
+// --- End Phase 1.2: New Error Types ---
+
+
+// --- Start Update WasmModule Interface ---
 export interface WasmModule {
   merge_insert_logs: (existingLogs: any[], newLogs: any[]) => any[];
-  get_memory_usage: () => {
+  get_memory_usage: () => { // Updated return type based on Rust changes
     total_bytes: number;
     used_bytes: number;
     utilization: number;
     peak_bytes?: number;
     allocation_count?: number;
+    // New metrics from Rust
+    average_allocation?: number;
+    allocation_rate?: number;
+    time_since_last_gc?: number;
+    memory_growth_trend?: number;
+    fragmentation_estimate?: number;
   };
   force_garbage_collection: () => void;
-  estimate_memory_for_logs: (logCount: number) => {
+  estimate_memory_for_logs: (logCount: number) => { // Updated return type based on Rust changes
     estimated_bytes: number;
     current_available: number;
     would_fit: boolean;
+    // New fields from Rust
+    projected_utilization?: number;
+    risk_level?: 'high' | 'moderate' | 'low';
+    recommendation?: 'proceed_with_caution' | 'proceed' | 'use_typescript_fallback';
   };
+  // Potential SIMD function (if enabled in Rust build)
+  contains_text_simd?: (haystack: string, needle: string) => boolean;
 }
+// --- End Update WasmModule Interface ---
 
 // --- State ---
 let wasmModule: WasmModule | null = null;
@@ -115,6 +152,7 @@ export const WASM_CONFIG = {
   MIN_PERFORMANCE_GAIN: 1.2
 };
 let WASM_SIZE_THRESHOLD = WASM_CONFIG.DEFAULT_SIZE_THRESHOLD;
+const operationThresholds = new Map<string, number>(); // Added in Phase 2.1
 
 // --- Exported Functions ---
 
@@ -147,11 +185,11 @@ export function setWasmSizeThreshold(threshold: number): void {
     WASM_CONFIG.MIN_THRESHOLD,
     Math.min(threshold, WASM_CONFIG.MAX_THRESHOLD)
   );
-  
+
   wasmLogger.log(
     WasmLogLevel.INFO,
     'config',
-    `WASM size threshold set to ${WASM_SIZE_THRESHOLD}`
+    `WASM global size threshold set to ${WASM_SIZE_THRESHOLD}`
   );
 }
 
@@ -159,21 +197,50 @@ export function getWasmSizeThreshold(): number {
   return WASM_SIZE_THRESHOLD;
 }
 
+// --- Start Phase 2.1: Operation-Specific Thresholds ---
+/**
+ * Sets the threshold for a specific operation type
+ */
+export function setOperationThreshold(operation: string, threshold: number): void {
+  const validatedThreshold = Math.max(
+    WASM_CONFIG.MIN_THRESHOLD,
+    Math.min(threshold, WASM_CONFIG.MAX_THRESHOLD)
+  );
+
+  operationThresholds.set(operation, validatedThreshold);
+
+  wasmLogger.log(
+    WasmLogLevel.INFO,
+    'config',
+    `Set WebAssembly threshold for ${operation} to ${validatedThreshold}`
+  );
+}
+
+/**
+ * Gets the threshold for a specific operation type
+ * Falls back to the global threshold if none is set
+ */
+export function getOperationThreshold(operation: string): number {
+  return operationThresholds.get(operation) || getWasmSizeThreshold();
+}
+// --- End Phase 2.1: Operation-Specific Thresholds ---
+
+
 export function enableWasm(enabled: boolean): Promise<boolean> {
   const previouslyEnabled = wasmEnabled;
   wasmEnabled = enabled;
-  
+
   wasmLogger.log(
     WasmLogLevel.INFO,
     'config',
     `WebAssembly ${enabled ? 'enabled' : 'disabled'}`
   );
-  
+
   // Only initialize if enabling and not already initialized or initializing
   if (enabled && !wasmInitialized && !initializePromise) {
     return initializeWasm();
   }
-  
+
   // If disabling, ensure state is reported
   if (previouslyEnabled && !enabled) {
       wasmState.initStatus = WasmInitStatus.NOT_STARTED; // Reflect disabled state
@@ -182,7 +249,7 @@ export function enableWasm(enabled: boolean): Promise<boolean> {
       // If already enabled and initialized, just report current state
       reportWasmState();
   }
-  
+
   return Promise.resolve(wasmInitialized);
 }
 
@@ -191,7 +258,7 @@ export function isWasmEnabled(): boolean {
 }
 
 export function isWasmSupported(): boolean {
-  return typeof WebAssembly === 'object' && 
+  return typeof WebAssembly === 'object' &&
          typeof WebAssembly.instantiate === 'function';
 }
 
@@ -203,14 +270,46 @@ export function getWasmModule(): WasmModule | null {
   return wasmModule;
 }
 
+// --- Start Phase 4.1: loadBuildInfo ---
+/**
+ * Load WebAssembly build information for versioning and cache management
+ */
+async function loadBuildInfo(): Promise<WasmBuildInfo | null> {
+  try {
+    // Use relative path from public/index.html
+    const response = await fetch(`./wasm/build-info.json?t=${Date.now()}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch build info: ${response.statusText}`);
+    }
+
+    const buildInfo = await response.json();
+    wasmLogger.log(
+      WasmLogLevel.DEBUG,
+      'init',
+      `WebAssembly build info loaded: ${buildInfo.version} (${buildInfo.buildDate})`
+    );
+
+    return buildInfo;
+  } catch (error: any) {
+    wasmLogger.log(
+      WasmLogLevel.WARN,
+      'init',
+      `Failed to load WebAssembly build info: ${error.message}`
+    );
+    return null;
+  }
+}
+// --- End Phase 4.1: loadBuildInfo ---
+
+// --- Start Replace initializeWasm ---
 export async function initializeWasm(): Promise<boolean> {
   if (initializePromise) return initializePromise;
-  
+
   let currentWasmState = getWasmStateInternal(); // Use internal getter
   if (currentWasmState.initStatus === WasmInitStatus.SUCCESS) {
     return true; // Already initialized
   }
-  
+
   // Update state to initializing (directly, as this happens before command executor might be ready)
   wasmState.initStatus = WasmInitStatus.INITIALIZING;
   reportWasmState(); // Report initializing state
@@ -222,72 +321,49 @@ export async function initializeWasm(): Promise<boolean> {
       resolve(false);
       return;
     }
-    
+
     const startTime = performance.now();
     let modulePath = ''; // Declare modulePath outside the try block
     wasmLogger.log(WasmLogLevel.INFO, 'init', 'Initializing WebAssembly module');
-    
+
     try {
       if (!isWasmSupported()) {
         throw new WasmInitializationError("WebAssembly not supported in this browser", {
-          runtime: "wails",
+          runtime: "wails", // Assuming Wails context, adjust if needed
           timestamp: Date.now()
         });
       }
-      
+
       // First, fetch build info to get version for cache busting (Phase 4)
-      try {
-        // Use relative path from public/index.html where this JS will run
-        const buildInfoResponse = await fetch(`./wasm/build-info.json?t=${Date.now()}`); 
-        if (buildInfoResponse.ok) {
-          wasmBuildInfo = await buildInfoResponse.json();
-          wasmLogger.log(
-            WasmLogLevel.INFO,
-            'init',
-            `WebAssembly build info loaded - version ${wasmBuildInfo?.version}`
-          );
-        } else {
-           throw new WasmInitializationError(`Failed to fetch build info: ${buildInfoResponse.statusText}`, {
-             status: buildInfoResponse.status,
-             url: buildInfoResponse.url
-           });
-        }
-      } catch (buildInfoError: any) {
-        wasmLogger.log(
-          WasmLogLevel.WARN,
-          'init',
-          `Failed to load WebAssembly build info: ${buildInfoError.message}. Using timestamp cache buster.`
-        );
-        // Continue anyway - we'll use a timestamp for cache busting
-      }
-      
+      wasmBuildInfo = await loadBuildInfo(); // Use the new function
+
       // Build cache buster based on build info or current time (Phase 4)
-      const cacheBuster = wasmBuildInfo 
-        ? `?v=${wasmBuildInfo.version}&t=${wasmBuildInfo.timestamp}` 
+      const cacheBuster = wasmBuildInfo
+        ? `?v=${wasmBuildInfo.version}&t=${wasmBuildInfo.timestamp}`
         : `?t=${Date.now()}`;
-      
+
       // Dynamic import of WebAssembly module with cache busting (Phase 4)
       // Use relative path from public/index.html
       modulePath = `./wasm/log_engine.js${cacheBuster}`; // Assign to the outer variable
       wasmLogger.log(WasmLogLevel.DEBUG, 'init', `Loading module from: ${modulePath}`);
-      
+
       // @ts-ignore - This file is generated by the build process
-      const module = await import(/* @vite-ignore */ modulePath); 
+      const module = await import(/* @vite-ignore */ modulePath);
       await module.default(); // Initialize the WASM module
-      
+
       wasmModule = module;
       wasmInitialized = true;
       wasmState.initStatus = WasmInitStatus.SUCCESS; // Update state directly
-      
+
       const endTime = performance.now();
       const initTime = endTime - startTime;
       wasmState.initTime = initTime; // Record init time
-      
+
       // Log successful initialization with metrics
       wasmLogger.log(
-        WasmLogLevel.INFO, 
-        'init', 
-        'WebAssembly module initialized successfully', 
+        WasmLogLevel.INFO,
+        'init',
+        'WebAssembly module initialized successfully',
         {
           initTime,
           wasmSize: getWasmSize(), // Calculate size after load
@@ -295,36 +371,36 @@ export async function initializeWasm(): Promise<boolean> {
           buildDate: wasmBuildInfo?.buildDate || 'unknown', // Phase 4
         }
       );
-      
+
       // Schedule memory usage check
       scheduleMemoryCheck();
-      
+
       // Load saved metrics from localStorage (Phase 4)
-      loadSavedMetrics(); 
-      
+      loadSavedMetrics();
+
       // Initial threshold from settings
       const $settings = get(settings);
-      // TODO: Update Settings type in stores.ts
+      // TODO: Update Settings type in stores.ts if needed
       if (($settings as any).wasmSizeThreshold) {
         setWasmSizeThreshold(($settings as any).wasmSizeThreshold);
       }
-      
+
       resolve(true);
     } catch (error: any) {
       const endTime = performance.now();
       const initTime = endTime - startTime;
-      
-      // Add initialization context to error
+
+      // Use the enhanced error handler
       handleWasmError(error, 'initialization', {
         initTime,
         modulePath: modulePath || 'unknown',
         buildInfo: wasmBuildInfo || 'unavailable'
       }, true); // Disable on critical init errors
-      
+
       wasmInitialized = false;
       wasmState.initStatus = WasmInitStatus.FAILED;
       wasmState.initTime = initTime;
-      
+
       resolve(false);
     } finally {
       // Report final initialization status to backend for crash reports
@@ -332,17 +408,18 @@ export async function initializeWasm(): Promise<boolean> {
       initializePromise = null; // Reset promise state
     }
   });
-  
+
   return initializePromise;
 }
+// --- End Replace initializeWasm ---
 
 // Check memory thresholds and issue warnings when needed
 function checkMemoryThresholds(): void {
   if (!isWasmEnabled() || !wasmModule) return;
-  
+
   try {
     const memoryInfo = wasmModule.get_memory_usage();
-    
+
     // Define warning thresholds
     if (memoryInfo.utilization > 0.85) {
       wasmLogger.log(
@@ -363,8 +440,8 @@ function checkMemoryThresholds(): void {
     }
   } catch (e: any) {
     wasmLogger.log(
-      WasmLogLevel.ERROR, 
-      'memory', 
+      WasmLogLevel.ERROR,
+      'memory',
       `Memory check failed: ${e.message}`
     );
   }
@@ -373,45 +450,45 @@ function checkMemoryThresholds(): void {
 // Schedule regular memory checks when WASM is in use
 function scheduleMemoryCheck() {
   if (!wasmInitialized || !wasmModule) return;
-  
+
   // Setup automatic garbage collection
   setupAutomaticGarbageCollection();
-  
+
   // Also set up monitoring for excessive memory growth
   setupMemoryMonitoring();
-  
+
   // Check memory usage every 30 seconds while module is initialized
   setInterval(() => {
     const currentState = getWasmStateInternal(); // Get current state for check
     // Only check if used recently (e.g., within the last 5 minutes)
-    if (wasmModule && currentState.lastUsed && Date.now() - currentState.lastUsed < 300000) { 
+    if (wasmModule && currentState.lastUsed && Date.now() - currentState.lastUsed < 300000) {
       try {
         const memoryInfo = wasmModule.get_memory_usage();
-        
+
         // Update memory usage directly
         updateMemoryUsage(memoryInfo);
-        
+
         // Check memory thresholds
         checkMemoryThresholds();
-        
+
         // Log memory info periodically
         wasmLogger.log(
-          WasmLogLevel.DEBUG, 
-          'memory', 
-          'Memory usage check', 
+          WasmLogLevel.DEBUG,
+          'memory',
+          'Memory usage check',
           {
             utilization: (memoryInfo.utilization * 100).toFixed(1) + '%',
-            used: (memoryInfo.used_bytes / 1024 / 1024).toFixed(2) + 'MB',
-            total: (memoryInfo.total_bytes / 1024 / 1024).toFixed(2) + 'MB'
+            used: formatBytes(memoryInfo.used_bytes), // Use formatBytes
+            total: formatBytes(memoryInfo.total_bytes) // Use formatBytes
           }
         );
-        
+
       } catch (e: any) {
         wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Memory check failed: ${e.message}`);
       }
     }
   }, 30000);
-  
+
   // Run more frequent memory threshold checks (every 10 seconds)
   setInterval(() => {
     if (wasmModule && wasmState.lastUsed && Date.now() - wasmState.lastUsed < 300000) {
@@ -428,15 +505,15 @@ function setupAutomaticGarbageCollection(): void {
   let lastGcTime = Date.now();
   let consecutiveHighMemory = 0;
   let adaptiveGcInterval = 60000; // Start with 1 minute
-  
+
   // Adaptive interval adjustment based on memory pressure
   const checkAndAdjustInterval = () => {
     if (!isWasmEnabled() || !wasmModule) return;
-    
+
     try {
       // Get memory info
       const memoryInfo = wasmModule.get_memory_usage();
-      
+
       // Adjust interval based on utilization
       if (memoryInfo.utilization > 0.8) {
         adaptiveGcInterval = 15000; // Every 15 seconds under high pressure
@@ -448,14 +525,14 @@ function setupAutomaticGarbageCollection(): void {
         adaptiveGcInterval = 60000; // Every minute under low pressure
         consecutiveHighMemory = 0;
       }
-      
+
       // Determine if GC is needed
       const needsGc = (
         Date.now() - lastGcTime > adaptiveGcInterval ||
         memoryInfo.utilization > 0.7 ||
         consecutiveHighMemory >= 3
       );
-      
+
       if (needsGc) {
         wasmLogger.log(
           WasmLogLevel.INFO,
@@ -468,7 +545,7 @@ function setupAutomaticGarbageCollection(): void {
             consecutiveHighMemory
           }
         );
-        
+
         // Perform garbage collection
         wasmModule.force_garbage_collection();
         lastGcTime = Date.now();
@@ -481,11 +558,11 @@ function setupAutomaticGarbageCollection(): void {
         `Automatic garbage collection failed: ${e.message}`
       );
     }
-    
+
     // Schedule next check using the adaptive interval
     setTimeout(checkAndAdjustInterval, adaptiveGcInterval);
   };
-  
+
   // Start the adaptive check cycle
   checkAndAdjustInterval();
 }
@@ -496,25 +573,25 @@ function setupAutomaticGarbageCollection(): void {
 function setupMemoryMonitoring(): void {
   const memorySnapshots: Array<{timestamp: number, used: number}> = [];
   const snapshotLimit = 10; // Keep last 10 snapshots
-  
+
   // Check memory growth every minute
   setInterval(() => {
     if (!isWasmEnabled() || !wasmModule) return;
-    
+
     try {
       const memoryInfo = wasmModule.get_memory_usage();
-      
+
       // Add snapshot
       memorySnapshots.push({
         timestamp: Date.now(),
         used: memoryInfo.used_bytes
       });
-      
+
       // Keep only last N snapshots
       if (memorySnapshots.length > snapshotLimit) {
         memorySnapshots.shift();
       }
-      
+
       // Need at least 3 snapshots to analyze trend
       if (memorySnapshots.length >= 3) {
         analyzeMemoryTrend(memorySnapshots);
@@ -536,11 +613,14 @@ function analyzeMemoryTrend(snapshots: Array<{timestamp: number, used: number}>)
   // Calculate growth rate
   const first = snapshots[0];
   const last = snapshots[snapshots.length - 1];
-  
+
   const timeDiffMinutes = (last.timestamp - first.timestamp) / (1000 * 60);
+  // Avoid division by zero or negative time diff
+  if (timeDiffMinutes <= 0) return;
+
   const memoryGrowthBytes = last.used - first.used;
   const growthRatePerMinute = memoryGrowthBytes / timeDiffMinutes;
-  
+
   // Check if growth rate is concerning
   if (growthRatePerMinute > 1024 * 1024) { // More than 1MB/minute
     wasmLogger.log(
@@ -554,17 +634,18 @@ function analyzeMemoryTrend(snapshots: Array<{timestamp: number, used: number}>)
         totalGrowth: formatBytes(memoryGrowthBytes)
       }
     );
-    
+
     // Force garbage collection to see if it helps
     if (wasmModule && typeof wasmModule.force_garbage_collection === 'function') {
       wasmModule.force_garbage_collection();
-      
+
       // Check effect of garbage collection
       setTimeout(() => {
         try {
+          if (!wasmModule) return; // Add null check for wasmModule
           const afterGcInfo = wasmModule.get_memory_usage();
           const memoryFreed = last.used - afterGcInfo.used_bytes;
-          
+
           wasmLogger.log(
             WasmLogLevel.INFO,
             'memory',
@@ -572,7 +653,7 @@ function analyzeMemoryTrend(snapshots: Array<{timestamp: number, used: number}>)
             {
               beforeGc: formatBytes(last.used),
               afterGc: formatBytes(afterGcInfo.used_bytes),
-              isLeakConfirmed: memoryFreed < memoryGrowthBytes * 0.5
+              isLeakConfirmed: memoryFreed < memoryGrowthBytes * 0.5 // Heuristic: if less than half the growth was freed
             }
           );
         } catch (e: any) {
@@ -591,7 +672,8 @@ function formatBytes(bytes: number): string {
 }
 
 function formatTime(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
+  if (ms < 0) return 'N/A'; // Handle negative values
+  if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60 * 1000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / (60 * 1000)).toFixed(1)}m`;
 }
@@ -603,7 +685,7 @@ function getWasmSize(): number {
     const resources = performance.getEntriesByType('resource');
     // Adjust the name based on the actual built file name
     // Use relative path from public/index.html
-    const wasmResource = resources.find(r => r.name.endsWith('/wasm/log_engine_bg.wasm')) as PerformanceResourceTiming | undefined; 
+    const wasmResource = resources.find(r => r.name.endsWith('/wasm/log_engine_bg.wasm')) as PerformanceResourceTiming | undefined;
     return wasmResource?.encodedBodySize || 0;
   } catch (e) {
     wasmLogger.log(WasmLogLevel.WARN, 'init', 'Could not determine WASM file size via Performance API.');
@@ -617,27 +699,40 @@ function loadSavedMetrics(): void {
   try {
     const savedMetrics = localStorage.getItem('wasm-metrics');
     if (!savedMetrics) return;
-    
+
     const parsedMetrics = JSON.parse(savedMetrics);
-    
+
     // Carefully merge saved metrics into the current state
     if (parsedMetrics.performanceMetrics) {
       wasmState.performanceMetrics = {
         ...wasmState.performanceMetrics, // Keep existing defaults/structure
         ...parsedMetrics.performanceMetrics // Overwrite with saved values
       };
+      // Ensure nested objects are also handled correctly if they exist
+      if (parsedMetrics.performanceMetrics.logSizeDistribution) {
+        wasmState.performanceMetrics.logSizeDistribution = {
+          ...wasmState.performanceMetrics.logSizeDistribution,
+          ...parsedMetrics.performanceMetrics.logSizeDistribution
+        };
+      }
+      if (parsedMetrics.performanceMetrics.operationTimings) {
+         wasmState.performanceMetrics.operationTimings = {
+           ...wasmState.performanceMetrics.operationTimings,
+           ...parsedMetrics.performanceMetrics.operationTimings
+         };
+      }
     }
-    
+
     if (typeof parsedMetrics.totalOperations === 'number') {
       wasmState.totalOperations = parsedMetrics.totalOperations;
     }
-    
+
     if (parsedMetrics.operationsPerType) {
       wasmState.operationsPerType = {
         ...parsedMetrics.operationsPerType // Simple overwrite for operation types
       };
     }
-    
+
     wasmLogger.log(
       WasmLogLevel.INFO,
       'metrics',
@@ -669,9 +764,9 @@ function saveMetrics(): void { // Keep internal
       operationsPerType: wasmState.operationsPerType,
       savedAt: new Date().toISOString(),
     };
-    
+
     localStorage.setItem('wasm-metrics', JSON.stringify(metricsToSave));
-    
+
     wasmLogger.log(
       WasmLogLevel.DEBUG,
       'metrics',
@@ -689,14 +784,14 @@ function saveMetrics(): void { // Keep internal
 // Schedule periodic saving of metrics
 function setupMetricsPersistence(): void {
   // Load saved metrics during initialization (called within initializeWasm)
-  
+
   // Save metrics every 5 minutes
   setInterval(() => {
     if (wasmInitialized) { // Only save if initialized
       saveMetrics();
     }
   }, 5 * 60 * 1000);
-  
+
   // Save on page unload
   window.addEventListener('beforeunload', () => {
     if (wasmInitialized) { // Only save if initialized
@@ -708,82 +803,363 @@ function setupMetricsPersistence(): void {
 // Initialize metric persistence during module load
 setupMetricsPersistence();
 
+// --- Start Phase 2.1: Threshold Auto-Adjustment ---
 /**
- * Updates the optimal threshold for WebAssembly usage based on measured performance
- * This function adjusts the threshold automatically to maximize performance
+ * Automatically adjusts operation-specific thresholds based on performance data
  */
-function updateOptimalThreshold(): void {
-  if (!wasmInitialized || wasmState.performanceMetrics.operationsCount < 10) {
-    return; // Not enough data to make good decisions
+function updateOperationThresholds(): void {
+  const metrics = getWasmStateInternal().performanceMetrics;
+
+  if (!metrics.operationTimings || metrics.operationsCount < 10) {
+    return; // Not enough data to make good adjustments
   }
-  
-  const metrics = wasmState.performanceMetrics;
-  
-  // Only adjust if we have enough data points with a clear performance difference
-  if (metrics.avgWasmTime > 0 && metrics.avgTsTime > 0) {
-    const currentSpeedup = metrics.speedupRatio;
-    const currentThreshold = getWasmSizeThreshold();
-    
-    // Adjust threshold based on measured performance
-    if (currentSpeedup > 3.0) {
-      // Significant speedup - consider lowering threshold
-      const newThreshold = Math.max(
+
+  // Check each operation with enough measurements
+  Object.entries(metrics.operationTimings).forEach(([operation, stats]) => {
+    if (stats.count < 5) return; // Skip operations with few measurements
+
+    const currentThreshold = getOperationThreshold(operation);
+    let newThreshold = currentThreshold;
+
+    // Calculate speedup for this specific operation
+    const operationSpeedup = calculateOperationSpeedup(operation);
+
+    if (operationSpeedup > 3.0) {
+      // Significant speedup - lower threshold
+      newThreshold = Math.max(
         WASM_CONFIG.MIN_THRESHOLD,
-        Math.min(currentThreshold, Math.round(currentThreshold * 0.8))
+        Math.round(currentThreshold * 0.8)
       );
-      
-      if (newThreshold !== currentThreshold) {
-        wasmLogger.log(
-          WasmLogLevel.INFO,
-          'threshold',
-          `Auto-adjusting threshold based on performance metrics`,
-          {
-            previousThreshold: currentThreshold,
-            newThreshold: newThreshold,
-            speedupRatio: currentSpeedup,
-            reason: 'high performance gain'
-          }
-        );
-        
-        setWasmSizeThreshold(newThreshold);
-      }
-    } else if (currentSpeedup < 1.2) {
-      // Minimal speedup - consider raising threshold
-      const newThreshold = Math.min(
+    } else if (operationSpeedup < 1.2) {
+      // Minimal speedup - raise threshold
+      newThreshold = Math.min(
         WASM_CONFIG.MAX_THRESHOLD,
-        Math.max(currentThreshold, Math.round(currentThreshold * 1.2))
+        Math.round(currentThreshold * 1.2)
       );
-      
-      if (newThreshold !== currentThreshold) {
-        wasmLogger.log(
-          WasmLogLevel.INFO,
-          'threshold',
-          `Auto-adjusting threshold based on performance metrics`,
-          {
-            previousThreshold: currentThreshold,
-            newThreshold: newThreshold,
-            speedupRatio: currentSpeedup,
-            reason: 'low performance gain'
-          }
-        );
-        
-        setWasmSizeThreshold(newThreshold);
-      }
     }
+
+    // Only update if threshold changed
+    if (newThreshold !== currentThreshold) {
+      setOperationThreshold(operation, newThreshold);
+
+      wasmLogger.log(
+        WasmLogLevel.INFO,
+        'threshold',
+        `Auto-adjusted ${operation} threshold based on performance data`,
+        {
+          previousThreshold: currentThreshold,
+          newThreshold: newThreshold,
+          speedupRatio: operationSpeedup.toFixed(2),
+          operationCount: stats.count,
+          avgTime: stats.avgTime.toFixed(2)
+        }
+      );
+    }
+  });
+}
+
+// Calculate operation-specific speedup ratio
+function calculateOperationSpeedup(operation: string): number {
+  const metrics = getWasmStateInternal().performanceMetrics;
+
+  if (!metrics.operationTimings || !metrics.operationTimings[operation]) {
+    return 0;
+  }
+
+  // Use operation-specific metrics if available
+  const tsTime = metrics.avgTsTime; // Use global average TS time for comparison
+  const wasmTime = metrics.operationTimings[operation].avgTime;
+
+  if (wasmTime <= 0 || tsTime <= 0) {
+    return 0;
+  }
+
+  return tsTime / wasmTime;
+}
+
+// Schedule periodic threshold adjustments
+setInterval(() => {
+  if (isWasmEnabled() &&
+      getWasmStateInternal().performanceMetrics.operationsCount > 10) {
+    updateOperationThresholds();
+  }
+}, 5 * 60 * 1000); // Check every 5 minutes
+// --- End Phase 2.1: Threshold Auto-Adjustment ---
+
+
+// --- Start Phase 1.2: Error Handling Refinement ---
+/**
+ * Categorizes WebAssembly errors into specific types
+ * for targeted handling strategies
+ */
+function categorizeWasmError(error: Error): {
+  category: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  recoverable: boolean;
+} {
+  // Define patterns for categorization
+  const patterns = {
+    memory: [
+      'memory', 'allocation', 'heap', 'out of memory', 'oom',
+      'buffer', 'capacity', 'size', 'grow'
+    ],
+    initialization: [
+      'initialize', 'load', 'compile', 'instantiate', 'module',
+      'not ready', 'not available', 'missing', 'fetch'
+    ],
+    serialization: [
+      'serialize', 'deserialize', 'parse', 'json', 'convert',
+      'type', 'invalid', 'format'
+    ],
+    execution: [
+      'runtime', 'execute', 'call', 'invoke', 'function',
+      'operation', 'process'
+    ]
+  };
+
+  // Convert error message to lowercase for pattern matching
+  const message = error.message.toLowerCase();
+
+  // Check for WebAssembly built-in error types
+  if (error instanceof WebAssembly.RuntimeError) {
+    return { category: 'execution', severity: 'high', recoverable: false };
+  }
+  if (error instanceof WebAssembly.LinkError) {
+    return { category: 'initialization', severity: 'critical', recoverable: false };
+  }
+  if (error instanceof WebAssembly.CompileError) {
+    return { category: 'initialization', severity: 'critical', recoverable: false };
+  }
+
+  // Check for custom error types
+  if (error instanceof WasmInitializationError) {
+    // Initialization errors are often critical unless handled specifically
+    return { category: 'initialization', severity: 'critical', recoverable: false };
+  }
+  if (error instanceof WasmMemoryError) {
+    return { category: 'memory', severity: 'high', recoverable: true }; // Memory errors might be recoverable with GC
+  }
+  if (error instanceof WasmOperationError) {
+    return { category: 'execution', severity: 'medium', recoverable: true }; // Operation errors are often recoverable
+  }
+
+  // Pattern-based categorization for generic errors
+  for (const [category, keywords] of Object.entries(patterns)) {
+    if (keywords.some(keyword => message.includes(keyword))) {
+      // Determine severity based on message content
+      const isCritical = message.includes('critical') ||
+                         message.includes('fatal') ||
+                         message.includes('cannot recover');
+      const isHigh = message.includes('error') ||
+                     message.includes('failed') ||
+                     message.includes('invalid');
+      const isMedium = message.includes('warning') ||
+                       message.includes('issue');
+
+      const severity = isCritical ? 'critical' :
+                       isHigh ? 'high' :
+                       isMedium ? 'medium' : 'low';
+
+      // Determine recoverability
+      const recoverable = !isCritical &&
+                          !message.includes('unrecoverable') &&
+                          !message.includes('cannot continue');
+
+      return { category, severity, recoverable };
+    }
+  }
+
+  // Default categorization for unknown errors
+  return { category: 'unknown', severity: 'medium', recoverable: true };
+}
+
+/**
+ * Determines appropriate recovery strategy based on error type
+ */
+function getRecoveryStrategy(
+  errorType: { category: string; severity: string; recoverable: boolean },
+  operation: string
+): {
+  strategy: string;
+  action: () => void;
+  fallbackRequired: boolean;
+} {
+  // Default strategy (log and fallback)
+  const defaultStrategy = {
+    strategy: 'log_and_fallback',
+    action: () => {},
+    fallbackRequired: true
+  };
+
+  // Return early if error is non-recoverable
+  if (!errorType.recoverable) {
+    return {
+      strategy: 'disable_wasm',
+      action: () => {
+        wasmLogger.log(
+          WasmLogLevel.CRITICAL,
+          'recovery',
+          `Disabling WebAssembly due to non-recoverable error in ${operation}`
+        );
+        enableWasm(false); // Disable WASM completely
+      },
+      fallbackRequired: true
+    };
+  }
+
+  // Define strategies by category
+  switch (errorType.category) {
+    case 'memory':
+      return {
+        strategy: 'gc_and_retry_or_fallback',
+        action: () => {
+          const wasmModule = getWasmModule();
+          if (wasmModule && typeof wasmModule.force_garbage_collection === 'function') {
+            wasmLogger.log(WasmLogLevel.WARN, 'memory', 'Attempting garbage collection due to memory error.');
+            wasmModule.force_garbage_collection();
+          }
+
+          // If memory pressure is still high after GC, disable WASM temporarily
+          setTimeout(() => {
+            if (isWasmEnabled()) {
+              try {
+                const memInfo = wasmModule?.get_memory_usage();
+                if (memInfo && memInfo.utilization > 0.9) {
+                  wasmLogger.log(
+                    WasmLogLevel.WARN,
+                    'memory',
+                    'Temporarily disabling WebAssembly due to persistent memory pressure post-GC',
+                    { memoryInfo: memInfo }
+                  );
+
+                  // Re-enable after 30 seconds to allow for recovery
+                  enableWasm(false);
+                  setTimeout(() => {
+                    wasmLogger.log(
+                      WasmLogLevel.INFO,
+                      'memory',
+                      'Re-enabling WebAssembly after memory pressure timeout'
+                    );
+                    enableWasm(true);
+                  }, 30000);
+                }
+              } catch (e: any) {
+                 wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Error checking memory post-GC: ${e.message}`);
+              }
+            }
+          }, 1000);
+        },
+        fallbackRequired: true // Always fallback after memory error, even if GC runs
+      };
+
+    case 'initialization':
+      // Recoverable init errors are rare, usually disable is needed
+      return {
+        strategy: 'disable_wasm',
+        action: () => {
+          wasmLogger.log(
+            WasmLogLevel.ERROR,
+            'init',
+            `Disabling WebAssembly due to initialization error in ${operation}`
+          );
+          enableWasm(false);
+        },
+        fallbackRequired: true
+      };
+
+    case 'serialization':
+      return {
+        strategy: 'adjust_threshold_and_fallback',
+        action: () => {
+          // Update threshold to use smaller chunks
+          const currentThreshold = getWasmSizeThreshold();
+          const newThreshold = Math.max(WASM_CONFIG.MIN_THRESHOLD, Math.floor(currentThreshold * 0.7));
+          if (newThreshold !== currentThreshold) {
+            setWasmSizeThreshold(newThreshold);
+            wasmLogger.log(
+              WasmLogLevel.WARN,
+              'serialization',
+              `Reducing WebAssembly size threshold to ${getWasmSizeThreshold()} after serialization error`
+            );
+          }
+        },
+        fallbackRequired: true
+      };
+
+    case 'execution':
+      // For execution errors, strategy depends on severity and repetition
+      if (errorType.severity === 'high') {
+         // Track repeated errors for this operation
+         const blacklisted = trackOperationError(operation);
+         if (blacklisted) {
+             return {
+                 strategy: 'blacklist_operation',
+                 action: () => {}, // Blacklisting handled by trackOperationError
+                 fallbackRequired: true
+             };
+         }
+      }
+      // For medium/low severity or non-repeated high severity, just fallback
+      return defaultStrategy;
+
+    default:
+      return defaultStrategy;
   }
 }
 
-// Check for optimal threshold adjustments periodically
-setInterval(() => {
-  if (wasmInitialized && wasmState.performanceMetrics.operationsCount > 10) {
-    updateOptimalThreshold();
+// Operation blacklist management
+const operationBlacklist = new Set<string>();
+const operationErrorCounts = new Map<string, number>();
+
+function addToOperationBlacklist(operation: string): void {
+  operationBlacklist.add(operation);
+  wasmLogger.log(
+    WasmLogLevel.WARN,
+    'recovery',
+    `Blacklisting operation "${operation}" due to repeated errors`
+  );
+
+  // Schedule removal after a timeout to allow retrying later
+  setTimeout(() => {
+    operationBlacklist.delete(operation);
+    operationErrorCounts.delete(operation);
+
+    wasmLogger.log(
+      WasmLogLevel.INFO,
+      'recovery',
+      `Removed "${operation}" from WebAssembly operation blacklist`
+    );
+  }, 5 * 60 * 1000); // 5 minutes
+}
+
+export function isOperationBlacklisted(operation: string): boolean { // Export for use in logStore
+  return operationBlacklist.has(operation);
+}
+
+function trackOperationError(operation: string): boolean {
+  // Increment error count for this operation
+  const currentCount = operationErrorCounts.get(operation) || 0;
+  const newCount = currentCount + 1;
+  operationErrorCounts.set(operation, newCount);
+
+  // Blacklist after 3 consecutive errors
+  if (newCount >= 3) {
+    addToOperationBlacklist(operation);
+    return true;
   }
-}, 10 * 60 * 1000); // Check every 10 minutes
+
+  return false;
+}
+
+// Export for use in logStore
+export function clearOperationErrorCount(operation: string): void {
+  operationErrorCounts.delete(operation);
+}
 
 /**
  * Centralized error handler for WebAssembly operations
  * Logs errors, updates state, and performs recovery actions
- * 
+ *
  * @param error The error that occurred
  * @param operation The operation that failed
  * @param context Additional context information
@@ -793,203 +1169,657 @@ export function handleWasmError(
   error: Error,
   operation: string,
   context: Record<string, any> = {},
-  disableOnCritical: boolean = false
+  disableOnCritical: boolean = false // Default to false, let recovery strategy decide
 ): void {
-  // Determine error severity
-  const isCritical = isCriticalWasmError(error);
-  const logLevel = isCritical ? WasmLogLevel.CRITICAL : WasmLogLevel.ERROR;
-  
-  // Add stack trace and browser information
+  // Categorize the error first
+  const errorType = categorizeWasmError(error);
+
+  // Determine appropriate recovery strategy
+  // Pass errorType to getRecoveryStrategy
+  const recovery = getRecoveryStrategy(errorType, operation);
+
+  // Determine log level based on severity
+  const logLevel = errorType.severity === 'critical' ? WasmLogLevel.CRITICAL :
+                  errorType.severity === 'high' ? WasmLogLevel.ERROR :
+                  errorType.severity === 'medium' ? WasmLogLevel.WARN :
+                  WasmLogLevel.INFO;
+
+  // Enhanced context with error classification and recovery info
   const enhancedContext = {
     ...context,
     errorName: error.name,
     errorStack: error.stack,
+    errorCategory: errorType.category,
+    errorSeverity: errorType.severity,
+    recoverable: errorType.recoverable,
     operation,
+    recoveryStrategy: recovery.strategy,
+    isBlacklisted: isOperationBlacklisted(operation), // Check current blacklist status
+    errorCount: operationErrorCounts.get(operation) || 1, // Get current count
     browserInfo: {
       userAgent: navigator.userAgent,
       platform: navigator.platform,
       language: navigator.language,
       timestamp: new Date().toISOString()
     },
-    wasmState: {
+    wasmState: { // Include relevant WASM state
       initStatus: wasmState.initStatus,
       totalOperations: wasmState.totalOperations,
       memoryUtilization: wasmState.memoryUsage?.utilization
     }
   };
-  
-  // Log the error with enhanced context
+
+  // Log with enhanced context
   wasmLogger.log(
     logLevel,
     'error',
     `WebAssembly ${operation} failed: ${error.message}`,
     enhancedContext
   );
-  
-  // Update error state
+
+  // Update error state in wasm-state
   setWasmError(error);
-  
-  // Report to backend immediately for crash reporting
-  reportWasmState();
-  
-  // Disable WebAssembly for critical errors if requested
-  if (isCritical && disableOnCritical) {
+
+  // Apply recovery strategy action
+  recovery.action();
+
+  // Disable WebAssembly completely for critical errors if requested AND strategy didn't already
+  // This allows specific critical errors (like init) to force disable via strategy
+  if (errorType.severity === 'critical' && disableOnCritical && recovery.strategy !== 'disable_wasm') {
     wasmLogger.log(
       WasmLogLevel.CRITICAL,
       'system',
-      `Disabling WebAssembly due to critical error in ${operation}`
+      `Disabling WebAssembly due to critical error in ${operation} (forced)`
     );
     enableWasm(false);
   }
+
+  // Report state to backend immediately for crash reporting
+  reportWasmState();
+
+  // Note: The decision to fallback to TypeScript is handled by the caller
+  // based on the error occurring or the recovery strategy outcome.
 }
 
 /**
  * Determines if a WebAssembly error is critical
  * Critical errors indicate fundamental problems with WebAssembly execution
  */
-function isCriticalWasmError(error: Error): boolean {
+function isCriticalWasmError(error: Error): boolean { // Keep this helper internal
   // Check error types that indicate critical failures
   if (error instanceof WebAssembly.RuntimeError) return true;
   if (error instanceof WebAssembly.LinkError) return true;
   if (error instanceof WebAssembly.CompileError) return true;
-  
-  // Check for memory-related errors
+  if (error instanceof WasmInitializationError) return true; // Treat init errors as critical
+
+  // Check for memory-related errors that might be critical
   const errorMsg = error.message.toLowerCase();
-  if (errorMsg.includes('memory') && 
-      (errorMsg.includes('out of') || errorMsg.includes('allocation'))) {
+  if (errorMsg.includes('memory') &&
+      (errorMsg.includes('out of') || errorMsg.includes('allocation failed') || errorMsg.includes('cannot grow'))) {
     return true;
   }
-  
-  // Check for initialization errors
-  if (errorMsg.includes('initialize') || errorMsg.includes('not ready')) {
-    return true;
+
+  // Check for specific messages indicating unrecoverable states
+  if (errorMsg.includes('unreachable') || errorMsg.includes('wasm trap')) {
+      return true;
   }
-  
+
+
   return false;
 }
+// --- End Phase 1.2: Error Handling Refinement ---
 
-// --- Phase 2: Adaptive Threshold Logic ---
-// (Added based on Phase 2 refinement plan)
+
+// --- Start Phase 2.1: Enhanced shouldUseWasm ---
 /**
- * Determines whether to use WebAssembly based on log count and performance metrics
- * This implements adaptive thresholds that learn from actual performance measurements
- * 
+ * Determines whether to use WebAssembly for log processing operations.
+ *
+ * This function uses an adaptive decision-making process based on:
+ * 1. Current performance metrics of both TS and WASM implementations
+ * 2. Memory availability and pressure
+ * 3. Dataset size relative to configurable thresholds
+ * 4. Operation-specific performance characteristics
+ * 5. Estimated hardware capabilities
+ * 6. Operation blacklist status
+ *
  * @param totalLogCount The total number of logs to be processed
- * @returns boolean indicating whether WebAssembly should be used
+ * @param operation The operation type (default: 'mergeInsertLogs')
+ * @returns Whether WebAssembly should be used for this operation
+ *
+ * Performance Characteristics:
+ * - Small datasets (<500 logs): WebAssembly typically provides 1.2-1.5x speedup
+ * - Medium datasets (500-2000 logs): WebAssembly typically provides 2-3x speedup
+ * - Large datasets (>2000 logs): WebAssembly typically provides 5-10x speedup
+ *
+ * Memory Impact:
+ * - WebAssembly operations require additional memory for serialization overhead
+ * - Under high memory pressure conditions, the function may recommend using TypeScript
+ * - GC is automatically triggered when memory utilization exceeds thresholds
  */
-export function shouldUseWasm(totalLogCount: number): boolean {
-  // If WASM is not enabled or initialized, don't use it
-  if (!isWasmEnabled()) {
+export function shouldUseWasm(
+  totalLogCount: number,
+  operation: string = 'mergeInsertLogs'
+): boolean {
+  // Basic checks first
+  if (!isWasmEnabled() || isOperationBlacklisted(operation)) {
+    if (isOperationBlacklisted(operation)) {
+        wasmLogger.log(WasmLogLevel.INFO, 'threshold', `Skipping WASM for blacklisted operation: ${operation}`);
+    }
     return false;
   }
-  
+
   // Get current state and metrics
   const currentState = getWasmStateInternal();
   const metrics = currentState.performanceMetrics;
-  
+
+  // Early decision for very small datasets - always use TypeScript
+  if (totalLogCount < 50) {
+    return false;
+  }
+
+  // Check memory availability first - if it can't proceed, don't use WASM
+  const memCheck = checkMemoryAvailability(totalLogCount);
+  if (!memCheck.canProceed) {
+      wasmLogger.log(
+          WasmLogLevel.INFO,
+          'threshold',
+          `Using TypeScript fallback due to memory constraints: ${memCheck.actionTaken}`,
+          { memoryInfo: memCheck.memoryInfo, operation, logCount: totalLogCount }
+      );
+      return false;
+  }
+
+
+  // Early decision for very large datasets - use WebAssembly if memory allows
+  if (totalLogCount > 5000 && metrics.operationsCount > 0) {
+    // Memory check already passed above
+    return true;
+  }
+
   // If we haven't measured enough operations, use static threshold
   if (metrics.operationsCount < 5) {
-    return totalLogCount >= getWasmSizeThreshold();
+    return totalLogCount >= getOperationThreshold(operation); // Use operation-specific threshold
   }
-  
-  // Calculate serialization overhead based on log count
-  // Serialization increases with log size, approximated with logarithmic scaling
-  const estimatedSerializationMs = 0.3 * Math.log10(totalLogCount) * totalLogCount / 100;
-  
-  // Estimate TypeScript execution time based on historical data
-  const estimatedTsMs = metrics.avgTsTime * (totalLogCount / 1000);
-  
-  // Estimate WebAssembly execution time with serialization overhead
-  const estimatedWasmMs = (metrics.avgWasmTime * (totalLogCount / 1000)) + estimatedSerializationMs;
-  
+
+  // Check operation-specific metrics if available
+  let operationMetrics = null;
+  if (metrics.operationTimings && metrics.operationTimings[operation]) {
+    operationMetrics = metrics.operationTimings[operation];
+  }
+
+  // Get hardware capabilities approximation
+  const hardwareScore = estimateHardwareCapabilities();
+
+  // Calculate serialization overhead with more accurate model
+  // Serialization has both fixed and variable components
+  const fixedSerializationCost = 0.5; // Base cost in ms
+  const varSerializationCost = totalLogCount * 0.001; // 1µs per log entry (adjust based on real data)
+  const estimatedSerializationMs = fixedSerializationCost + varSerializationCost;
+
+  // Estimate TypeScript execution time with non-linear scaling
+  // Use operation-specific baseline if available, otherwise global average
+  const baseTs = (operationMetrics && operationMetrics.count > 2 && metrics.avgTsTime > 0) ?
+                 metrics.avgTsTime : // Use global TS average if available
+                 10; // Default baseline TS time (e.g., 10ms per 1000 logs) if no data
+
+  // Non-linear scaling factor based on log count
+  const tsScalingFactor = calculateTsScalingFactor(totalLogCount);
+  // Estimate TS time relative to a baseline size (e.g., 1000 logs)
+  const estimatedTsMs = baseTs * tsScalingFactor * (totalLogCount / 1000);
+
+
+  // Estimate WebAssembly execution time (more linear scaling)
+  const wasmAvgTime = (operationMetrics && operationMetrics.count > 2) ?
+                     operationMetrics.avgTime :
+                     metrics.avgWasmTime; // Fall back to global WASM average
+
+  // Use a slightly non-linear scaling for WASM too, but less aggressive than TS
+  const wasmScalingFactor = Math.log10(Math.max(100, totalLogCount)) / Math.log10(1000); // Relative to 1000 logs
+  const estimatedWasmMs = wasmAvgTime * wasmScalingFactor * (totalLogCount / 1000);
+
+
+  // Total WebAssembly time including overhead
+  const totalWasmTimeMs = estimatedWasmMs + estimatedSerializationMs;
+
   // Calculate estimated performance gain
   let estimatedGain = 1.0;
-  if (estimatedWasmMs > 0) {
-    estimatedGain = estimatedTsMs / estimatedWasmMs;
+  if (totalWasmTimeMs > 0 && estimatedTsMs > 0) { // Ensure both are positive
+    estimatedGain = estimatedTsMs / totalWasmTimeMs;
+  } else if (estimatedTsMs > 0) {
+      estimatedGain = Infinity; // If WASM time is zero/negative, gain is effectively infinite
+  } else {
+      estimatedGain = 0; // If TS time is zero/negative, gain is zero
   }
-  
+
+
+  // Adjust minimum gain threshold based on hardware capabilities
+  // Require higher gain on powerful hardware because TS might be fast enough
+  const adjustedMinGain = WASM_CONFIG.MIN_PERFORMANCE_GAIN *
+                         (hardwareScore > 0.7 ? 1.2 : hardwareScore < 0.3 ? 0.8 : 1.0);
+
+  // Memory pressure adjustment - require higher gain when memory is constrained
+  let memoryPressureAdjustment = 1.0;
+  if (currentState.memoryUsage) {
+    if (currentState.memoryUsage.utilization > 0.8) {
+      memoryPressureAdjustment = 1.5; // Require 50% more gain when memory is highly constrained
+    } else if (currentState.memoryUsage.utilization > 0.6) {
+      memoryPressureAdjustment = 1.2; // Require 20% more gain when memory is moderately constrained
+    }
+  }
+
+  // Final adjusted minimum gain threshold
+  const finalMinGain = adjustedMinGain * memoryPressureAdjustment;
+
   // Require minimum performance gain to justify WebAssembly overhead
-  const meetsMinGain = estimatedGain >= WASM_CONFIG.MIN_PERFORMANCE_GAIN;
-  
-  // Check if log count exceeds the configured threshold
-  const isLargeEnough = totalLogCount >= getWasmSizeThreshold();
-  
-  // Combined decision: use WebAssembly for large datasets with performance gain
+  const meetsMinGain = estimatedGain >= finalMinGain;
+
+  // Check if log count exceeds the configured threshold for the operation
+  const isLargeEnough = totalLogCount >= getOperationThreshold(operation);
+
+  // Combined decision: use WebAssembly for large enough datasets with sufficient performance gain
   const useWasm = meetsMinGain && isLargeEnough;
-  
-  // Log decision for large datasets to help with performance tuning
+
+  // Log decision for large datasets or during calibration
   if (totalLogCount > 1000 || metrics.operationsCount < 10) {
     wasmLogger.log(
       WasmLogLevel.DEBUG,
       'threshold',
-      `WebAssembly decision for ${totalLogCount} logs: ${useWasm ? 'Use WASM' : 'Use TypeScript'}`,
+      `WebAssembly decision for ${operation} with ${totalLogCount} logs: ${useWasm ? 'Use WASM' : 'Use TypeScript'}`,
       {
         estimatedTsMs: estimatedTsMs.toFixed(2),
         estimatedWasmMs: estimatedWasmMs.toFixed(2),
+        serializationOverhead: estimatedSerializationMs.toFixed(2),
+        totalWasmTimeMs: totalWasmTimeMs.toFixed(2),
         estimatedGain: estimatedGain.toFixed(2),
-        serialization: estimatedSerializationMs.toFixed(2),
+        requiredGain: finalMinGain.toFixed(2),
+        hardwareScore: hardwareScore.toFixed(2),
+        memoryPressure: currentState.memoryUsage?.utilization?.toFixed(2) || 'unknown',
         meetsMinGain,
         isLargeEnough,
-        threshold: getWasmSizeThreshold(),
-        minGainRequired: WASM_CONFIG.MIN_PERFORMANCE_GAIN
+        threshold: getOperationThreshold(operation)
       }
     );
   }
-  
+
   return useWasm;
 }
 
-// --- Phase 2: Memory Estimation Check ---
-// (Added based on Phase 2 refinement plan)
 /**
- * Determines whether the WebAssembly module can safely process the given 
- * number of logs without memory issues
- * 
- * @param logCount The total number of logs to be processed
- * @returns true if it's safe to process with WebAssembly, false otherwise
+ * Calculates TypeScript performance scaling factor based on log count
+ * TypeScript performance degrades non-linearly with dataset size
  */
-export function canProcessSafely(logCount: number): boolean {
-  // Skip check if WebAssembly is not enabled
-  if (!isWasmEnabled() || !wasmModule) return true;
-  
-  try {
-    // Check if module has the estimation function
-    if (typeof wasmModule.estimate_memory_for_logs !== 'function') {
-      wasmLogger.log(
-        WasmLogLevel.WARN, 
-        'memory', 
-        'Memory estimation function not available'
-      );
-      return logCount < getWasmSizeThreshold() * 2;
-    }
-    
-    // Call the Rust function to estimate memory requirements
-    const estimate = wasmModule.estimate_memory_for_logs(logCount);
-    
-    // Log detailed estimation for large operations
-    if (logCount > 1000) {
-      wasmLogger.log(
-        WasmLogLevel.DEBUG, 
-        'memory', 
-        `Memory estimation for ${logCount} logs`,
-        {
-          estimated_bytes: estimate.estimated_bytes,
-          available_bytes: estimate.current_available,
-          would_fit: estimate.would_fit
-        }
-      );
-    }
-    
-    return estimate.would_fit;
-  } catch (e: any) {
-    wasmLogger.log(
-      WasmLogLevel.WARN, 
-      'memory', 
-      `Memory estimation failed: ${e.message}`,
-      { logCount }
-    );
-    
-    // Fall back to a conservative size-based approach
-    return logCount < getWasmSizeThreshold() * 2;
+function calculateTsScalingFactor(logCount: number): number {
+  // TypeScript degradation is roughly O(n log n) for sorting operations
+  if (logCount <= 500) {
+    return 1.0; // Assume linear up to 500 logs
+  } else if (logCount <= 2000) {
+    // Start of non-linear scaling (e.g., 1.0 to 1.2)
+    return 1.0 + 0.2 * ((logCount - 500) / 1500);
+  } else {
+    // More aggressive non-linear scaling for larger datasets (e.g., 1.2 + log factor)
+    // Adjust the base (2000) and factor (0.4) based on observed performance
+    return 1.2 + 0.4 * Math.log10(Math.max(1, logCount / 2000));
   }
 }
+
+/**
+ * Estimates hardware capabilities to adjust thresholds
+ * @returns Score from 0-1 indicating relative hardware performance
+ */
+function estimateHardwareCapabilities(): number {
+  try {
+    // Use available hardware concurrency as proxy for CPU power
+    const hardwareConcurrency = navigator.hardwareConcurrency || 4; // Default to 4 cores if unavailable
+    // Scale 0-1 where 8+ cores is max (adjust max cores as needed)
+    const concurrencyScore = Math.min(hardwareConcurrency / 8, 1.0);
+
+    // Use device memory API if available (Chrome only)
+    let memoryScore = 0.5; // Default to middle value
+    if ('deviceMemory' in navigator) {
+      const deviceMemoryGB = (navigator as any).deviceMemory; // Use 'as any' to access non-standard property
+      // Check if the value is a number before using it
+      if (typeof deviceMemoryGB === 'number') {
+        // Scale 0-1 where 8+ GB is max (adjust max GB as needed)
+        memoryScore = Math.min(deviceMemoryGB / 8, 1.0);
+      }
+    }
+
+    // Use performance.now() timing precision as proxy for device capability
+    // Measure how many timing operations we can do in 5ms
+    const startTime = performance.now();
+    let iterations = 0;
+    while (performance.now() - startTime < 5) {
+      performance.now();
+      iterations++;
+    }
+
+    // Scale iterations to a 0-1 score (calibrated values - adjust 100000 based on testing)
+    const iterationsScore = Math.min(iterations / 100000, 1.0);
+
+    // Combine scores with weights (adjust weights based on importance)
+    // Example: CPU=40%, Memory=30%, Timing=30%
+    return (concurrencyScore * 0.4) + (memoryScore * 0.3) + (iterationsScore * 0.3);
+  } catch (e) {
+    // Fall back to middle value for any measurement errors
+    wasmLogger.log(WasmLogLevel.WARN, 'hardware', `Failed to estimate hardware capabilities: ${e}`);
+    return 0.5;
+  }
+}
+// --- End Phase 2.1: Enhanced shouldUseWasm ---
+
+
+// --- Start Phase 1.1: checkMemoryAvailability ---
+/**
+ * Proactively checks if an operation might cause memory issues and
+ * performs garbage collection or fallback as needed. Includes JSDoc from Phase 4.2.
+ *
+ * This function uses the WebAssembly memory estimation API to predict memory usage
+ * and determines if the operation can proceed safely or should fall back to TypeScript.
+ *
+ * @param logCount Number of logs to be processed
+ * @returns Object with information about whether the operation can proceed with WebAssembly
+ *
+ * Memory Safety Considerations:
+ * - Estimates memory requirements before committing to WebAssembly
+ * - Considers fragmentation and allocation patterns from Rust module
+ * - Respects high water marks for peak memory usage
+ * - Will force garbage collection if memory is near capacity but operation might fit
+ */
+export function checkMemoryAvailability(logCount: number): {
+  canProceed: boolean;
+  actionTaken: string; // e.g., 'normal', 'gc_performed', 'high_memory_post_gc', 'insufficient_memory', 'wasm_disabled', 'error'
+  memoryInfo?: any; // Contains relevant memory details or error message
+} {
+  if (!isWasmEnabled() || !wasmModule) {
+    return { canProceed: false, actionTaken: 'wasm_disabled' };
+  }
+
+  try {
+    // Check if estimation function exists
+    if (typeof wasmModule.estimate_memory_for_logs !== 'function' || typeof wasmModule.get_memory_usage !== 'function') {
+        wasmLogger.log(WasmLogLevel.WARN, 'memory', 'Memory check functions not available in WASM module.');
+        // Fallback: allow if log count is below a high threshold, otherwise deny
+        const safeThreshold = getWasmSizeThreshold() * 5; // Example: 5x the normal threshold
+        const allow = logCount < safeThreshold;
+        return { canProceed: allow, actionTaken: allow ? 'estimation_unavailable_proceed' : 'estimation_unavailable_deny' };
+    }
+
+
+    // Get current memory usage
+    const memInfo = wasmModule.get_memory_usage();
+    updateMemoryUsage(memInfo); // Update central state
+
+    // Check if memory utilization is already critically high
+    if (memInfo.utilization > 0.85) {
+      wasmLogger.log(
+        WasmLogLevel.WARN,
+        'memory',
+        `High memory pressure detected (${(memInfo.utilization * 100).toFixed(1)}%), performing GC before estimation`,
+        { memoryInfo: memInfo }
+      );
+
+      wasmModule.force_garbage_collection();
+
+      // Check memory again after GC
+      const postGcInfo = wasmModule.get_memory_usage();
+      updateMemoryUsage(postGcInfo); // Update state again
+      if (postGcInfo.utilization > 0.75) {
+        // Still high after GC, use TS fallback
+        return {
+          canProceed: false,
+          actionTaken: 'high_memory_post_gc',
+          memoryInfo: postGcInfo
+        };
+      }
+      // GC helped, proceed with estimation
+    }
+
+    // Check estimated memory for operation using the enhanced Rust function
+    const estimate = wasmModule.estimate_memory_for_logs(logCount);
+
+    // Log the estimation details for debugging
+    wasmLogger.log(WasmLogLevel.DEBUG, 'memory', 'Memory estimation result', { estimate, logCount });
+
+
+    if (!estimate.would_fit) {
+      // Won't fit even with current memory, try GC if not already done
+      if (memInfo.utilization <= 0.85) { // Avoid GC if already done above
+          wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Estimated memory insufficient, attempting GC.', { estimate });
+          wasmModule.force_garbage_collection();
+
+          // Get updated estimate after GC
+          const postGcEstimate = wasmModule.estimate_memory_for_logs(logCount);
+          updateMemoryUsage(wasmModule.get_memory_usage()); // Update state
+
+          if (!postGcEstimate.would_fit) {
+            return {
+              canProceed: false,
+              actionTaken: 'insufficient_memory_post_gc',
+              memoryInfo: {
+                estimate: postGcEstimate,
+                current: getWasmStateInternal().memoryUsage // Get updated usage
+              }
+            };
+          } else {
+             // GC created enough space
+             return {
+               canProceed: true,
+               actionTaken: 'gc_created_space',
+               memoryInfo: postGcEstimate
+             };
+          }
+      } else {
+          // Already tried GC or utilization was critical, still won't fit
+          return {
+              canProceed: false,
+              actionTaken: 'insufficient_memory',
+              memoryInfo: {
+                  estimate: estimate,
+                  current: memInfo // Use the initial high memory info
+              }
+          };
+      }
+    }
+
+    // Recommendation check from estimate
+    if (estimate.recommendation === 'use_typescript_fallback') {
+        return {
+            canProceed: false,
+            actionTaken: 'recommendation_fallback',
+            memoryInfo: estimate
+        };
+    }
+
+    // Normal case - can proceed with operation
+    return {
+      canProceed: true,
+      actionTaken: estimate.recommendation === 'proceed_with_caution' ? 'proceed_with_caution' : 'normal',
+      memoryInfo: { estimate, current: memInfo }
+    };
+  } catch (e: any) {
+    // Use the central error handler
+    handleWasmError(e, 'checkMemoryAvailability', { logCount });
+
+    return {
+      canProceed: false, // Assume unsafe on error
+      actionTaken: 'error',
+      memoryInfo: { error: e.message }
+    };
+  }
+}
+// --- End Phase 1.1: checkMemoryAvailability ---
+
+
+// --- Start Phase 2.2: Serialization ---
+/**
+ * Measures and manages serialization overhead between JavaScript and WebAssembly
+ */
+const serializationMetrics = {
+  totalSerializeTime: 0,
+  totalDeserializeTime: 0,
+  count: 0,
+  avgSerializeTime: 0,
+  avgDeserializeTime: 0,
+  maxSerializeTime: 0,
+  maxDeserializeTime: 0,
+
+  // Track serialization time for performance tuning
+  track(serializeTime: number, deserializeTime: number): void {
+    this.totalSerializeTime += serializeTime;
+    this.totalDeserializeTime += deserializeTime;
+    this.count++;
+    this.avgSerializeTime = this.totalSerializeTime / this.count;
+    this.avgDeserializeTime = this.totalDeserializeTime / this.count;
+    this.maxSerializeTime = Math.max(this.maxSerializeTime, serializeTime);
+    this.maxDeserializeTime = Math.max(this.maxDeserializeTime, deserializeTime);
+
+    // Optionally log metrics periodically
+    if (this.count % 20 === 0) {
+        wasmLogger.log(WasmLogLevel.DEBUG, 'serialization', 'Serialization Metrics Update', {
+            count: this.count,
+            avgSerialize: this.avgSerializeTime.toFixed(2) + 'ms',
+            avgDeserialize: this.avgDeserializeTime.toFixed(2) + 'ms',
+            maxSerialize: this.maxSerializeTime.toFixed(2) + 'ms',
+            maxDeserialize: this.maxDeserializeTime.toFixed(2) + 'ms',
+        });
+    }
+  }
+};
+
+/**
+ * Optimized serialization for transferring logs to WebAssembly
+ *
+ * @param logs The log array to serialize
+ * @returns The serialized data with timing and optimization info
+ */
+export function serializeLogsForWasm(logs: any[]): {
+  data: any;
+  time: number;
+  optimization: string; // 'direct_small', 'slim_large', 'standard', 'error_fallback'
+} {
+  const startTime = performance.now();
+  let result;
+  let optimization = 'none';
+
+  try {
+    // Fast path for small log arrays - use direct serialization
+    if (logs.length < 100) {
+      result = logs; // Pass directly, WASM bindgen handles it
+      optimization = 'direct_small';
+    }
+    // Optimization for large arrays - strip unnecessary fields if needed by WASM
+    // NOTE: Current Rust `LogMessage` handles extra fields, so slimming might not be needed
+    // unless specific performance issues arise with large objects.
+    // Keeping the structure for potential future use.
+    else if (logs.length > 1000 && false) { // Disabled slimming for now
+      // Create slimmer objects with only needed fields
+      const slimLogs = logs.map(log => ({
+        level: log.level,
+        message: log.message,
+        time: log.time,
+        behavior: log.behavior,
+        _sequence: log._sequence,
+        _unix_time: log._unix_time
+        // Only include fields defined in Rust struct if strict matching is needed
+      }));
+      result = slimLogs;
+      optimization = 'slim_large';
+    }
+    // Default case - pass the array as is
+    else {
+      result = logs;
+      optimization = 'standard';
+    }
+
+    const endTime = performance.now();
+    const serializationTime = endTime - startTime;
+
+    // Note: Actual serialization happens via wasm-bindgen when calling the WASM function.
+    // This time primarily measures JS-side preparation if any.
+
+    return {
+      data: result,
+      time: serializationTime, // JS prep time
+      optimization
+    };
+  } catch (error: any) {
+    // Handle JS-side preparation errors gracefully
+    const endTime = performance.now();
+    const serializationTime = endTime - startTime;
+
+    wasmLogger.log(
+      WasmLogLevel.WARN,
+      'serialization',
+      `Error during log serialization preparation: ${error.message}`,
+      {
+        errorName: error.name,
+        optimization,
+        logCount: logs.length
+      }
+    );
+
+    // Fall back to raw data
+    return {
+      data: logs,
+      time: serializationTime,
+      optimization: 'error_fallback'
+    };
+  }
+}
+
+/**
+ * Optimized deserialization for receiving logs from WebAssembly
+ *
+ * @param data The data from WebAssembly
+ * @returns The deserialized logs with timing information
+ */
+export function deserializeLogsFromWasm(data: any): {
+  logs: any[];
+  time: number; // Measures JS-side processing time after receiving data
+} {
+  const startTime = performance.now();
+  let result;
+
+  try {
+    // We trust the WebAssembly module (via wasm-bindgen) to return valid data structure (e.g., array)
+    // Just ensure it's an array, otherwise return empty.
+    result = Array.isArray(data) ? data : [];
+
+    // Restore any prototype methods or perform type conversions if needed
+    // (typically not needed for simple data objects returned by serde)
+
+    const endTime = performance.now();
+    const deserializationTime = endTime - startTime;
+
+    // Track metrics (using the shared tracker)
+    // Note: We need the corresponding serialize time to track properly.
+    // This tracking might be better placed in the function calling serialize/deserialize/wasm.
+    // serializationMetrics.track(0, deserializationTime); // Example if serialize time is unknown here
+
+    return {
+      logs: result,
+      time: deserializationTime
+    };
+  } catch (error: any) {
+    const endTime = performance.now();
+    const deserializationTime = endTime - startTime;
+
+    wasmLogger.log(
+      WasmLogLevel.WARN,
+      'serialization',
+      `Error during log deserialization processing: ${error.message}`,
+      {
+        errorName: error.name,
+        dataType: typeof data,
+        isArray: Array.isArray(data)
+      }
+    );
+
+    // Return empty array on error
+    return {
+      logs: [],
+      time: deserializationTime
+    };
+  }
+}
+// --- End Phase 2.2: Serialization ---

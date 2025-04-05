@@ -715,3 +715,138 @@ For troubleshooting WebAssembly integration issues:
 ---
 
 This specification provides a comprehensive guide for implementing, testing, and maintaining the WebAssembly optimization for log processing in Langkit. The implementation follows a pragmatic approach that delivers significant performance improvements while maintaining compatibility and reliability across all supported environments.
+
+# WebAssembly Integration API Reference
+
+## Core API
+
+### Initialization and Configuration
+
+#### `enableWasm(enabled: boolean): Promise<boolean>`
+
+Enables or disables WebAssembly optimization.
+
+**Parameters:**
+- `enabled`: Boolean flag to enable/disable WebAssembly
+
+**Returns:**
+- Promise resolving to boolean indicating whether WebAssembly is available and enabled
+
+**Example:**
+```typescript
+// Enable WebAssembly optimization
+const wasmEnabled = await enableWasm(true);
+console.log(`WebAssembly is ${wasmEnabled ? 'enabled' : 'disabled'}`);
+```
+
+#### `setWasmSizeThreshold(threshold: number): void`
+Sets the minimum log count threshold for using WebAssembly.
+**Parameters:**
+    • threshold: Number of logs required to use WebAssembly (100-5000)
+**Example:**
+```typescript
+// Only use WebAssembly for datasets larger than 800 logs
+setWasmSizeThreshold(800);
+```
+
+### State and Metrics
+
+#### `getWasmState(): WasmState`
+Returns the current WebAssembly state, including performance metrics and memory usage.
+**Returns:**
+    • WasmState object with current state information
+**Example:**
+```typescript
+const state = getWasmState();
+console.log(`WebAssembly speedup: ${state.performanceMetrics.speedupRatio.toFixed(2)}x`);
+```
+
+#### `resetWasmMetrics(): void`
+Resets all WebAssembly performance metrics, useful for benchmarking.
+**Example:**
+```typescript
+// Clear all performance history
+resetWasmMetrics();
+```
+
+### Decision Functions
+
+#### `shouldUseWasm(totalLogCount: number, operation?: string): boolean`
+Determines whether to use WebAssembly for a given dataset size and operation.
+**Parameters:**
+    • totalLogCount: Number of logs to be processed
+    • operation: Optional operation name (default: 'mergeInsertLogs')
+**Returns:**
+    • Boolean indicating whether WebAssembly should be used
+**Example:**
+```typescript
+const logCount = existingLogs.length + newLogs.length;
+if (shouldUseWasm(logCount)) {
+  // Use WebAssembly implementation
+} else {
+  // Use TypeScript fallback
+}
+```
+
+#### `checkMemoryAvailability(logCount: number): MemoryAvailabilityResult`
+Checks if there's sufficient memory available to safely process logs with WebAssembly.
+**Parameters:**
+    • logCount: Number of logs to be processed
+**Returns:**
+    • Object with information about memory availability and any actions taken
+**Example:**
+```typescript
+const memCheck = checkMemoryAvailability(10000);
+if (memCheck.canProceed) {
+  // Safe to use WebAssembly
+} else {
+  console.log(`Using TypeScript due to: ${memCheck.actionTaken}`);
+}
+```
+
+### Error Handling
+
+#### `handleWasmError(error: Error, operation: string, context?: Record<string, any>, disableOnCritical?: boolean): void`
+Centralized error handler for WebAssembly operations.
+**Parameters:**
+    • error: The error that occurred
+    • operation: The operation name that failed
+    • context: Optional context information for diagnostics
+    • disableOnCritical: Whether to disable WebAssembly on critical errors
+**Example:**
+```typescript
+try {
+  result = wasmModule.merge_insert_logs(existingLogs, newLogs);
+} catch (error) {
+  handleWasmError(error, 'mergeInsertLogs', {
+    logCount: existingLogs.length + newLogs.length
+  });
+  // Fall back to TypeScript implementation
+  result = mergeInsertLogsTS(existingLogs, newLogs);
+}
+```
+
+## WebAssembly Module API
+
+#### `merge_insert_logs(existing_logs: any[], new_logs: any[]): any[]`
+Merges and chronologically sorts two arrays of log entries.
+**Parameters:**
+    • existing_logs: Array of existing logs
+    • new_logs: Array of new logs to merge
+**Returns:**
+    • Merged and sorted array of logs
+
+#### `get_memory_usage(): MemoryInfo`
+Returns current WebAssembly memory usage information.
+**Returns:**
+    • Object with memory usage metrics
+
+#### `force_garbage_collection(): void`
+Forces immediate memory cleanup.
+
+#### `estimate_memory_for_logs(log_count: number): MemoryEstimate`
+Estimates memory requirements for processing a given number of logs.
+**Parameters:**
+    • log_count: Number of logs to estimate memory for
+**Returns:**
+    • Object with memory estimation details

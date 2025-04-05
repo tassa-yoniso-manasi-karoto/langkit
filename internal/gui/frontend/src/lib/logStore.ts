@@ -1,20 +1,24 @@
 import { writable, get, derived } from 'svelte/store';
 import { settings } from './stores';
-import { 
-  isWasmEnabled, 
-  getWasmModule, 
+import {
+  isWasmEnabled,
+  getWasmModule,
   getWasmSizeThreshold,
   shouldUseWasm,
-  canProcessSafely,
+  // canProcessSafely, // Removed, logic is in checkMemoryAvailability
   handleWasmError,
   WasmOperationError,
-  WasmModule
+  // New imports based on updated wasm.ts
+  isOperationBlacklisted,
+  checkMemoryAvailability,
+  serializeLogsForWasm,
+  deserializeLogsFromWasm,
+  clearOperationErrorCount
 } from './wasm';
+import type { WasmModule } from './wasm'; // Import WasmModule as type
 import { wasmLogger, WasmLogLevel } from './wasm-logger';
-// Remove command pattern imports
-// import { getCommandExecutor, TrackOperationCommand, UpdateMetricsCommand, SetErrorCommand } from './wasm-commands';
 // Keep direct state function imports
-import { trackOperation, updatePerformanceMetrics, setWasmError } from './wasm-state'; 
+import { trackOperation, updatePerformanceMetrics } from './wasm-state'; // setWasmError is handled within handleWasmError now
 
 export interface LogMessage {
     level: string;
@@ -188,116 +192,151 @@ function createLogStore() {
      * This approach maintains 100% compatibility while providing significant
      * performance improvements for large log volumes.
      */
+    // Updated mergeInsertLogs from Phase 1.2 and Phase 2.2
     function mergeInsertLogs(existingLogs: LogMessage[], newLogs: LogMessage[]): LogMessage[] {
-        // Track operation in WASM state
-        trackOperation('mergeInsertLogs');
-        
-        const totalLogCount = existingLogs.length + newLogs.length;
-        
-        // First check if we have enough memory to process with WebAssembly
-        if (!canProcessSafely(totalLogCount)) {
+      // Track operation in WASM state
+      trackOperation('mergeInsertLogs');
+
+      const totalLogCount = existingLogs.length + newLogs.length;
+
+      // Early return for empty arrays with proper typing
+      if (newLogs.length === 0) return existingLogs;
+      if (existingLogs.length === 0) return newLogs;
+
+      // Check if this operation is blacklisted due to previous errors
+      if (isOperationBlacklisted('mergeInsertLogs')) {
+        wasmLogger.log(
+          WasmLogLevel.INFO,
+          'fallback',
+          `Using TypeScript fallback for blacklisted operation (mergeInsertLogs)`
+        );
+        return mergeInsertLogsTS(existingLogs, newLogs);
+      }
+
+      // Check memory availability with enhanced logic
+      const memCheck = checkMemoryAvailability(totalLogCount);
+      if (!memCheck.canProceed) {
+        wasmLogger.log(
+          WasmLogLevel.INFO,
+          'memory',
+          `Using TypeScript fallback due to memory constraints: ${memCheck.actionTaken}`,
+          { memoryInfo: memCheck.memoryInfo }
+        );
+        return mergeInsertLogsTS(existingLogs, newLogs);
+      }
+
+      // Check if we should use WebAssembly based on adaptive threshold and size
+      if (shouldUseWasm(totalLogCount, 'mergeInsertLogs')) {
+        try {
+          const wasmModule = getWasmModule();
+          if (!wasmModule || typeof wasmModule.merge_insert_logs !== 'function') {
+            throw new WasmOperationError('WebAssembly module not properly initialized', 'mergeInsertLogs', {
+              moduleAvailable: !!wasmModule,
+              functionAvailable: !!wasmModule && typeof wasmModule.merge_insert_logs === 'function'
+            });
+          }
+
+          // Optimized serialization (Phase 2.2)
+          // Note: The serializeLogsForWasm function currently just prepares the data structure.
+          // The actual heavy serialization is done by wasm-bindgen during the call.
+          // We measure the JS prep time here.
+          const serialized = serializeLogsForWasm([...existingLogs, ...newLogs]); // Pass combined for potential optimization
+
+          // Measure WebAssembly execution time
+          const wasmStartTime = performance.now();
+
+          // Use optimized approach based on log volume (Phase 2.2)
+          let result;
+
+          // For very large log sets, use the batch merge approach
+          if (totalLogCount > 10000) {
+            wasmLogger.log(WasmLogLevel.DEBUG, 'performance', 'Using pre-sort strategy for very large merge', { logCount: totalLogCount });
+            // Sort the arrays first in JS to potentially reduce WebAssembly workload if WASM sort is slow
+            const sortedExisting = [...existingLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
+            const sortedNew = [...newLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
+
+            // Now merge the pre-sorted arrays in WASM
+            result = wasmModule.merge_insert_logs(sortedExisting, sortedNew);
+          }
+          // For normal sized log sets, use standard WASM approach
+          else {
+            // Pass the original arrays (or the potentially slimmed data from serializeLogsForWasm)
+            result = wasmModule.merge_insert_logs(serialized.data.slice(0, existingLogs.length), serialized.data.slice(existingLogs.length));
+          }
+
+          const wasmEndTime = performance.now();
+          const wasmTime = wasmEndTime - wasmStartTime;
+
+          // Optimized deserialization (Phase 2.2)
+          // Measures JS-side processing time after receiving data from WASM.
+          const deserialized = deserializeLogsFromWasm(result);
+
+          // Record successful operation (Phase 1.2)
+          clearOperationErrorCount('mergeInsertLogs');
+
+          // Update metrics with all timing information (Phase 2.2)
+          updatePerformanceMetrics(
+            wasmTime,
+            0, // No TS comparison here by default
+            totalLogCount,
+            'mergeInsertLogs',
+            serialized.time, // JS serialization prep time
+            deserialized.time // JS deserialization processing time
+          );
+
+          // Occasionally benchmark TypeScript for comparison (5% chance) (Phase 2.2)
+          let tsTime = 0;
+          if (Math.random() < 0.05) {
+            const tsStartTime = performance.now();
+            const tsResult = mergeInsertLogsTS(existingLogs, newLogs); // Run TS version
+            const tsEndTime = performance.now();
+            tsTime = tsEndTime - tsStartTime;
+
+            // Log comparison
             wasmLogger.log(
-                WasmLogLevel.INFO, 
-                'memory', 
-                `Using TypeScript due to memory constraints for ${totalLogCount} logs`
+              WasmLogLevel.INFO,
+              'performance',
+              `Merge performance comparison for ${totalLogCount} logs`,
+              {
+                wasmTime: wasmTime.toFixed(2) + 'ms',
+                tsTime: tsTime.toFixed(2) + 'ms',
+                serializationTime: serialized.time.toFixed(2) + 'ms',
+                deserializationTime: deserialized.time.toFixed(2) + 'ms',
+                totalWasmOverhead: (wasmTime + serialized.time + deserialized.time).toFixed(2) + 'ms',
+                speedup: tsTime > 0 && wasmTime > 0 ? (tsTime / wasmTime).toFixed(2) + 'x' : 'N/A',
+                netSpeedup: tsTime > 0 && (wasmTime + serialized.time + deserialized.time) > 0 ? (tsTime / (wasmTime + serialized.time + deserialized.time)).toFixed(2) + 'x' : 'N/A',
+                serializationOptimization: serialized.optimization
+              }
             );
-            return mergeInsertLogsTS(existingLogs, newLogs);
-        }
-        
-        // For small datasets, use TypeScript implementation
-        if (totalLogCount < getWasmSizeThreshold()) {
-            wasmLogger.log(
-                WasmLogLevel.DEBUG, 
-                'threshold', 
-                `Using TypeScript for small dataset (${totalLogCount} logs)`
+
+            // Update TypeScript comparison metrics specifically
+            updatePerformanceMetrics(
+              wasmTime, // Pass wasmTime again
+              tsTime,   // Pass the measured tsTime
+              totalLogCount,
+              'mergeInsertLogs',
+              serialized.time,
+              deserialized.time
             );
-            return mergeInsertLogsTS(existingLogs, newLogs);
+          }
+
+          return deserialized.logs as LogMessage[];
+        } catch (error: any) {
+          // Use the enhanced error handler (Phase 1.2)
+          handleWasmError(error, 'mergeInsertLogs', {
+            logCount: totalLogCount,
+            existingLogsLength: existingLogs.length,
+            newLogsLength: newLogs.length
+          });
+
+          // Fall back to TypeScript implementation
+          return mergeInsertLogsTS(existingLogs, newLogs);
         }
-        
-        // Then check if we should use WebAssembly based on adaptive threshold
-        if (shouldUseWasm(totalLogCount)) {
-            try {
-                const wasmModule = getWasmModule();
-                if (!wasmModule || typeof wasmModule.merge_insert_logs !== 'function') {
-                    throw new WasmOperationError('WebAssembly module not properly initialized', 'mergeInsertLogs', {
-                      moduleAvailable: !!wasmModule,
-                      functionAvailable: !!wasmModule && typeof wasmModule.merge_insert_logs === 'function'
-                    });
-                }
-                
-                // Measure serialization time (approximated)
-                const serializeStartTime = performance.now();
-                // For measurement purposes, we'd need custom code here to isolate serialization
-                // This is a placeholder for the concept
-                const serializeEndTime = performance.now();
-                const serializationTime = serializeEndTime - serializeStartTime;
-                
-                // Measure WebAssembly execution time
-                const wasmStartTime = performance.now();
-                // Ensure logs are properly typed to avoid serialization issues
-                const result = wasmModule.merge_insert_logs(
-                  existingLogs as LogMessage[], 
-                  newLogs as LogMessage[]
-                );
-                const wasmEndTime = performance.now();
-                const wasmTime = wasmEndTime - wasmStartTime;
-                
-                // Measure deserialization time (approximated)
-                const deserializeStartTime = performance.now();
-                // For measurement purposes, we'd need custom code here to isolate deserialization
-                const deserializeEndTime = performance.now();
-                const deserializationTime = deserializeEndTime - deserializeStartTime;
-                
-                // Occasionally benchmark TypeScript for comparison
-                let tsTime = 0;
-                if (Math.random() < 0.1) {
-                    const tsStartTime = performance.now();
-                    mergeInsertLogsTS(existingLogs, newLogs);
-                    const tsEndTime = performance.now();
-                    tsTime = tsEndTime - tsStartTime;
-                    
-                    // Update metrics with all timing information
-                    updatePerformanceMetrics(
-                        wasmTime,
-                        tsTime,
-                        totalLogCount
-                    );
-                    
-                    // Log detailed metrics for large operations
-                    if (totalLogCount > 1000) {
-                        wasmLogger.log(
-                            WasmLogLevel.INFO, 
-                            'performance', 
-                            `Large merge operation completed`, 
-                            {
-                                wasmTime: wasmTime.toFixed(2),
-                                tsTime: tsTime.toFixed(2),
-                                speedup: tsTime > 0 ? (tsTime / wasmTime).toFixed(2) : 'N/A',
-                                logCount: totalLogCount,
-                                serializationTime: serializationTime.toFixed(2),
-                                deserializationTime: deserializationTime.toFixed(2)
-                            },
-                            'mergeInsertLogs'
-                        );
-                    }
-                }
-                
-                return result as LogMessage[];
-            } catch (error: any) {
-                // Use the centralized error handler
-                handleWasmError(error, 'mergeInsertLogs', {
-                    logCount: totalLogCount,
-                    existingLogsLength: existingLogs.length,
-                    newLogsLength: newLogs.length
-                });
-                
-                // Fall back to TypeScript implementation
-                return mergeInsertLogsTS(existingLogs, newLogs);
-            }
-        } else {
-            // Not using WebAssembly based on adaptive decision
-            return mergeInsertLogsTS(existingLogs, newLogs);
-        }
+      } else {
+        // Not using WebAssembly based on adaptive decision or size threshold
+        wasmLogger.log(WasmLogLevel.DEBUG, 'threshold', `Using TypeScript for mergeInsertLogs (${totalLogCount} logs) based on adaptive decision.`);
+        return mergeInsertLogsTS(existingLogs, newLogs);
+      }
     }
 
     /**

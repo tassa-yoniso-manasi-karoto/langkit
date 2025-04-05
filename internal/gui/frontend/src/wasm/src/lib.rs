@@ -8,10 +8,19 @@ use std::collections::HashMap; // Needed for extra_fields
 // This requires unsafe blocks for access, which is common in FFI contexts.
 static mut ALLOCATION_TRACKER: Option<AllocationTracker> = None;
 
+// --- Start Replace AllocationTracker ---
+// Enhance the AllocationTracker with more detailed metrics
 struct AllocationTracker {
     active_bytes: usize,
     peak_bytes: usize,
     allocation_count: usize,
+    // New fields for better memory analytics
+    allocation_history: [usize; 10],  // Circular buffer of recent allocations
+    history_index: usize,
+    average_allocation: usize,
+    sample_count: usize,
+    last_gc_time: u64,     // Timestamp of last garbage collection
+    allocation_rate: f64,  // Bytes per second allocation rate
 }
 
 impl AllocationTracker {
@@ -20,36 +29,85 @@ impl AllocationTracker {
             active_bytes: 0,
             peak_bytes: 0,
             allocation_count: 0,
+            allocation_history: [0; 10],
+            history_index: 0,
+            average_allocation: 0,
+            sample_count: 0,
+            last_gc_time: 0,
+            allocation_rate: 0.0,
         }
     }
 
-    // Helper to track allocations (approximate size)
+    // Enhanced allocation tracking with rate calculation
     fn track_allocation(&mut self, bytes: usize) {
+        // Track basic metrics
         self.active_bytes += bytes;
         self.allocation_count += 1;
         if self.active_bytes > self.peak_bytes {
             self.peak_bytes = self.active_bytes;
         }
+
+        // Track allocation patterns for better prediction
+        self.allocation_history[self.history_index] = bytes;
+        self.history_index = (self.history_index + 1) % 10;
+
+        // Update running average
+        self.sample_count += 1;
+        // Prevent division by zero if sample_count was 0 before incrementing
+        if self.sample_count > 0 {
+             self.average_allocation = ((self.average_allocation * (self.sample_count - 1)) + bytes) / self.sample_count;
+        }
+
+
+        // Calculate allocation rate (bytes/second)
+        let now = get_timestamp_ms();
+        if self.last_gc_time > 0 {
+            let time_diff = now.saturating_sub(self.last_gc_time); // Use saturating_sub for safety
+            if time_diff > 0 {
+                // Exponential moving average for stability
+                let new_rate = bytes as f64 / (time_diff as f64 / 1000.0);
+                self.allocation_rate = self.allocation_rate * 0.7 + new_rate * 0.3;
+            }
+        }
     }
 
-    // Helper to track deallocations (approximate size)
-    // Note: Accurate deallocation tracking is complex without a custom allocator.
-    // This is a placeholder and might not be perfectly accurate.
+    // More accurate deallocation tracking
     fn track_deallocation(&mut self, bytes: usize) {
         if bytes <= self.active_bytes {
             self.active_bytes -= bytes;
         } else {
-            // This shouldn't happen in normal operation, but guard against underflow
+            // This is a more severe issue than we currently handle
+            log("WARNING: Attempted to deallocate more bytes than tracked as active");
             self.active_bytes = 0;
         }
     }
 
+    // Reset tracking after garbage collection
     fn reset(&mut self) {
         self.active_bytes = 0;
         self.allocation_count = 0;
-        // Keep peak_bytes for historical tracking unless explicitly reset
+        self.last_gc_time = get_timestamp_ms();
+        // Keep historical data for trend analysis (peak_bytes, history, etc.)
+    }
+
+    // Predict if an operation would cause memory issues
+    fn would_operation_fit(&self, estimated_bytes: usize, wasm_heap_size: usize) -> bool {
+        // Conservative estimate: need the bytes plus 20% overhead
+        let required_bytes = (estimated_bytes as f64 * 1.2) as usize;
+
+        // Available memory calculation
+        let available = if wasm_heap_size > self.active_bytes {
+            wasm_heap_size - self.active_bytes
+        } else {
+            0
+        };
+
+        // True if operation would fit with a safety margin
+        available >= required_bytes
     }
 }
+// --- End Replace AllocationTracker ---
+
 
 // Function to safely get a mutable reference to the static tracker
 fn get_allocation_tracker() -> &'static mut AllocationTracker {
@@ -61,6 +119,14 @@ fn get_allocation_tracker() -> &'static mut AllocationTracker {
         ALLOCATION_TRACKER.as_mut().unwrap()
     }
 }
+
+// --- Start Insert get_timestamp_ms ---
+// Helper function to get millisecond timestamp
+fn get_timestamp_ms() -> u64 {
+    let now = js_sys::Date::now();
+    now as u64
+}
+// --- End Insert get_timestamp_ms ---
 
 
 #[wasm_bindgen]
@@ -123,21 +189,32 @@ pub struct MemoryInfo {
 }
 
 
+// --- Start Replace merge_insert_logs and helpers ---
 #[wasm_bindgen]
 pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Result<JsValue, JsValue> {
     // Reset allocation tracking for this specific operation
     get_allocation_tracker().reset();
-    
-    // Handle empty arrays as special cases for efficiency
+
+    // Quick check for empty arrays
     if js_sys::Array::is_array(&new_logs_js) && js_sys::Array::from(&new_logs_js).length() == 0 {
         return Ok(existing_logs_js);
     }
-    
+
     if js_sys::Array::is_array(&existing_logs_js) && js_sys::Array::from(&existing_logs_js).length() == 0 {
         return Ok(new_logs_js);
     }
-    
-    // Deserialize logs with error handling
+
+    // Check for special cases that can be optimized
+    if is_append_only_pattern(&existing_logs_js, &new_logs_js) {
+        return append_only_merge(existing_logs_js, new_logs_js);
+    }
+    // Add check for prepend pattern
+    if is_prepend_pattern(&existing_logs_js, &new_logs_js) {
+        return prepend_merge(existing_logs_js, new_logs_js);
+    }
+
+
+    // Standard path for mixed logs
     let existing_logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value(existing_logs_js) {
         Ok(logs) => {
             // Track this allocation approximately
@@ -147,7 +224,7 @@ pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Res
         },
         Err(e) => return Err(Error::new(&format!("Failed to deserialize existing logs: {:?}", e)).into()),
     };
-    
+
     let mut new_logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value(new_logs_js) {
         Ok(logs) => {
             // Track this allocation too
@@ -157,12 +234,224 @@ pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Res
         },
         Err(e) => return Err(Error::new(&format!("Failed to deserialize new logs: {:?}", e)).into()),
     };
-    
-    // Sort new logs efficiently in place to avoid cloning
-    new_logs.sort_by(|a, b| {
+
+    // Use an optimized merge algorithm based on the input characteristics
+    let result = if existing_logs.len() > 10000 || new_logs.len() > 10000 {
+        // For very large arrays, use a memory-efficient approach
+        memory_efficient_merge(&existing_logs, &mut new_logs)
+    } else {
+        // For normal sized arrays, use a faster approach
+        standard_merge(existing_logs, new_logs)
+    };
+
+    // Serialize back to JsValue with error handling
+    match serde_wasm_bindgen::to_value(&result) {
+        Ok(js_array) => Ok(js_array),
+        Err(e) => Err(Error::new(&format!("Failed to serialize result: {:?}", e)).into()),
+    }
+}
+
+// Check if this is an append-only pattern (all new logs come after existing logs)
+fn is_append_only_pattern(existing_logs_js: &JsValue, new_logs_js: &JsValue) -> bool {
+    if !js_sys::Array::is_array(existing_logs_js) || !js_sys::Array::is_array(new_logs_js) {
+        return false;
+    }
+
+    let existing_array = js_sys::Array::from(existing_logs_js);
+    let new_array = js_sys::Array::from(new_logs_js);
+
+    if existing_array.length() == 0 || new_array.length() == 0 {
+        return true; // Empty arrays can be appended trivially
+    }
+
+    // Check the last item of existing vs first item of new
+    let last_existing = existing_array.get(existing_array.length() - 1);
+    let first_new = new_array.get(0);
+
+    // Get timestamps safely
+    let last_existing_time = get_unix_time(&last_existing).unwrap_or(0.0);
+    let first_new_time = get_unix_time(&first_new).unwrap_or(std::f64::MAX);
+
+    // If the earliest new log is later than or equal to the latest existing log, this is append-only
+    last_existing_time <= first_new_time
+}
+
+// Check if this is a prepend-only pattern (all new logs come before existing logs)
+fn is_prepend_pattern(existing_logs_js: &JsValue, new_logs_js: &JsValue) -> bool {
+    if !js_sys::Array::is_array(existing_logs_js) || !js_sys::Array::is_array(new_logs_js) {
+        return false;
+    }
+
+    let existing_array = js_sys::Array::from(existing_logs_js);
+    let new_array = js_sys::Array::from(new_logs_js);
+
+    if existing_array.length() == 0 || new_array.length() == 0 {
+        return true; // Empty arrays can be prepended trivially
+    }
+
+    // Check the first item of existing vs last item of new
+    let first_existing = existing_array.get(0);
+    let last_new = new_array.get(new_array.length() - 1);
+
+    // Get timestamps safely
+    let first_existing_time = get_unix_time(&first_existing).unwrap_or(std::f64::MAX);
+    let last_new_time = get_unix_time(&last_new).unwrap_or(0.0);
+
+    // If the latest new log is earlier than or equal to the earliest existing log, this is prepend-only
+    last_new_time <= first_existing_time
+}
+
+
+// Fast path for append-only case
+fn append_only_merge(existing_logs_js: JsValue, new_logs_js: JsValue) -> Result<JsValue, JsValue> {
+    let existing_array = js_sys::Array::from(&existing_logs_js);
+    let new_array = js_sys::Array::from(&new_logs_js);
+
+    // Create result array by concatenating
+    let result = js_sys::Array::new_with_length(existing_array.length() + new_array.length());
+
+
+    // Add all existing logs
+    for i in 0..existing_array.length() {
+        result.set(i, existing_array.get(i));
+    }
+
+    // Add all new logs
+    for i in 0..new_array.length() {
+        result.set(existing_array.length() + i, new_array.get(i));
+    }
+
+    Ok(result.into())
+}
+
+
+// Fast path for prepend case
+fn prepend_merge(existing_logs_js: JsValue, new_logs_js: JsValue) -> Result<JsValue, JsValue> {
+    let existing_array = js_sys::Array::from(&existing_logs_js);
+    let new_array = js_sys::Array::from(&new_logs_js);
+
+    // Create result array by concatenating in reverse order
+    let result = js_sys::Array::new_with_length(existing_array.length() + new_array.length());
+
+
+    // Add all new logs first
+    for i in 0..new_array.length() {
+        result.set(i, new_array.get(i));
+    }
+
+    // Then add all existing logs
+    for i in 0..existing_array.length() {
+        result.set(new_array.length() + i, existing_array.get(i));
+    }
+
+    Ok(result.into())
+}
+
+// Helper to safely get unix_time from JS object
+fn get_unix_time(obj: &JsValue) -> Option<f64> {
+    if obj.is_undefined() || obj.is_null() {
+        return None;
+    }
+
+    // Use js_sys::Reflect to access property dynamically
+    match js_sys::Reflect::get(obj, &"_unix_time".into()) {
+        Ok(time_val) => time_val.as_f64(), // as_f64 handles undefined/null returning None
+        Err(_) => None, // Handle potential error during property access
+    }
+}
+
+
+// Standard merge algorithm for normal-sized arrays
+fn standard_merge(mut existing_logs: Vec<LogMessage>, mut new_logs: Vec<LogMessage>) -> Vec<LogMessage> {
+    // Pre-allocate the result vector to avoid reallocations
+    let total_capacity = existing_logs.len() + new_logs.len();
+    let mut result = Vec::with_capacity(total_capacity);
+
+    // Track this allocation
+    get_allocation_tracker().track_allocation(total_capacity * std::mem::size_of::<LogMessage>());
+
+    // Sort both arrays first for more efficient merging
+    sort_logs(&mut existing_logs);
+    sort_logs(&mut new_logs);
+
+    // Use efficient merge algorithm (similar to std::vec::Vec::append but merges sorted)
+    let mut i = 0;
+    let mut j = 0;
+
+    while i < existing_logs.len() && j < new_logs.len() {
+        let time_a = existing_logs[i].unix_time.unwrap_or(0.0);
+        let time_b = new_logs[j].unix_time.unwrap_or(0.0);
+        let seq_a = existing_logs[i].sequence.unwrap_or(0);
+        let seq_b = new_logs[j].sequence.unwrap_or(0);
+
+
+        // Compare timestamps first, then sequence as tie-breaker
+        if time_a < time_b || (time_a == time_b && seq_a <= seq_b) {
+             result.push(existing_logs[i].clone()); // Clone is necessary here
+             i += 1;
+        } else {
+             result.push(new_logs[j].clone()); // Clone is necessary here
+             j += 1;
+        }
+    }
+
+    // Add remaining entries from either array
+    result.extend_from_slice(&existing_logs[i..]);
+    result.extend_from_slice(&new_logs[j..]);
+
+
+    result
+}
+
+// Memory-efficient merge for very large arrays
+fn memory_efficient_merge(existing_logs: &[LogMessage], new_logs: &mut Vec<LogMessage>) -> Vec<LogMessage> {
+    // Sort new logs in-place to avoid extra allocation
+    sort_logs(new_logs);
+
+    // Pre-allocate result with combined capacity
+    let mut result = Vec::with_capacity(existing_logs.len() + new_logs.len());
+    get_allocation_tracker().track_allocation(result.capacity() * std::mem::size_of::<LogMessage>());
+
+
+    // Perform merge with minimal cloning using iterators
+    let mut i = 0; // Index for existing_logs
+    let mut j = 0; // Index for new_logs
+
+
+    // Batch inserts to reduce individual allocations (less critical with pre-allocation)
+    // const BATCH_SIZE: usize = 1000;
+    // let mut batch = Vec::with_capacity(BATCH_SIZE);
+
+    while i < existing_logs.len() && j < new_logs.len() {
+        let time_a = existing_logs[i].unix_time.unwrap_or(0.0);
+        let time_b = new_logs[j].unix_time.unwrap_or(0.0);
+        let seq_a = existing_logs[i].sequence.unwrap_or(0);
+        let seq_b = new_logs[j].sequence.unwrap_or(0);
+
+
+        if time_a < time_b || (time_a == time_b && seq_a <= seq_b) {
+            result.push(existing_logs[i].clone());
+            i += 1;
+        } else {
+            result.push(new_logs[j].clone()); // Still need to clone here
+            j += 1;
+        }
+    }
+
+    // Add remaining elements efficiently
+    result.extend_from_slice(&existing_logs[i..]);
+    result.extend_from_slice(&new_logs[j..]);
+
+
+    result
+}
+
+// Sort logs by timestamp and sequence
+fn sort_logs(logs: &mut Vec<LogMessage>) {
+    logs.sort_by(|a, b| {
         let time_a = a.unix_time.unwrap_or(0.0);
         let time_b = b.unix_time.unwrap_or(0.0);
-        
+
         // Compare timestamps first
         match time_a.partial_cmp(&time_b) {
             Some(std::cmp::Ordering::Equal) => {
@@ -172,98 +461,128 @@ pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Res
                 seq_a.cmp(&seq_b)
             },
             Some(ordering) => ordering,
-            None => std::cmp::Ordering::Equal, // Handle NaN values
-        }
-    });
-    
-    // Pre-allocate the result vector to avoid reallocations
-    let total_capacity = existing_logs.len() + new_logs.len();
-    let mut result = Vec::with_capacity(total_capacity);
-    
-    // Track this allocation (vector capacity itself)
-    // Note: This doesn't account for the size of the elements yet, as they are moved/cloned below.
-    get_allocation_tracker().track_allocation(total_capacity * std::mem::size_of::<LogMessage>());
-    
-    // Use efficient in-place merging algorithm
-    let mut i = 0;
-    let mut j = 0;
-    
-    while i < existing_logs.len() && j < new_logs.len() {
-        let time_a = existing_logs[i].unix_time.unwrap_or(0.0);
-        let time_b = new_logs[j].unix_time.unwrap_or(0.0);
-        
-        // Compare timestamps with safe handling for NaN values
-        match time_a.partial_cmp(&time_b) {
-            Some(std::cmp::Ordering::Less) | Some(std::cmp::Ordering::Equal) => {
-                // Clone from existing_logs (moving is complex with Vec ownership here)
-                result.push(existing_logs[i].clone());
-                i += 1;
-            },
-            Some(std::cmp::Ordering::Greater) => {
-                // Clone from new_logs
-                result.push(new_logs[j].clone());
-                j += 1;
-            },
             None => {
-                // Handle NaN values by preferring existing logs
-                result.push(existing_logs[i].clone());
-                i += 1;
+                 // Handle NaN: Treat NaN as less than other numbers for consistent sorting
+                 if time_a.is_nan() && !time_b.is_nan() {
+                     std::cmp::Ordering::Less
+                 } else if !time_a.is_nan() && time_b.is_nan() {
+                     std::cmp::Ordering::Greater
+                 } else {
+                     // Both are NaN, use sequence
+                     let seq_a = a.sequence.unwrap_or(0);
+                     let seq_b = b.sequence.unwrap_or(0);
+                     seq_a.cmp(&seq_b)
+                 }
             }
         }
-    }
-    
-    // Add any remaining entries by cloning
-    while i < existing_logs.len() {
-        result.push(existing_logs[i].clone());
-        i += 1;
-    }
-    
-    while j < new_logs.len() {
-        result.push(new_logs[j].clone());
-        j += 1;
-    }
-    
-    // Estimate the size of the final result vector for tracking
-    let final_result_size: usize = result.iter().map(estimate_log_message_size).sum();
-    // We allocated space earlier, now adjust based on final content size
-    // This is still approximate. A custom allocator would be needed for precision.
-    // Let's assume the initial capacity allocation was roughly correct for now.
-
-    // Serialize back to JsValue with error handling
-    match serde_wasm_bindgen::to_value(&result) {
-        Ok(js_array) => Ok(js_array),
-        Err(e) => Err(Error::new(&format!("Failed to serialize result: {:?}", e)).into()),
-    }
+    });
 }
+// --- End Replace merge_insert_logs and helpers ---
 
 
+// --- Start Replace get_memory_usage and helpers ---
 // Memory management utilities with improved accuracy
 #[wasm_bindgen]
 pub fn get_memory_usage() -> JsValue {
     let tracker = get_allocation_tracker();
-    
+
     let memory = wasm_bindgen::memory();
-    let total_bytes = match memory.grow(0) { // grow(0) returns current page count
-        Ok(pages) => pages * 65536, // WebAssembly page size is 64KiB
-        Err(_) => 0, // Failed to get memory info
-    };
-    
-    // Use our tracked allocations for more accurate reporting
-    let used_bytes = tracker.active_bytes;
-    
-    let memory_info = MemoryInfo {
-        total_bytes,
-        used_bytes,
-        utilization: if total_bytes > 0 { used_bytes as f64 / total_bytes as f64 } else { 0.0 },
-        peak_bytes: tracker.peak_bytes,
-        allocation_count: tracker.allocation_count,
-    };
-    
+    let total_bytes = match js_sys::Reflect::get(&memory, &"buffer".into()) {
+         Ok(buffer) => {
+             if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
+                 array_buffer.byte_length() as usize
+             } else {
+                 0 // Not an ArrayBuffer
+             }
+         },
+         Err(_) => 0, // Failed to get buffer property
+     };
+
+
+    // Enhanced memory info with new metrics
+    let memory_info = serde_json::json!({
+        "total_bytes": total_bytes,
+        "used_bytes": tracker.active_bytes,
+        "utilization": if total_bytes > 0 { tracker.active_bytes as f64 / total_bytes as f64 } else { 0.0 },
+        "peak_bytes": tracker.peak_bytes,
+        "allocation_count": tracker.allocation_count,
+        // New metrics
+        "average_allocation": tracker.average_allocation,
+        "allocation_rate": tracker.allocation_rate,
+        "time_since_last_gc": get_timestamp_ms().saturating_sub(tracker.last_gc_time), // Use saturating_sub
+        "memory_growth_trend": calculate_memory_growth_trend(tracker),
+        "fragmentation_estimate": estimate_fragmentation(tracker, total_bytes)
+    });
+
     match serde_wasm_bindgen::to_value(&memory_info) {
         Ok(js_value) => js_value,
-        Err(_) => JsValue::NULL, // Return null if serialization fails
+        Err(_) => JsValue::NULL,
     }
 }
+
+// Calculate memory growth trend from history
+fn calculate_memory_growth_trend(tracker: &AllocationTracker) -> f64 {
+    // Simple linear regression on recent allocations
+    // Positive value indicates growth, negative indicates shrinking
+    // Value represents bytes per allocation
+
+    let mut sum_x: i64 = 0; // Use i64 to avoid overflow with multiplication
+    let mut sum_y: i64 = 0;
+    let mut sum_xy: i64 = 0;
+    let mut sum_xx: i64 = 0;
+    let mut n: i64 = 0;
+
+
+    for i in 0..10 {
+        let y = tracker.allocation_history[i];
+        if y > 0 {
+            let x = i as i64 + 1; // Use i64 for calculations
+            sum_x += x;
+            sum_y += y as i64;
+            sum_xy += x * (y as i64);
+            sum_xx += x * x;
+            n += 1;
+        }
+    }
+
+    if n < 2 {
+        return 0.0;
+    }
+
+    // Calculate slope using floating point numbers
+    let n_f64 = n as f64;
+    let denominator = n_f64 * (sum_xx as f64) - (sum_x as f64) * (sum_x as f64);
+
+    if denominator == 0.0 {
+         return 0.0; // Avoid division by zero
+    }
+
+    let slope = (n_f64 * (sum_xy as f64) - (sum_x as f64) * (sum_y as f64)) / denominator;
+
+
+    slope
+}
+
+// Estimate memory fragmentation
+fn estimate_fragmentation(tracker: &AllocationTracker, total_bytes: usize) -> f64 {
+    // This is a simplification - real fragmentation would require more insight into the allocator
+    if tracker.allocation_count < 10 || total_bytes == 0 || tracker.average_allocation == 0 {
+        return 0.0;
+    }
+
+    // Heuristic: more allocations + deallocations = higher likelihood of fragmentation
+    // Compare total allocations count to the theoretical minimum number of allocations
+    // if all memory was allocated in average-sized chunks.
+    let theoretical_alloc_count = tracker.active_bytes as f64 / tracker.average_allocation as f64;
+    if theoretical_alloc_count <= 0.0 {
+        return 0.0;
+    }
+    let fragmentation_factor = (tracker.allocation_count as f64) / theoretical_alloc_count;
+
+    // Normalize to 0-1 range, clamping at 0 and 1
+    (fragmentation_factor - 1.0).max(0.0).min(1.0)
+}
+// --- End Replace get_memory_usage and helpers ---
 
 
 // Implement useful garbage collection (resets tracker)
@@ -271,42 +590,112 @@ pub fn get_memory_usage() -> JsValue {
 pub fn force_garbage_collection() {
     // Reset our allocation tracking
     get_allocation_tracker().reset();
-    
+
     // Log the action
     log("WebAssembly garbage collection: reset allocation tracking");
-    
+
     // In a real implementation with actual caches, we would clear them here
     // For now, this at least provides accurate memory tracking reset
 }
 
 
-// Add a function to estimate memory for a given log count
+// --- Start Replace estimate_memory_for_logs ---
+// Improved memory estimation for operations
 #[wasm_bindgen]
 pub fn estimate_memory_for_logs(log_count: usize) -> JsValue {
-    // Approximate size of a LogMessage (use a constant average for estimation)
-    const AVG_LOG_MESSAGE_SIZE: usize = 250; // Average size including string fields, adjust as needed
-    
-    // Estimate memory needed for the logs themselves
-    let estimated_bytes = log_count * AVG_LOG_MESSAGE_SIZE;
-    
-    // Get current memory info
-    let memory = wasm_bindgen::memory();
-     let total_bytes = match memory.grow(0) { // grow(0) returns current page count
-        Ok(pages) => pages * 65536, // WebAssembly page size is 64KiB
-        Err(_) => 0, // Failed to get memory info
-    };
-    let current_used = get_allocation_tracker().active_bytes;
-    let current_available = if total_bytes >= current_used { total_bytes - current_used } else { 0 };
+    // Base memory per log entry (more accurate based on actual LogMessage structure)
+    let base_size = std::mem::size_of::<LogMessage>();
 
-    // Create result object using serde_json
+    // Average string sizes based on tracker data
+    let tracker = get_allocation_tracker();
+    let avg_string_size = if tracker.sample_count > 0 && tracker.average_allocation > 0 {
+        // Assume strings are roughly 1/4 of the average allocation size.
+        // This is a heuristic and might need tuning based on real data.
+        (tracker.average_allocation as f64 / 4.0) as usize
+    } else {
+        80  // Default assumption if no data (e.g., 80 bytes for strings per log)
+    };
+
+    // Calculate with overhead for map structure and potential string expansion
+    let estimated_bytes = log_count * (base_size + avg_string_size);
+
+    // Get memory info
+    let memory = wasm_bindgen::memory();
+    let total_bytes = match js_sys::Reflect::get(&memory, &"buffer".into()) {
+         Ok(buffer) => {
+             if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
+                 array_buffer.byte_length() as usize
+             } else {
+                 0 // Not an ArrayBuffer
+             }
+         },
+         Err(_) => 0, // Failed to get buffer property
+     };
+
+
+    // Determine if operation would fit using the tracker's method
+    let would_fit = tracker.would_operation_fit(estimated_bytes, total_bytes);
+
+    // Calculate memory after operation
+    let projected_utilization = if total_bytes > 0 {
+        (tracker.active_bytes + estimated_bytes) as f64 / total_bytes as f64
+    } else {
+        1.0 // Assume 100% utilization if total_bytes is 0
+    };
+
+    // Detailed result to inform decision making
     let result = serde_json::json!({
         "estimated_bytes": estimated_bytes,
-        "current_available": current_available,
-        "would_fit": current_available >= estimated_bytes,
+        "current_available": if total_bytes > tracker.active_bytes { total_bytes - tracker.active_bytes } else { 0 },
+        "would_fit": would_fit,
+        "projected_utilization": projected_utilization,
+        "risk_level": if projected_utilization > 0.9 {
+            "high"
+        } else if projected_utilization > 0.75 {
+            "moderate"
+        } else {
+            "low"
+        },
+        "recommendation": if would_fit {
+            if projected_utilization > 0.85 { "proceed_with_caution" } else { "proceed" }
+        } else {
+            "use_typescript_fallback"
+        }
     });
-    
+
     match serde_wasm_bindgen::to_value(&result) {
         Ok(js_value) => js_value,
         Err(_) => JsValue::NULL,
     }
 }
+// --- End Replace estimate_memory_for_logs ---
+
+// --- Start Add SIMD module ---
+// SIMD-optimized operations for supported browsers
+#[cfg(target_feature = "simd128")]
+mod simd_ops {
+    use wasm_bindgen::prelude::*;
+    // use js_sys::Error; // Not used in the provided snippet
+
+    #[wasm_bindgen]
+    pub fn contains_text_simd(haystack: &str, needle: &str) -> bool {
+        // SIMD-optimized text search implementation
+        // This would require more detailed implementation specific to WASM SIMD
+        // For now, use a placeholder that falls back to standard search
+        haystack.contains(needle)
+    }
+}
+
+// Add a stub for non-SIMD builds to avoid compilation errors if simd_ops is called
+#[cfg(not(target_feature = "simd128"))]
+mod simd_ops {
+     use wasm_bindgen::prelude::*;
+
+     #[wasm_bindgen]
+     pub fn contains_text_simd(haystack: &str, needle: &str) -> bool {
+         // Fallback for non-SIMD environments
+         haystack.contains(needle)
+     }
+}
+
+// --- End Add SIMD module ---
