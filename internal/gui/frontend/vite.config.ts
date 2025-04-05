@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [svelte()],
   resolve: {
     alias: {
-      'svelte-portal/src/Portal.svelte': path.resolve(__dirname, 'node_modules/svelte-portal/src/Portal.svelte')
+      'svelte-portal/src/Portal.svelte': path.resolve(__dirname, 'node_modules/svelte-portal/src/Portal.svelte'),
+      '@wasm': path.resolve(__dirname, 'src/wasm/pkg')
     }
   },
   server: {
