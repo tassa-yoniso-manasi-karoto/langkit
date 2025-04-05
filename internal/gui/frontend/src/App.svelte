@@ -5,13 +5,13 @@
     import { get } from 'svelte/store'; // Added missing import
     import '@material-design-icons/font';
 
-    import { settings, showSettings } from './lib/stores';
+    import { settings, showSettings, wasmActive } from './lib/stores'; // Import wasmActive
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
-    import { enableWasm, setWasmSizeThreshold, isWasmEnabled, getWasmModule } from './lib/wasm'; 
+    import { enableWasm, setWasmSizeThreshold, isWasmEnabled, getWasmModule } from './lib/wasm';
     import { wasmLogger, WasmLogLevel } from './lib/wasm-logger';
-    import { reportWasmState, syncWasmStateForReport } from './lib/wasm-state';
+    import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state'; // Import getWasmState
 
     // Import window API from Wails
     import { WindowIsMinimised, WindowIsMaximised } from '../wailsjs/runtime/runtime';
@@ -86,6 +86,10 @@
     let logViewerButton: HTMLButtonElement;
     let logViewerButtonPosition = { x: 0, y: 0 };
 
+    // State for performance notice
+    let showPerformanceNotice = false;
+    let lastSignificantPerformance = 0;
+
     // Reactive error management
     $: {
         if (!mediaSource) {
@@ -146,6 +150,25 @@
         } else {
             errorStore.removeError("no-native-lang");
         }
+    }
+
+    // Monitor for significant performance improvements for notice
+    $: {
+      const currentWasmState = getWasmState(); // Use imported function
+      if (
+        $wasmActive &&
+        currentWasmState.performanceMetrics.speedupRatio > 5 &&
+        currentWasmState.performanceMetrics.operationsCount > 10 &&
+        Date.now() - lastSignificantPerformance > 60000 // Show at most once per minute
+      ) {
+        showPerformanceNotice = true;
+        lastSignificantPerformance = Date.now();
+        
+        // Hide notice after 5 seconds
+        setTimeout(() => {
+          showPerformanceNotice = false;
+        }, 5000);
+      }
     }
 
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
@@ -223,10 +246,9 @@
             const request: gui.ProcessRequest = { // Add type annotation
                 path: mediaSource.path,
                 selectedFeatures,
-                options: { Options: currentFeatureOptions }, // Re-nest options
+                options: currentFeatureOptions, // Correct structure based on TS error
                 languageCode: effectiveLanguageCode,
                 audioTrackIndex: mediaSource?.audioTrackIndex ?? 0, // Use nullish coalescing
-                // convertValues: true // Removed incorrect property
             };
 
             console.log("Sending processing request:", request);
@@ -842,6 +864,15 @@
                 {/if}
             </div>
             <div class="flex items-center gap-2">
+                 <!-- WASM Status Indicator -->
+                 {#if isWasmEnabled()}
+                   <div class="wasm-status-indicator flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary text-xs"
+                        class:active={$wasmActive}
+                        title={$wasmActive ? 'WebAssembly is currently processing' : 'WebAssembly is enabled'}>
+                     <span class="material-icons text-xs">speed</span>
+                     <span>WASM</span>
+                   </div>
+                 {/if}
                  <!-- Log Viewer Button -->
                  <button 
                     bind:this={logViewerButton}
@@ -886,12 +917,11 @@
             <!-- Feature Selector (Deferred Loading) -->
             {#if showFeatureSelector}
                 <div in:fade={{ duration: 500, delay: 100 }} class="w-full">
-                    <FeatureSelector 
-                        bind:selectedFeatures 
+                    <FeatureSelector
+                        bind:selectedFeatures
                         on:optionsChange={handleOptionsChange}
                         mediaSource={mediaSource as any}
-                        // Removed defaultTargetLanguage prop
-                        bind:quickAccessLangTag
+                        showLogViewer={showLogViewer}
                     />
                 </div>
             {:else}
@@ -938,7 +968,21 @@
             position={logViewerButtonPosition}
             onOpenLogViewer={toggleLogViewer}
         />
-    </div>
+</div>
+
+<!-- Performance notice that appears when significant gains are detected -->
+{#if showPerformanceNotice}
+ <div
+   transition:fade={{ duration: 300 }}
+   class="fixed bottom-4 right-4 bg-green-800/80 text-white px-4 py-3 rounded shadow-lg backdrop-blur-sm z-50 flex items-center gap-2"
+ >
+   <span class="material-icons text-green-300">rocket</span>
+   <div>
+     <div class="font-semibold">Performance Boost Active</div>
+     <div class="text-sm">WebAssembly is making this {Math.round(getWasmState().performanceMetrics.speedupRatio)}× faster</div>
+   </div>
+ </div>
+{/if}
 </main>
 
 <style>

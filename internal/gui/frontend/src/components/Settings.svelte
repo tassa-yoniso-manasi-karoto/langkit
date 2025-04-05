@@ -450,68 +450,86 @@
                                 <span class="material-icons text-primary">memory</span> <!-- Using memory icon -->
                                 Performance Optimization (WebAssembly)
                             </h3>
-                            <div class="setting-item flex items-center gap-3"> <!-- Added flex layout -->
-                                <label class="toggle-switch">
-                                    <input
-                                        type="checkbox"
-                                        bind:checked={currentSettings.useWasm} 
-                                        disabled={!isWasmSupported()}
-                                        on:change={updateSettings} 
-                                    />
-                                    <span class="slider"></span>
-                                </label>
-                                <div class="setting-label">
-                                    <span>Use WebAssembly optimization</span>
-                                    <span class="setting-description block"> <!-- Ensure description is block -->
-                                        Improves performance for large log processing. Requires browser support.
-                                        {#if !isWasmSupported()}
-                                            <br>
-                                            <span class="text-warning-all">WebAssembly is not supported in your browser.</span>
-                                        {/if}
-                                    </span>
-                                </div>
-                            </div>
                             
-                            {#if currentSettings.useWasm && isWasmSupported()}
-                                <div class="setting-item">
-                                    <div class="w-full">
-                                        <label class="block mb-1 text-sm text-gray-200">WebAssembly Size Threshold</label>
-                                        <input
-                                            type="range"
-                                            min="50"
-                                            max="5000" 
-                                            step="50"
-                                            bind:value={currentSettings.wasmSizeThreshold}
-                                            on:change={updateSettings} 
-                                            class="w-full"
-                                        />
-                                        <div class="flex justify-between text-xs text-gray-400">
-                                            <span>50 logs</span>
-                                            <span>{currentSettings.wasmSizeThreshold} logs</span>
-                                            <span>5000 logs</span>
-                                        </div>
-                                        <span class="text-xs text-gray-400">
-                                            Only use WebAssembly for processing more than {currentSettings.wasmSizeThreshold} logs at once.
-                                        </span>
+                            {#if !isWasmSupported()}
+                                <div class="p-3 bg-warning-all/10 border border-warning-all/30 rounded-lg">
+                                    <span class="text-warning-all text-sm">WebAssembly is not supported in this browser. Optimization is unavailable.</span>
+                                </div>
+                            {:else}
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>Enable WebAssembly</span>
+                                        <span class="setting-description">Use WebAssembly for improved performance in log processing</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <label class="toggle-switch">
+                                            <input
+                                                type="checkbox"
+                                                bind:checked={currentSettings.useWasm}
+                                                on:change={updateSettings}
+                                            />
+                                            <span class="slider"></span>
+                                        </label>
                                     </div>
                                 </div>
                                 
+                                <div class="setting-row" class:disabled={!currentSettings.useWasm}>
+                                    <div class="setting-label">
+                                        <span>WebAssembly Mode</span>
+                                        <span class="setting-description">Control when WebAssembly optimization is used</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <select
+                                            bind:value={currentSettings.forceWasmMode}
+                                            on:change={updateSettings}
+                                            disabled={!currentSettings.useWasm}
+                                            class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                                        >
+                                            <option value="auto">Automatic (Smart Decision)</option>
+                                            <option value="enabled">Always Enabled</option>
+                                            <option value="disabled">Always Disabled</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="setting-row" class:disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}>
+                                    <div class="setting-label">
+                                        <span>Size Threshold</span>
+                                        <span class="setting-description">Minimum log count to use WebAssembly (in auto mode)</span>
+                                    </div>
+                                    <div class="setting-control flex items-center gap-3">
+                                        <input
+                                            type="range"
+                                            min="100"
+                                            max="5000"
+                                            step="100"
+                                            bind:value={currentSettings.wasmSizeThreshold}
+                                            on:change={updateSettings}
+                                            disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}
+                                            class="w-full"
+                                        />
+                                        <span class="setting-value text-sm text-gray-300 w-20 text-right">{currentSettings.wasmSizeThreshold} logs</span>
+                                    </div>
+                                </div>
+
                                 <!-- Performance dashboard -->
-                                {#if wasmState?.initStatus === WasmInitStatus.SUCCESS}
-                                    <div class="mt-4">
-                                        <WasmPerformanceDashboard />
-                                    </div>
-                                {:else if wasmState?.initStatus === WasmInitStatus.INITIALIZING}
-                                    <div class="p-4 bg-gray-800/60 text-center rounded-lg mt-4">
-                                        <div class="animate-pulse text-gray-400">
-                                            Initializing WebAssembly...
+                                {#if currentSettings.useWasm}
+                                    {#if wasmState?.initStatus === WasmInitStatus.SUCCESS}
+                                        <div class="mt-4">
+                                            <WasmPerformanceDashboard />
                                         </div>
-                                    </div>
-                                {:else if wasmState?.initStatus === WasmInitStatus.FAILED}
-                                    <div class="p-4 bg-error-all/10 border border-error-all/30 rounded-lg mt-4">
-                                        <div class="text-error-all text-sm mb-2">WebAssembly initialization failed</div>
-                                        <div class="text-xs text-gray-300">{wasmState.lastError?.message || 'Unknown error'}</div>
-                                    </div>
+                                    {:else if wasmState?.initStatus === WasmInitStatus.INITIALIZING}
+                                        <div class="p-4 bg-gray-800/60 text-center rounded-lg mt-4">
+                                            <div class="animate-pulse text-gray-400">
+                                                Initializing WebAssembly...
+                                            </div>
+                                        </div>
+                                    {:else if wasmState?.initStatus === WasmInitStatus.FAILED}
+                                        <div class="p-4 bg-error-all/10 border border-error-all/30 rounded-lg mt-4">
+                                            <div class="text-error-all text-sm mb-2">WebAssembly initialization failed</div>
+                                            <div class="text-xs text-gray-300">{wasmState.lastError?.message || 'Unknown error'}</div>
+                                        </div>
+                                    {/if}
                                 {/if}
                             {/if}
                         </section>

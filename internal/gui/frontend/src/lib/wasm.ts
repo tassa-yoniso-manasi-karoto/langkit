@@ -47,11 +47,11 @@ import {
   reportWasmState,
   updateMemoryUsage,
   setWasmError,
-  resetWasmMetrics as resetWasmMetricsInternal, // Rename internal reset - Assuming this will be exported from wasm-state.ts later
+  resetWasmMetricsInternal, // Import the correctly named function
   wasmState // Import the state object itself for persistence
 } from './wasm-state';
 import type { WasmState } from './wasm-state'; // Use type-only import for WasmState
-import { settings } from './stores';
+import { settings, wasmActive } from './stores'; // Import wasmActive store
 import { get } from 'svelte/store';
 
 // --- Start Phase 1.2: New Error Types ---
@@ -159,6 +159,11 @@ const operationThresholds = new Map<string, number>(); // Added in Phase 2.1
 // Exported state getter (needed by dashboard)
 export function getWasmState() {
     return getWasmStateInternal();
+}
+
+// Function to update the wasmActive store for UI indicator
+function setWasmActive(active: boolean) {
+  wasmActive.set(active);
 }
 
 // Exported metrics reset function (needed by dashboard/settings)
@@ -887,227 +892,63 @@ setInterval(() => {
 // --- End Phase 2.1: Threshold Auto-Adjustment ---
 
 
-// --- Start Phase 1.2: Error Handling Refinement ---
-/**
- * Categorizes WebAssembly errors into specific types
- * for targeted handling strategies
- */
+// --- Start Streamlined Error Handling ---
+// Simplified categorization with fewer categories and severity levels
 function categorizeWasmError(error: Error): {
-  category: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  category: 'memory' | 'initialization' | 'execution' | 'unknown';
+  severity: 'high' | 'low';
   recoverable: boolean;
 } {
-  // Define patterns for categorization
-  const patterns = {
-    memory: [
-      'memory', 'allocation', 'heap', 'out of memory', 'oom',
-      'buffer', 'capacity', 'size', 'grow'
-    ],
-    initialization: [
-      'initialize', 'load', 'compile', 'instantiate', 'module',
-      'not ready', 'not available', 'missing', 'fetch'
-    ],
-    serialization: [
-      'serialize', 'deserialize', 'parse', 'json', 'convert',
-      'type', 'invalid', 'format'
-    ],
-    execution: [
-      'runtime', 'execute', 'call', 'invoke', 'function',
-      'operation', 'process'
-    ]
-  };
-
-  // Convert error message to lowercase for pattern matching
-  const message = error.message.toLowerCase();
-
-  // Check for WebAssembly built-in error types
-  if (error instanceof WebAssembly.RuntimeError) {
-    return { category: 'execution', severity: 'high', recoverable: false };
-  }
-  if (error instanceof WebAssembly.LinkError) {
-    return { category: 'initialization', severity: 'critical', recoverable: false };
-  }
-  if (error instanceof WebAssembly.CompileError) {
-    return { category: 'initialization', severity: 'critical', recoverable: false };
-  }
-
-  // Check for custom error types
-  if (error instanceof WasmInitializationError) {
-    // Initialization errors are often critical unless handled specifically
-    return { category: 'initialization', severity: 'critical', recoverable: false };
-  }
-  if (error instanceof WasmMemoryError) {
-    return { category: 'memory', severity: 'high', recoverable: true }; // Memory errors might be recoverable with GC
-  }
-  if (error instanceof WasmOperationError) {
-    return { category: 'execution', severity: 'medium', recoverable: true }; // Operation errors are often recoverable
-  }
-
-  // Pattern-based categorization for generic errors
-  for (const [category, keywords] of Object.entries(patterns)) {
-    if (keywords.some(keyword => message.includes(keyword))) {
-      // Determine severity based on message content
-      const isCritical = message.includes('critical') ||
-                         message.includes('fatal') ||
-                         message.includes('cannot recover');
-      const isHigh = message.includes('error') ||
-                     message.includes('failed') ||
-                     message.includes('invalid');
-      const isMedium = message.includes('warning') ||
-                       message.includes('issue');
-
-      const severity = isCritical ? 'critical' :
-                       isHigh ? 'high' :
-                       isMedium ? 'medium' : 'low';
-
-      // Determine recoverability
-      const recoverable = !isCritical &&
-                          !message.includes('unrecoverable') &&
-                          !message.includes('cannot continue');
-
-      return { category, severity, recoverable };
-    }
-  }
-
-  // Default categorization for unknown errors
-  return { category: 'unknown', severity: 'medium', recoverable: true };
-}
-
-/**
- * Determines appropriate recovery strategy based on error type
- */
-function getRecoveryStrategy(
-  errorType: { category: string; severity: string; recoverable: boolean },
-  operation: string
-): {
-  strategy: string;
-  action: () => void;
-  fallbackRequired: boolean;
-} {
-  // Default strategy (log and fallback)
-  const defaultStrategy = {
-    strategy: 'log_and_fallback',
-    action: () => {},
-    fallbackRequired: true
-  };
-
-  // Return early if error is non-recoverable
-  if (!errorType.recoverable) {
+  // Check for specific error types first
+  if (error instanceof WebAssembly.RuntimeError ||
+      error instanceof WebAssembly.LinkError ||
+      error instanceof WebAssembly.CompileError ||
+      error instanceof WasmInitializationError) {
     return {
-      strategy: 'disable_wasm',
-      action: () => {
-        wasmLogger.log(
-          WasmLogLevel.CRITICAL,
-          'recovery',
-          `Disabling WebAssembly due to non-recoverable error in ${operation}`
-        );
-        enableWasm(false); // Disable WASM completely
-      },
-      fallbackRequired: true
+      category: 'initialization',
+      severity: 'high',
+      recoverable: false
     };
   }
 
-  // Define strategies by category
-  switch (errorType.category) {
-    case 'memory':
-      return {
-        strategy: 'gc_and_retry_or_fallback',
-        action: () => {
-          const wasmModule = getWasmModule();
-          if (wasmModule && typeof wasmModule.force_garbage_collection === 'function') {
-            wasmLogger.log(WasmLogLevel.WARN, 'memory', 'Attempting garbage collection due to memory error.');
-            wasmModule.force_garbage_collection();
-          }
-
-          // If memory pressure is still high after GC, disable WASM temporarily
-          setTimeout(() => {
-            if (isWasmEnabled()) {
-              try {
-                const memInfo = wasmModule?.get_memory_usage();
-                if (memInfo && memInfo.utilization > 0.9) {
-                  wasmLogger.log(
-                    WasmLogLevel.WARN,
-                    'memory',
-                    'Temporarily disabling WebAssembly due to persistent memory pressure post-GC',
-                    { memoryInfo: memInfo }
-                  );
-
-                  // Re-enable after 30 seconds to allow for recovery
-                  enableWasm(false);
-                  setTimeout(() => {
-                    wasmLogger.log(
-                      WasmLogLevel.INFO,
-                      'memory',
-                      'Re-enabling WebAssembly after memory pressure timeout'
-                    );
-                    enableWasm(true);
-                  }, 30000);
-                }
-              } catch (e: any) {
-                 wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Error checking memory post-GC: ${e.message}`);
-              }
-            }
-          }, 1000);
-        },
-        fallbackRequired: true // Always fallback after memory error, even if GC runs
-      };
-
-    case 'initialization':
-      // Recoverable init errors are rare, usually disable is needed
-      return {
-        strategy: 'disable_wasm',
-        action: () => {
-          wasmLogger.log(
-            WasmLogLevel.ERROR,
-            'init',
-            `Disabling WebAssembly due to initialization error in ${operation}`
-          );
-          enableWasm(false);
-        },
-        fallbackRequired: true
-      };
-
-    case 'serialization':
-      return {
-        strategy: 'adjust_threshold_and_fallback',
-        action: () => {
-          // Update threshold to use smaller chunks
-          const currentThreshold = getWasmSizeThreshold();
-          const newThreshold = Math.max(WASM_CONFIG.MIN_THRESHOLD, Math.floor(currentThreshold * 0.7));
-          if (newThreshold !== currentThreshold) {
-            setWasmSizeThreshold(newThreshold);
-            wasmLogger.log(
-              WasmLogLevel.WARN,
-              'serialization',
-              `Reducing WebAssembly size threshold to ${getWasmSizeThreshold()} after serialization error`
-            );
-          }
-        },
-        fallbackRequired: true
-      };
-
-    case 'execution':
-      // For execution errors, strategy depends on severity and repetition
-      if (errorType.severity === 'high') {
-         // Track repeated errors for this operation
-         const blacklisted = trackOperationError(operation);
-         if (blacklisted) {
-             return {
-                 strategy: 'blacklist_operation',
-                 action: () => {}, // Blacklisting handled by trackOperationError
-                 fallbackRequired: true
-             };
-         }
-      }
-      // For medium/low severity or non-repeated high severity, just fallback
-      return defaultStrategy;
-
-    default:
-      return defaultStrategy;
+  if (error instanceof WasmMemoryError) {
+    return {
+      category: 'memory',
+      severity: 'high',
+      recoverable: true
+    };
   }
+
+  if (error instanceof WasmOperationError) {
+    return {
+      category: 'execution',
+      severity: 'low',
+      recoverable: true
+    };
+  }
+
+  // Check message patterns for memory issues
+  const message = error.message.toLowerCase();
+  if (message.includes('memory') ||
+      message.includes('allocation') ||
+      message.includes('heap') ||
+      message.includes('out of memory')) {
+    return {
+      category: 'memory',
+      severity: 'high',
+      recoverable: true
+    };
+  }
+
+  // Default case for unknown errors
+  return {
+    category: 'unknown',
+    severity: 'low',
+    recoverable: true
+  };
 }
 
-// Operation blacklist management
+// Operation blacklist management (kept from previous version)
 const operationBlacklist = new Set<string>();
 const operationErrorCounts = new Map<string, number>();
 
@@ -1156,8 +997,62 @@ export function clearOperationErrorCount(operation: string): void {
   operationErrorCounts.delete(operation);
 }
 
+
+// Simplified recovery strategies
+function getRecoveryStrategy(
+  error: Error, // Pass the original error for context if needed
+  errorType: ReturnType<typeof categorizeWasmError>,
+  operation: string
+): () => void { // Return type is the action function
+  // Non-recoverable errors: disable WASM
+  if (!errorType.recoverable) {
+    return () => {
+      wasmLogger.log(
+        WasmLogLevel.CRITICAL,
+        'recovery',
+        `Disabling WebAssembly due to non-recoverable error in ${operation}`
+      );
+      enableWasm(false);
+    };
+  }
+
+  // Memory errors: try garbage collection
+  if (errorType.category === 'memory') {
+    return () => {
+      const wasmModule = getWasmModule();
+      if (wasmModule && typeof wasmModule.force_garbage_collection === 'function') {
+        wasmLogger.log(
+          WasmLogLevel.WARN,
+          'memory',
+          'Attempting garbage collection due to memory error'
+        );
+        wasmModule.force_garbage_collection();
+      }
+    };
+  }
+
+  // Execution errors: track for potential blacklisting
+  if (errorType.category === 'execution') {
+    return () => {
+      // Track error count
+      const blacklisted = trackOperationError(operation);
+      if (blacklisted) {
+        wasmLogger.log(
+          WasmLogLevel.WARN,
+          'recovery',
+          `Blacklisting operation "${operation}" due to repeated errors`
+        );
+      }
+    };
+  }
+
+  // Default: no specific recovery action
+  return () => {};
+}
+
+
 /**
- * Centralized error handler for WebAssembly operations
+ * Centralized error handler for WebAssembly operations (Streamlined Version)
  * Logs errors, updates state, and performs recovery actions
  *
  * @param error The error that occurred
@@ -1169,104 +1064,54 @@ export function handleWasmError(
   error: Error,
   operation: string,
   context: Record<string, any> = {},
-  disableOnCritical: boolean = false // Default to false, let recovery strategy decide
+  disableOnCritical: boolean = false // Keep parameter for compatibility, but logic is simpler
 ): void {
-  // Categorize the error first
+  // Categorize the error
   const errorType = categorizeWasmError(error);
 
-  // Determine appropriate recovery strategy
-  // Pass errorType to getRecoveryStrategy
-  const recovery = getRecoveryStrategy(errorType, operation);
+  // Get appropriate recovery strategy
+  const recoveryAction = getRecoveryStrategy(error, errorType, operation);
 
-  // Determine log level based on severity
-  const logLevel = errorType.severity === 'critical' ? WasmLogLevel.CRITICAL :
-                  errorType.severity === 'high' ? WasmLogLevel.ERROR :
-                  errorType.severity === 'medium' ? WasmLogLevel.WARN :
-                  WasmLogLevel.INFO;
+  // Determine log level
+  const logLevel = errorType.severity === 'high' ? WasmLogLevel.ERROR : WasmLogLevel.WARN;
 
-  // Enhanced context with error classification and recovery info
-  const enhancedContext = {
-    ...context,
-    errorName: error.name,
-    errorStack: error.stack,
-    errorCategory: errorType.category,
-    errorSeverity: errorType.severity,
-    recoverable: errorType.recoverable,
-    operation,
-    recoveryStrategy: recovery.strategy,
-    isBlacklisted: isOperationBlacklisted(operation), // Check current blacklist status
-    errorCount: operationErrorCounts.get(operation) || 1, // Get current count
-    browserInfo: {
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      language: navigator.language,
-      timestamp: new Date().toISOString()
-    },
-    wasmState: { // Include relevant WASM state
-      initStatus: wasmState.initStatus,
-      totalOperations: wasmState.totalOperations,
-      memoryUtilization: wasmState.memoryUsage?.utilization
-    }
-  };
-
-  // Log with enhanced context
+  // Log with essential context
   wasmLogger.log(
     logLevel,
     'error',
     `WebAssembly ${operation} failed: ${error.message}`,
-    enhancedContext
+    {
+      ...context,
+      errorName: error.name,
+      operation,
+      category: errorType.category,
+      severity: errorType.severity
+      // Optionally include stack trace for high severity errors
+      // errorStack: errorType.severity === 'high' ? error.stack : undefined
+    }
   );
 
-  // Update error state in wasm-state
+  // Update error state
   setWasmError(error);
 
-  // Apply recovery strategy action
-  recovery.action();
+  // Apply recovery strategy
+  recoveryAction();
 
-  // Disable WebAssembly completely for critical errors if requested AND strategy didn't already
-  // This allows specific critical errors (like init) to force disable via strategy
-  if (errorType.severity === 'critical' && disableOnCritical && recovery.strategy !== 'disable_wasm') {
-    wasmLogger.log(
-      WasmLogLevel.CRITICAL,
-      'system',
-      `Disabling WebAssembly due to critical error in ${operation} (forced)`
-    );
+  // Disable WebAssembly if requested for critical errors (high severity, non-recoverable)
+  // This check is now simpler based on the streamlined categorization
+  if (errorType.severity === 'high' && !errorType.recoverable && disableOnCritical) {
+     wasmLogger.log(
+        WasmLogLevel.CRITICAL,
+        'recovery',
+        `Disabling WebAssembly due to critical error in ${operation} (forced)`
+      );
     enableWasm(false);
   }
 
-  // Report state to backend immediately for crash reporting
+  // Report state to backend for crash reporting
   reportWasmState();
-
-  // Note: The decision to fallback to TypeScript is handled by the caller
-  // based on the error occurring or the recovery strategy outcome.
 }
-
-/**
- * Determines if a WebAssembly error is critical
- * Critical errors indicate fundamental problems with WebAssembly execution
- */
-function isCriticalWasmError(error: Error): boolean { // Keep this helper internal
-  // Check error types that indicate critical failures
-  if (error instanceof WebAssembly.RuntimeError) return true;
-  if (error instanceof WebAssembly.LinkError) return true;
-  if (error instanceof WebAssembly.CompileError) return true;
-  if (error instanceof WasmInitializationError) return true; // Treat init errors as critical
-
-  // Check for memory-related errors that might be critical
-  const errorMsg = error.message.toLowerCase();
-  if (errorMsg.includes('memory') &&
-      (errorMsg.includes('out of') || errorMsg.includes('allocation failed') || errorMsg.includes('cannot grow'))) {
-    return true;
-  }
-
-  // Check for specific messages indicating unrecoverable states
-  if (errorMsg.includes('unreachable') || errorMsg.includes('wasm trap')) {
-      return true;
-  }
-
-
-  return false;
-}
+// --- End Streamlined Error Handling ---
 // --- End Phase 1.2: Error Handling Refinement ---
 
 
@@ -1300,6 +1145,28 @@ export function shouldUseWasm(
   totalLogCount: number,
   operation: string = 'mergeInsertLogs'
 ): boolean {
+  // Get current settings
+  const $settings = get(settings);
+
+  // Check force override setting
+  if ($settings.forceWasmMode === 'enabled') {
+    // Still check if WASM is available and not blacklisted
+    if (!isWasmEnabled() || isOperationBlacklisted(operation)) {
+      wasmLogger.log(
+        WasmLogLevel.WARN,
+        'threshold',
+        `WebAssembly forced enabled but unavailable or blacklisted for operation: ${operation}`
+      );
+      return false;
+    }
+    return true; // Force-enable if available
+  } else if ($settings.forceWasmMode === 'disabled') {
+    return false; // Force-disable regardless of other factors
+  }
+
+  // If 'auto' mode, use the existing sophisticated logic
+  // No changes to the current implementation from here on
+
   // Basic checks first
   if (!isWasmEnabled() || isOperationBlacklisted(operation)) {
     if (isOperationBlacklisted(operation)) {
