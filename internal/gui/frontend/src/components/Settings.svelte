@@ -46,8 +46,30 @@
         error?: string;
     }
 
-    // Use $settings directly for reactivity where possible, keep local copy for validation/saving
-    let currentSettings = { ...$settings }; // Initialize with store value
+    // Initialize with default values to ensure structure is complete
+    let currentSettings = {
+        apiKeys: {
+            replicate: '',
+            assemblyAI: '',
+            elevenLabs: '',
+            openAI: ''
+        },
+        targetLanguage: '',
+        nativeLanguages: '',
+        enableGlow: true,
+        showLogViewerByDefault: false,
+        maxAPIRetries: 10,
+        maxLogEntries: 10000,
+        maxWorkers: 1,
+        useWasm: true,
+        wasmSizeThreshold: 500,
+        forceWasmMode: 'auto',
+        eventThrottling: {
+            enabled: true,
+            minInterval: 0,
+            maxInterval: 250
+        }
+    };
 
     let targetLangValid = false;
     let nativeLangValid = false;
@@ -153,32 +175,56 @@
         isValid = targetLangValid && nativeLangValid; // Both must be valid if provided
     }
 
-    async function updateSettings() {
+    async function saveSettings() {
         await validateLanguages();
         if (!isValid) return;
         try {
-            // Save the current local state to the backend and the store
-            await (window as any).go.gui.App.SaveSettings(currentSettings); // Add type assertion
-            settings.set(currentSettings); // Update the main store
+            // Save to backend
+            await (window as any).go.gui.App.SaveSettings(currentSettings);
+            // Update store with our current values
+            settings.set(currentSettings);
             
-            // Trigger STT model refresh after API key changes (if applicable)
-            // This might be better handled based on which specific setting changed
+            // Trigger STT model refresh after API key changes
             try {
-                await (window as any).go.gui.App.RefreshSTTModelsAfterSettingsUpdate(); // Add type assertion
+                await (window as any).go.gui.App.RefreshSTTModelsAfterSettingsUpdate();
             } catch (error) {
                 console.error('Failed to refresh STT models:', error);
             }
             
-            // Update local wasmState if needed, though dashboard does this via interval
+            // Update local wasmState
             wasmState = getWasmState(); 
             
-            // Optionally emit event (though direct store update might be sufficient)
-            // window.dispatchEvent(new CustomEvent('settingsUpdated', {
-            //     detail: currentSettings
-            // }));
+            // Close settings modal on save
+            onClose();
+            
+            // Notify other components about settings update
+            window.dispatchEvent(new CustomEvent('settingsUpdated', {
+                detail: currentSettings
+            }));
         } catch (error) {
             console.error('Failed to save settings:', error);
-            // TODO: Add user feedback for save failure
+            // Show error in the UI
+            exportError = 'Failed to save settings: ' + (error?.message || 'Unknown error');
+            setTimeout(resetExportState, 3000);
+        }
+    }
+    
+    // Handle individual setting updates (for immediate updates like checkboxes and WebAssembly settings)
+    async function updateSettings() {
+        await validateLanguages();
+        if (!isValid) return;
+        try {
+            // Only update specific WebAssembly settings that should apply immediately
+            if (currentSettings.useWasm !== undefined || 
+                currentSettings.wasmSizeThreshold !== undefined ||
+                currentSettings.forceWasmMode !== undefined) {
+                    
+                await (window as any).go.gui.App.SaveSettings(currentSettings);
+                settings.set(currentSettings);
+                wasmState = getWasmState();
+            }
+        } catch (error) {
+            console.error('Failed to update settings:', error);
         }
     }
 
@@ -198,9 +244,32 @@
     }
 
     onMount(async () => {
-        // Initialize currentSettings from the store
-        currentSettings = { ...$settings }; 
-        await validateLanguages(); // Validate initial settings
+        try {
+            // Load settings from backend
+            const loadedSettings = await (window as any).go.gui.App.LoadSettings();
+            settings.set(loadedSettings); // Update store with backend data
+            
+            // Merge loaded settings with defaults to ensure all fields exist
+            currentSettings = {
+                ...currentSettings, // Keep defaults as fallback
+                ...loadedSettings,
+                targetLanguage: loadedSettings.targetLanguage || '',
+                nativeLanguages: loadedSettings.nativeLanguages || '',
+                // Ensure WASM fields exist
+                useWasm: loadedSettings.useWasm !== undefined ? loadedSettings.useWasm : true,
+                wasmSizeThreshold: loadedSettings.wasmSizeThreshold || 500,
+                forceWasmMode: loadedSettings.forceWasmMode || 'auto',
+                // Ensure event throttling exists
+                eventThrottling: loadedSettings.eventThrottling || {
+                    enabled: true,
+                    minInterval: 0,
+                    maxInterval: 250
+                }
+            };
+            await validateLanguages();
+        } catch (error) {
+            console.error('Failed to load settings:', error);
+        }
 
         // Update local wasmState on mount as well
         wasmState = getWasmState();
@@ -218,13 +287,23 @@
         }
     }
 
-    // Keep currentSettings synced with the store if it changes elsewhere (less likely in modal)
-    // settings.subscribe(value => {
-    //     if (value) {
-    //         currentSettings = { ...value };
-    //         validateLanguages(); // Re-validate if store changes externally
-    //     }
-    // });
+    // Keep currentSettings synced with the store if it changes elsewhere
+    // This is useful if other components update settings
+    settings.subscribe(value => {
+        if (value && Object.keys(value).length > 0) {
+            // Don't overwrite local changes during editing
+            if (!showSettings) {
+                currentSettings = {
+                    ...currentSettings, // Keep defaults as fallback
+                    ...value,
+                    targetLanguage: value.targetLanguage || '',
+                    nativeLanguages: value.nativeLanguages || '',
+                    eventThrottling: value.eventThrottling || currentSettings.eventThrottling
+                };
+                validateLanguages();
+            }
+        }
+    });
     
     // Clear interval on component destroy
     onDestroy(() => {
@@ -638,7 +717,7 @@
                             class="px-6 py-2 bg-primary/90 backdrop-blur-sm text-white rounded-lg font-medium 
                                   transition-all duration-200 hover:bg-primary disabled:opacity-50 
                                   disabled:cursor-not-allowed shadow-md shadow-primary/30"
-                            on:click={updateSettings} 
+                            on:click={saveSettings} 
                             disabled={!isValid}
                         >
                             Save Changes
