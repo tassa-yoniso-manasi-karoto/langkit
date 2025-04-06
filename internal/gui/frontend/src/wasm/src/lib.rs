@@ -782,3 +782,231 @@ mod simd_ops {
 }
 
 // --- End Add SIMD module ---
+
+
+// --- Start find_log_at_scroll_position ---
+#[wasm_bindgen]
+pub fn find_log_at_scroll_position(
+    logs_array: JsValue,
+    log_positions_map: JsValue,
+    log_heights_map: JsValue,
+    scroll_top: f64,
+    avg_log_height: f64,
+    position_buffer: f64,
+    start_offset: Option<u32> // Add optional start_offset parameter
+) -> Result<JsValue, JsValue> {
+    // Track memory for this operation more precisely
+    let tracker = get_allocation_tracker();
+    tracker.track_allocation(std::mem::size_of::<f64>() * 4); // Basic allocation tracking
+    
+    // Early return if WebAssembly memory is under pressure
+    let memory = wasm_bindgen::memory();
+    let memory_info = get_memory_usage_internal(); // Get memory without creating a new object
+    if memory_info.utilization > 0.9 {
+        // Memory pressure is too high, signal to use TypeScript instead
+        return Err(Error::new("Memory pressure too high for scrolling operation").into());
+    }
+    
+    // Convert JS logs array to Rust Vec - use an optimized approach for faster initial conversion
+    // For scrolling optimization, we process a subset of logs from a given offset
+    let logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value::<Vec<LogMessage>>(logs_array) {
+        Ok(l) => {
+            // Track allocation more precisely
+            let estimated_size: usize = l.len() * std::mem::size_of::<LogMessage>();
+            tracker.track_allocation(estimated_size);
+            l
+        },
+        Err(e) => return Err(Error::new(&format!("Failed to deserialize logs: {:?}", e)).into()),
+    };
+
+    // Early return for empty logs
+    if logs.is_empty() {
+        return Ok(JsValue::from(0));
+    }
+
+    // Convert JS Maps to Rust HashMaps with optimized deserialization
+    let positions: HashMap<u32, f64> = match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(log_positions_map) {
+        Ok(p) => {
+            // Track allocation
+            tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * p.len());
+            p
+        },
+        Err(e) => return Err(Error::new(&format!("Failed to deserialize positions: {:?}", e)).into()),
+    };
+
+    let heights: HashMap<u32, f64> = match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(log_heights_map) {
+        Ok(h) => {
+            // Track allocation
+            tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * h.len());
+            h
+        },
+        Err(e) => return Err(Error::new(&format!("Failed to deserialize heights: {:?}", e)).into()),
+    };
+
+    // Binary search implementation with enhanced performance
+    let mut low = 0;
+    let mut high = logs.len().saturating_sub(1); // Prevent underflow
+
+    // Exit early if there's nothing to search
+    if high < low {
+        return Ok(JsValue::from(0));
+    }
+
+    // Use SIMD operations for range checking if available
+    #[cfg(target_feature = "simd128")]
+    {
+        // SIMD optimization could be implemented here if needed
+        // For now, we'll use the standard binary search
+    }
+
+    // Standard binary search, but optimized for quick returns
+    while low <= high {
+        let mid = (low + high) / 2;
+        let sequence = logs[mid].sequence.unwrap_or(0);
+
+        // Get position with optimal hash lookup
+        let pos = positions
+            .get(&sequence)
+            .copied() // Use copied() instead of dereference for better optimization
+            .unwrap_or_else(|| mid as f64 * (avg_log_height + position_buffer));
+
+        // Get height with optimal hash lookup
+        let height = heights
+            .get(&sequence)
+            .copied() // Use copied() for better optimization
+            .unwrap_or_else(|| avg_log_height + position_buffer);
+
+        // Check if scroll position is within this log's area
+        // This critical code path is executed frequently during scrolling
+        if scroll_top >= pos && scroll_top < (pos + height) {
+            // If given a start_offset, adjust the result
+            let final_index = if let Some(offset) = start_offset {
+                mid as u32 + offset
+            } else {
+                mid as u32
+            };
+            return Ok(JsValue::from(final_index as i32));
+        }
+
+        if scroll_top < pos {
+            if mid == 0 {
+                break; // Prevent underflow
+            }
+            high = mid - 1;
+        } else {
+            low = mid + 1;
+        }
+    }
+
+    // Return closest valid index, adjusted for start_offset if provided
+    let result = low.min(logs.len() - 1);
+    let final_index = if let Some(offset) = start_offset {
+        (result as u32 + offset) as i32
+    } else {
+        result as i32
+    };
+    
+    Ok(JsValue::from(final_index))
+}
+
+// Helper function to get memory usage without creating a JsValue
+// for internal use where we don't need the full JsValue conversion
+fn get_memory_usage_internal() -> MemoryInfo {
+    let tracker = get_allocation_tracker();
+    let memory = wasm_bindgen::memory();
+    let total_bytes = match js_sys::Reflect::get(&memory, &"buffer".into()) {
+        Ok(buffer) => {
+            if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
+                array_buffer.byte_length() as usize
+            } else {
+                0 // Not an ArrayBuffer
+            }
+        },
+        Err(_) => 0, // Failed to get buffer property
+    };
+
+    MemoryInfo {
+        total_bytes,
+        used_bytes: tracker.active_bytes,
+        utilization: if total_bytes > 0 { tracker.active_bytes as f64 / total_bytes as f64 } else { 0.0 },
+        peak_bytes: tracker.peak_bytes,
+        allocation_count: tracker.allocation_count,
+    }
+}
+// --- End find_log_at_scroll_position ---
+
+
+// --- Start recalculate_positions ---
+#[wasm_bindgen]
+pub fn recalculate_positions(
+    logs_array: JsValue,
+    log_heights_map: JsValue,
+    avg_log_height: f64,
+    position_buffer: f64
+) -> Result<JsValue, JsValue> {
+    // Reset allocation tracking for this operation
+    let tracker = get_allocation_tracker();
+    tracker.reset();
+
+    // Parse input logs
+    let logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value::<Vec<LogMessage>>(logs_array) {
+        Ok(l) => {
+            // Track allocation
+            tracker.track_allocation(std::mem::size_of::<LogMessage>() * l.len());
+            l
+        },
+        Err(e) => return Err(Error::new(&format!("Failed to deserialize logs: {:?}", e)).into()),
+    };
+
+    // Parse heights map
+    let heights: HashMap<u32, f64> = match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(log_heights_map) {
+        Ok(h) => {
+            // Track allocation
+            tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * h.len());
+            h
+        },
+        Err(e) => return Err(Error::new(&format!("Failed to deserialize heights: {:?}", e)).into()),
+    };
+
+    // Create result storage
+    let mut positions: HashMap<u32, f64> = HashMap::with_capacity(logs.len());
+    tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * logs.len());
+
+    let mut current_position = 0.0;
+    let mut total_height = 0.0;
+
+    // Calculate positions for each log
+    for log in &logs {
+        let sequence = log.sequence.unwrap_or(0);
+
+        // Store position for this log
+        positions.insert(sequence, current_position);
+
+        // Get height, defaulting to average if not in map
+        let height = match heights.get(&sequence) {
+            Some(h) => *h,
+            None => avg_log_height + position_buffer
+        };
+
+        // Update running totals
+        current_position += height;
+        total_height += height;
+    }
+
+    // Create result object with positions and total height
+    let result = js_sys::Object::new();
+
+    // Convert positions map to JS object
+    match serde_wasm_bindgen::to_value(&positions) {
+        Ok(js_positions) => {
+            js_sys::Reflect::set(&result, &"positions".into(), &js_positions)?;
+        },
+        Err(e) => return Err(Error::new(&format!("Failed to serialize positions: {:?}", e)).into()),
+    }
+
+    // Set total height
+    js_sys::Reflect::set(&result, &"totalHeight".into(), &JsValue::from(total_height))?;
+
+    Ok(result.into())
+}
+// --- End recalculate_positions ---

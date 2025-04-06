@@ -4,6 +4,16 @@
     import { logStore, type LogMessage } from '../lib/logStore';
     import { slide } from 'svelte/transition';
     import { backOut } from 'svelte/easing';
+    import {
+        isWasmEnabled,
+        shouldUseWasm,
+        findLogAtScrollPositionWasm,
+        recalculatePositionsWasm,
+        handleWasmError,
+        isOperationBlacklisted,
+        WasmOperationError // Import the error type if needed for specific checks, otherwise handleWasmError is sufficient
+    } from '../lib/wasm';
+    import { get } from 'svelte/store';
 
     // Optional version prop to handle dev vs. prod initialization
     export let version: string = "dev";
@@ -559,25 +569,100 @@
         };
     }
     
-    // Calculate positions for all logs based on individual heights
+    // Calculate positions for all logs based on individual heights (with WASM optimization)
     function recalculatePositions(): void {
+        // Get current settings
+        const $settings = get(settings);
+        
+        // Check for WebAssembly availability and blacklist status
+        if (isWasmEnabled() && !isOperationBlacklisted('recalculatePositions')) {
+            // IMPORTANT: Use different threshold logic for position calculation
+            // This function is called less frequently but processes the entire dataset
+            if ($settings.forceWasmMode === 'enabled' || 
+                (filteredLogs.length > 500 && 
+                 shouldUseWasm(filteredLogs.length, 'recalculatePositions'))) {
+                
+                // CRITICAL: Check memory availability specifically for this operation
+                // which works on the entire collection
+                const memCheck = checkMemoryAvailability(filteredLogs.length);
+                if (memCheck.canProceed) {
+                    try {
+                        // Track start time for performance comparison
+                        let tsTime = 0;
+                        
+                        // Occasionally benchmark TypeScript for comparison (5% of operations)
+                        if (Math.random() < 0.05) {
+                            const tsStartTime = performance.now();
+                            
+                            // Execute TS version for comparison but don't use its results
+                            // This is just for measurement
+                            let currentPosition = 0;
+                            let totalHeightTs = 0;
+                            
+                            for (const log of filteredLogs) {
+                                const sequence = log._sequence || 0;
+                                // Don't actually set positions - just simulate the work
+                                const height = logHeights.get(sequence) || avgLogHeight + POSITION_BUFFER;
+                                currentPosition += height;
+                                totalHeightTs += height;
+                            }
+                            
+                            const tsEndTime = performance.now();
+                            tsTime = tsEndTime - tsStartTime;
+                        }
+                        
+                        // Use WebAssembly implementation, passing TS comparison time if available
+                        const result = recalculatePositionsWasm(
+                            filteredLogs,
+                            logHeights,
+                            avgLogHeight,
+                            POSITION_BUFFER,
+                            tsTime // Pass measured TS time for accurate comparison
+                        );
+
+                        // Update state with results
+                        logPositions = result.positions;
+                        totalLogHeight = result.totalHeight;
+                        virtualContainerHeight = totalLogHeight;
+
+                        // Recalculate average height based on measurements
+                        if (logHeights.size > 0) {
+                            let total = 0;
+                            logHeights.forEach(height => total += height);
+                            avgLogHeight = (total / logHeights.size) - POSITION_BUFFER;
+                        }
+
+                        return; // Exit early on success
+                    } catch (error: any) {
+                        // Handle error and fall back to TypeScript
+                        handleWasmError(error, 'recalculatePositions', {
+                            logCount: filteredLogs.length
+                        });
+                        
+                        // Fall back to TypeScript implementation
+                    }
+                }
+            }
+        }
+
+        // Original TypeScript implementation (unchanged - fallback)
         let currentPosition = 0;
         totalLogHeight = 0;
-        
+
         // Calculate positions for filteredLogs
         for (const log of filteredLogs) {
             const sequence = log._sequence || 0;
             logPositions.set(sequence, currentPosition);
-            
+
             // Use actual height if measured, otherwise use average
             const height = logHeights.get(sequence) || avgLogHeight + POSITION_BUFFER;
             currentPosition += height;
             totalLogHeight += height;
         }
-        
+
         // Update container height
         virtualContainerHeight = totalLogHeight;
-        
+
         // Recalculate average height
         if (logHeights.size > 0) {
             let total = 0;
@@ -586,10 +671,63 @@
         }
     }
     
-    // Find which log corresponds to a scroll position using binary search
-    function findLogAtScrollPosition(scrollTop: number): number {
+    // Find which log corresponds to a scroll position using binary search (with WASM optimization)
+    function findLogAtScrollPosition(scrollTop: number, scrollMetrics?: {
+        frequency?: number,       // Calls per second for throttling decisions
+        visibleLogs?: number      // Approximate number of visible logs
+    }): number {
+        // Early short-circuit for empty logs
         if (filteredLogs.length === 0) return 0;
         
+        // Get current settings
+        const $settings = get(settings);
+        
+        // Check for WebAssembly availability and blacklist status
+        if (isWasmEnabled() && !isOperationBlacklisted('findLogAtScrollPosition')) {
+            // IMPORTANT: Use different threshold logic for scrolling
+            // This function is called frequently and must be very fast
+            // For this function, use WebAssembly even for relatively small log sets
+            // as the performance benefit for scrolling is critical
+            if ($settings.forceWasmMode === 'enabled' || 
+                (filteredLogs.length > 100 && 
+                 shouldUseWasm(Math.min(filteredLogs.length, 1000), 'findLogAtScrollPosition'))) {
+                
+                // CRITICAL: Check memory availability specifically for scroll operations
+                // Use a smaller expected memory footprint since this is called frequently
+                const memCheck = checkMemoryAvailability(Math.min(512, filteredLogs.length / 10));
+                if (memCheck.canProceed) {
+                    try {
+                        // Track scroll metrics for performance monitoring
+                        const metrics = {
+                            frequency: scrollMetrics?.frequency,
+                            visibleLogs: scrollMetrics?.visibleLogs || 
+                                         Math.ceil(viewportHeight / (avgLogHeight + POSITION_BUFFER))
+                        };
+                        
+                        // Use WebAssembly implementation with scroll metrics
+                        return findLogAtScrollPositionWasm(
+                            filteredLogs,
+                            logPositions,
+                            logHeights,
+                            scrollTop,
+                            avgLogHeight,
+                            POSITION_BUFFER,
+                            metrics
+                        );
+                    } catch (error: any) {
+                        // Handle error and fall back to TypeScript
+                        handleWasmError(error, 'findLogAtScrollPosition', {
+                            logCount: filteredLogs.length,
+                            scrollTop
+                        });
+                        
+                        // Fall back to TypeScript implementation
+                    }
+                }
+            }
+        }
+        
+        // Original TypeScript implementation (unchanged - fallback)
         let low = 0;
         let high = filteredLogs.length - 1;
         
@@ -614,6 +752,11 @@
         return Math.max(0, Math.min(filteredLogs.length - 1, low));
     }
     
+    // Track scroll performance metrics
+    let scrollCallCounter = 0;
+    let scrollStartTime = Date.now();
+    let scrollCallFrequency = 0;
+
     // Update virtualization calculations
     function updateVirtualization(): void {
         if (!scrollContainer || !virtualEnabled || !virtualizationReady) return;
@@ -621,11 +764,17 @@
         const { scrollTop, clientHeight } = scrollContainer;
         viewportHeight = clientHeight;
         
-        // Find log at top of viewport
-        const topLogIndex = findLogAtScrollPosition(scrollTop);
+        // Calculate scroll metrics for WASM optimization
+        const scrollMetrics = {
+            frequency: scrollCallFrequency,
+            visibleLogs: Math.ceil(clientHeight / (avgLogHeight + POSITION_BUFFER))
+        };
         
-        // Find log at bottom of viewport
-        const bottomLogIndex = findLogAtScrollPosition(scrollTop + clientHeight);
+        // Find log at top of viewport with scroll metrics
+        const topLogIndex = findLogAtScrollPosition(scrollTop, scrollMetrics);
+        
+        // Find log at bottom of viewport with scroll metrics
+        const bottomLogIndex = findLogAtScrollPosition(scrollTop + clientHeight, scrollMetrics);
         
         // Set virtual range with buffer
         virtualStart = Math.max(0, topLogIndex - BUFFER_SIZE);
@@ -663,8 +812,14 @@
         
         const { scrollTop } = scrollContainer;
         
-        // Find which log is at the top of the viewport
-        const logIndex = findLogAtScrollPosition(scrollTop);
+        // Calculate scroll metrics for WASM optimization
+        const scrollMetrics = {
+            frequency: scrollCallFrequency,
+            visibleLogs: Math.ceil(viewportHeight / (avgLogHeight + POSITION_BUFFER))
+        };
+        
+        // Find which log is at the top of the viewport with scroll metrics
+        const logIndex = findLogAtScrollPosition(scrollTop, scrollMetrics);
         if (logIndex < 0 || logIndex >= filteredLogs.length) return;
         
         const log = filteredLogs[logIndex];
@@ -833,7 +988,19 @@
     }
     
     // Enhanced scroll handler with improved user vs system scroll detection
+    // and scroll frequency tracking for WASM optimization
     function handleScroll(): void {
+        // Count scroll events for metrics
+        scrollCallCounter++;
+        
+        // Calculate call frequency every second
+        const now = Date.now();
+        if (now - scrollStartTime > 1000) {
+            scrollCallFrequency = scrollCallCounter / ((now - scrollStartTime) / 1000);
+            scrollCallCounter = 0;
+            scrollStartTime = now;
+        }
+        
         // Skip if programmatically scrolling (explicit flag)
         if (isProgrammaticScroll) {
             consecutiveSystemScrollEvents++;

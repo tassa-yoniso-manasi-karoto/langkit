@@ -2525,3 +2525,362 @@ export function deserializeLogsFromWasm(data: any): {
   }
 }
 // --- End Phase 2.2: Serialization ---
+
+
+// --- Start findLogAtScrollPositionWasm ---
+/**
+ * Find the log entry at a given scroll position using WebAssembly optimization
+ *
+ * This function is optimized for frequent scrolling operations with:
+ * - Range-limited serialization to reduce overhead
+ * - Memory availability checks specialized for scrolling
+ * - Intelligent log subset selection based on viewport position
+ * 
+ * @param logs Array of log entries
+ * @param logPositions Map of sequence numbers to Y positions
+ * @param logHeights Map of sequence numbers to heights
+ * @param scrollTop Current scroll position
+ * @param avgLogHeight Average log entry height
+ * @param positionBuffer Buffer between log entries
+ * @param scrollMetrics Optional metrics about scroll behavior
+ * @returns Index of the log entry at the given scroll position
+ */
+export function findLogAtScrollPositionWasm(
+    logs: any[],
+    logPositions: Map<number, number>,
+    logHeights: Map<number, number>,
+    scrollTop: number,
+    avgLogHeight: number,
+    positionBuffer: number,
+    scrollMetrics?: {
+        frequency?: number,  // Calls per second for throttling decisions
+        visibleLogs?: number // Approximate number of visible logs
+    }
+): number {
+    // Track operation for metrics
+    trackOperation('findLogAtScrollPosition');
+
+    // Get WASM module
+    const wasmModule = getWasmModule();
+    if (!wasmModule || typeof wasmModule.find_log_at_scroll_position !== 'function') {
+        throw new WasmOperationError('WebAssembly module not properly initialized', 'findLogAtScrollPosition', {
+            moduleAvailable: !!wasmModule,
+            functionAvailable: !!wasmModule && typeof wasmModule.find_log_at_scroll_position === 'function'
+        });
+    }
+
+    // OPTIMIZATION: Only serialize data for visible range + buffer
+    // This reduces overhead for large logs arrays
+    const estimatedVisibleRange = scrollMetrics?.visibleLogs || 50;
+    const buffer = 100; // Safety buffer
+
+    // Calculate the range of logs to consider based on scroll position
+    const estimatedIndex = Math.floor(scrollTop / (avgLogHeight + positionBuffer));
+    const start = Math.max(0, estimatedIndex - buffer);
+    const end = Math.min(logs.length, estimatedIndex + estimatedVisibleRange + buffer);
+    
+    // Subset of logs to process (only include what's potentially visible)
+    const relevantLogs = logs.slice(start, end);
+
+    // Prepare compact data - only convert necessary entries
+    const positionsObj: Record<number, number> = {};
+    const heightsObj: Record<number, number> = {};
+    
+    // Only include positions and heights for the relevant range
+    for (let i = start; i < end; i++) {
+        if (i < logs.length) {
+            const log = logs[i];
+            const sequence = log._sequence !== undefined ? log._sequence : i;
+            
+            // Only lookup actual values if they exist, otherwise use defaults
+            if (logPositions.has(sequence)) {
+                positionsObj[sequence] = logPositions.get(sequence)!;
+            }
+            
+            if (logHeights.has(sequence)) {
+                heightsObj[sequence] = logHeights.get(sequence)!;
+            }
+        }
+    }
+
+    // Measure WebAssembly execution time
+    const tsStartTime = performance.now();
+    
+    // Occasionally measure TypeScript performance for comparison (1% of operations)
+    let tsTime = 0;
+    if (Math.random() < 0.01) {
+        // Compare TypeScript implementation performance (but don't use the result)
+        let low = 0;
+        let high = relevantLogs.length - 1;
+        
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const sequence = relevantLogs[mid]._sequence || 0;
+            const pos = logPositions.get(sequence) || mid * (avgLogHeight + positionBuffer);
+            const height = logHeights.get(sequence) || avgLogHeight + positionBuffer;
+            
+            if (scrollTop >= pos && scrollTop < (pos + height)) {
+                // Found exact log (but don't use result, just measuring)
+                break;
+            }
+            
+            if (scrollTop < pos) {
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+        
+        tsTime = performance.now() - tsStartTime;
+    }
+    
+    const wasmStartTime = performance.now();
+    
+    // Call WebAssembly function with explicit bounds information
+    const result = wasmModule.find_log_at_scroll_position(
+        relevantLogs,
+        positionsObj,
+        heightsObj,
+        scrollTop,
+        avgLogHeight,
+        positionBuffer,
+        start // Pass start offset so Rust can adjust result
+    );
+    
+    const wasmEndTime = performance.now();
+    const wasmTime = wasmEndTime - wasmStartTime;
+    
+    // Clear operation from blacklist on success
+    clearOperationErrorCount('findLogAtScrollPosition');
+    
+    // Update performance metrics - especially important for scroll performance
+    updatePerformanceMetrics(
+        wasmTime,
+        tsTime, // Include TS comparison if available
+        end - start, // Only count processed logs, not entire array
+        'findLogAtScrollPosition',
+        0, // Simplified serialization, not tracking overhead separately
+        0  // No deserialization overhead for this operation
+    );
+
+    // Periodically log scroll performance metrics (very infrequently to avoid spam)
+    if (scrollMetrics?.frequency && Math.random() < 0.001) {
+        const now = Date.now();
+        const lastScrollMetricsLog = getWasmState().lastScrollMetricsLog || 0;
+        
+        if (now - lastScrollMetricsLog > 5000) { // No more than once per 5 seconds
+            wasmLogger.log(
+                WasmLogLevel.TRACE,
+                'virtualization',
+                `Scroll performance: ${wasmTime.toFixed(2)}ms for ${relevantLogs.length} logs`,
+                {
+                    callFrequency: `${scrollMetrics.frequency.toFixed(1)}/s`,
+                    visibleRange: scrollMetrics.visibleLogs,
+                    speedup: tsTime > 0 ? (tsTime / wasmTime).toFixed(2) + 'x' : 'N/A',
+                    totalLogs: logs.length,
+                    processedRange: `${start}-${end}`,
+                    viewport: scrollTop.toFixed(0)
+                }
+            );
+            
+            // Update the last log timestamp
+            updateState({ lastScrollMetricsLog: now });
+        }
+    }
+    
+    return result as number;
+}
+// --- End findLogAtScrollPositionWasm ---
+
+
+// --- Start recalculatePositionsWasm ---
+/**
+ * Recalculate log entry positions using WebAssembly optimization
+ *
+ * This function optimizes the position calculation for log entries with:
+ * - Memory availability checks before processing
+ * - Performance comparison with TypeScript implementation
+ * - Efficient serialization of height data
+ * - Adaptive behavior based on log volume
+ * 
+ * @param logs Array of log entries
+ * @param logHeights Map of sequence numbers to heights
+ * @param avgLogHeight Average log entry height
+ * @param positionBuffer Buffer between log entries
+ * @param tsComparisonTime Optional TypeScript time for performance comparison
+ * @returns Object containing the calculated positions and total height
+ */
+export function recalculatePositionsWasm(
+    logs: any[],
+    logHeights: Map<number, number>,
+    avgLogHeight: number,
+    positionBuffer: number,
+    tsComparisonTime: number = 0
+): { positions: Map<number, number>, totalHeight: number } {
+    // Track operation for metrics
+    trackOperation('recalculatePositions');
+
+    // Get WASM module
+    const wasmModule = getWasmModule();
+    if (!wasmModule || typeof wasmModule.recalculate_positions !== 'function') {
+        throw new WasmOperationError('WebAssembly module not properly initialized', 'recalculatePositions', {
+            moduleAvailable: !!wasmModule,
+            functionAvailable: !!wasmModule && typeof wasmModule.recalculate_positions === 'function'
+        });
+    }
+
+    // CRITICAL: Check memory availability for this large calculation
+    // This operation works on all logs, so it needs sufficient memory
+    const memCheck = checkMemoryAvailability(logs.length);
+    if (!memCheck.canProceed) {
+        throw new WasmMemoryError('Insufficient memory for position calculation', {
+            logCount: logs.length,
+            actionTaken: memCheck.actionTaken,
+            memoryInfo: memCheck.memoryInfo
+        });
+    }
+
+    // Convert Map to object efficiently - for large collections, use a more
+    // efficient approach that avoids unnecessary lookups
+    const heightsObj: Record<number, number> = {};
+    
+    // Use a lower-level optimization for large height maps
+    if (logHeights.size > 1000) {
+        // Process in chunks to avoid blocking the main thread
+        const entries = Array.from(logHeights.entries());
+        const chunkSize = 500;
+        
+        for (let i = 0; i < entries.length; i += chunkSize) {
+            const chunk = entries.slice(i, i + chunkSize);
+            for (const [key, value] of chunk) {
+                heightsObj[key] = value;
+            }
+        }
+    } else {
+        // For smaller collections, use the direct forEach approach
+        logHeights.forEach((value, key) => {
+            heightsObj[key] = value;
+        });
+    }
+
+    // Measure performance of TypeScript implementation if needed
+    let tsTime = tsComparisonTime;
+    if (tsTime <= 0 && Math.random() < 0.05) { // 5% of operations for comparison
+        const tsStartTime = performance.now();
+        
+        // Run TypeScript implementation for comparison, but don't use the result
+        // This just simulates the work to measure performance
+        let currentPosition = 0;
+        let totalHeightTs = 0;
+        
+        for (const log of logs) {
+            const sequence = log._sequence || 0;
+            // Don't store positions - just calculate
+            const height = logHeights.get(sequence) || avgLogHeight + positionBuffer;
+            currentPosition += height;
+            totalHeightTs += height;
+        }
+        
+        const tsEndTime = performance.now();
+        tsTime = tsEndTime - tsStartTime;
+    }
+
+    // Measure WebAssembly execution time
+    const wasmStartTime = performance.now();
+
+    // Call WebAssembly function with memory checks
+    try {
+        const result = wasmModule.recalculate_positions(
+            logs,
+            heightsObj,
+            avgLogHeight,
+            positionBuffer
+        );
+
+        const wasmEndTime = performance.now();
+        const wasmTime = wasmEndTime - wasmStartTime;
+
+        // Clear operation from blacklist on success
+        clearOperationErrorCount('recalculatePositions');
+
+        // Update performance metrics with proper comparisons
+        updatePerformanceMetrics(
+            wasmTime,
+            tsTime, // Include TypeScript comparison if available
+            logs.length,
+            'recalculatePositions',
+            0, // Serialization overhead tracked separately if needed
+            0  // Deserialization overhead tracked separately if needed
+        );
+
+        // Periodically log performance metrics (very infrequently)
+        if (Math.random() < 0.02 && logs.length > 1000) { // Only 2% of large recalculations
+            const now = Date.now();
+            const lastRecalcMetricsLog = getWasmState().lastRecalcMetricsLog || 0;
+            
+            if (now - lastRecalcMetricsLog > 60000) { // No more than once per minute
+                const state = getWasmState();
+                const memoryInfo = wasmModule.get_memory_usage();
+                
+                wasmLogger.log(
+                    WasmLogLevel.INFO, // Use INFO for this less frequent operation
+                    'virtualization',
+                    `Position calculation: ${wasmTime.toFixed(2)}ms for ${logs.length} logs`,
+                    {
+                        speedup: tsTime > 0 ? (tsTime / wasmTime).toFixed(2) + 'x' : 'N/A',
+                        memoryUtilization: memoryInfo ? `${(memoryInfo.utilization * 100).toFixed(1)}%` : 'unknown',
+                        averageAllocation: memoryInfo?.average_allocation ? formatBytes(memoryInfo.average_allocation) : 'unknown',
+                        peakMemory: memoryInfo?.peak_bytes ? formatBytes(memoryInfo.peak_bytes) : 'unknown'
+                    }
+                );
+                
+                // Update the last log timestamp
+                updateState({ lastRecalcMetricsLog: now });
+            }
+        }
+
+        // Convert positions object back to Map efficiently
+        const positionsMap = new Map<number, number>();
+        const positionsObj = result.positions as Record<string, number>;
+        
+        // For large collections, use a chunked approach to avoid blocking
+        if (logs.length > 1000) {
+            const keys = Object.keys(positionsObj);
+            const chunkSize = 500;
+            
+            for (let i = 0; i < keys.length; i += chunkSize) {
+                const chunk = keys.slice(i, i + chunkSize);
+                for (const key of chunk) {
+                    positionsMap.set(parseInt(key, 10), positionsObj[key]);
+                }
+            }
+        } else {
+            // Direct conversion for smaller collections
+            Object.keys(positionsObj).forEach(key => {
+                positionsMap.set(parseInt(key, 10), positionsObj[key]);
+            });
+        }
+
+        return {
+            positions: positionsMap,
+            totalHeight: result.totalHeight as number
+        };
+    } catch (error) {
+        // Track memory usage after failed operation
+        if (typeof wasmModule.get_memory_usage === 'function') {
+            const memInfo = wasmModule.get_memory_usage();
+            updateMemoryUsage(memInfo);
+        }
+        
+        // Handle specific error types and rethrow
+        if (error instanceof Error) {
+            throw error; // Already a proper error object, let handleWasmError handle it
+        } else {
+            throw new WasmOperationError(
+                `Position calculation failed: ${String(error)}`,
+                'recalculatePositions',
+                { logCount: logs.length }
+            );
+        }
+    }
+}
