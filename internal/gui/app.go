@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"time"
 	
@@ -11,6 +12,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
 var handler *core.GUIHandler
@@ -147,10 +149,105 @@ func (a *App) GetEventThrottlingStatus() map[string]interface{} {
 	return a.throttler.GetStatus()
 }
 
+// RecordWasmLog receives and processes WebAssembly log entries from the frontend
+func (a *App) RecordWasmLog(logJson string) {
+	var logEntry map[string]interface{}
+	
+	if err := json.Unmarshal([]byte(logJson), &logEntry); err != nil {
+		a.logger.Error().Err(err).Msg("Failed to parse WebAssembly log entry")
+		return
+	}
+	
+	// Convert to Zerolog level
+	level := zerolog.InfoLevel
+	if levelVal, ok := logEntry["level"].(float64); ok {
+		switch int(levelVal) {
+		case -1: // TRACE
+			level = zerolog.TraceLevel
+		case 0: // DEBUG
+			level = zerolog.DebugLevel
+		case 1: // INFO
+			level = zerolog.InfoLevel
+		case 2: // WARN
+			level = zerolog.WarnLevel
+		case 3, 4: // ERROR, CRITICAL
+			level = zerolog.ErrorLevel
+		}
+	}
+	
+	// Extract fields for structured logging
+	fields := map[string]interface{}{
+		"source": "wasm",
+	}
+	
+	if component, ok := logEntry["component"].(string); ok {
+		fields["component"] = component
+	}
+	
+	if metrics, ok := logEntry["metrics"].(map[string]interface{}); ok {
+		for k, v := range metrics {
+			fields["wasm_"+k] = v
+		}
+	}
+	
+	// Log through the throttler
+	message := "WebAssembly log"
+	if msg, ok := logEntry["message"].(string); ok {
+		message = msg
+	}
+	
+	// Use the handler to log the message with fields
+	// FIXME USING ZEROLOG DIRECTLY IS LIKELY THE BEST WAY, NOT SURE YET.
+	handler.LogFields(int8(level), "wasm", message, fields)
+}
+
+// RecordWasmState stores WebAssembly state in the crash reporter for diagnostics
+func (a *App) RecordWasmState(stateJson string) {
+	// Save state in crash reporter for diagnostic purposes
+	if crash.Reporter != nil {
+		crash.Reporter.SaveSnapshot("wasm_state", stateJson)
+	}
+	
+	// Log state changes at debug level (to avoid spamming logs)
+	a.logger.Debug().Msg("WebAssembly state updated")
+	
+	// Optional: Parse and log specific state changes (init status changes, errors, etc.)
+	var state map[string]interface{}
+	if err := json.Unmarshal([]byte(stateJson), &state); err != nil {
+		a.logger.Error().Err(err).Msg("Failed to parse WebAssembly state")
+		return
+	}
+	
+	if status, ok := state["initStatus"].(string); ok {
+		// Log status changes at info level
+		a.logger.Info().Str("status", status).Msg("WebAssembly status updated")
+	}
+	
+	// If there's an error, log it
+	if lastError, ok := state["lastError"].(map[string]interface{}); ok {
+		if errMsg, ok := lastError["message"].(string); ok {
+			a.logger.Error().Str("source", "wasm").Msg(errMsg)
+		}
+	}
+}
+
+// RequestWasmState requests the WebAssembly state from the frontend for crash reports
+func (a *App) RequestWasmState() {
+	// Send an event to the frontend requesting the WebAssembly state
+	a.logger.Debug().Msg("Requesting WebAssembly state from frontend")
+	runtime.EventsEmit(a.ctx, "request-wasm-state")
+}
+
 // beforeClose is called when the application is about to quit,
 // either by clicking the window close button or calling runtime.Quit.
 // Returning true will cause the application to continue, false will continue shutdown as normal.
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
+	// Request WebAssembly state for diagnostic purposes
+	a.RequestWasmState()
+	
+	// Small delay to allow frontend to respond with state
+	time.Sleep(100 * time.Millisecond)
+	
 	// Properly shut down the throttler
 	if a.throttler != nil {
 		a.logger.Info().Msg("Application closing, shutting down throttler")

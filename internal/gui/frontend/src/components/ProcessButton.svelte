@@ -4,7 +4,8 @@
     import { errorStore } from '../lib/errorStore';
     import ProcessErrorTooltip from './ProcessErrorTooltip.svelte';
 
-    const dispatch = createEventDispatcher<{ process: void }>();
+    // Create event dispatcher without generic type parameters
+    const dispatch = createEventDispatcher();
 
     export let isProcessing: boolean;
 

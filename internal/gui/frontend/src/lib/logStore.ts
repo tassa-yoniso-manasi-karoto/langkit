@@ -1,5 +1,24 @@
 import { writable, get, derived } from 'svelte/store';
 import { settings } from './stores';
+import {
+  isWasmEnabled,
+  getWasmModule,
+  getWasmSizeThreshold,
+  shouldUseWasm,
+  // canProcessSafely, // Removed, logic is in checkMemoryAvailability
+  handleWasmError,
+  WasmOperationError,
+  // New imports based on updated wasm.ts
+  isOperationBlacklisted,
+  checkMemoryAvailability,
+  serializeLogsForWasm,
+  deserializeLogsFromWasm,
+  clearOperationErrorCount
+} from './wasm';
+import type { WasmModule } from './wasm'; // Import WasmModule as type
+import { wasmLogger, WasmLogLevel } from './wasm-logger';
+// Keep direct state function imports
+import { trackOperation, updatePerformanceMetrics } from './wasm-state'; // setWasmError is handled within handleWasmError now
 
 export interface LogMessage {
     level: string;
@@ -19,7 +38,8 @@ type LogIndex = Map<number, number>; // Maps sequence number -> array index
 
 function createLogStore() {
     // Main store with all logs
-    const { subscribe, update, set } = writable<LogMessage[]>([]);
+    const logsWritable = writable<LogMessage[]>([]);
+    const { subscribe, update, set } = logsWritable; // Keep destructuring for internal use
     
     // Maps for efficient lookups - separate from the store to avoid triggering reactivity
     let sequenceIndex: LogIndex = new Map();
@@ -30,7 +50,7 @@ function createLogStore() {
     let lastAddTime = 0;
     let pendingBatch: LogMessage[] = [];
     let processingBatch = false;
-    let batchProcessTimer: NodeJS.Timeout | null = null;
+    let batchProcessTimer: number | null = null; // Use number for browser setTimeout
 
     /**
      * Formats a log message with proper time format and additional metadata
@@ -49,7 +69,6 @@ function createLogStore() {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit'
-                // fractionalSecondDigits removed as requested
             });
             
             // Use unix timestamp if available, otherwise parse ISO string
@@ -85,11 +104,10 @@ function createLogStore() {
     }
 
     /**
-     * Efficiently merge-inserts a batch of logs into the existing sorted array
-     * This is much faster than doing a full sort on each update
-     * O(n+m) complexity instead of O((n+m)log(n+m))
+     * TypeScript implementation of mergeInsertLogs
+     * Original function remains as the TypeScript implementation
      */
-    function mergeInsertLogs(existingLogs: LogMessage[], newLogs: LogMessage[]): LogMessage[] {
+    function mergeInsertLogsTS(existingLogs: LogMessage[], newLogs: LogMessage[]): LogMessage[] {
         // Short-circuit for empty arrays
         if (newLogs.length === 0) return existingLogs;
         if (existingLogs.length === 0) return newLogs;
@@ -153,7 +171,225 @@ function createLogStore() {
         
         return result;
     }
-    
+
+    /**
+     * WebAssembly-Enhanced Log Processing
+     * 
+     * This module integrates WebAssembly optimization for performance-critical
+     * log processing operations, particularly the `mergeInsertLogs` function
+     * which handles the chronological ordering and merging of log entries.
+     * 
+     * Integration Architecture:
+     * 
+     * 1. The original TypeScript implementation remains as `mergeInsertLogsTS`
+     * 2. A wrapper function `mergeInsertLogs` decides whether to use WebAssembly:
+     *    - Based on log volume (small datasets use TypeScript)
+     *    - Based on memory availability (avoids WebAssembly OOM errors)
+     *    - Based on performance metrics (adaptive thresholds)
+     * 3. Performance metrics are collected to optimize future decisions
+     * 4. Error handling ensures graceful fallback to TypeScript
+     * 
+     * This approach maintains 100% compatibility while providing significant
+     * performance improvements for large log volumes.
+     */
+    // Updated mergeInsertLogs from Phase 1.2 and Phase 2.2
+    function mergeInsertLogs(existingLogs: LogMessage[], newLogs: LogMessage[]): LogMessage[] {
+      // Track operation in WASM state
+      trackOperation('mergeInsertLogs');
+
+      const totalLogCount = existingLogs.length + newLogs.length;
+
+      // Early return for empty arrays with proper typing
+      if (newLogs.length === 0) return existingLogs;
+      if (existingLogs.length === 0) return newLogs;
+
+      // Get current settings - add this line
+      const $settings = get(settings);
+
+      // IMPROVEMENT #1: Check if operation is forced first
+      // This ensures user preferences take precedence over automatic checks
+      if ($settings.forceWasmMode === 'enabled' && isWasmEnabled() && !isOperationBlacklisted('mergeInsertLogs')) {
+        try {
+          // COMPLETELY REMOVE THIS LOG - it's redundant and happens for EVERY operation (Claude's suggestion)
+          // wasmLogger.log(
+          //   WasmLogLevel.INFO,
+          //   'force',
+          //   `Using WebAssembly for ${totalLogCount} logs due to force setting`
+          // );
+          
+          const wasmModule = getWasmModule();
+          if (!wasmModule) {
+            throw new Error("WebAssembly module not available");
+          }
+          
+          // Use WebAssembly implementation
+          const serialized = serializeLogsForWasm([...existingLogs, ...newLogs]);
+          const wasmStartTime = performance.now();
+          const result = wasmModule.merge_insert_logs(
+            serialized.data.slice(0, existingLogs.length),
+            serialized.data.slice(existingLogs.length)
+          );
+          const wasmEndTime = performance.now();
+          const deserialized = deserializeLogsFromWasm(result);
+          
+          // Track performance
+          updatePerformanceMetrics(
+            wasmEndTime - wasmStartTime, 0, totalLogCount, 'mergeInsertLogs',
+            serialized.time, deserialized.time
+          );
+          
+          return deserialized.logs as LogMessage[];
+        } catch (error: any) {
+          // Still handle errors properly
+          handleWasmError(error, 'mergeInsertLogs', { logCount: totalLogCount });
+          return mergeInsertLogsTS(existingLogs, newLogs);
+        }
+      }
+
+      // Only check blacklist after force settings
+      if (isOperationBlacklisted('mergeInsertLogs')) {
+        wasmLogger.log(
+          WasmLogLevel.INFO,
+          'fallback',
+          `Using TypeScript fallback for blacklisted operation (mergeInsertLogs)`
+        );
+        return mergeInsertLogsTS(existingLogs, newLogs);
+      }
+
+      // Original memory and size checks only apply in auto mode
+      if ($settings.forceWasmMode !== 'disabled') {
+        // Check memory availability with enhanced logic
+        const memCheck = checkMemoryAvailability(totalLogCount);
+        if (!memCheck.canProceed) {
+          wasmLogger.log(
+            WasmLogLevel.DEBUG,
+            'memory',
+            `Using TypeScript fallback due to memory constraints: ${memCheck.actionTaken}`,
+            { memoryInfo: memCheck.memoryInfo }
+          );
+          return mergeInsertLogsTS(existingLogs, newLogs);
+        }
+
+        // Check if we should use WebAssembly based on adaptive threshold and size
+        if (shouldUseWasm(totalLogCount, 'mergeInsertLogs')) {
+          // <<< INSERTED WASM LOGIC BLOCK >>>
+          try {
+            const wasmModule = getWasmModule();
+            if (!wasmModule || typeof wasmModule.merge_insert_logs !== 'function') {
+              throw new WasmOperationError('WebAssembly module not properly initialized', 'mergeInsertLogs', {
+                moduleAvailable: !!wasmModule,
+                functionAvailable: !!wasmModule && typeof wasmModule.merge_insert_logs === 'function'
+              });
+            }
+
+            // Optimized serialization (Phase 2.2)
+            // Note: The serializeLogsForWasm function currently just prepares the data structure.
+            // The actual heavy serialization is done by wasm-bindgen during the call.
+            // We measure the JS prep time here.
+            const serialized = serializeLogsForWasm([...existingLogs, ...newLogs]); // Pass combined for potential optimization
+
+            // Measure WebAssembly execution time
+            const wasmStartTime = performance.now();
+
+            // Use optimized approach based on log volume (Phase 2.2)
+            let result;
+
+            // For very large log sets, use the batch merge approach
+            if (totalLogCount > 10000) {
+              wasmLogger.log(WasmLogLevel.DEBUG, 'performance', 'Using pre-sort strategy for very large merge', { logCount: totalLogCount });
+              // Sort the arrays first in JS to potentially reduce WebAssembly workload if WASM sort is slow
+              const sortedExisting = [...existingLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
+              const sortedNew = [...newLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
+
+              // Now merge the pre-sorted arrays in WASM
+              result = wasmModule.merge_insert_logs(sortedExisting, sortedNew);
+            }
+            // For normal sized log sets, use standard WASM approach
+            else {
+              // Pass the original arrays (or the potentially slimmed data from serializeLogsForWasm)
+              result = wasmModule.merge_insert_logs(serialized.data.slice(0, existingLogs.length), serialized.data.slice(existingLogs.length));
+            }
+
+            const wasmEndTime = performance.now();
+            const wasmTime = wasmEndTime - wasmStartTime;
+
+            // Optimized deserialization (Phase 2.2)
+            // Measures JS-side processing time after receiving data from WASM.
+            const deserialized = deserializeLogsFromWasm(result);
+
+            // Record successful operation (Phase 1.2)
+            clearOperationErrorCount('mergeInsertLogs');
+
+            // Update metrics with all timing information (Phase 2.2)
+            updatePerformanceMetrics(
+              wasmTime,
+              0, // No TS comparison here by default
+              totalLogCount,
+              'mergeInsertLogs',
+              serialized.time, // JS serialization prep time
+              deserialized.time // JS deserialization processing time
+            );
+
+            // Occasionally benchmark TypeScript for comparison (5% chance) (Phase 2.2)
+            let tsTime = 0;
+            if (Math.random() < 0.05) {
+              const tsStartTime = performance.now();
+              const tsResult = mergeInsertLogsTS(existingLogs, newLogs); // Run TS version
+              const tsEndTime = performance.now();
+              tsTime = tsEndTime - tsStartTime;
+
+              // Log comparison (CHANGED FROM INFO to TRACE)
+              wasmLogger.log(
+                WasmLogLevel.TRACE,
+                'performance',
+                `Merge performance comparison for ${totalLogCount} logs`,
+                {
+                  wasmTime: wasmTime.toFixed(2) + 'ms',
+                  tsTime: tsTime.toFixed(2) + 'ms',
+                  serializationTime: serialized.time.toFixed(2) + 'ms',
+                  deserializationTime: deserialized.time.toFixed(2) + 'ms',
+                  totalWasmOverhead: (wasmTime + serialized.time + deserialized.time).toFixed(2) + 'ms',
+                  speedup: tsTime > 0 && wasmTime > 0 ? (tsTime / wasmTime).toFixed(2) + 'x' : 'N/A',
+                  netSpeedup: tsTime > 0 && (wasmTime + serialized.time + deserialized.time) > 0 ? (tsTime / (wasmTime + serialized.time + deserialized.time)).toFixed(2) + 'x' : 'N/A',
+                  serializationOptimization: serialized.optimization
+                }
+              );
+
+              // Update TypeScript comparison metrics specifically
+              updatePerformanceMetrics(
+                wasmTime, // Pass wasmTime again
+                tsTime,   // Pass the measured tsTime
+                totalLogCount,
+                'mergeInsertLogs',
+                serialized.time,
+                deserialized.time
+              );
+            }
+
+            return deserialized.logs as LogMessage[];
+          } catch (error: any) {
+            // Use the enhanced error handler (Phase 1.2)
+            handleWasmError(error, 'mergeInsertLogs', {
+              logCount: totalLogCount,
+              existingLogsLength: existingLogs.length,
+              newLogsLength: newLogs.length
+            });
+
+            // Fall back to TypeScript implementation
+            return mergeInsertLogsTS(existingLogs, newLogs);
+          }
+          // <<< END INSERTED WASM LOGIC BLOCK >>>
+        } else { // Add an else block for clarity
+           wasmLogger.log(WasmLogLevel.DEBUG, 'threshold', `Using TypeScript for mergeInsertLogs (${totalLogCount} logs) based on adaptive decision.`);
+           return mergeInsertLogsTS(existingLogs, newLogs);
+        }
+      }
+      
+      // Default fallback to TypeScript
+      return mergeInsertLogsTS(existingLogs, newLogs);
+    }
+
+
     /**
      * Rebuild the sequence index map for O(1) lookups
      */
@@ -184,7 +420,7 @@ function createLogStore() {
             processLogBatch();
         } else if (!batchProcessTimer) {
             // Schedule a batch process if none is scheduled (max delay 16ms)
-            batchProcessTimer = setTimeout(processLogBatch, 16);
+            batchProcessTimer = window.setTimeout(processLogBatch, 16); // Use window.setTimeout
         }
         
         lastAddTime = now;
@@ -226,8 +462,8 @@ function createLogStore() {
         
         // Update the store - NO longer capping logs
         update(logs => {
-            // Merge-insert all logs without capping
-            const mergedLogs = mergeInsertLogs(logs, batchToProcess);
+            // Use the merged implementation that can leverage WebAssembly
+            const mergedLogs = mergeInsertLogs(logs, batchToProcess); // Calls the new wrapper function
             
             // Rebuild index
             rebuildIndex(mergedLogs);
@@ -239,7 +475,7 @@ function createLogStore() {
         
         // If more logs accumulated during processing, schedule another process
         if (pendingBatch.length > 0) {
-            batchProcessTimer = setTimeout(processLogBatch, 0);
+            batchProcessTimer = window.setTimeout(processLogBatch, 0); // Use window.setTimeout
         }
     }
 
@@ -264,10 +500,9 @@ function createLogStore() {
      * Get a log by its sequence number
      */
     function getLogBySequence(sequence: number): LogMessage | undefined {
-        return subscribe(logs => {
-            const index = sequenceIndex.get(sequence);
-            return index !== undefined ? logs[index] : undefined;
-        });
+        const currentLogs = get(logsWritable); // Use get() on the store
+        const index = sequenceIndex.get(sequence);
+        return index !== undefined ? currentLogs[index] : undefined;
     }
     
     /**
@@ -282,12 +517,11 @@ function createLogStore() {
      * This is used for virtualization optimization
      */
     function hasVisibleLogs(startIndex: number, endIndex: number): boolean {
-        return subscribe(logs => {
-            for (let i = startIndex; i <= endIndex && i < logs.length; i++) {
-                if (logs[i]._visible) return true;
-            }
-            return false;
-        });
+        const currentLogs = get(logsWritable); // Use get() on the store
+        for (let i = startIndex; i <= endIndex && i < currentLogs.length; i++) {
+            if (currentLogs[i]._visible) return true;
+        }
+        return false;
     }
     
     /**
@@ -295,36 +529,42 @@ function createLogStore() {
      */
     function setLogsVisible(startIndex: number, endIndex: number, visible: boolean = true) {
         update(logs => {
-            for (let i = startIndex; i <= endIndex && i < logs.length; i++) {
-                logs[i]._visible = visible;
+            // Create a new array to avoid direct mutation if necessary, though Svelte might handle this
+            const newLogs = [...logs]; 
+            for (let i = startIndex; i <= endIndex && i < newLogs.length; i++) {
+                if (newLogs[i]) { // Check if log exists at index
+                   newLogs[i] = { ...newLogs[i], _visible: visible };
+                }
             }
-            return logs;
+            return newLogs;
         });
     }
     
-    // Create derived stores for filtered logs by level
-    const errorLogs = derived(subscribe, ($logs) => 
+    // Create derived stores for filtered logs by level - pass the store itself
+    const errorLogs = derived(logsWritable, ($logs) =>
         $logs.filter(log => log.level?.toUpperCase() === 'ERROR')
     );
     
-    const warnLogs = derived(subscribe, ($logs) => 
+    const warnLogs = derived(logsWritable, ($logs) =>
         $logs.filter(log => log.level?.toUpperCase() === 'WARN')
     );
     
-    const infoLogs = derived(subscribe, ($logs) => 
+    const infoLogs = derived(logsWritable, ($logs) =>
         $logs.filter(log => log.level?.toUpperCase() === 'INFO')
     );
     
-    const debugLogs = derived(subscribe, ($logs) => 
+    const debugLogs = derived(logsWritable, ($logs) =>
         $logs.filter(log => log.level?.toUpperCase() === 'DEBUG')
     );
     
-    // NEW: Derived store to check if logs exceed max entries
-    const exceededMaxEntries = derived([subscribe, settings], ([$logs, $settings]) => {
-        const maxEntries = $settings?.maxLogEntries || 5000;
+    // NEW: Derived store to check if logs exceed max entries - pass the stores
+    const exceededMaxEntries = derived([logsWritable, settings], ([$logs, $settings]) => {
+        // TODO: Update Settings type in stores.ts
+        const maxEntries = ($settings as any)?.maxLogEntries || 5000; 
         return $logs.length > maxEntries;
     });
 
+    // Return the public API
     return {
         subscribe,
         addLog,
@@ -341,7 +581,7 @@ function createLogStore() {
         infoLogs,
         debugLogs,
         
-        // NEW: Derived store to check if logs exceed max entries
+        // Derived store to check if logs exceed max entries
         exceededMaxEntries
     };
 }

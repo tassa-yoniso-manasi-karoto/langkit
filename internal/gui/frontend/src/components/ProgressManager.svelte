@@ -9,7 +9,7 @@
     let isCollapsed: boolean = false;
     
     // Track errors by task ID
-    let taskErrors = new Map<string, string>();
+    let taskErrors: Map<string, string> = new Map();
     let abortedTasksCount = 0;
     let isGlobalAbort = false;
     
@@ -43,7 +43,7 @@
         // When processing starts after being stopped, reset all error states and counters
         abortedTasksCount = 0;
         isGlobalAbort = false;
-        taskErrors = new Map<string, string>();
+        taskErrors = new Map();
         statusText = "In progress...";
         lastProcessingState = true;
     } else if (!isProcessing && lastProcessingState) {

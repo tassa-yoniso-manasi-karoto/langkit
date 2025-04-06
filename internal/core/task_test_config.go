@@ -555,6 +555,11 @@ func (h *TestMessageHandler) IsCLI() bool {
 	return true
 }
 
+func (h *TestMessageHandler) GetContext() context.Context {
+	return context.TODO()
+}
+
+
 // SetHighLoadMode is a no-op for tests
 func (h *TestMessageHandler) SetHighLoadMode(durations ...time.Duration) {
 	h.logs = append(h.logs, "SetHighLoadMode called (no-op in test mode)")

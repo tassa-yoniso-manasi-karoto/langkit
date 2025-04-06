@@ -84,8 +84,8 @@
     let manualVirtualToggle = false; // Track if user manually toggled virtualization
     
     // Individual log height tracking
-    let logHeights = new Map<number, number>(); // Maps sequence -> actual height
-    let logPositions = new Map<number, number>(); // Maps sequence -> Y position
+    let logHeights: Map<number, number> = new Map(); // Maps sequence -> actual height
+    let logPositions: Map<number, number> = new Map(); // Maps sequence -> Y position
     let totalLogHeight = 0;
     let avgLogHeight = 25; // Initial estimate, will be refined
     
@@ -95,7 +95,7 @@
     // Animation and filter state
     let filterTransitionRunning = false;
     let filterChangeTimestamp = Date.now();
-    let recentlyAddedLogs = new Set<number>();
+    let recentlyAddedLogs: Set<number> = new Set();
     
     // Track measurement batches
     let pendingMeasurements = false;
@@ -1035,9 +1035,7 @@
                 clearTimeout(batchMeasurementTimer);
             }
             
-            if (scrollAfterAnimationTimer) {
-                clearTimeout(scrollAfterAnimationTimer);
-            }
+            // No need to clear scrollAfterAnimationTimer as it's not defined/used
             
             if (forceScrollTimer) {
                 clearTimeout(forceScrollTimer);
