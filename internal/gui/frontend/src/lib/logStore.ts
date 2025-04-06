@@ -258,14 +258,14 @@ function createLogStore() {
 
       // Original memory and size checks only apply in auto mode
       if ($settings.forceWasmMode !== 'disabled') {
-        // Check memory availability with enhanced logic
-        const memCheck = checkMemoryAvailability(totalLogCount);
-        if (!memCheck.canProceed) {
+        // Check memory availability with simplified boolean check
+        const memoryAvailable = checkMemoryAvailability(totalLogCount);
+        if (!memoryAvailable) {
           wasmLogger.log(
             WasmLogLevel.DEBUG,
             'memory',
-            `Using TypeScript fallback due to memory constraints: ${memCheck.actionTaken}`,
-            { memoryInfo: memCheck.memoryInfo }
+            `Using TypeScript fallback due to memory constraints`,
+            { logCount: totalLogCount }
           );
           return mergeInsertLogsTS(existingLogs, newLogs);
         }
@@ -378,9 +378,9 @@ function createLogStore() {
             // Fall back to TypeScript implementation
             return mergeInsertLogsTS(existingLogs, newLogs);
           }
-          // <<< END INSERTED WASM LOGIC BLOCK >>>
+          //
         } else { // Add an else block for clarity
-           wasmLogger.log(WasmLogLevel.DEBUG, 'threshold', `Using TypeScript for mergeInsertLogs (${totalLogCount} logs) based on adaptive decision.`);
+           //wasmLogger.log(WasmLogLevel.DEBUG, 'threshold', `Using TypeScript for mergeInsertLogs (${totalLogCount} logs) based on adaptive decision.`);
            return mergeInsertLogsTS(existingLogs, newLogs);
         }
       }

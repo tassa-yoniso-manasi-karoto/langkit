@@ -51,7 +51,7 @@ export interface WasmState {
     };
   };
   
-  // IMPROVEMENT #6: Enhanced state for dashboard
+  // Dashboard metrics for memory growth and performance
   memoryGrowthEvents?: Array<{
     timestamp: number;
     requestedBytes: number;
@@ -107,6 +107,11 @@ export interface WasmState {
       netSpeedupRatio: number;
     };
   }>;
+  
+  // Add missing properties for logging timestamps
+  lastScrollMetricsLog?: number;
+  lastRecalcMetricsLog?: number;
+  lastMemoryLogTime?: number; // Added to track infrequent memory logging
 }
 
 // Initial state
@@ -134,7 +139,144 @@ const initialState: WasmState = {
 // Export the state directly for wasm.ts to manage persistence
 export let wasmState: WasmState = { ...initialState };
 
-// --- Start Phase 1.3: Immutable State Updates ---
+// Memory information validation and state management
+
+/**
+ * Standardizes memory information with robust error handling and validation
+ * @param memInfo Raw memory information from WebAssembly
+ * @returns Standardized memory information with validated fields
+ */
+export function standardizeMemoryInfo(memInfo: any): any {
+  // Handle the case where memInfo is null or undefined
+  if (!memInfo) {
+    return getDefaultMemoryInfo();
+  }
+  
+  // CRITICAL FIX: Handle Map objects (which is what we're receiving from WebAssembly)
+  const isMap = memInfo instanceof Map;
+  
+  // Helper function to safely get values from either Map or regular object
+  const getValue = (key: string) => {
+    if (isMap) {
+      return (memInfo as Map<string, any>).get(key);
+    } else {
+      return (memInfo as any)[key];
+    }
+  };
+  
+  // Check if the data is pre-validated
+  const isPreValidated = getValue('is_valid') === true;
+  
+  // Convert Map to regular object if needed
+  let memoryData: Record<string, any> = {};
+  if (isMap) {
+    // Convert Map entries to regular object
+    memInfo.forEach((value, key) => {
+      memoryData[key] = value;
+    });
+  } else if (typeof memInfo === 'object') {
+    // If it's already an object, use it directly
+    memoryData = { ...memInfo };
+  } else {
+    // Not an object or Map, return defaults
+    return getDefaultMemoryInfo();
+  }
+  
+  // Get critical values with proper null handling
+  const totalBytes = getValue('total_bytes');
+  const usedBytes = getValue('used_bytes');
+  const utilization = getValue('utilization');
+  const currentPages = getValue('current_pages');
+  const pageSize = getValue('page_size_bytes') || 65536; // Default to 64KB
+  
+  // Handle case where we only have current_pages but not total_bytes
+  if (typeof currentPages === 'number' && currentPages > 0 && 
+      (typeof totalBytes !== 'number' || totalBytes <= 0)) {
+    // Calculate total bytes from pages
+    memoryData.total_bytes = currentPages * pageSize;
+  }
+  
+  // Handle case where we have used_bytes of 0 (valid case for new module)
+  if (usedBytes === 0 && typeof totalBytes === 'number' && totalBytes > 0) {
+    // This is valid! Set utilization to 0
+    memoryData.utilization = 0;
+  }
+  
+  // Calculate utilization if missing but we have both total and used bytes
+  if ((typeof utilization !== 'number' || Number.isNaN(utilization)) &&
+      typeof totalBytes === 'number' && totalBytes > 0 &&
+      typeof usedBytes === 'number' && usedBytes >= 0) {
+    memoryData.utilization = usedBytes / totalBytes;
+  }
+  
+  // More careful validation that knows how to handle Maps
+  const validationIssues = {
+    missingObject: false,
+    invalidTotalBytes: typeof totalBytes !== 'number' || 
+                       Number.isNaN(totalBytes) || 
+                       (totalBytes <= 0 && (typeof currentPages !== 'number' || currentPages <= 0)),
+    invalidUsedBytes: typeof usedBytes !== 'number' || 
+                     Number.isNaN(usedBytes) || 
+                     usedBytes < 0,
+    invalidUtilization: (typeof utilization !== 'number' && 
+                       !(usedBytes === 0 && typeof totalBytes === 'number' && totalBytes > 0)) || 
+                      Number.isNaN(utilization) || 
+                      utilization < 0 || 
+                      utilization > 1
+  };
+  
+  // Skip validation issues if the data is pre-validated
+  const hasValidationIssues = !isPreValidated && (
+    validationIssues.invalidTotalBytes || 
+    validationIssues.invalidUsedBytes || 
+    validationIssues.invalidUtilization
+  );
+  
+  // Log validation issues occasionally
+  if (hasValidationIssues && Math.random() < 0.05) {
+    wasmLogger.log(
+      WasmLogLevel.WARN,
+      'memory',
+      'Received invalid memory information from WebAssembly, using defaults',
+      {
+        receivedInfo: memInfo,
+        validationErrors: validationIssues
+      }
+    );
+    
+    // Return safe defaults for invalid data
+    return getDefaultMemoryInfo();
+  }
+  
+  // For valid data, return a standardized object with safe defaults if needed
+  return {
+    ...memoryData,
+    total_bytes: typeof totalBytes === 'number' ? Math.max(1, totalBytes) : 16 * 1024 * 1024,
+    used_bytes: typeof usedBytes === 'number' ? Math.max(0, usedBytes) : 1 * 1024 * 1024,
+    utilization: typeof utilization === 'number' ? 
+                Math.max(0, Math.min(utilization, 1)) : 
+                (usedBytes === 0 && typeof totalBytes === 'number' && totalBytes > 0) ? 0 : 0.0625,
+    is_valid: true,
+    available: true // Ensure available flag is always set
+  };
+}
+
+/**
+ * Helper function to get default memory info
+ */
+function getDefaultMemoryInfo(): Record<string, any> {
+  return {
+    total_bytes: 16 * 1024 * 1024, // 16MB
+    used_bytes: 1 * 1024 * 1024,   // 1MB
+    utilization: 0.0625,           // 1/16 = 6.25%
+    peak_bytes: 1 * 1024 * 1024,
+    allocation_count: 1,
+    current_pages: 256,            // 16MB / 64KB = 256 pages
+    page_size_bytes: 65536,
+    is_valid: true,
+    available: true
+  };
+}
 /**
  * Create an immutable state update function
  * @param updates Partial state object with changes
@@ -201,54 +343,54 @@ export function updateState(updates: Partial<WasmState>): void { // Add export k
  * @returns A string describing the change, or null if not significant
  */
 function detectSignificantChange(prevState: WasmState, newState: WasmState): string | null {
-  // Check for initialization status changes (Log only success/failure)
+  // Only track truly significant status changes
   if (prevState.initStatus !== newState.initStatus) {
     if (newState.initStatus === WasmInitStatus.SUCCESS) {
-      return `initialization completed successfully`; // Log successful init
+      return `initialization completed successfully`;
     } else if (newState.initStatus === WasmInitStatus.FAILED) {
-      return `initialization failed`; // Log failed init
+      return `initialization failed`;
     }
-    return null; // Don't log other status changes like INITIALIZING
+    return null; // No longer log other status changes
   }
 
-  // Check for new significant errors (but not routine fallbacks)
+  // Only log critical errors (memory and initialization)
   if (!prevState.lastError && newState.lastError) {
-    // Only log if it's an Initialization or Memory error
     if (newState.lastError.name === 'WasmInitializationError' ||
         newState.lastError.name === 'WasmMemoryError') {
-      return `error occurred: ${newState.lastError.name}`; // Log significant errors
+      return `critical error: ${newState.lastError.name}`;
     }
-    return null; // Don't log routine errors like WasmOperationError
+    return null; // Don't log routine errors
   }
 
-  // Only log extreme memory pressure changes
+  // Only log extreme memory pressure (>95%)
   if (prevState.memoryUsage && newState.memoryUsage) {
     const prevUtil = prevState.memoryUsage.utilization;
     const newUtil = newState.memoryUsage.utilization;
 
-    // Log only if crossing critical threshold (>95%)
+    // Higher threshold (95% instead of 90%)
     if (newUtil > 0.95 && prevUtil <= 0.95) {
-      return 'memory utilization reached critical level (>95%)';
+      return 'critical memory pressure (>95%)';
     }
 
-    // Log only if pressure relieved significantly after being critical
-    if (newUtil < 0.5 && prevUtil >= 0.9) { // Changed threshold from 0.75 to 0.9
-      return 'memory pressure relieved significantly';
+    // Only log major relief (from >90% to <50%)
+    if (newUtil < 0.5 && prevUtil >= 0.9) {
+      return 'significant memory pressure relief';
     }
   }
 
-  // Only log very major performance changes
+  // Higher threshold for reporting performance changes (5x instead of 2x)
   if (prevState.performanceMetrics && newState.performanceMetrics) {
     const prevRatio = prevState.performanceMetrics.speedupRatio;
     const newRatio = newState.performanceMetrics.speedupRatio;
 
-    // Only log if ratio changed by more than 100% AND is high (>5x)
-    if (newRatio && prevRatio && newRatio > 5 && Math.abs(newRatio - prevRatio) / prevRatio > 1.0) {
-      return `major performance improvement detected (${newRatio.toFixed(2)}x)`;
+    // Only log if ratio improved by 400% AND is high (>5x)
+    if (newRatio && prevRatio && newRatio > 5 &&
+        (newRatio / prevRatio) > 4.0) {
+      return `extraordinary performance improvement (${newRatio.toFixed(2)}x)`;
     }
   }
 
-  return null; // No significant change detected
+  return null;
 }
 
 /**
@@ -404,16 +546,7 @@ export function resetWasmMetricsInternal(): void {
   reportWasmState();
 }
 
-/**
- * Updates performance metrics with detailed breakdown using immutable updates
- *
- * @param wasmTime Pure WebAssembly execution time
- * @param tsTime TypeScript execution time (0 if not measured)
- * @param logCount Number of logs processed
- * @param operation Operation type
- * @param serializationTime Time spent on JS serialization prep (optional)
- * @param deserializationTime Time spent on JS deserialization processing (optional)
- */
+// Export updatePerformanceMetrics
 export function updatePerformanceMetrics(
   wasmTime: number,
   tsTime: number,
@@ -518,7 +651,7 @@ export function updatePerformanceMetrics(
   }
 }
 
-// Track operation for metrics using immutable updates
+// Export trackOperation
 export function trackOperation(operation: string): void {
   // Prepare the update for operationsPerType
   const newOpsPerType = {
@@ -534,37 +667,85 @@ export function trackOperation(operation: string): void {
   });
 }
 
-// Update memory usage info using immutable updates
-export function updateMemoryUsage(memInfo: any): void {
-  // Ensure memInfo is an object before accessing properties
-  if (typeof memInfo !== 'object' || memInfo === null) {
-    wasmLogger.log(WasmLogLevel.WARN, 'state', 'Received invalid memory info for updateMemoryUsage', { received: memInfo });
-    return;
+/**
+ * Formats memory values consistently for logging and display
+ */
+export const memoryFormatter = {
+  /**
+   * Format bytes to human-readable string with unit
+   */
+  formatBytes(bytes: number): string {
+    if (typeof bytes !== 'number' || Number.isNaN(bytes) || bytes < 0) {
+      return 'N/A';
+    }
+    
+    if (bytes === 0) return '0 B';
+    
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const value = bytes / Math.pow(1024, i);
+    
+    return `${value.toFixed(2)} ${units[i]}`;
+  },
+  
+  /**
+   * Format utilization as percentage string
+   */
+  formatUtilization(utilization: number): string {
+    if (typeof utilization !== 'number' || Number.isNaN(utilization)) {
+      return 'N/A';
+    }
+    
+    return `${(utilization * 100).toFixed(1)}%`;
+  },
+  
+  /**
+   * Format memory info object for logging
+   */
+  formatMemoryInfo(memInfo: any): Record<string, string> {
+    return {
+      total: this.formatBytes(memInfo.total_bytes),
+      used: this.formatBytes(memInfo.used_bytes),
+      utilization: this.formatUtilization(memInfo.utilization),
+      pages: String(memInfo.current_pages || 'N/A')
+    };
   }
+};
 
-  // Prepare the memoryUsage update, including new fields from Rust
-  const newMemoryUsage = {
-      total: memInfo.total_bytes ?? 0,
-      used: memInfo.used_bytes ?? 0,
-      utilization: memInfo.utilization ?? 0,
-      peak_bytes: memInfo.peak_bytes,
-      allocation_count: memInfo.allocation_count,
-      // Include additional memory metrics from enhanced tracking
-      allocation_rate: memInfo.allocation_rate,
-      time_since_last_gc: memInfo.time_since_last_gc,
-      memory_growth_trend: memInfo.memory_growth_trend,
-      fragmentation_estimate: memInfo.fragmentation_estimate,
-      average_allocation: memInfo.average_allocation
-  };
-
-
-  // Apply updates immutably
+/**
+ * Updates memory usage with improved formatting and logging
+ * @param memInfo Raw memory information from WebAssembly
+ */
+export function updateMemoryUsage(memInfo: any): void {
+  // Standardize memory info before updating state
+  const safeMemInfo = standardizeMemoryInfo(memInfo);
+  
+  // Apply updates immutably using existing updateState function
   updateState({
-    memoryUsage: newMemoryUsage
+    memoryUsage: safeMemInfo
   });
+  
+  // Update memory trend data for dashboard
+  updateMemoryTrend(safeMemInfo);
+  
+  // Log memory updates very infrequently
+  const now = Date.now();
+  const lastMemoryLogTime = wasmState.lastMemoryLogTime || 0;
+  
+  if (now - lastMemoryLogTime > 60000 && safeMemInfo.utilization > 0.7) { // Once per minute if high
+    wasmLogger.log(
+      WasmLogLevel.INFO,
+      'memory',
+      `Memory update: ${memoryFormatter.formatUtilization(safeMemInfo.utilization)} used`,
+      memoryFormatter.formatMemoryInfo(safeMemInfo)
+    );
+    
+    // Track last log time
+    updateState({ lastMemoryLogTime: now });
+  }
 }
 
-// Set error state using immutable updates
+// Export setWasmError
 export function setWasmError(error: Error): void {
   // Check if the error is an initialization error to potentially update initStatus
   // Need to import WasmInitializationError type for this check
@@ -580,23 +761,34 @@ export function setWasmError(error: Error): void {
 // --- End Phase 1.3: Refactored Functions ---
 
 
-// Report current WASM state to backend for crash reports
+// Simplify the throttling approach for state reporting
+let lastReportedStateTime = 0;
+const STATE_REPORT_INTERVAL = 60000; // Only report state every minute maximum
+
+// Export reportWasmState
 export function reportWasmState(): void {
   try {
-    // Use type assertion for window.go
-    // Create a serializable copy of the state, excluding potentially non-serializable Error object details
+    // Only report state at most once per minute
+    const now = Date.now();
+    if (now - lastReportedStateTime < STATE_REPORT_INTERVAL) {
+      return;
+    }
+    
+    lastReportedStateTime = now;
+    
+    // Create a serializable copy of the state
     const stateToReport = {
         ...wasmState,
         lastError: wasmState.lastError ? {
             name: wasmState.lastError.name,
             message: wasmState.lastError.message,
-            // Optionally include stack, but it can be large
-            // stack: wasmState.lastError.stack
         } : undefined
     };
+    
+    // Report to backend
     (window as any).go.gui.App.RecordWasmState(JSON.stringify(stateToReport));
   } catch (e) {
-    // Avoid logging errors here if the logger itself might be causing issues during init/shutdown
+    // Avoid logging errors here to prevent cascading issues
     console.error("Failed to report WASM state to backend:", e);
   }
 }
@@ -607,9 +799,7 @@ export function syncWasmStateForReport(): void {
   reportWasmState();
 }
 
-// --- Start Improvement #6: Tracking Functions ---
-
-// Add function to track memory growth events
+// Tracking functions for dashboard metrics and performance analysis
 export function trackMemoryGrowth(
   requestedBytes: number,
   beforePages: number,
@@ -669,4 +859,4 @@ export function updateMemoryTrend(memoryInfo: any): void {
   }
 }
 
-// --- End Improvement #6: Tracking Functions ---
+// End of file

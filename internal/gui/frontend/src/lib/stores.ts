@@ -18,7 +18,7 @@ type Settings = {
     useWasm: boolean;
     wasmSizeThreshold: number;
     forceWasmMode: 'auto' | 'enabled' | 'disabled'; // Add force override mode
-    eventThrottling: boolean; // Make required
+    eventThrottling: { enabled: boolean; minInterval: number; maxInterval: number; }; // Expect object
     convertValues: boolean;   // Make required
     // Internal settings (not exposed in UI)
     appStartCount?: number;
@@ -48,7 +48,7 @@ const initSettings: Settings = {
     appStartCount: 0,
     hasSeenLogViewerTooltip: false,
     // Add defaults for missing properties
-    eventThrottling: false, // Assuming default // FIXME probably hallucinated and to be rm
+    eventThrottling: { enabled: true, minInterval: 0, maxInterval: 250 }, // Default object
     convertValues: false    // Assuming default
 };
 

@@ -61,9 +61,14 @@
         maxAPIRetries: 10,
         maxLogEntries: 10000,
         maxWorkers: 1,
+        convertValues: false, // Add missing property, default to false
         useWasm: true,
         wasmSizeThreshold: 500,
         forceWasmMode: 'auto',
+        // Add new WASM memory settings with defaults
+        wasmMemoryPreallocation: 32, // 32MB default
+        wasmMemoryMargin: 'medium',  // Medium safety margin
+        wasmMemoryGrowthStrategy: 'balanced', // Balanced growth
         eventThrottling: {
             enabled: true,
             minInterval: 0,
@@ -141,6 +146,8 @@
       }
     }
 
+    // Moved definition earlier
+
     // Check if we should show dev-only features
     $: isDevVersion = version === "dev";
 
@@ -152,6 +159,12 @@
             : exportError
                 ? 'glow-error'
                 : '';
+
+    // Define the resetExportState function before it's used
+    function resetExportState() {
+        exportSuccess = false;
+        exportError = '';
+    }
 
     async function validateLanguages() {
         if (currentSettings.targetLanguage) {
@@ -182,7 +195,12 @@
             // Save to backend
             await (window as any).go.gui.App.SaveSettings(currentSettings);
             // Update store with our current values
-            settings.set(currentSettings);
+            // Create a new object with the correct type for forceWasmMode before setting
+            const settingsToSave = {
+                ...currentSettings,
+                forceWasmMode: currentSettings.forceWasmMode as "auto" | "enabled" | "disabled"
+            };
+            settings.set(settingsToSave);
             
             // Trigger STT model refresh after API key changes
             try {
@@ -203,8 +221,9 @@
             }));
         } catch (error) {
             console.error('Failed to save settings:', error);
-            // Show error in the UI
-            exportError = 'Failed to save settings: ' + (error?.message || 'Unknown error');
+            // Show error in the UI - ensure error is treated as Error instance
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            exportError = 'Failed to save settings: ' + (errorMsg || 'Unknown error');
             setTimeout(resetExportState, 3000);
         }
     }
@@ -220,7 +239,12 @@
                 currentSettings.forceWasmMode !== undefined) {
                     
                 await (window as any).go.gui.App.SaveSettings(currentSettings);
-                settings.set(currentSettings);
+                // Create a new object with the correct type for forceWasmMode before setting
+                const settingsToUpdate = {
+                    ...currentSettings,
+                    forceWasmMode: currentSettings.forceWasmMode as "auto" | "enabled" | "disabled"
+                };
+                settings.set(settingsToUpdate);
                 wasmState = getWasmState();
             }
         } catch (error) {
@@ -258,7 +282,7 @@
                 // Ensure WASM fields exist
                 useWasm: loadedSettings.useWasm !== undefined ? loadedSettings.useWasm : true,
                 wasmSizeThreshold: loadedSettings.wasmSizeThreshold || 500,
-                forceWasmMode: loadedSettings.forceWasmMode || 'auto',
+                forceWasmMode: (loadedSettings.forceWasmMode || 'auto') as "auto" | "enabled" | "disabled", // Add type assertion
                 // Ensure event throttling exists
                 eventThrottling: loadedSettings.eventThrottling || {
                     enabled: true,
@@ -298,7 +322,11 @@
                     ...value,
                     targetLanguage: value.targetLanguage || '',
                     nativeLanguages: value.nativeLanguages || '',
-                    eventThrottling: value.eventThrottling || currentSettings.eventThrottling
+                    forceWasmMode: (value.forceWasmMode || 'auto') as "auto" | "enabled" | "disabled", // Add type assertion
+                    // Add type check for eventThrottling
+                    eventThrottling: typeof value.eventThrottling === 'object' && value.eventThrottling !== null
+                                        ? value.eventThrottling
+                                        : currentSettings.eventThrottling
                 };
                 validateLanguages();
             }
@@ -590,6 +618,73 @@
                                         <span class="setting-value text-sm text-gray-300 w-20 text-right">{currentSettings.wasmSizeThreshold} logs</span>
                                     </div>
                                 </div>
+                                
+                                <!-- Add new Memory Management Options here -->
+                                <div class="setting-group mt-6 pt-6 border-t border-primary/20">
+                                    <h4 class="text-md font-medium mb-4 text-gray-200">Memory Management</h4>
+                                    
+                                    <!-- Memory Pre-allocation -->
+                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
+                                        <div class="setting-label">
+                                            <span>Initial Memory Allocation</span>
+                                            <span class="setting-description">Pre-allocate memory at startup to reduce growth events</span>
+                                        </div>
+                                        <div class="setting-control">
+                                            <select
+                                                bind:value={currentSettings.wasmMemoryPreallocation}
+                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                                                disabled={!currentSettings.useWasm}
+                                                on:change={updateSettings}
+                                            >
+                                                <option value={16}>16 MB</option>
+                                                <option value={32}>32 MB</option>
+                                                <option value={64}>64 MB</option>
+                                                <option value={128}>128 MB</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Memory Margin -->
+                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
+                                        <div class="setting-label">
+                                            <span>Memory Safety Margin</span>
+                                            <span class="setting-description">Higher values are safer but may lead to more TypeScript fallbacks</span>
+                                        </div>
+                                        <div class="setting-control">
+                                            <select
+                                                bind:value={currentSettings.wasmMemoryMargin}
+                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                                                disabled={!currentSettings.useWasm}
+                                                on:change={updateSettings}
+                                            >
+                                                <option value="high">High (95% threshold)</option>
+                                                <option value="medium">Medium (90% threshold)</option>
+                                                <option value="low">Low (85% threshold)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Growth Strategy -->
+                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
+                                        <div class="setting-label">
+                                            <span>Memory Growth Strategy</span>
+                                            <span class="setting-description">How aggressively to grow memory when needed</span>
+                                        </div>
+                                        <div class="setting-control">
+                                            <select
+                                                bind:value={currentSettings.wasmMemoryGrowthStrategy}
+                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                                                disabled={!currentSettings.useWasm}
+                                                on:change={updateSettings}
+                                            >
+                                                <option value="conservative">Conservative (minimal growth)</option>
+                                                <option value="balanced">Balanced (medium growth)</option>
+                                                <option value="aggressive">Aggressive (large growth)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- End new Memory Management Options -->
 
                                 <!-- Performance dashboard -->
                                 {#if currentSettings.useWasm}

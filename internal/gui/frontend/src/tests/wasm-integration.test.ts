@@ -270,12 +270,8 @@ describe('WebAssembly Integration', () => {
     updatePerformanceMetrics(10, 30, 500);
     updatePerformanceMetrics(10, 30, 500);
 
-    // Mock imported checkMemoryAvailability to return false
-    vi.mocked(checkMemoryAvailability).mockReturnValueOnce({ // Use imported function
-        canProceed: false,
-        actionTaken: 'insufficient_memory_post_gc',
-        memoryInfo: {}
-    });
+    // Mock imported checkMemoryAvailability to return false (updated for boolean return type)
+    vi.mocked(checkMemoryAvailability).mockReturnValueOnce(false);
 
     expect(shouldUseWasm(5000)).toBe(false); // Should fallback due to memory
     expect(checkMemoryAvailability).toHaveBeenCalledWith(5000); // Check imported function mock
@@ -324,12 +320,8 @@ describe('WebAssembly Integration', () => {
     it('handles extremely large log batches gracefully (memory check)', () => { // Removed async
       // Use imported functions
 
-      // Mock imported checkMemoryAvailability to simulate limited memory
-      vi.mocked(checkMemoryAvailability).mockReturnValueOnce({ // Use imported function mock
-        canProceed: false,
-        actionTaken: 'insufficient_memory_post_gc',
-        memoryInfo: { utilization: 0.92 }
-      });
+      // Mock imported checkMemoryAvailability to simulate limited memory (updated for boolean return)
+      vi.mocked(checkMemoryAvailability).mockReturnValueOnce(false); // Use imported function mock
 
       // Test if shouldUseWasm correctly decides to use TypeScript due to memory
       const useWasmDecision = shouldUseWasm(100000); // 100k logs - use imported function

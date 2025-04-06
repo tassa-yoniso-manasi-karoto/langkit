@@ -9,18 +9,28 @@ use std::collections::HashMap; // Needed for extra_fields
 static mut ALLOCATION_TRACKER: Option<AllocationTracker> = None;
 
 // --- Start Replace AllocationTracker ---
-// Enhance the AllocationTracker with more detailed metrics
+// Expand AllocationTracker with growth tracking
 struct AllocationTracker {
+    // Existing fields...
     active_bytes: usize,
     peak_bytes: usize,
     allocation_count: usize,
-    // New fields for better memory analytics
     allocation_history: [usize; 10],  // Circular buffer of recent allocations
     history_index: usize,
     average_allocation: usize,
     sample_count: usize,
     last_gc_time: u64,     // Timestamp of last garbage collection
     allocation_rate: f64,  // Bytes per second allocation rate
+
+    // NEW FIELDS for better tracking
+    growth_events: usize,         // Count of successful memory growths
+    growth_failures: usize,       // Count of failed memory growths
+    last_growth_time: u64,        // Timestamp of last successful growth
+    last_growth_failure: u64,     // Timestamp of last growth failure
+    allocations_since_last_gc: usize, // Track allocations since last GC
+    total_allocated_bytes: usize, // Lifetime total of all bytes allocated
+    reused_bytes: usize,          // Estimate of memory reuse (from GC)
+    gc_events: usize,             // Count of GC events
 }
 
 impl AllocationTracker {
@@ -35,62 +45,77 @@ impl AllocationTracker {
             sample_count: 0,
             last_gc_time: 0,
             allocation_rate: 0.0,
+            // Initialize new fields
+            growth_events: 0,
+            growth_failures: 0,
+            last_growth_time: 0,
+            last_growth_failure: 0,
+            allocations_since_last_gc: 0,
+            total_allocated_bytes: 0,
+            reused_bytes: 0,
+            gc_events: 0,
         }
     }
 
-    // Enhanced allocation tracking with rate calculation
+    // Track allocation with improved stats
     fn track_allocation(&mut self, bytes: usize) {
-        // Track basic metrics
+        // Original tracking logic...
         self.active_bytes += bytes;
         self.allocation_count += 1;
+        self.allocations_since_last_gc += 1;
+        self.total_allocated_bytes += bytes;
+
         if self.active_bytes > self.peak_bytes {
             self.peak_bytes = self.active_bytes;
         }
 
-        // Track allocation patterns for better prediction
+        // Allocation pattern tracking
         self.allocation_history[self.history_index] = bytes;
         self.history_index = (self.history_index + 1) % 10;
 
         // Update running average
         self.sample_count += 1;
-        // Prevent division by zero if sample_count was 0 before incrementing
         if self.sample_count > 0 {
-             self.average_allocation = ((self.average_allocation * (self.sample_count - 1)) + bytes) / self.sample_count;
+            self.average_allocation = ((self.average_allocation * (self.sample_count - 1)) + bytes) / self.sample_count;
         }
 
-
-        // Calculate allocation rate (bytes/second)
+        // Allocation rate calculation
         let now = get_timestamp_ms();
         if self.last_gc_time > 0 {
-            let time_diff = now.saturating_sub(self.last_gc_time); // Use saturating_sub for safety
+            let time_diff = now.saturating_sub(self.last_gc_time);
             if time_diff > 0 {
-                // Exponential moving average for stability
                 let new_rate = bytes as f64 / (time_diff as f64 / 1000.0);
                 self.allocation_rate = self.allocation_rate * 0.7 + new_rate * 0.3;
             }
         }
     }
 
-    // More accurate deallocation tracking
+    // More accurate deallocation tracking - Keep existing one
     fn track_deallocation(&mut self, bytes: usize) {
         if bytes <= self.active_bytes {
             self.active_bytes -= bytes;
         } else {
-            // This is a more severe issue than we currently handle
             log("WARNING: Attempted to deallocate more bytes than tracked as active");
             self.active_bytes = 0;
         }
     }
 
-    // Reset tracking after garbage collection
+    // Improved reset for garbage collection
     fn reset(&mut self) {
+        // Track reused memory estimate before resetting
+        self.reused_bytes += self.active_bytes;
+
+        // Original reset logic
         self.active_bytes = 0;
         self.allocation_count = 0;
+        self.allocations_since_last_gc = 0;
+
+        // Update GC stats
         self.last_gc_time = get_timestamp_ms();
-        // Keep historical data for trend analysis (peak_bytes, history, etc.)
+        self.gc_events += 1;
     }
 
-    // Predict if an operation would cause memory issues
+    // Predict if an operation would cause memory issues - Keep existing one
     fn would_operation_fit(&self, estimated_bytes: usize, wasm_heap_size: usize) -> bool {
         // Conservative estimate: need the bytes plus 20% overhead
         let required_bytes = (estimated_bytes as f64 * 1.2) as usize;
@@ -104,6 +129,31 @@ impl AllocationTracker {
 
         // True if operation would fit with a safety margin
         available >= required_bytes
+    }
+
+    // Function to provide enhanced memory usage statistics
+    fn get_enhanced_stats(&self) -> serde_json::Value {
+        serde_json::json!({
+            "active_bytes": self.active_bytes,
+            "peak_bytes": self.peak_bytes,
+            "allocation_count": self.allocation_count,
+            "average_allocation": self.average_allocation,
+            "allocation_rate": self.allocation_rate,
+            "time_since_last_gc": get_timestamp_ms().saturating_sub(self.last_gc_time),
+            // New detailed statistics
+            "growth_events": self.growth_events,
+            "growth_failures": self.growth_failures,
+            "time_since_last_growth": get_timestamp_ms().saturating_sub(self.last_growth_time),
+            "gc_events": self.gc_events,
+            "allocations_since_last_gc": self.allocations_since_last_gc,
+            "total_allocated_bytes": self.total_allocated_bytes,
+            "reused_bytes": self.reused_bytes,
+            "memory_efficiency": if self.total_allocated_bytes > 0 {
+                self.reused_bytes as f64 / self.total_allocated_bytes as f64
+            } else {
+                0.0
+            }
+        })
     }
 }
 // --- End Replace AllocationTracker ---
@@ -202,6 +252,32 @@ pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Res
 
     if js_sys::Array::is_array(&existing_logs_js) && js_sys::Array::from(&existing_logs_js).length() == 0 {
         return Ok(new_logs_js);
+    }
+
+    // NEW: Calculate estimated memory requirements
+    let existing_count = if js_sys::Array::is_array(&existing_logs_js) {
+        js_sys::Array::from(&existing_logs_js).length() as usize
+    } else {
+        0
+    };
+    
+    let new_count = if js_sys::Array::is_array(&new_logs_js) {
+        js_sys::Array::from(&new_logs_js).length() as usize
+    } else {
+        0
+    };
+    
+    // Estimate memory needs (conservative but not excessive)
+    let total_count = existing_count + new_count;
+    let estimated_bytes = total_count * 256; // Rough estimate of bytes per log
+    
+    // Ensure we have sufficient memory for this operation
+    let memory_check = ensure_sufficient_memory(estimated_bytes);
+    if !memory_check {
+        return Err(Error::new(&format!(
+            "Insufficient memory for merge operation: needed ~{} bytes for {} logs",
+            estimated_bytes, total_count
+        )).into());
     }
 
     // Check for special cases that can be optimized
@@ -481,196 +557,283 @@ fn sort_logs(logs: &mut Vec<LogMessage>) {
 
 
 // --- Start Replace get_memory_usage and helpers ---
-// Memory management utilities with improved accuracy
+// REPLACE the existing get_memory_usage function with this robust implementation
 #[wasm_bindgen]
-pub fn get_memory_usage() -> JsValue { // Remove extra pub
-    let tracker = get_allocation_tracker();
-
+pub fn get_memory_usage() -> JsValue {
+    // Get the WebAssembly memory object
     let memory = wasm_bindgen::memory();
-    let total_bytes = match js_sys::Reflect::get(&memory, &"buffer".into()) {
-         Ok(buffer) => {
-             if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
-                 array_buffer.byte_length() as usize
-             } else {
-                 0 // Not an ArrayBuffer
-             }
-         },
-         Err(_) => 0, // Failed to get buffer property
-     };
-
-
-    // Enhanced memory info with new metrics
-    let memory_info = serde_json::json!({
-        "total_bytes": total_bytes,
-        "used_bytes": tracker.active_bytes,
-        "utilization": if total_bytes > 0 { tracker.active_bytes as f64 / total_bytes as f64 } else { 0.0 },
-        "peak_bytes": tracker.peak_bytes,
-        "allocation_count": tracker.allocation_count,
-        // New metrics
-        "average_allocation": tracker.average_allocation,
-        "allocation_rate": tracker.allocation_rate,
-        "time_since_last_gc": get_timestamp_ms().saturating_sub(tracker.last_gc_time), // Use saturating_sub
-        "memory_growth_trend": calculate_memory_growth_trend(tracker),
-        "fragmentation_estimate": estimate_fragmentation(tracker, total_bytes)
-    });
-
-    match serde_wasm_bindgen::to_value(&memory_info) {
-        Ok(js_value) => js_value,
-        Err(_) => JsValue::NULL,
+    
+    // If we have valid memory, report accurate information
+    if let Some(mem) = memory {
+        let buffer = mem.buffer();
+        let total_bytes = buffer.byte_length() as usize;
+        
+        // Get current pages directly from memory
+        let page_size_bytes = 65536; // 64KB per WebAssembly page
+        let current_pages = total_bytes / page_size_bytes;
+        
+        // Get tracker for additional metrics
+        let tracker = get_allocation_tracker();
+        
+        // Ensure used bytes is consistent with total
+        let active_bytes = tracker.active_bytes.min(total_bytes);
+        
+        // Calculate a safe utilization value
+        let utilization = if total_bytes > 0 {
+            (active_bytes as f64 / total_bytes as f64).min(1.0).max(0.0)
+        } else {
+            0.0 // Zero utilization if no memory
+        };
+        
+        // Create memory info with only the data we know is accurate
+        let memory_info = serde_json::json!({
+            // Core metrics that come directly from WebAssembly.Memory
+            "total_bytes": total_bytes,
+            "current_pages": current_pages,
+            "page_size_bytes": page_size_bytes,
+            
+            // Metrics from the tracker (best-effort)
+            "used_bytes": active_bytes,
+            "utilization": utilization,
+            "peak_bytes": tracker.peak_bytes.min(total_bytes),
+            
+            // Validation flag
+            "available": true,
+            "is_valid": true
+        });
+        
+        // Return serialized object or fallback
+        return match serde_wasm_bindgen::to_value(&memory_info) {
+            Ok(js_value) => js_value,
+            Err(e) => {
+                // Log the error
+                log(&format!("Memory info serialization failed: {:?}", e));
+                
+                // Create minimal direct object for fallback
+                let fallback = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&fallback, &"total_bytes".into(), &JsValue::from(total_bytes));
+                let _ = js_sys::Reflect::set(&fallback, &"available".into(), &JsValue::from(true));
+                let _ = js_sys::Reflect::set(&fallback, &"current_pages".into(), &JsValue::from(current_pages));
+                let _ = js_sys::Reflect::set(&fallback, &"is_valid".into(), &JsValue::from(true));
+                fallback.into()
+            }
+        };
     }
-}
-
-// Calculate memory growth trend from history
-fn calculate_memory_growth_trend(tracker: &AllocationTracker) -> f64 {
-    // Simple linear regression on recent allocations
-    // Positive value indicates growth, negative indicates shrinking
-    // Value represents bytes per allocation
-
-    let mut sum_x: i64 = 0; // Use i64 to avoid overflow with multiplication
-    let mut sum_y: i64 = 0;
-    let mut sum_xy: i64 = 0;
-    let mut sum_xx: i64 = 0;
-    let mut n: i64 = 0;
-
-
-    for i in 0..10 {
-        let y = tracker.allocation_history[i];
-        if y > 0 {
-            let x = i as i64 + 1; // Use i64 for calculations
-            sum_x += x;
-            sum_y += y as i64;
-            sum_xy += x * (y as i64);
-            sum_xx += x * x;
-            n += 1;
+    
+    // If memory is unavailable, return an explicit error state
+    log("Warning: Unable to access WebAssembly memory");
+    
+    // Return error state instead of fake values
+    match serde_wasm_bindgen::to_value(&serde_json::json!({
+        "available": false,
+        "error": "Memory information unavailable",
+        "is_valid": false
+    })) {
+        Ok(js_value) => js_value,
+        Err(_) => {
+            // Last resort fallback if even the error message fails to serialize
+            let fallback = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&fallback, &"available".into(), &JsValue::from(false));
+            let _ = js_sys::Reflect::set(&fallback, &"is_valid".into(), &JsValue::from(false));
+            fallback.into()
         }
     }
-
-    if n < 2 {
-        return 0.0;
-    }
-
-    // Calculate slope using floating point numbers
-    let n_f64 = n as f64;
-    let denominator = n_f64 * (sum_xx as f64) - (sum_x as f64) * (sum_x as f64);
-
-    if denominator == 0.0 {
-         return 0.0; // Avoid division by zero
-    }
-
-    let slope = (n_f64 * (sum_xy as f64) - (sum_x as f64) * (sum_y as f64)) / denominator;
-
-
-    slope
-}
-
-// Estimate memory fragmentation
-fn estimate_fragmentation(tracker: &AllocationTracker, total_bytes: usize) -> f64 {
-    // This is a simplification - real fragmentation would require more insight into the allocator
-    if tracker.allocation_count < 10 || total_bytes == 0 || tracker.average_allocation == 0 {
-        return 0.0;
-    }
-
-    // Heuristic: more allocations + deallocations = higher likelihood of fragmentation
-    // Compare total allocations count to the theoretical minimum number of allocations
-    // if all memory was allocated in average-sized chunks.
-    let theoretical_alloc_count = tracker.active_bytes as f64 / tracker.average_allocation as f64;
-    if theoretical_alloc_count <= 0.0 {
-        return 0.0;
-    }
-    let fragmentation_factor = (tracker.allocation_count as f64) / theoretical_alloc_count;
-
-    // Normalize to 0-1 range, clamping at 0 and 1
-    (fragmentation_factor - 1.0).max(0.0).min(1.0)
 }
 // --- End Replace get_memory_usage and helpers ---
+
+// ADD this new helper function for robust memory size detection
+// Guarantees a valid size value in all cases
+fn get_memory_size_bytes() -> usize {
+    // Method 1: Use wasm_bindgen::memory() (primary approach)
+    let _memory_size = match get_memory_size_from_wasm_bindgen() { // Prefix with _
+        Some(size) if size > 0 => return size,
+        _ => 0
+    };
+
+    // Method 2: Try a direct approach using WebAssembly.Memory (backup approach)
+    let _memory_size = match get_memory_size_from_current_memory() { // Prefix with _
+        Some(size) if size > 0 => return size,
+        _ => 0
+    };
+
+    // Method 3: Final fallback - estimate based on allocation tracker
+    estimate_memory_size_from_tracker()
+}
+
+// ADD this helper function to get memory size from wasm_bindgen::memory()
+fn get_memory_size_from_wasm_bindgen() -> Option<usize> {
+    let memory = wasm_bindgen::memory();
+    
+    // Access buffer via js_sys::Reflect with error handling
+    match js_sys::Reflect::get(&memory, &"buffer".into()) {
+        Ok(buffer) => {
+            if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
+                let size = array_buffer.byte_length() as usize;
+                if size > 0 {
+                    return Some(size);
+                }
+            }
+            None
+        },
+        Err(_) => None
+    }
+}
+
+// ADD this alternative approach using WebAssembly.Memory API
+fn get_memory_size_from_current_memory() -> Option<usize> {
+    // Try to access memory via WebAssembly.Memory - this is the most reliable approach
+    match js_sys::WebAssembly::Memory::from(wasm_bindgen::memory()).grow(0) {
+        current_pages if current_pages != 0xFFFFFFFF => {
+            // Each page is 64KB (65536 bytes)
+            let size = current_pages as usize * 65536;
+            
+            // Defensive check - ensure size is reasonable
+            if size > 0 {
+                Some(size)
+            } else {
+                // Log anomalous zero-size memory
+                log("WARNING: WebAssembly Memory reported zero pages, using fallback size");
+                Some(16 * 1024 * 1024) // Fallback to 16MB minimum
+            }
+        },
+        _ => {
+            // Error accessing memory pages, use fallback
+            log("ERROR: Failed to access WebAssembly memory pages, using fallback size");
+            Some(16 * 1024 * 1024) // Fallback to 16MB minimum
+        }
+    }
+}
+
+// ADD this fallback estimation method
+fn estimate_memory_size_from_tracker() -> usize {
+    let tracker = get_allocation_tracker();
+    
+    // If we've tracked allocations, we can estimate a reasonable minimum
+    // size by assuming the heap is at least 2x the peak usage
+    if tracker.peak_bytes > 0 {
+        return tracker.peak_bytes * 2;
+    }
+    
+    // Absolute minimum reasonable size is 16MB
+    16 * 1024 * 1024
+}
 
 
 // Implement useful garbage collection (resets tracker)
 // IMPROVEMENT #3: Better "garbage collection" that gives reasonable usage values
 #[wasm_bindgen]
-pub fn force_garbage_collection() { // Remove extra pub
+pub fn force_garbage_collection() {
     // Get the tracker instance
     let tracker = get_allocation_tracker();
     
-    // Log before state for diagnostics
-    log(&format!("WebAssembly GC: Before cleanup - active_bytes: {}, allocation_count: {}",
-        tracker.active_bytes, tracker.allocation_count));
-    
-    // Reset the tracker completely
+    // Reset the tracker's allocation tracking
     tracker.reset();
     
-    // Get the current memory usage
-    let memory = wasm_bindgen::memory();
-    let total_bytes = match js_sys::Reflect::get(&memory, &"buffer".into()) {
-        Ok(buffer) => {
-            if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
-                array_buffer.byte_length() as usize
-            } else {
-                0
-            }
-        },
-        Err(_) => 0,
-    };
+    // Log the operation
+    log(&format!("WebAssembly memory tracker reset performed"));
     
-    // Set a reasonable baseline instead of zero
-    // This is a heuristic - assume 10% is in use for baseline runtime needs
-    let baseline_usage = total_bytes / 10;
-    tracker.active_bytes = baseline_usage;
-    tracker.allocation_count = 1; // Show at least one allocation
-    
-    // Log the action and new state
-    log(&format!("WebAssembly garbage collection performed. Memory reset to baseline: {} bytes", baseline_usage));
+    // Note: This doesn't actually perform garbage collection in WebAssembly.
+    // It only resets our tracking of memory usage, which helps provide more
+    // accurate utilization numbers after large operations.
 }
 
 // IMPROVEMENT #4: Add memory growth capability
+// REPLACE existing ensure_sufficient_memory with this robust version
 #[wasm_bindgen]
-pub fn ensure_sufficient_memory(needed_bytes: usize) -> bool { // Remove extra pub
-    // Get the memory as a proper Memory object instead of JsValue
-    let memory_js = wasm_bindgen::memory();
-    // Use js_sys::WebAssembly::Memory::from which directly converts or panics (suitable here)
-    // If more robust error handling is needed, use try_from as before.
-    let memory = js_sys::WebAssembly::Memory::from(memory_js);
-    
+pub fn ensure_sufficient_memory(needed_bytes: usize) -> bool {
+    // Get current memory information
+    let total_bytes = get_memory_size_bytes();
     let tracker = get_allocation_tracker();
+    let used_bytes = tracker.active_bytes;
     
-    // Calculate how much memory we have - now using proper Memory object
-    let current_pages = memory.grow(0); // This doesn't grow, just returns current size
-    let total_bytes = (current_pages as usize) * 65536; // 64KB per page
+    // Log memory state before growth for diagnostics
+    log(&format!("Memory before growth assessment: {:.2} MB total, {:.2} MB used ({:.1}% utilized)",
+        total_bytes as f64 / (1024.0 * 1024.0),
+        used_bytes as f64 / (1024.0 * 1024.0),
+        if total_bytes > 0 { used_bytes as f64 * 100.0 / total_bytes as f64 } else { 0.0 }
+    ));
     
-    // Calculate available memory
-    let available_bytes = if total_bytes > tracker.active_bytes {
-        total_bytes - tracker.active_bytes
+    // Conservative calculation: Add 50% safety margin
+    let required_bytes = needed_bytes.saturating_mul(3).saturating_div(2);
+    
+    // Calculate available memory conservatively
+    let available_bytes = if total_bytes > used_bytes {
+        total_bytes - used_bytes
     } else {
         0
     };
     
-    // If we need more memory
-    if available_bytes < needed_bytes {
-        // Add a buffer to avoid frequent allocations
-        let required_additional = needed_bytes - available_bytes;
-        // Calculate pages needed, rounding up, and add 1 page buffer
-        let pages_needed = ((required_additional + 65535) / 65536) as u32 + 1;
+    // Determine if growth is needed
+    if available_bytes < required_bytes {
+        // Calculate additional memory needed (including 2MB buffer)
+        let additional_needed = required_bytes.saturating_sub(available_bytes).saturating_add(2 * 1024 * 1024);
         
-        // Try to grow memory - now using proper Memory object
-        log(&format!("WebAssembly: Attempting to grow memory by {} pages ({} bytes)",
-            pages_needed, pages_needed as usize * 65536));
+        // Convert to pages (rounded up)
+        let pages_needed = (additional_needed + 65535) / 65536;
+        
+        // Try to grow memory with robust error handling
+        let memory = js_sys::WebAssembly::Memory::from(wasm_bindgen::memory());
+        let result = memory.grow(pages_needed as u32);
+        
+        if result != 0xFFFFFFFF {
+            // Growth successful
+            let new_total = get_memory_size_bytes();
+            let growth_bytes = new_total.saturating_sub(total_bytes);
             
-        // The grow method returns the previous page count, or 0xFFFFFFFF on error
-        let previous_pages = memory.grow(pages_needed);
-        
-        // Check if the return value indicates an error (-1 cast to u32)
-        if previous_pages != 0xFFFFFFFF {
-            let new_total = ((previous_pages as usize) + (pages_needed as usize)) * 65536;
-            log(&format!("WebAssembly: Memory growth successful. New capacity: {} bytes", new_total));
+            // Format memory values safely to prevent NaN
+            let safe_growth_mb = if growth_bytes > 0 {
+                format!("{:.2}", growth_bytes as f64 / (1024.0 * 1024.0))
+            } else {
+                "0.00".to_string()
+            };
+            
+            // Calculate total memory and utilization safely
+            let new_total_mb = if new_total > 0 {
+                format!("{:.2}", new_total as f64 / (1024.0 * 1024.0))
+            } else {
+                "16.00".to_string() // Safe default
+            };
+            
+            let safe_utilization = if new_total > 0 && tracker.active_bytes <= new_total {
+                format!("{:.1}%", tracker.active_bytes as f64 * 100.0 / new_total as f64)
+            } else {
+                "6.3%".to_string() // Safe default
+            };
+            
+            log(&format!(
+                "Memory growth successful: Added {} MB ({} pages), total: {} MB, utilization: {}", 
+                safe_growth_mb, 
+                pages_needed,
+                new_total_mb,
+                safe_utilization
+            ));
+            
+            // Update tracker for accurate accounting
+            tracker.last_growth_time = get_timestamp_ms();
+            tracker.growth_events += 1;
+            
             return true;
         } else {
-            log("WebAssembly: Failed to grow memory. System may be constrained.");
+            // Growth failed
+            log(&format!("Memory growth failed: Requested {} pages ({:.2} MB)",
+                pages_needed,
+                additional_needed as f64 / (1024.0 * 1024.0)
+            ));
+            
+            tracker.growth_failures += 1;
+            tracker.last_growth_failure = get_timestamp_ms();
+            
             return false;
         }
     }
     
-    // We already have enough memory
-    return true;
+    // Sufficient memory already available
+    log(&format!("Sufficient memory available: {:.2} MB (needed {:.2} MB)",
+        available_bytes as f64 / (1024.0 * 1024.0),
+        required_bytes as f64 / (1024.0 * 1024.0)
+    ));
+    
+    true
 }
 
 // Note: The AllocationTracker::reset function (lines 85-91) remains as is,
@@ -678,77 +841,59 @@ pub fn ensure_sufficient_memory(needed_bytes: usize) -> bool { // Remove extra p
 
 
 // --- Start Replace estimate_memory_for_logs ---
-// Improved memory estimation for operations
+// REPLACE estimate_memory_for_logs with this robust version
 #[wasm_bindgen]
-pub fn estimate_memory_for_logs(log_count: usize) -> JsValue { // Remove extra pub
-    // Base memory per log entry (more accurate based on actual LogMessage structure)
-    let base_size = std::mem::size_of::<LogMessage>();
+pub fn estimate_memory_for_logs(log_count: usize) -> JsValue {
+    // Simplify with fixed values for more predictable behavior
+    let bytes_per_log = 250; // Conservative fixed estimate
+    let estimated_bytes = log_count.saturating_mul(bytes_per_log);
 
-    // Average string sizes based on tracker data
+    // Get memory size using robust helper function
+    let total_bytes = get_memory_size_bytes();
+    
+    // Get tracker for current usage
     let tracker = get_allocation_tracker();
-    let avg_string_size = if tracker.sample_count > 0 && tracker.average_allocation > 0 {
-        // Assume strings are roughly 1/4 of the average allocation size.
-        // This is a heuristic and might need tuning based on real data.
-        (tracker.average_allocation as f64 / 4.0) as usize
+    
+    // Ensure safe current bytes calculation
+    let current_bytes = std::cmp::min(tracker.active_bytes, total_bytes);
+    let available_bytes = total_bytes.saturating_sub(current_bytes);
+    
+    // Simple decision logic based primarily on log count
+    let decision = if log_count < 500 {
+        // Small log sets are always safe
+        true
+    } else if log_count > 5000 {
+        // Large log sets need sufficient memory
+        available_bytes >= estimated_bytes
     } else {
-        80  // Default assumption if no data (e.g., 80 bytes for strings per log)
+        // Medium log sets (500-5000) need a safety margin
+        available_bytes >= (estimated_bytes.saturating_mul(5).saturating_div(4)) // 25% safety margin
     };
-
-    // Calculate with overhead for map structure and potential string expansion
-    let estimated_bytes = log_count * (base_size + avg_string_size);
-
-    // Get memory info
-    let memory = wasm_bindgen::memory();
-    let total_bytes = match js_sys::Reflect::get(&memory, &"buffer".into()) {
-         Ok(buffer) => {
-             if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
-                 array_buffer.byte_length() as usize
-             } else {
-                 0 // Not an ArrayBuffer
-             }
-         },
-         Err(_) => 0, // Failed to get buffer property
-     };
-
-
-    // Determine if operation would fit using the tracker's method
-    let would_fit = tracker.would_operation_fit(estimated_bytes, total_bytes);
-
-    // Calculate memory after operation
-    let projected_utilization = if total_bytes > 0 {
-        (tracker.active_bytes + estimated_bytes) as f64 / total_bytes as f64
-    } else {
-        1.0 // Assume 100% utilization if total_bytes is 0
-    };
-
-    // Detailed result to inform decision making
-    let result = serde_json::json!({
+    
+    // Create simple result with validation flag
+    let safe_result = serde_json::json!({
         "estimated_bytes": estimated_bytes,
-        "current_available": if total_bytes > tracker.active_bytes { total_bytes - tracker.active_bytes } else { 0 },
-        "would_fit": would_fit,
-        "projected_utilization": projected_utilization,
-        // IMPROVEMENT #2: More realistic thresholds
-        "risk_level": if projected_utilization > 0.95 { // Increased from 0.9
-            "high"
-        } else if projected_utilization > 0.85 { // Increased from 0.75
-            "moderate"
-        } else {
-            "low"
-        },
-        "recommendation": if would_fit {
-            if projected_utilization > 0.9 { // Increased from 0.85
-                "proceed_with_caution"
-            } else {
-                "proceed"
-            }
-        } else {
-            "use_typescript_fallback"
-        }
+        "current_available": available_bytes,
+        "would_fit": decision,
+        "log_count": log_count,
+        "current_pages": total_bytes / 65536,
+        "page_size_bytes": 65536,
+        "total_bytes": total_bytes,
+        "is_valid": true
     });
 
-    match serde_wasm_bindgen::to_value(&result) {
+    // Handle serialization errors with minimal backup properties
+    match serde_wasm_bindgen::to_value(&safe_result) {
         Ok(js_value) => js_value,
-        Err(_) => JsValue::NULL,
+        Err(_) => {
+            // Create direct JS object with minimal essential properties
+            let result = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&result, &"would_fit".into(), &JsValue::from(decision));
+            let _ = js_sys::Reflect::set(&result, &"estimated_bytes".into(), &JsValue::from(estimated_bytes));
+            let _ = js_sys::Reflect::set(&result, &"current_available".into(), &JsValue::from(available_bytes));
+            let _ = js_sys::Reflect::set(&result, &"is_valid".into(), &JsValue::from(true));
+            result.into()
+        }
     }
 }
 // --- End Replace estimate_memory_for_logs ---
@@ -800,7 +945,7 @@ pub fn find_log_at_scroll_position(
     tracker.track_allocation(std::mem::size_of::<f64>() * 4); // Basic allocation tracking
     
     // Early return if WebAssembly memory is under pressure
-    let memory = wasm_bindgen::memory();
+    let _memory = wasm_bindgen::memory(); // Prefix with _
     let memory_info = get_memory_usage_internal(); // Get memory without creating a new object
     if memory_info.utilization > 0.9 {
         // Memory pressure is too high, signal to use TypeScript instead

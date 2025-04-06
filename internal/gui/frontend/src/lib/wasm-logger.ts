@@ -23,6 +23,9 @@ class WasmLogger {
   // Add throttling mechanism
   private throttleMap: Map<string, {count: number, lastTime: number}> = new Map();
   private throttleInterval: number = 60000; // 1 minute throttle window
+  
+  // Add aggressive throttling for common log categories
+  private highVolumeCategories = new Set(['threshold', 'memory', 'performance', 'adaptive']);
  
   private isRoutineOperation(component: string, message: string): boolean {
     const routineKeywords = [
@@ -42,54 +45,56 @@ class WasmLogger {
   }
  
   log(level: WasmLogLevel, component: string, message: string, metrics?: Record<string, any>, operation?: string) {
-    // Force routine operations to TRACE level (Feedback Step 6)
-    if (level > WasmLogLevel.TRACE && this.isRoutineOperation(component, message)) {
-      // Exception: Don't downgrade WARN/ERROR/CRITICAL if they contain routine keywords
-      // This prevents masking actual issues that happen during routine checks.
-      if (level < WasmLogLevel.WARN) {
-          level = WasmLogLevel.TRACE;
-      }
+    // Skip high volume logs in production by default
+    if (level <= WasmLogLevel.TRACE &&
+        this.highVolumeCategories.has(component) &&
+        !this.isDevMode()) {
+      // Only log 0.1% of trace logs in production for high-volume categories
+      if (Math.random() > 0.001) return;
     }
- 
-    // Skip excessive logging for trace and debug in production mode
-    if (level <= WasmLogLevel.DEBUG && !this.isDevMode()) {
-      // Only log 1 out of every 50 trace/debug messages in production
-      if (Math.random() > 0.02) return;
+    
+    // For DEBUG level, also reduce volume in production
+    if (level === WasmLogLevel.DEBUG &&
+        this.highVolumeCategories.has(component) &&
+        !this.isDevMode()) {
+      // Only log 1% of debug logs in production for high-volume categories
+      if (Math.random() > 0.01) return;
     }
 
-    // Create a key for throttling similar logs
-    const throttleKey = `${level}:${component}:${message.substring(0, 50)}`;
+    // Create a key for throttling similar logs - with more specific key to reduce collisions
+    const msgSignature = message.split(' ').slice(0, 5).join(' '); // Use first 5 words
+    const throttleKey = `${level}:${component}:${msgSignature}`;
 
-    // Check if this log should be throttled
+    // Increase throttle interval for high volume categories
+    const throttleInterval = this.highVolumeCategories.has(component) ?
+      this.throttleInterval * 5 : this.throttleInterval;
+
+    // Rest of the existing throttling logic...
     const now = Date.now();
     const throttleInfo = this.throttleMap.get(throttleKey);
 
     if (throttleInfo) {
       // If within throttle window, increment count but don't log
-      if (now - throttleInfo.lastTime < this.throttleInterval) {
+      if (now - throttleInfo.lastTime < throttleInterval) {
         throttleInfo.count++;
         this.throttleMap.set(throttleKey, throttleInfo);
         return;
       } else {
-        // If outside window, log with summary of throttled messages (if any were throttled)
-        if (throttleInfo.count > 1) {
-          const originalLevel = level;
-          // Use TRACE level for throttled message summaries (unless ERROR/CRITICAL)
-          if (level < WasmLogLevel.ERROR) {
-            level = WasmLogLevel.TRACE;
-          }
-
+        // Only summarize if many messages were throttled
+        if (throttleInfo.count > 10) {
+          // Use lower level for throttled summaries
+          const summaryLevel = level < WasmLogLevel.ERROR ?
+            WasmLogLevel.TRACE : level;
+          
           this.emitLog(
-            level,
+            summaryLevel,
             component,
-            `${message} (${throttleInfo.count} similar messages throttled in last minute)`,
-            metrics,
-            operation
+            `${message} (${throttleInfo.count} similar messages throttled in last ${Math.round(throttleInterval/1000)}s)`
           );
         } else {
           this.emitLog(level, component, message, metrics, operation);
         }
-        // Reset throttle info
+        // Reset throttle info with 5x longer interval for high volume categories
         this.throttleMap.set(throttleKey, {count: 1, lastTime: now});
       }
     } else {

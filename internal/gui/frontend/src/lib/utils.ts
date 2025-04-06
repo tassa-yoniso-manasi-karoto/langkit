@@ -3,15 +3,19 @@
  * Format bytes to human-readable format
  */
 export function formatBytes(bytes: number): string {
-  if (bytes === 0 || !bytes) return '0 Bytes'; // Handle null/undefined/zero
+  // Handle edge cases explicitly
+  if (Number.isNaN(bytes)) return 'N/A';  // Explicitly handle NaN
+  if (bytes === 0 || bytes === undefined || bytes === null) return '0 Bytes';
+  if (!Number.isFinite(bytes) || bytes < 0) return 'N/A';  // Handle negative and non-finite values
   
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; // Added TB
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  
   // Ensure bytes is a positive number for log calculation
-  const i = Math.max(0, Math.floor(Math.log(Math.abs(bytes)) / Math.log(k))); 
+  const i = Math.max(0, Math.floor(Math.log(Math.abs(bytes)) / Math.log(k)));
   
   // Ensure index does not exceed sizes array bounds
-  const index = Math.min(i, sizes.length - 1); 
+  const index = Math.min(i, sizes.length - 1);
 
   return parseFloat((bytes / Math.pow(k, index)).toFixed(2)) + ' ' + sizes[index];
 }
@@ -20,10 +24,10 @@ export function formatBytes(bytes: number): string {
  * Format milliseconds to appropriate time unit
  */
 export function formatTime(ms: number): string {
-  if (ms === null || ms === undefined) return 'N/A';
-  if (ms < 0) return 'N/A'; // Handle negative times if they occur
+  if (ms === null || ms === undefined || Number.isNaN(ms)) return 'N/A';
+  if (ms < 0) return 'N/A'; // Handle negative times
   if (ms < 1) return `${(ms * 1000).toFixed(1)}μs`; // More precision for sub-ms
-  if (ms < 1000) return `${ms.toFixed(1)}ms`; // More precision for ms
+  if (ms < 1000) return `${ms.toFixed(1)}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
