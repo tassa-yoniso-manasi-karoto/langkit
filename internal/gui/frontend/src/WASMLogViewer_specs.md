@@ -15,7 +15,8 @@ The Langkit WebAssembly (WASM) integration aims to deliver significant performan
 
 ### 1.2 Performance Benefits
 
-WebAssembly optimization primarily targets the `mergeInsertLogs` function, which is responsible for chronologically ordering log entries and represents a significant performance bottleneck with large log volumes. Typical performance improvements include:
+WebAssembly optimization primarily targets the `mergeInsertLogs` function, which is responsible for chronologically ordering log entries and represents a significant performance bottleneck with large log volumes.
+Typical performance improvements is speculated to be:
 
 - **Small Datasets (≤500 logs)**: 1.2-1.5× faster
 - **Medium Datasets (500-2,000 logs)**: 2-3× faster
@@ -115,6 +116,84 @@ internal/gui/frontend/src/
 │   └── setup.ts                # Test environment configuration
 └── benchmarks/
     └── wasm-performance.bench.ts # Performance benchmarking
+```
+### 2.4 Default WebAssembly Behavior
+
+```typescript
+// From internal/gui/frontend/src/lib/stores.ts
+const initSettings: Settings = {
+    // Other settings...
+    
+    // Default values for WebAssembly settings
+    useWasm: true,                // WebAssembly enabled by default
+    wasmSizeThreshold: 500,        // Default threshold when in auto mode
+    forceWasmMode: 'auto',         // Default decision mode
+    
+    // Other settings...
+};
+```
+
+### 2.5 Default WASM Management Behavior
+
+The WebAssembly system follows these default behaviors:
+
+1. **Disabled Initially**: WebAssembly is not loaded or initialized by default when the application starts.
+
+2. **User-Controlled Activation**: Users must explicitly enable WebAssembly through settings before it's loaded.
+
+3. **Conservative Activation**: When enabled, the system follows a multi-step process:
+   ```typescript
+   // In App.svelte
+   if ($currentSettings.useWasm) {
+       wasmLogger.log(WasmLogLevel.INFO, 'init', 'Initializing WebAssembly...');
+       const wasEnabled = await enableWasm(true);
+       // Further initialization if successful...
+   }
+   ```
+
+4. **Auto Mode by Default**: Even when enabled, WebAssembly operates in "auto" mode by default, meaning:
+   - For small log sets (<500 logs), it continues using TypeScript
+   - Only uses WebAssembly when the log count exceeds the threshold
+   - Constantly monitors performance to adjust thresholds
+
+5. **Comprehensive Safety Checks**: Multiple checks are performed before using WebAssembly:
+   - Feature detection for browser compatibility
+   - Memory availability checks
+   - Error blacklisting to prevent repeated failures
+   - Performance threshold verification
+
+
+```
+┌─ Is WebAssembly enabled in settings? ───No──→ Use TypeScript
+└─ Yes
+   │
+   ┌─ Is WebAssembly initialized successfully? ───No──→ Use TypeScript
+   └─ Yes
+      │
+      ┌─ Is this operation blacklisted due to errors? ───Yes──→ Use TypeScript
+      └─ No
+         │
+         ┌─ Is forceWasmMode set to 'enabled'? ───Yes──→ Check memory
+         └─ No                                            │
+            │                                             │
+            ┌─ Log count > threshold AND                  │
+            │  performance benefit expected? ───No──→ Use TypeScript
+            └─ Yes                                        │
+               │                                          │
+               └───────────────────────────────────┐      │
+                                                   │      │
+                                                   ▼      ▼
+                                           ┌─ Is memory available? ───No──→ Use TypeScript
+                                           └─ Yes
+                                              │
+                                              ▼
+                                        Try WebAssembly
+                                              │
+                                        ┌─ Error? ───Yes──→ Use TypeScript
+                                        └─ No
+                                           │
+                                           ▼
+                                 Return WebAssembly result
 ```
 
 ## 3. Core Components
@@ -373,7 +452,9 @@ Performance measurements are conducted using:
 4. **Overhead Consideration**: Measuring serialization/deserialization costs
 5. **Environmental Variation**: Testing across different browsers and devices
 
-### 5.2 Benchmark Results
+### 5.2 Expected Benchmark Results
+
+THESE RESULTS ARE SPECULATED BY CLAUDE.
 
 #### 5.2.1 Execution Time Comparison (mergeInsertLogs)
 
@@ -394,17 +475,6 @@ Performance measurements are conducted using:
 | Medium       | 2-4MB             | 30-70                    | 85-90%           |
 | Large        | 4-8MB             | 70-150                   | 80-85%           |
 | XL           | 8-16MB            | 150-300                  | 75-80%           |
-
-#### 5.2.3 Browser Compatibility Performance
-
-| Browser        | Relative Performance | Initialization Time | Notes |
-|----------------|---------------------|---------------------|-------|
-| Chrome         | 100% (baseline)     | 15-25ms             | Best overall performance |
-| Firefox        | 90-95%              | 20-30ms             | Good performance, slightly slower |
-| Safari         | 85-90%              | 25-35ms             | Good but initialization is slower |
-| Edge           | 95-100%             | 15-25ms             | Nearly identical to Chrome |
-| Mobile Chrome  | 80-90%              | 30-50ms             | Good performance on modern devices |
-| Mobile Safari  | 75-85%              | 35-60ms             | Acceptable but more variable |
 
 ### 5.3 Performance Monitoring
 
@@ -512,6 +582,7 @@ export function handleWasmError(
 
 ### 7.2 Test Files
 
+MOST OF THEM ARE WIP.
 - `wasm/tests/lib_test.rs`: Rust tests for WebAssembly module
 - `tests/logstore-wasm.test.ts`: Integration tests for WebAssembly in logStore
 - `tests/wasm-integration.test.ts`: Tests for WebAssembly core functionality
@@ -530,6 +601,8 @@ export function handleWasmError(
 ## 8. Browser Compatibility
 
 ### 8.1 Support Matrix
+
+Reminder: For Wails V2, only Webkit (linux/macos) and Edge/WebView2 matters.
 
 | Browser | Version | Support Level | Notes |
 |---------|---------|--------------|-------|
@@ -721,6 +794,8 @@ The build process generates:
 ### 11.3 Performance Monitoring Output
 
 Example performance monitoring information included in crash reports (may be less frequent if based on significant changes):
+
+Speculated output:
 
 ```
 WEBASSEMBLY STATUS

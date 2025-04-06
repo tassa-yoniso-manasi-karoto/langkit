@@ -41,14 +41,14 @@ const initSettings: Settings = {
     maxAPIRetries: 10,
     maxWorkers: 1,
     // Default values for WebAssembly settings
-    useWasm: false,
+    useWasm: true,
     wasmSizeThreshold: 500, // Default from spec
     forceWasmMode: 'auto', // Default to automatic decision
     // Default values for internal settings
     appStartCount: 0,
     hasSeenLogViewerTooltip: false,
     // Add defaults for missing properties
-    eventThrottling: false, // Assuming default
+    eventThrottling: false, // Assuming default // FIXME probably hallucinated and to be rm
     convertValues: false    // Assuming default
 };
 
