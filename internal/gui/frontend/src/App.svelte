@@ -9,7 +9,7 @@
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
-    import { enableWasm, setWasmSizeThreshold, isWasmEnabled, getWasmModule } from './lib/wasm';
+    import { enableWasm, isWasmEnabled, getWasmModule } from './lib/wasm'; // Removed setWasmSizeThreshold
     import { wasmLogger, WasmLogLevel } from './lib/wasm-logger';
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
@@ -156,13 +156,13 @@
       const currentWasmState = getWasmState(); // Use imported function
       if (
         $wasmActive &&
-        currentWasmState.performanceMetrics.speedupRatio > 5 &&
-        currentWasmState.performanceMetrics.operationsCount > 10 &&
+        currentWasmState?.performanceMetrics?.speedupRatio > 5 && // Added null checks
+        currentWasmState?.performanceMetrics?.operationsCount > 10 && // Added null checks
         Date.now() - lastSignificantPerformance > 60000 // Show at most once per minute
       ) {
         showPerformanceNotice = true;
         lastSignificantPerformance = Date.now();
-        
+
         // Hide notice after 5 seconds
         setTimeout(() => {
           showPerformanceNotice = false;
@@ -245,7 +245,7 @@
             const request: gui.ProcessRequest = { // Add type annotation
                 path: mediaSource.path,
                 selectedFeatures,
-                options: currentFeatureOptions, // Correct structure based on TS error
+                options: currentFeatureOptions, // Reverted change - original seems more correct based on local types
                 languageCode: effectiveLanguageCode,
                 audioTrackIndex: mediaSource?.audioTrackIndex ?? 0, // Use nullish coalescing
             };
@@ -605,14 +605,15 @@
                                 );
                                 
                                 // Apply threshold from settings
-                                if ($newSettings.wasmSizeThreshold) {
-                                    setWasmSizeThreshold($newSettings.wasmSizeThreshold);
-                                    wasmLogger.log(
-                                        WasmLogLevel.INFO, 
-                                        'config', 
-                                        `Set WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
-                                    );
-                                }
+                                // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
+                                // if ($newSettings.wasmSizeThreshold) {
+                                //     setWasmSizeThreshold($newSettings.wasmSizeThreshold);
+                                //     wasmLogger.log(
+                                //         WasmLogLevel.INFO,
+                                //         'config',
+                                //         `Set WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
+                                //     );
+                                // }
                             } else {
                                 // Handle case where enabling failed
                                 errorStore.addError({
@@ -648,12 +649,13 @@
                 else if ($newSettings.wasmSizeThreshold !== undefined && 
                          $newSettings.wasmSizeThreshold !== $currentSettings.wasmSizeThreshold) {
                     if (isWasmEnabled()) {
-                        setWasmSizeThreshold($newSettings.wasmSizeThreshold);
-                        wasmLogger.log(
-                            WasmLogLevel.INFO, 
-                            'config', 
-                            `Updated WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
-                        );
+                        // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
+                        // setWasmSizeThreshold($newSettings.wasmSizeThreshold);
+                        // wasmLogger.log(
+                        //     WasmLogLevel.INFO,
+                        //     'config',
+                        //     `Updated WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
+                        // );
                     }
                 }
             });
@@ -676,9 +678,10 @@
                     );
                     
                     // Apply threshold from settings
-                    if ($currentSettings.wasmSizeThreshold) {
-                        setWasmSizeThreshold($currentSettings.wasmSizeThreshold);
-                    }
+                    // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
+                    // if ($currentSettings.wasmSizeThreshold) {
+                    //     setWasmSizeThreshold($currentSettings.wasmSizeThreshold);
+                    // }
                 } else {
                     wasmLogger.log(
                         WasmLogLevel.WARN, 
@@ -1046,6 +1049,20 @@
           </div>
         </div>
     {/if}
+
+    <!-- Performance notice that appears when significant gains are detected -->
+    {#if showPerformanceNotice}
+        <div
+          transition:fade={{ duration: 300 }}
+          class="fixed bottom-4 right-4 bg-green-800/80 text-white px-4 py-3 rounded shadow-lg backdrop-blur-sm z-50 flex items-center gap-2"
+        >
+          <span class="material-icons text-green-300">rocket</span>
+          <div>
+            <div class="font-semibold">Performance Boost Active</div>
+            <div class="text-sm">WebAssembly is making this {Math.round(getWasmState()?.performanceMetrics?.speedupRatio || 0)}× faster</div>
+          </div>
+        </div>
+    {/if}
 </div>
 
 <Settings
@@ -1151,6 +1168,29 @@
     }
     
     /* Ensure drop zone click handler works */
+
+    /* WASM status indicator */
+    .wasm-status-indicator {
+        position: relative;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .wasm-status-indicator.active {
+        background-color: rgba(var(--primary-rgb), 0.25);
+        animation: wasm-pulse 2s infinite;
+    }
+
+    @keyframes wasm-pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4);
+        }
+        70% {
+            box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0);
+        }
+    }
     .drop-zone {
         cursor: pointer;
     }

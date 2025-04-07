@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { settings } from '../lib/stores';
     import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';

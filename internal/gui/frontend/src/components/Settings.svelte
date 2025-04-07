@@ -740,7 +740,6 @@
                                             step="500"
                                             bind:value={currentSettings.logViewerVirtualizationThreshold}
                                             class="flex-1"
-                                            <!-- on:change={updateSettings} Temporarily removed to debug errors -->
                                         />
                                         <span class="text-xs text-gray-400">10000</span>
                                         <span class="setting-value text-sm text-gray-300 w-16 text-right">{currentSettings.logViewerVirtualizationThreshold}</span>
