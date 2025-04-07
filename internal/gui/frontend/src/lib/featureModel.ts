@@ -140,7 +140,7 @@ export const features: FeatureDefinition[] = [
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && feature.dubtitles.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
         },
         requiresToken: ['whisper', 'insanely-fast-whisper', 'universal-1'],
@@ -193,7 +193,7 @@ export const features: FeatureDefinition[] = [
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && feature.voiceEnhancing.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
         },
         requiresToken: ['demucs', 'spleeter'],
@@ -248,7 +248,7 @@ export const features: FeatureDefinition[] = [
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && feature.subtitleRomanization.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
         },
         requiresLanguage: true,
@@ -318,7 +318,7 @@ export const features: FeatureDefinition[] = [
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && feature.selectiveTransliteration.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'tokenizeOutput', 'kanjiFrequencyThreshold', 'mergeOutputFiles', 'mergingFormat'],
@@ -374,7 +374,7 @@ export const features: FeatureDefinition[] = [
                 label: 'Merging Format',
                 default: 'mp4',
                 choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && feature.subtitleTokenization.mergeOutputFiles === true"
+                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'mergeOutputFiles', 'mergingFormat'],

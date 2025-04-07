@@ -440,30 +440,7 @@ function createFeatureGroupStore() {
             // Get all enabled features for this group
             const enabledFeatures = state.enabledFeatures[groupId] || [];
             
-            // Special case for merge group
-            if (groupId === 'merge') {
-                // For the merge group, we need to use the global canonical order
-                // to correctly identify the topmost feature across all features
-                // that belong to the merge group
-                const globalOrder = state.canonicalOrder || [];
-                
-                // Find the first enabled feature in the merge group according to global canonical order
-                const topmostFeature = globalOrder.find(id => enabledFeatures.includes(id));
-                
-                const isTopmost = topmostFeature === featureId;
-                
-                /*console.log(`isTopmostInGroup check for merge group:`, {
-                    featureId,
-                    enabledFeatures,
-                    globalOrder,
-                    topmostFeature,
-                    isTopmost
-                });*/
-                
-                return isTopmost;
-            }
-            
-            // Standard handling for other groups (e.g., subtitle)
+            // Standard handling for all groups (e.g., subtitle, merge)
             const groupOrder = state.groupCanonicalOrder[groupId] || [];
             if (groupOrder.length === 0) {
                 console.warn(`No canonical order for group ${groupId}, falling back to feature definition order`);
@@ -482,13 +459,13 @@ function createFeatureGroupStore() {
             // This feature is the topmost if it matches the first enabled feature in canonical order
             const isTopmost = topmostFeature === featureId;
             
-            console.log(`isTopmostInGroup check for ${groupId}:`, {
+            /*console.log(`isTopmostInGroup check for ${groupId}:`, {
                 featureId,
                 enabledFeatures,
                 groupOrder,
                 topmostFeature,
                 isTopmost
-            });
+            });*/ // TODO this log is spammed and causes memory leaks; restore it with throttling
             
             return isTopmost;
         },

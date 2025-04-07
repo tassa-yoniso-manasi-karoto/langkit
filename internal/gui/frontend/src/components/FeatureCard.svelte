@@ -320,7 +320,8 @@
             romanizationSchemes,
             selectedFeatures,
             isTopmostInGroup: isTopmostInAnyGroup,
-            isTopmostForOption: isTopmostForThisOption
+            isTopmostForOption: isTopmostForThisOption,
+            featureGroupStore // Add store to context
         };
         
         // Feature options reference for conditions 
@@ -331,14 +332,28 @@
         
         // Simple expression evaluator
         try {
-            // Replace context variables with their values
+            // Replace context variables and group store references with their values
             const prepared = optionDef.showCondition
                 .replace(/context\.([a-zA-Z0-9_]+)/g, (_, prop) => {
+                    // Handle featureGroupStore specifically if needed, otherwise stringify
+                    if (prop === 'featureGroupStore') {
+                        // This property won't be directly replaced here, handled below
+                        return 'featureGroupStore';
+                    }
                     return JSON.stringify(context[prop]);
                 })
+                 // Handle featureGroupStore.getGroupOption calls
+                .replace(/featureGroupStore\.getGroupOption\(['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\)/g,
+                    (_, groupId, optId) => {
+                        // Directly call the store method and stringify the result
+                        return JSON.stringify(featureGroupStore.getGroupOption(groupId, optId));
+                    })
+                // Handle feature property access like feature.dubtitles.mergeOutputFiles
                 .replace(/feature\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)/g, (_, featureId, propId) => {
-                    return JSON.stringify(featureData[featureId][propId]);
+                    // Access the value from the featureData object
+                    return JSON.stringify(featureData[featureId]?.[propId]);
                 })
+                 // Handle feature.id access
                 .replace(/feature\.id/g, () => {
                     return JSON.stringify(feature.id);
                 });
@@ -823,13 +838,25 @@
                                     options[optionId] = value;
                                     
                                     // Dispatch to parent with all necessary metadata
-                                    dispatch('optionChange', { 
-                                        featureId: feature.id, 
-                                        optionId, 
+                                    dispatch('optionChange', {
+                                        featureId: feature.id,
+                                        optionId,
                                         value,
                                         isGroupOption: true,
                                         groupId
                                     });
+
+                                    // Force reactivity update on dependent options if mergeOutputFiles changed
+                                    if (groupId === 'merge' && optionId === 'mergeOutputFiles') {
+                                        // Add small delay to ensure the group store has updated and sync is complete
+                                        setTimeout(() => {
+                                            // Force reevaluation of dependent options by marking cache dirty
+                                            visibleOptionsDirty = true;
+                                            // Trigger a UI update by forcing Svelte to re-render
+                                            // Re-assigning options triggers reactivity for calculations depending on it
+                                            options = { ...options };
+                                        }, 10);
+                                    }
                                 }}
                             />
                         </div>

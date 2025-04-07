@@ -1,5 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher, onMount } from 'svelte';
+    import type { RomanizationScheme } from '../lib/featureModel'; // Import the type
     import { debounce } from 'lodash';
     
     import { featureGroupStore } from '../lib/featureGroupStore';
@@ -18,15 +19,20 @@
     export let value: any = optionDef.default;
     export let needsDocker: boolean = false;
     export let needsScraper: boolean = false;
-    export let romanizationSchemes = [];
+    export let romanizationSchemes: RomanizationScheme[] = []; // Apply the type
     
     // Group indicator
     export let showGroupIndicator: boolean = true;
     
     // For handling special providers
-    const providerGithubUrls = {
+    // Define type for provider URLs
+    type ProviderUrls = {
+        [key: string]: string;
+    };
+    const providerGithubUrls: ProviderUrls = {
         'ichiran': 'https://github.com/tshatrov/ichiran',
         'aksharamukha': 'https://github.com/virtualvinodh/aksharamukha',
+        // Add other providers if needed
     };
     
     const dispatch = createEventDispatcher();
@@ -60,10 +66,8 @@
     // Handle external value changes (from parent or store)
     $: {
         if (isInitialized && value !== undefined) {
-            // Only update timestamp for non-empty values
-            if (value) {
-                lastExternalUpdateTime = Date.now();
-            }
+            // Always update timestamp regardless of value truthiness
+            lastExternalUpdateTime = Date.now();
             
             // User input should take precedence when timestamps indicate it's newer
             if (lastUserUpdateTime > 0) {
@@ -175,14 +179,22 @@
         });
     }
 
-    // Handle immediate changes like checkboxes
-    function handleImmediateChange() {
+    // Handle immediate changes like checkboxes and numeric inputs
+    function handleImmediateChange(event?: Event) { // Make event optional for direct calls
+        // For checkboxes, get value directly from event if available
+        const isCheckbox = event?.target instanceof HTMLInputElement && event.target.type === 'checkbox';
+        const valueToPropagate = isCheckbox ? (event.target as HTMLInputElement).checked : localValue;
+        
+        console.log(`Immediate change: ${valueToPropagate} for ${groupId}.${optionId}`);
+        
         // Mark as user update with authority
         lastUserUpdateTime = Date.now() + 100;
         
-        // Propagate to store and parent
-        propagateUserValue(localValue);
+        // Propagate the value (from event for checkboxes, from localValue otherwise)
+        propagateUserValue(valueToPropagate);
     }
+
+    // handleCheckboxChange function removed
 </script>
 
 <div class="group-option" data-group-id={groupId}>
@@ -224,20 +236,38 @@
                 min={optionDef.min}
                 max={optionDef.max}
                 placeholder={optionDef.placeholder}
-                on:change={handleImmediateChange}
+                on:change={(e) => handleImmediateChange(e)}
             />
         {:else if optionDef.type === 'boolean'}
             <label class="inline-flex items-center cursor-pointer">
-                <input 
-                    type="checkbox" 
-                    class="w-5 h-5 accent-primary rounded border-2 border-primary/50 
-                           checked:bg-primary checked:border-primary
-                           focus:ring-2 focus:ring-primary/30
-                           transition-all duration-200
-                           cursor-pointer"
-                    bind:checked={localValue}
-                    on:change={handleImmediateChange}
-                />
+                {#key localValue}
+                    <input
+                        type="checkbox"
+                        class="w-5 h-5 accent-primary rounded border-2 border-primary/50
+                               checked:bg-primary checked:border-primary
+                               focus:ring-2 focus:ring-primary/30
+                               transition-all duration-200
+                               cursor-pointer"
+                        checked={localValue}
+                        on:click={(event) => {
+                            // Prevent default behavior - we'll handle the state directly
+                            event.preventDefault();
+                            
+                            // Directly toggle the value
+                            const newValue = !localValue;
+                            console.log(`Toggle checkbox: ${localValue} -> ${newValue} for ${groupId}.${optionId}`);
+                            
+                            // Update local state
+                            localValue = newValue;
+                            
+                            // Mark as user update with authority
+                            lastUserUpdateTime = Date.now() + 100;
+                            
+                            // Propagate to store and parent
+                            propagateUserValue(newValue);
+                        }}
+                    />
+                {/key}
             </label>
         {:else if optionDef.type === 'dropdown'}
             <!-- Remove label to avoid duplication -->
@@ -255,7 +285,9 @@
                     <TextInput
                         bind:value={localValue}
                         placeholder={optionDef.placeholder || "ws://127.0.0.1:9222/... (optional)"}
-                        className="text-sm placeholder:text-gray-500 pr-20" 
+                        className="text-sm placeholder:text-gray-500 pr-20"
+                        minLength={undefined}
+                        maxLength={undefined}
                         on:input={() => {
                             // Set user input timestamp for authority
                             lastUserUpdateTime = Date.now() + 100;
@@ -264,9 +296,9 @@
                             featureGroupStore.setGroupOption(groupId, optionId, localValue);
                             
                             // Notify parent component
-                            dispatch('groupOptionChange', { 
-                                groupId, 
-                                optionId, 
+                            dispatch('groupOptionChange', {
+                                groupId,
+                                optionId,
                                 value: localValue,
                                 isUserInput: true
                             });
@@ -282,6 +314,8 @@
                     bind:value={localValue}
                     placeholder={optionDef.placeholder}
                     className="text-sm placeholder:text-gray-500"
+                    minLength={undefined}
+                    maxLength={undefined}
                     on:input={handleChange}
                 />
             {/if}
@@ -315,11 +349,11 @@
                     {/if}
                     
                     <!-- GitHub link if available -->
-                    {#if providerGithubUrls[providerValue]}
-                        <ExternalLink 
-                            href={providerGithubUrls[providerValue]}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                    <!-- Ensure string even if providerValue is null/undefined -->
+                    {@const providerKey = String(providerValue || '')}
+                    {#if providerKey && providerGithubUrls[providerKey]}
+                        <ExternalLink
+                            href={providerGithubUrls[providerKey]}
                             className="text-primary/70 hover:text-primary transition-colors duration-200"
                             title="View provider repository">
                             <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
@@ -330,11 +364,11 @@
                 {:else}
                     <!-- Regular provider display for non-subtitle groups -->
                     {localValue || ''}
-                    {#if providerGithubUrls[localValue]}
-                        <ExternalLink 
-                            href={providerGithubUrls[localValue]}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                    <!-- Ensure string -->
+                    {@const localProviderKey = String(localValue || '')}
+                    {#if localProviderKey && providerGithubUrls[localProviderKey]}
+                        <ExternalLink
+                            href={providerGithubUrls[localProviderKey]}
                             className="text-primary/70 hover:text-primary transition-colors duration-200"
                             title="View provider repository">
                             <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
