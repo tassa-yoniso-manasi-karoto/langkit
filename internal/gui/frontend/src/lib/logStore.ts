@@ -559,9 +559,12 @@ function createLogStore() {
     
     // NEW: Derived store to check if logs exceed max entries - pass the stores
     const exceededMaxEntries = derived([logsWritable, settings], ([$logs, $settings]) => {
-        // TODO: Update Settings type in stores.ts
-        const maxEntries = ($settings as any)?.maxLogEntries || 5000; 
-        return $logs.length > maxEntries;
+        // Use the dedicated virtualization threshold with fallback to 2000
+        const threshold = ($settings?.logViewerVirtualizationThreshold !== undefined)
+            ? $settings.logViewerVirtualizationThreshold
+            : 2000;
+            
+        return $logs.length > threshold;
     });
 
     // Return the public API

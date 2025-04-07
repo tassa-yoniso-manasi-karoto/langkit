@@ -56,8 +56,8 @@ import {
   updatePerformanceMetrics
 } from './wasm-state';
 import type { WasmState } from './wasm-state'; // Use type-only import for WasmState
-import { settings, wasmActive } from './stores'; // Import wasmActive store
-import { get } from 'svelte/store';
+import { settings, wasmActive } from './stores'; // Import wasmActive store and settings
+import { get } from 'svelte/store'; // Import get from svelte/store
 
 // --- Update rate limiters for more aggressive throttling ---
 // Increase intervals by 5x to reduce frequency
@@ -224,7 +224,7 @@ export const WASM_CONFIG = {
   MAX_THRESHOLD: 5000,
   MIN_PERFORMANCE_GAIN: 1.2
 };
-let WASM_SIZE_THRESHOLD = WASM_CONFIG.DEFAULT_SIZE_THRESHOLD;
+// Removed module-level WASM_SIZE_THRESHOLD, will read from settings store
 const operationThresholds = new Map<string, number>(); // Added in Phase 2.1
 
 // --- Exported Functions ---
@@ -298,21 +298,22 @@ export async function requestMemoryReset(): Promise<boolean> {
 
 // --- Internal Functions ---
 
-export function setWasmSizeThreshold(threshold: number): void {
-  WASM_SIZE_THRESHOLD = Math.max(
-    WASM_CONFIG.MIN_THRESHOLD,
-    Math.min(threshold, WASM_CONFIG.MAX_THRESHOLD)
-  );
+// Removed setWasmSizeThreshold function. Threshold is now managed via the settings store.
 
-  wasmLogger.log(
-    WasmLogLevel.TRACE, // CHANGED FROM INFO
-    'config',
-    `WASM global size threshold set to ${WASM_SIZE_THRESHOLD}`
-  );
-}
-
+// Updated to always pull from settings with fallback
 export function getWasmSizeThreshold(): number {
-  return WASM_SIZE_THRESHOLD;
+    const $settings = get(settings);
+
+    // If available in settings, use that value (with validation)
+    if ($settings?.wasmSizeThreshold !== undefined) {
+        return Math.max(
+            WASM_CONFIG.MIN_THRESHOLD,
+            Math.min($settings.wasmSizeThreshold, WASM_CONFIG.MAX_THRESHOLD)
+        );
+    }
+
+    // Fallback to default config value if setting is not available
+    return WASM_CONFIG.DEFAULT_SIZE_THRESHOLD;
 }
 
 // --- Start Phase 2.1: Operation-Specific Thresholds ---
@@ -673,11 +674,7 @@ export async function initializeWasm(): Promise<boolean> {
       scheduleMemoryCheck(); // Sets up GC and monitoring intervals
       loadSavedMetrics();
 
-      // Initial threshold from settings
-      const $settings = get(settings);
-      if (($settings as any).wasmSizeThreshold) {
-        setWasmSizeThreshold(($settings as any).wasmSizeThreshold);
-      }
+      // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
 
       // After successful initialization, pre-warm the module
       if (wasmInitialized) {
@@ -716,7 +713,7 @@ export async function initializeWasm(): Promise<boolean> {
         initTime,
         attemptedPaths: modulePaths, // Pass attempted paths
         buildInfo: wasmBuildInfo || 'unavailable'
-      }, true); // Disable on critical init errors
+      }); // Removed extra 'true' argument
 
       wasmInitialized = false;
       wasmState.initStatus = WasmInitStatus.FAILED;
@@ -1100,7 +1097,11 @@ export function adjustSizeThresholds(): boolean {
 
   // Apply the threshold change if needed
   if (newThreshold !== currentThreshold) {
-    setWasmSizeThreshold(newThreshold); // Apply the new global threshold
+    // Update settings store directly for persistence
+    settings.update($settings => ({
+        ...$settings,
+        wasmSizeThreshold: newThreshold
+    }));
     lastThresholdAdjustment = now;
 
     // Track adjustment for diagnostic purposes using updateState

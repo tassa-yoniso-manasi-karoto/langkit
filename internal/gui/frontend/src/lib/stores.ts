@@ -18,6 +18,10 @@ type Settings = {
     useWasm: boolean;
     wasmSizeThreshold: number;
     forceWasmMode: 'auto' | 'enabled' | 'disabled'; // Add force override mode
+
+    // NEW: LogViewer settings
+    logViewerVirtualizationThreshold: number;
+
     eventThrottling: { enabled: boolean; minInterval: number; maxInterval: number; }; // Expect object
     convertValues: boolean;   // Make required
     // Internal settings (not exposed in UI)
@@ -44,6 +48,10 @@ const initSettings: Settings = {
     useWasm: true,
     wasmSizeThreshold: 500, // Default from spec
     forceWasmMode: 'auto', // Default to automatic decision
+
+    // NEW: LogViewer settings
+    logViewerVirtualizationThreshold: 2000, // Default to 2000 logs for virtualization
+
     // Default values for internal settings
     appStartCount: 0,
     hasSeenLogViewerTooltip: false,

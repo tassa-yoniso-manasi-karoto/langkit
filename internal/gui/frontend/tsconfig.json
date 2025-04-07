@@ -21,5 +21,6 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"],
+  "exclude": ["src/wasm/pkg"], // Exclude WASM build output
   "references": [{ "path": "./tsconfig.node.json" }]
 }

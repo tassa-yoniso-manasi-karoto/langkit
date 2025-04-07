@@ -2,13 +2,13 @@ package config
 
 import (
 	"os"
-	"strings"
-	"runtime"
 	"path/filepath"
-	
-	"github.com/spf13/viper"
+	"runtime"
+	"strings"
+
 	"github.com/adrg/xdg"
-	
+	"github.com/spf13/viper"
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
@@ -26,16 +26,17 @@ type Settings struct {
 	MaxLogEntries          int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
 	MaxAPIRetries          int    `json:"maxAPIRetries" mapstructure:"max_api_retries"`
 	MaxWorkers             int    `json:"maxWorkers" mapstructure:"max_workers"`
-	
+
+	// NEW: LogViewer settings
+	LogViewerVirtualizationThreshold int `json:"logViewerVirtualizationThreshold" mapstructure:"log_viewer_virtualization_threshold"`
+
 	// Event throttling settings
 	EventThrottling struct {
-		Enabled     bool   `json:"enabled" mapstructure:"enabled"`
-		MinInterval int    `json:"minInterval" mapstructure:"min_interval"` // milliseconds
-		MaxInterval int    `json:"maxInterval" mapstructure:"max_interval"` // milliseconds
+		Enabled     bool `json:"enabled" mapstructure:"enabled"`
+		MinInterval int  `json:"minInterval" mapstructure:"min_interval"` // milliseconds
+		MaxInterval int  `json:"maxInterval" mapstructure:"max_interval"` // milliseconds
 	} `json:"eventThrottling" mapstructure:"event_throttling"`
 }
-
-
 
 func GetConfigDir() (string, error) {
 	configDir := filepath.Join(xdg.ConfigHome, "langkit")
@@ -70,20 +71,22 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("api_keys.assemblyai", "")
 	viper.SetDefault("api_keys.elevenlabs", "")
 	viper.SetDefault("api_keys.openai", "")
-	
+
 	viper.SetDefault("target_language", "")
 	viper.SetDefault("native_languages", "en,en-US")
-	
+
 	viper.SetDefault("enable_glow", true)
 	viper.SetDefault("show_log_viewer_default", false)
 	viper.SetDefault("max_log_entries", 10000)
 	viper.SetDefault("max_api_retries", 10)
 	viper.SetDefault("max_workers", runtime.NumCPU()-2)
-	
+
+	viper.SetDefault("log_viewer_virtualization_threshold", 2000)
+
 	// Default throttling settings
 	viper.SetDefault("event_throttling.enabled", true)
-	viper.SetDefault("event_throttling.min_interval", 0)     // 0ms = no throttle when quiet
-	viper.SetDefault("event_throttling.max_interval", 250)   // 250ms max interval
+	viper.SetDefault("event_throttling.min_interval", 0)   // 0ms = no throttle when quiet
+	viper.SetDefault("event_throttling.max_interval", 250) // 250ms max interval
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -114,7 +117,7 @@ func SaveSettings(settings Settings) error {
 	for envName, settingValue := range apiKeyEnvMap {
 		envValue := os.Getenv(envName)
 		configKey := "api_keys." + strings.ToLower(strings.TrimSuffix(envName, "_API_KEY"))
-		
+
 		if envValue != "" {
 			if settingValue == envValue {
 				// If the setting matches the environment variable, use empty string in config
@@ -138,7 +141,7 @@ func SaveSettings(settings Settings) error {
 	viper.Set("max_log_entries", settings.MaxLogEntries)
 	viper.Set("max_api_retries", settings.MaxAPIRetries)
 	viper.Set("max_workers", settings.MaxWorkers)
-	
+
 	// Save event throttling settings
 	viper.Set("event_throttling.enabled", settings.EventThrottling.Enabled)
 	viper.Set("event_throttling.min_interval", settings.EventThrottling.MinInterval)
@@ -164,12 +167,10 @@ func LoadSettings() (Settings, error) {
 	return settings, nil
 }
 
-
-
 // Apply API keys from config or environment
 func (settings Settings) LoadKeys() {
 	providers := []string{"replicate", "assemblyai", "elevenlabs", "openai"}
-	
+
 	for idx, name := range providers {
 		var key string
 		switch idx {

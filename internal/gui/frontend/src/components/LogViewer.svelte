@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { settings } from '../lib/stores';
     import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
@@ -128,14 +129,19 @@
         logLevelPriority[selectedLogLevel.toLowerCase()]
     );
     
-    // Subscribe to log store exceededMaxEntries to toggle virtualization
+    // Use the centralized threshold from settings
     $: {
         if (!manualVirtualToggle) { // Only auto-toggle if user hasn't manually set it
-            const shouldVirtualize = $logStore.exceededMaxEntries;
+            // Get threshold from settings with fallback to 2000
+            const threshold = ($settings?.logViewerVirtualizationThreshold !== undefined)
+                ? $settings.logViewerVirtualizationThreshold
+                : 2000;
+                
+            const shouldVirtualize = filteredLogs.length > threshold;
             
             if (shouldVirtualize !== virtualEnabled) {
                 if (debug) {
-                    console.log("Auto-toggling virtualization: " + (shouldVirtualize ? 'ON' : 'OFF') + " (log count: " + filteredLogs.length + ")");
+                    console.log(`Auto-toggling virtualization: ${shouldVirtualize ? 'ON' : 'OFF'} (log count: ${filteredLogs.length}, threshold: ${threshold})`);
                 }
                 virtualEnabled = shouldVirtualize;
                 

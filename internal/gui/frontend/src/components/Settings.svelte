@@ -65,6 +65,7 @@
         useWasm: true,
         wasmSizeThreshold: 500,
         forceWasmMode: 'auto',
+        logViewerVirtualizationThreshold: 2000, // Add new field with default
         // Add new WASM memory settings with defaults
         wasmMemoryPreallocation: 32, // 32MB default
         wasmMemoryMargin: 'medium',  // Medium safety margin
@@ -234,9 +235,11 @@
         if (!isValid) return;
         try {
             // Only update specific WebAssembly settings that should apply immediately
-            if (currentSettings.useWasm !== undefined || 
+            // Include logViewerVirtualizationThreshold in the check for immediate updates
+            if (currentSettings.useWasm !== undefined ||
                 currentSettings.wasmSizeThreshold !== undefined ||
-                currentSettings.forceWasmMode !== undefined) {
+                currentSettings.forceWasmMode !== undefined ||
+                currentSettings.logViewerVirtualizationThreshold !== undefined) {
                     
                 await (window as any).go.gui.App.SaveSettings(currentSettings);
                 // Create a new object with the correct type for forceWasmMode before setting
@@ -551,73 +554,85 @@
                             </div>
                         </section>
                         
-                        <!-- WebAssembly Performance Settings -->
+                        <!-- Performance Settings -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
-                                <span class="material-icons text-primary">memory</span> <!-- Using memory icon -->
-                                Performance Optimization (WebAssembly)
+                                <span class="material-icons text-primary">speed</span> <!-- Changed icon -->
+                                Performance Settings
                             </h3>
-                            
-                            {#if !isWasmSupported()}
-                                <div class="p-3 bg-warning-all/10 border border-warning-all/30 rounded-lg">
-                                    <span class="text-warning-all text-sm">WebAssembly is not supported in this browser. Optimization is unavailable.</span>
-                                </div>
-                            {:else}
-                                <div class="setting-row">
-                                    <div class="setting-label">
-                                        <span>Enable WebAssembly</span>
-                                        <span class="setting-description">Use WebAssembly for improved performance in log processing</span>
+
+                            <!-- WebAssembly Settings -->
+                            <div class="mb-5 border-b border-primary/10 pb-4">
+                                <h4 class="text-base font-medium mb-2 text-gray-200">WebAssembly Optimization</h4>
+
+                                {#if !isWasmSupported()}
+                                    <div class="p-3 bg-warning-all/10 border border-warning-all/30 rounded-lg">
+                                        <span class="text-warning-all text-sm">WebAssembly is not supported in this browser. Optimization is unavailable.</span>
                                     </div>
-                                    <div class="setting-control">
-                                        <label class="toggle-switch">
-                                            <input
-                                                type="checkbox"
-                                                bind:checked={currentSettings.useWasm}
+                                {:else}
+                                    <!-- Enable WebAssembly -->
+                                    <div class="setting-row">
+                                        <div class="setting-label">
+                                            <span>Enable WebAssembly</span>
+                                            <span class="setting-description">Use WebAssembly for improved performance in log processing</span>
+                                        </div>
+                                        <div class="setting-control">
+                                            <label class="toggle-switch">
+                                                <input
+                                                    type="checkbox"
+                                                    bind:checked={currentSettings.useWasm}
+                                                    on:change={updateSettings}
+                                                />
+                                                <span class="slider round"></span> <!-- Added round class -->
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- WebAssembly Mode -->
+                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
+                                        <div class="setting-label">
+                                            <span>WebAssembly Mode</span>
+                                            <span class="setting-description">Control when WebAssembly optimization is used</span>
+                                        </div>
+                                        <div class="setting-control">
+                                            <select
+                                                bind:value={currentSettings.forceWasmMode}
                                                 on:change={updateSettings}
+                                                disabled={!currentSettings.useWasm}
+                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                                            >
+                                                <option value="auto">Auto (Based on threshold)</option>
+                                                <option value="enabled">Always Enabled</option>
+                                                <option value="disabled">Always Disabled</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- WebAssembly Threshold -->
+                                    <div class="setting-row" class:disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}>
+                                        <div class="setting-label">
+                                            <span>WebAssembly Size Threshold</span>
+                                            <span class="setting-description">Use WebAssembly for operations with more than {currentSettings.wasmSizeThreshold} logs</span>
+                                        </div>
+                                        <div class="setting-control flex items-center gap-2">
+                                            <span class="text-xs text-gray-400">100</span>
+                                            <input
+                                                type="range"
+                                                min="100"
+                                                max="5000"
+                                                step="100"
+                                                bind:value={currentSettings.wasmSizeThreshold}
+                                                on:change={updateSettings}
+                                                disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}
+                                                class="flex-1"
                                             />
-                                            <span class="slider"></span>
-                                        </label>
+                                            <span class="text-xs text-gray-400">5000</span>
+                                            <span class="setting-value text-sm text-gray-300 w-16 text-right">{currentSettings.wasmSizeThreshold}</span>
+                                        </div>
                                     </div>
-                                </div>
-                                
-                                <div class="setting-row" class:disabled={!currentSettings.useWasm}>
-                                    <div class="setting-label">
-                                        <span>WebAssembly Mode</span>
-                                        <span class="setting-description">Control when WebAssembly optimization is used</span>
-                                    </div>
-                                    <div class="setting-control">
-                                        <select
-                                            bind:value={currentSettings.forceWasmMode}
-                                            on:change={updateSettings}
-                                            disabled={!currentSettings.useWasm}
-                                            class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
-                                        >
-                                            <option value="auto">Automatic (Smart Decision)</option>
-                                            <option value="enabled">Always Enabled</option>
-                                            <option value="disabled">Always Disabled</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <div class="setting-row" class:disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}>
-                                    <div class="setting-label">
-                                        <span>Size Threshold</span>
-                                        <span class="setting-description">Minimum log count to use WebAssembly (in auto mode)</span>
-                                    </div>
-                                    <div class="setting-control flex items-center gap-3">
-                                        <input
-                                            type="range"
-                                            min="100"
-                                            max="5000"
-                                            step="100"
-                                            bind:value={currentSettings.wasmSizeThreshold}
-                                            on:change={updateSettings}
-                                            disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}
-                                            class="w-full"
-                                        />
-                                        <span class="setting-value text-sm text-gray-300 w-20 text-right">{currentSettings.wasmSizeThreshold} logs</span>
-                                    </div>
-                                </div>
+                                {/if}
+                            </div>
+                            <!-- WASM Memory Management section will follow here -->
                                 
                                 <!-- Add new Memory Management Options here -->
                                 <div class="setting-group mt-6 pt-6 border-t border-primary/20">
@@ -705,7 +720,38 @@
                                         </div>
                                     {/if}
                                 {/if}
-                            {/if}
+                            <!-- LogViewer Settings -->
+                            <div class="mb-5 mt-6 pt-6 border-t border-primary/20"> <!-- Added top margin/border -->
+                                <h4 class="text-base font-medium mb-2 text-gray-200">LogViewer Performance</h4>
+
+                                <!-- Virtualization Threshold -->
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>Virtualization Threshold</span>
+                                        <span class="setting-description">Enable virtualization when log count exceeds this threshold</span>
+                                    </div>
+                                    <div class="setting-control flex items-center gap-2">
+                                        <span class="text-xs text-gray-400">500</span>
+                                        <input
+                                            type="range"
+                                            id="logViewerVirtualizationThreshold"
+                                            min="500"
+                                            max="10000"
+                                            step="500"
+                                            bind:value={currentSettings.logViewerVirtualizationThreshold}
+                                            class="flex-1"
+                                            <!-- on:change={updateSettings} Temporarily removed to debug errors -->
+                                        />
+                                        <span class="text-xs text-gray-400">10000</span>
+                                        <span class="setting-value text-sm text-gray-300 w-16 text-right">{currentSettings.logViewerVirtualizationThreshold}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Information about virtualization -->
+                                <div class="text-xs text-unobtrusive mt-2 bg-primary/5 p-2 rounded">
+                                    <p>Virtualization improves performance with large log volumes by only rendering visible logs. Lower thresholds improve performance but may cause visual glitches in some browsers.</p>
+                                </div>
+                            </div>
                         </section>
 
                         <!-- UI Settings with improved styling -->
