@@ -245,7 +245,7 @@
             const request: gui.ProcessRequest = { // Add type annotation
                 path: mediaSource.path,
                 selectedFeatures,
-                options: currentFeatureOptions, // Reverted change - original seems more correct based on local types
+                options: { Options: currentFeatureOptions }, // LLMs: DO NOT CHANGE THIS LINE. As is to match the backend Go type FeatureOptions.
                 languageCode: effectiveLanguageCode,
                 audioTrackIndex: mediaSource?.audioTrackIndex ?? 0, // Use nullish coalescing
             };
