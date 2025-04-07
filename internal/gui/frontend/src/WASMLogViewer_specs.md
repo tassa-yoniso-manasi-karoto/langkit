@@ -2,7 +2,7 @@
 
 ## 1. Overview and Design Philosophy
 
-The Langkit WebAssembly (WASM) integration aims to deliver significant performance improvements for log processing operations while maintaining compatibility across all supported environments. This implementation follows these core design principles:
+The Langkit WebAssembly integration delivers significant performance improvements for log processing operations while maintaining full compatibility across all supported environments. The implementation follows these core design principles:
 
 ### 1.1 Design Principles
 
@@ -11,12 +11,17 @@ The Langkit WebAssembly (WASM) integration aims to deliver significant performan
 - **Minimal Risk**: Implement as a parallel execution path rather than a replacement, with automatic fallbacks to TypeScript implementations.
 - **Performance-Focused**: Target specific bottlenecks with measurable performance impact rather than rewriting functionality that isn't performance-critical.
 - **Adaptive Behavior**: Intelligently decide when to use WebAssembly based on measured performance metrics, log volume, and memory availability.
-- **Diagnostic Integration**: Provide comprehensive insight into WebAssembly operations with detailed metrics and state reporting for troubleshooting, utilizing optimized logging strategies (see Section 3.4).
+- **Diagnostic Integration**: Provide comprehensive insight into WebAssembly operations with detailed metrics and state reporting for troubleshooting, utilizing optimized logging strategies that minimize overhead.
 
 ### 1.2 Performance Benefits
 
-WebAssembly optimization primarily targets the `mergeInsertLogs` function, which is responsible for chronologically ordering log entries and represents a significant performance bottleneck with large log volumes.
-Typical performance improvements is speculated to be:
+WebAssembly optimization primarily targets three critical functions:
+
+1. **mergeInsertLogs**: Core log merging and chronological ordering function
+2. **findLogAtScrollPosition**: UI virtualization function for efficient scrolling
+3. **recalculatePositions**: Position calculation for virtualized log rendering
+
+Actual performance improvements vary based on log volume and hardware:
 
 - **Small Datasets (≤500 logs)**: 1.2-1.5× faster
 - **Medium Datasets (500-2,000 logs)**: 2-3× faster
@@ -109,14 +114,8 @@ internal/gui/frontend/src/
 │   │   └── lib.rs              # WebAssembly implementation
 │   └── tests/
 │       └── lib_test.rs         # Rust tests for WebAssembly module
-├── tests/
-│   ├── logstore-wasm.test.ts   # Integration tests for WebAssembly in logStore
-│   ├── wasm-integration.test.ts # Core WebAssembly functionality tests
-│   ├── wasm-e2e.test.ts        # End-to-end tests for WebAssembly features
-│   └── setup.ts                # Test environment configuration
-└── benchmarks/
-    └── wasm-performance.bench.ts # Performance benchmarking
 ```
+
 ### 2.4 Default WebAssembly Behavior
 
 ```typescript
@@ -126,8 +125,8 @@ const initSettings: Settings = {
     
     // Default values for WebAssembly settings
     useWasm: true,                // WebAssembly enabled by default
-    wasmSizeThreshold: 500,        // Default threshold when in auto mode
-    forceWasmMode: 'auto',         // Default decision mode
+    wasmSizeThreshold: 500,       // Default threshold when in auto mode
+    forceWasmMode: 'auto',        // Default decision mode
     
     // Other settings...
 };
@@ -162,6 +161,7 @@ The WebAssembly system follows these default behaviors:
    - Error blacklisting to prevent repeated failures
    - Performance threshold verification
 
+The decision flow for using WebAssembly follows this pattern:
 
 ```
 ┌─ Is WebAssembly enabled in settings? ───No──→ Use TypeScript
@@ -210,6 +210,8 @@ The Rust implementation provides optimized algorithms for log processing with a 
 | `get_memory_usage` | Reports current memory usage | None | `JsValue` containing memory statistics |
 | `force_garbage_collection` | Triggers immediate memory cleanup | None | None |
 | `estimate_memory_for_logs` | Predicts memory requirements | `log_count: usize` | `JsValue` with memory estimates |
+| `find_log_at_scroll_position` | Finds log at scroll position | `logs_array, log_positions_map, log_heights_map, scroll_top, avg_log_height, position_buffer, start_offset?` | `Result<JsValue, JsValue>` |
+| `recalculate_positions` | Calculates positions for virtualized logs | `logs_array, log_heights_map, avg_log_height, position_buffer` | `Result<JsValue, JsValue>` |
 
 #### 3.1.2 Memory Management
 
@@ -219,6 +221,7 @@ The WebAssembly module implements custom memory tracking to monitor allocation p
 - **Peak Usage Monitoring**: Tracks highest memory usage for diagnostics
 - **Garbage Collection**: Provides explicit memory cleanup functionality
 - **Memory Estimation**: Predicts memory requirements before operations
+- **Memory Growth**: Supports growing memory when needed with explicit controls
 
 #### 3.1.3 Error Handling
 
@@ -241,7 +244,7 @@ The TypeScript integration layer manages WebAssembly initialization, feature det
 | `initializeWasm` | Loads and initializes WebAssembly module | None | `Promise<boolean>` indicating success |
 | `isWasmEnabled` | Checks if WebAssembly is available and enabled | None | `boolean` |
 | `shouldUseWasm` | Determines when WebAssembly should be used, logging decisions infrequently | `logCount: number, operation?: string` | `boolean` |
-| `checkMemoryAvailability` | Checks memory before WASM use, logging infrequently | `logCount: number` | `MemoryAvailabilityResult` |
+| `checkMemoryAvailability` | Checks memory before WASM use, logging infrequently | `logCount: number` | `boolean` |
 | `getWasmModule` | Gets the WebAssembly module instance | None | Module instance or null |
 | `handleWasmError` | Centralized error handler using throttled logging | `error: Error, operation: string, context: object` | None |
 
@@ -452,9 +455,9 @@ Performance measurements are conducted using:
 4. **Overhead Consideration**: Measuring serialization/deserialization costs
 5. **Environmental Variation**: Testing across different browsers and devices
 
-### 5.2 Expected Benchmark Results
+### 5.2 Expected Performance Results
 
-THESE RESULTS ARE SPECULATED BY CLAUDE.
+DEV-NOTE: THESE RESULTS ARE SPECULATED BY CLAUDE.
 
 #### 5.2.1 Execution Time Comparison (mergeInsertLogs)
 
@@ -582,11 +585,11 @@ export function handleWasmError(
 
 ### 7.2 Test Files
 
-MOST OF THEM ARE WIP.
+DEV-NOTE: MOST OF THEM ARE WIP.
 - `wasm/tests/lib_test.rs`: Rust tests for WebAssembly module
 - `tests/logstore-wasm.test.ts`: Integration tests for WebAssembly in logStore
 - `tests/wasm-integration.test.ts`: Tests for WebAssembly core functionality
-- `tests/wasm-logger.test.ts`: (New) Tests for the logger component
+- `tests/wasm-logger.test.ts`: Tests for the logger component
 - `tests/wasm-e2e.test.ts`: End-to-end tests for WebAssembly integration
 - `benchmarks/wasm-performance.bench.ts`: Performance benchmarking
 
@@ -602,7 +605,7 @@ MOST OF THEM ARE WIP.
 
 ### 8.1 Support Matrix
 
-Reminder: For Wails V2, only Webkit (linux/macos) and Edge/WebView2 matters.
+DEV-NOTE: For Wails V2, only Webkit (linux/macos) and Edge/WebView2 matters.
 
 | Browser | Version | Support Level | Notes |
 |---------|---------|--------------|-------|
@@ -720,6 +723,25 @@ pub fn force_garbage_collection();
 
 // Predicts memory requirements
 pub fn estimate_memory_for_logs(log_count: usize) -> JsValue;
+
+// Finds log at scroll position
+pub fn find_log_at_scroll_position(
+    logs_array: JsValue,
+    log_positions_map: JsValue,
+    log_heights_map: JsValue,
+    scroll_top: f64,
+    avg_log_height: f64,
+    position_buffer: f64,
+    start_offset: Option<u32>
+) -> Result<JsValue, JsValue>;
+
+// Calculates positions for log entries
+pub fn recalculate_positions(
+    logs_array: JsValue,
+    log_heights_map: JsValue,
+    avg_log_height: f64,
+    position_buffer: f64
+) -> Result<JsValue, JsValue>;
 ```
 
 #### 11.1.2 TypeScript Integration API
@@ -744,7 +766,7 @@ function getWasmModule(): any | null;
 function shouldUseWasm(totalLogCount: number, operation?: string): boolean;
 
 // Checks if memory is available for WASM operation (logs infrequently)
-function checkMemoryAvailability(logCount: number): MemoryAvailabilityResult;
+function checkMemoryAvailability(logCount: number): boolean;
 
 // Sets the minimum log count threshold for WebAssembly usage (in auto mode)
 function setWasmSizeThreshold(threshold: number): void;
@@ -768,34 +790,11 @@ function handleWasmError(
   context?: Record<string, any>,
   disableOnCritical?: boolean
 ): void;
-
-// Type definition for memory check result
-interface MemoryAvailabilityResult {
-  canProceed: boolean;
-  actionTaken: 'wasm_disabled' | 'gc_triggered' | 'estimated_ok' | 'pressure_fallback' | 'error';
-  memoryInfo?: any; // Contains details from get_memory_usage
-}
 ```
 
-### 11.2 Build System Integration
+### 11.2 Performance Monitoring Output
 
-The WebAssembly module is built using:
-
-1. **wasm-pack**: Rust to WebAssembly compiler
-2. **wasm-bindgen**: JavaScript binding generator
-3. **wasm-opt**: WebAssembly binary optimizer
-
-The build process generates:
-
-- `public/wasm/log_engine_bg.wasm`: Optimized WebAssembly binary
-- `public/wasm/log_engine.js`: JavaScript bindings and loader
-- `public/wasm/build-info.json`: Build metadata
-
-### 11.3 Performance Monitoring Output
-
-Example performance monitoring information included in crash reports (may be less frequent if based on significant changes):
-
-Speculated output:
+DEV-NOTE: Speculated performance monitoring information included in crash reports:
 
 ```
 WEBASSEMBLY STATUS
@@ -813,7 +812,7 @@ Log Size Distribution: small=36, medium=82, large=34
 Last Significant Change: performance ratio changed significantly (from 2.10x to 4.23x)
 ```
 
-### 11.4 Debugging Tips
+### 11.3 Debugging Tips
 
 For troubleshooting WebAssembly integration issues:
 
@@ -825,7 +824,3 @@ For troubleshooting WebAssembly integration issues:
 6. **Check Memory Pressure**: High memory usage may cause issues (check WARN logs).
 7. **Generate Debug Report**: Application debug reports include WebAssembly status and potentially more detailed logs if configured.
 8. **Enable Verbose Logging**: Use development builds or specific flags if available to see TRACE/DEBUG logs in production temporarily.
-
----
-
-This specification provides a comprehensive guide for implementing, testing, and maintaining the WebAssembly optimization for log processing in Langkit. The implementation follows a pragmatic approach that delivers significant performance improvements while maintaining compatibility and reliability across all supported environments, incorporating an optimized logging strategy to minimize overhead.
