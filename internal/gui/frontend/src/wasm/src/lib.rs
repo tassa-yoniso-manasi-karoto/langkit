@@ -560,64 +560,65 @@ fn sort_logs(logs: &mut Vec<LogMessage>) {
 // REPLACE the existing get_memory_usage function with this robust implementation
 #[wasm_bindgen]
 pub fn get_memory_usage() -> JsValue {
-    // Get the WebAssembly memory object
+    // Get the WebAssembly memory object - returns JsValue directly, not an Option
     let memory = wasm_bindgen::memory();
     
-    // If we have valid memory, report accurate information
-    if let Some(mem) = memory {
-        let buffer = mem.buffer();
-        let total_bytes = buffer.byte_length() as usize;
-        
-        // Get current pages directly from memory
-        let page_size_bytes = 65536; // 64KB per WebAssembly page
-        let current_pages = total_bytes / page_size_bytes;
-        
-        // Get tracker for additional metrics
-        let tracker = get_allocation_tracker();
-        
-        // Ensure used bytes is consistent with total
-        let active_bytes = tracker.active_bytes.min(total_bytes);
-        
-        // Calculate a safe utilization value
-        let utilization = if total_bytes > 0 {
-            (active_bytes as f64 / total_bytes as f64).min(1.0).max(0.0)
-        } else {
-            0.0 // Zero utilization if no memory
-        };
-        
-        // Create memory info with only the data we know is accurate
-        let memory_info = serde_json::json!({
-            // Core metrics that come directly from WebAssembly.Memory
-            "total_bytes": total_bytes,
-            "current_pages": current_pages,
-            "page_size_bytes": page_size_bytes,
+    // Access buffer via js_sys::Reflect with direct error handling
+    if let Ok(buffer) = js_sys::Reflect::get(&memory, &"buffer".into()) {
+        if let Some(array_buffer) = buffer.dyn_ref::<js_sys::ArrayBuffer>() {
+            let total_bytes = array_buffer.byte_length() as usize;
             
-            // Metrics from the tracker (best-effort)
-            "used_bytes": active_bytes,
-            "utilization": utilization,
-            "peak_bytes": tracker.peak_bytes.min(total_bytes),
+            // Get current pages directly from memory
+            let page_size_bytes = 65536; // 64KB per WebAssembly page
+            let current_pages = total_bytes / page_size_bytes;
             
-            // Validation flag
-            "available": true,
-            "is_valid": true
-        });
-        
-        // Return serialized object or fallback
-        return match serde_wasm_bindgen::to_value(&memory_info) {
-            Ok(js_value) => js_value,
-            Err(e) => {
-                // Log the error
-                log(&format!("Memory info serialization failed: {:?}", e));
+            // Get tracker for additional metrics
+            let tracker = get_allocation_tracker();
+            
+            // Ensure used bytes is consistent with total
+            let active_bytes = tracker.active_bytes.min(total_bytes);
+            
+            // Calculate a safe utilization value
+            let utilization = if total_bytes > 0 {
+                (active_bytes as f64 / total_bytes as f64).min(1.0).max(0.0)
+            } else {
+                0.0 // Zero utilization if no memory
+            };
+            
+            // Create memory info with only the data we know is accurate
+            let memory_info = serde_json::json!({
+                // Core metrics that come directly from WebAssembly.Memory
+                "total_bytes": total_bytes,
+                "current_pages": current_pages,
+                "page_size_bytes": page_size_bytes,
                 
-                // Create minimal direct object for fallback
-                let fallback = js_sys::Object::new();
-                let _ = js_sys::Reflect::set(&fallback, &"total_bytes".into(), &JsValue::from(total_bytes));
-                let _ = js_sys::Reflect::set(&fallback, &"available".into(), &JsValue::from(true));
-                let _ = js_sys::Reflect::set(&fallback, &"current_pages".into(), &JsValue::from(current_pages));
-                let _ = js_sys::Reflect::set(&fallback, &"is_valid".into(), &JsValue::from(true));
-                fallback.into()
-            }
-        };
+                // Metrics from the tracker (best-effort)
+                "used_bytes": active_bytes,
+                "utilization": utilization,
+                "peak_bytes": tracker.peak_bytes.min(total_bytes),
+                
+                // Validation flag
+                "available": true,
+                "is_valid": true
+            });
+            
+            // Return serialized object or fallback
+            return match serde_wasm_bindgen::to_value(&memory_info) {
+                Ok(js_value) => js_value,
+                Err(e) => {
+                    // Log the error
+                    log(&format!("Memory info serialization failed: {:?}", e));
+                    
+                    // Create minimal direct object for fallback
+                    let fallback = js_sys::Object::new();
+                    let _ = js_sys::Reflect::set(&fallback, &"total_bytes".into(), &JsValue::from(total_bytes));
+                    let _ = js_sys::Reflect::set(&fallback, &"available".into(), &JsValue::from(true));
+                    let _ = js_sys::Reflect::set(&fallback, &"current_pages".into(), &JsValue::from(current_pages));
+                    let _ = js_sys::Reflect::set(&fallback, &"is_valid".into(), &JsValue::from(true));
+                    fallback.into()
+                }
+            };
+        }
     }
     
     // If memory is unavailable, return an explicit error state
