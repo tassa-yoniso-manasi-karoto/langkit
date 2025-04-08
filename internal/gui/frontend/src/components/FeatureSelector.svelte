@@ -159,16 +159,21 @@
      * Simplified romanization style application
      */
     function applyDefaultRomanizationStyle(): void {
-        if (romanizationSchemes.length === 0) return;
+        if (romanizationSchemes.length === 0) {
+            console.log("No romanization schemes available to set as default");
+            return;
+        }
         
         const newStyle = romanizationSchemes[0].name;
         const newProvider = romanizationSchemes[0].provider;
         
-        console.log(`Setting romanization defaults: style=${newStyle}, provider=${newProvider}`);
+        console.log(`Setting default romanization style to ${newStyle} with provider ${newProvider}`);
         
-        // Update store first - single source of truth
-        featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
-        featureGroupStore.setGroupOption('subtitle', 'provider', newProvider);
+        // Use batch update instead of individual updates
+        featureGroupStore.batchSetGroupOptions('subtitle', {
+            style: newStyle,
+            provider: newProvider
+        });
         
         // Force options sync from store
         currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('subtitle', currentFeatureOptions);
@@ -1212,7 +1217,7 @@
     }
 </script>
 
-{#if version === "dev"}
+{#if version === "dev1"}
     <div class="fixed top-0 left-0 z-50 p-2 bg-black/80 text-white text-xs font-mono max-w-[300px] overflow-auto max-h-[80vh]">
         <p>Lang: {standardTag || 'none'}</p>
         <p>Schemes: {romanizationSchemes?.length || 0}</p>
