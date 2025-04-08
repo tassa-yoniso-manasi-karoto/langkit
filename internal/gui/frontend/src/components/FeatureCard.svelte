@@ -111,11 +111,65 @@
     });
     
     // Update options height when they change
-    $: if (enabled && optionsWrapper && !animating) {
+    $: if (enabled && optionsWrapper && optionsContainer && !animating) {
         // Small delay to ensure DOM is updated
         setTimeout(() => {
-            optionsHeight = optionsWrapper.offsetHeight;
+            if (optionsWrapper) {
+                optionsHeight = optionsWrapper.offsetHeight;
+                
+                // Also update container height
+                if (optionsContainer) {
+                    optionsContainer.style.height = optionsHeight + 'px';
+                }
+            }
         }, 50);
+    }
+
+    // When enabled status changes
+    $: {
+        if (optionsContainer) {
+            // Only animate if there are visible options
+            if (hasVisibleOptions()) {
+                animating = true;
+                
+                if (enabled) {
+                    // Opening animation - only if wrapper exists
+                    if (optionsWrapper) {
+                        setTimeout(() => {
+                            if (optionsWrapper && optionsContainer) {
+                                optionsHeight = optionsWrapper.offsetHeight;
+                                optionsContainer.style.height = optionsHeight + 'px';
+                                
+                                // Animation complete
+                                setTimeout(() => {
+                                    animating = false;
+                                    
+                                    // Check topmost status after animation completes
+                                    if (feature.featureGroups?.length) {
+                                        checkTopmostFeatureStatus();
+                                    }
+                                }, 350);
+                            }
+                        }, 10);
+                    }
+                } else if (optionsContainer) { // Add explicit check
+                    // Closing animation
+                    optionsContainer.style.height = '0px';
+                    
+                    // Reset topmost status when disabled
+                    isTopmostFeatureForAnyGroup = false;
+                    
+                    // Animation complete
+                    setTimeout(() => {
+                        animating = false;
+                    }, 350);
+                }
+            } else if (optionsContainer) { // Add explicit check
+                // No options to show, keep container closed
+                optionsContainer.style.height = '0px';
+                animating = false;
+            }
+        }
     }
     
     // Helper function for text color classes
@@ -744,16 +798,39 @@
                             feature.groupSharedOptions?.[gId]?.includes(optionId) ?? false
                         ) ?? null : null}
                     
+                    {#if isGroupOption && groupId}
+                        {#if true}
+                            <div style="display: none;">{console.log(`Group option: ${feature.id}.${optionId}`, {
+                                isGroupOption,
+                                groupId,
+                                type: optionDef.type,
+                                isTopmost: featureGroupStore.isTopmostInGroup(groupId, feature.id)
+                            })}</div>
+                        {/if}
+                    {/if}
+                    
                     <!-- Ensure this feature is registered in the group -->
                     {#if isGroupOption && groupId}
                         {@const _ensureInGroup = 
                             featureGroupStore.addFeatureToGroup(groupId, feature.id)}
                     {/if}
                     
+                    {#if 1 == 1}
+                    {/if}
                     <!-- Separate romanization special case handling -->
                     {@const isRomanizationSpecialCase = optionDef.type === 'romanizationDropdown' && feature.id !== 'subtitleRomanization'}
-                    {@const shouldRenderAsGroupOption = isGroupOption && groupId && featureGroupStore.isTopmostInGroup(groupId, feature.id) && !isRomanizationSpecialCase}
+                    {@const shouldRenderAsGroupOption = isGroupOption && groupId && 
+                        featureGroupStore.isTopmostInGroup(groupId, feature.id) && !isRomanizationSpecialCase}
                     
+                    <!-- Add debug logging -->
+                    <div style="display:none;">{console.log(`Option ${feature.id}.${optionId}`, {
+                        isGroupOption,
+                        groupId,
+                        isRomanizationSpecialCase,
+                        shouldRenderAsGroupOption,
+                        type: optionDef.type
+                    })}</div>
+
                     {#if shouldRenderAsGroupOption}
                         <!-- Render as GroupOption with all necessary props -->
                         <div class="mb-4 w-full">
@@ -765,7 +842,6 @@
                                 {needsDocker}
                                 {needsScraper}
                                 {romanizationSchemes}
-                                {providerGithubUrls}
                                 showGroupIndicator={true}
                                 on:groupOptionChange={(event) => {
                                     const { groupId, optionId, value } = event.detail;

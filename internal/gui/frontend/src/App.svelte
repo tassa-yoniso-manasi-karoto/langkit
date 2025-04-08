@@ -925,6 +925,7 @@
                                     bind:showLogViewer
                                     on:optionsChange={handleOptionsChange}
                                     {mediaSource}
+                                    {version}
                                     class="feature-selector"
                                 />
                             </div>

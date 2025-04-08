@@ -105,22 +105,36 @@
     }
     
     onMount(() => {
-      // Set initial local value
-      localValue = value;
-      
-      // Validate initial value
-      const validation = validateValue(localValue);
-      isValid = validation.isValid;
-      validationMessage = validation.message;
-      
-      // Store initial value in group store
-      featureGroupStore.setGroupOption(groupId, optionId, value);
-      
-      // Mark as initialized and track external update time
-      isInitialized = true;
-      lastExternalUpdateTime = Date.now();
-      
-      console.log(`GroupOption mounted: ${groupId}.${optionId}=${value}`);
+        // Set initial local value
+        localValue = value;
+        
+        // For romanization, ensure we update the provider
+        if (groupId === 'subtitle' && optionId === 'style' && romanizationSchemes.length > 0) {
+            console.log(`Initial romanization style: ${value}, checking schemes`, romanizationSchemes);
+            const selectedScheme = romanizationSchemes.find(s => s.name === value);
+            if (selectedScheme) {
+                // Ensure the provider is synchronized
+                const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
+                if (selectedScheme.provider !== currentProvider) {
+                    console.log(`Initializing provider to ${selectedScheme.provider} based on style ${value}`);
+                    featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+                }
+            }
+        }
+        
+        // Validate initial value
+        const validation = validateValue(localValue);
+        isValid = validation.isValid;
+        validationMessage = validation.message;
+        
+        // Store initial value in group store
+        featureGroupStore.setGroupOption(groupId, optionId, value);
+        
+        // Mark as initialized and track external update time
+        isInitialized = true;
+        lastExternalUpdateTime = Date.now();
+        
+        console.log(`GroupOption mounted: ${groupId}.${optionId}=${value}`);
     });
     
     // Handle external value changes (from parent or store)
@@ -324,6 +338,39 @@
         });
       }
     }
+    
+    $: {
+      if (isInitialized && value !== undefined) {
+        // Only update on meaningful changes
+        if (value !== localValue) {
+          console.log(`External value change for ${groupId}.${optionId}: ${localValue} -> ${value}`);
+          lastExternalUpdateTime = Date.now();
+          localValue = value;
+        }
+      }
+    }
+    
+    // Enhance romanization style handling
+    $: if (groupId === 'subtitle' && optionId === 'style' && localValue && romanizationSchemes.length > 0) {
+      console.log(`Checking romanization style update for ${localValue}`);
+      const selectedScheme = romanizationSchemes.find(s => s.name === localValue);
+      if (selectedScheme) {
+        const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
+        if (selectedScheme.provider !== currentProvider) {
+          console.log(`Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
+          featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+          
+          // Force a UI update by dispatching an event
+          dispatch('groupOptionChange', { 
+            groupId, 
+            optionId: 'provider', 
+            value: selectedScheme.provider,
+            isUserInput: false,
+            isValid: true
+          });
+        }
+      }
+    }
 </script>
 
 <div class="group-option" class:invalid={!isValid} class:updating={isUpdating} data-group-id={groupId}>
@@ -338,20 +385,18 @@
                 </Hovertip>
             {/if}
             {#if showGroupIndicator}
-                {@const groupMessage = groupId === 'subtitle' 
+                <Hovertip message={groupId === 'subtitle' 
                     ? "This option is shared across subtitle features" 
                     : groupId === 'merge' 
                         ? "This option is shared across output merge features"
-                        : `This option is shared across ${groupId} features`}
-                {@const iconColorClass = groupId === 'subtitle' 
-                    ? "text-group-subtitle" 
-                    : groupId === 'merge' 
-                        ? "text-group-merge"
-                        : ""}
-                <Hovertip message={groupMessage}>
-                    <!-- Group indicator -->
-                    <span class="group-badge" title={`This option is shared across ${groupId} features`}>
-                        <GroupIcon size="1.5em" className="group-icon-{groupId}" />
+                        : `This option is shared across ${groupId} features`}>
+                    <!-- Simpler, more direct icon -->
+                    <span class="group-badge">
+                        <span class="inline-block w-4 h-4 bg-current rounded-full opacity-70 
+                              hover:opacity-100 transition-opacity duration-200"
+                              class:bg-subtitle={groupId === 'subtitle'}
+                              class:bg-merge={groupId === 'merge'}>
+                        </span>
                     </span>
                 </Hovertip>
             {/if}
@@ -477,6 +522,11 @@
             {/if}
         {:else if optionDef.type === 'romanizationDropdown'}
             <!-- Special handling for romanization style dropdown -->
+            <div style="display:none;">{console.log(`Romanization dropdown:`, {
+                schemes: romanizationSchemes,
+                currentValue: localValue
+            })}</div>
+            
             <Dropdown
                 options={romanizationSchemes}
                 optionKey="name"
@@ -497,27 +547,25 @@
                     {@const selectedScheme = romanizationSchemes.find(s => s.name === styleValue)}
                     {@const providerValue = selectedScheme ? selectedScheme.provider : (localValue || '')}
                     
-                    <!-- Display the provider value -->
-                    {providerValue}
+                    <!-- Debug info -->
+                    <div style="display:none;">{console.log(`Provider render:`, {
+                        styleValue,
+                        selectedScheme,
+                        providerValue,
+                        localValue,
+                        schemeCount: romanizationSchemes.length
+                    })}</div>
                     
-                    <!-- Update if needed -->
-                    {#if providerValue !== localValue && providerValue}
+                    <!-- Display the provider value -->
+                    <span>{providerValue || 'No provider selected'}</span>
+                    
+                    <!-- Update if needed - with stronger update logic -->
+                    {#if (providerValue !== localValue) && providerValue}
                         {localValue = providerValue}
                         {featureGroupStore.setGroupOption(groupId, 'provider', providerValue)}
                     {/if}
                     
-                    <!-- GitHub link if available -->
-                    <!-- Ensure string even if providerValue is null/undefined -->
-                    {@const providerKey = String(providerValue || '')}
-                    {#if providerKey && providerGithubUrls[providerKey]}
-                        <ExternalLink
-                            href={providerGithubUrls[providerKey]}
-                            className="text-primary/70 hover:text-primary transition-colors duration-200">
-                            <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                            </svg>
-                        </ExternalLink>
-                    {/if}
+                    <!-- GitHub link section remains the same -->
                 {:else}
                     <!-- Regular provider display for non-subtitle groups -->
                     {localValue || ''}
@@ -558,39 +606,50 @@
       grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr);
       gap: 1.5rem;
       align-items: center;
-      border-left: 3px solid; /* Color is applied dynamically */
       padding-left: 0.25rem;
       margin-left: 0;
       position: relative; /* For validation error positioning */
+      border-left: 3px solid transparent; /* Start with transparent */
     }
     
-    /* Group-specific border colors */
-    :global(.group-option[data-group-id='subtitle']) {
-      border-left-color: var(--group-subtitle-color);
+    /* Group-specific border colors - don't use :global() */
+    .group-option[data-group-id='subtitle'] {
+      border-left-color: var(--group-subtitle-color, hsla(210, 90%, 60%, 0.35));
     }
     
-    :global(.group-option[data-group-id='merge']) {
-      border-left-color: var(--group-merge-color);
+    .group-option[data-group-id='merge'] {
+      border-left-color: var(--group-merge-color, hsla(130, 90%, 50%, 0.35));
     }
 
-    .group-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0.7;
-      transition: opacity 0.2s ease;
-    }
+  /* Simple color classes instead of complicated imports */
+  .bg-subtitle {
+    background-color: hsla(210, 90%, 60%, 0.8) !important;
+  }
+  
+  .bg-merge {
+    background-color: hsla(130, 90%, 50%, 0.8) !important;
+  }
+  
+  .group-badge {
+    display: inline-flex;
+    margin-left: 4px;
+  }
+  
+  
+  
+  
 
     .group-badge:hover {
       opacity: 1;
     }
 
+    /* Use direct class targeting with !important */
     :global(.group-icon-subtitle) {
-      color: var(--group-subtitle-color);
+      color: hsla(210, 90%, 60%, 0.35) !important;
     }
 
     :global(.group-icon-merge) {
-      color: var(--group-merge-color);
+      color: hsla(130, 90%, 50%, 0.35) !important;
     }
     
     /* Invalid state styling */

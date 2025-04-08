@@ -40,6 +40,7 @@
         subtitleTokenization: false
     };
     export let quickAccessLangTag = '';
+    export let version: string = "";
     export let showLogViewer: boolean;
     export let mediaSource: { path: string } | null = null; // Define basic MediaSource type inline
 
@@ -231,14 +232,27 @@
             const effectiveTag = standardTag || newLanguage;
             
             // Step 4: Load romanization schemes
+            console.log(`Loading romanization schemes for ${effectiveTag}`);
             const schemesAvailable = await loadRomanizationSchemes(effectiveTag);
+            console.log(`Loaded ${romanizationSchemes.length} schemes:`, romanizationSchemes);
             
             // Step 5: Check tokenization support
             await checkTokenization(effectiveTag);
             
             // Step 6: Apply default style if schemes are available
             if (schemesAvailable) {
+                console.log(`Applying default romanization style with ${romanizationSchemes.length} schemes`);
                 applyDefaultRomanizationStyle();
+                setTimeout(enforceRomanizationUpdate, 50);
+                // Force a refresh of affected components
+                setTimeout(() => {
+                    // This creates a new object reference, forcing reactivity
+                    currentFeatureOptions = { ...currentFeatureOptions };
+                    dispatch('optionsChange', currentFeatureOptions);
+                    
+                    // Log the update
+                    console.log('Forced UI update after language change');
+                }, 50);
             }
             
             // Step 7: Update errors based on availability
@@ -253,6 +267,42 @@
             });
         } finally {
             isProcessingLanguage = false;
+        }
+    }
+    
+    // direct language change handler that updates romanization styles explicitly
+    function enforceRomanizationUpdate() {
+        console.log('Forcing romanization update after language change');
+        
+        // Re-apply default style if schemes are available
+        if (romanizationSchemes.length > 0) {
+            const newStyle = romanizationSchemes[0].name;
+            const newProvider = romanizationSchemes[0].provider;
+            
+            console.log(`Explicitly setting romanization style to ${newStyle} with provider ${newProvider}`);
+            
+            // Directly update the feature options for all subtitle features
+            ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
+                if (currentFeatureOptions[featureId]) {
+                    // Directly set both values
+                    currentFeatureOptions[featureId].style = newStyle;
+                    currentFeatureOptions[featureId].provider = newProvider;
+                }
+            });
+            
+            // Update group store with these values
+            featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
+            featureGroupStore.setGroupOption('subtitle', 'provider', newProvider);
+            
+            // Force synchronization to all features
+            currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('subtitle', currentFeatureOptions);
+            
+            // Force UI update
+            setTimeout(() => {
+                // Trigger a full rerender to ensure components update
+                currentFeatureOptions = {...currentFeatureOptions};
+                dispatch('optionsChange', currentFeatureOptions);
+            }, 10);
         }
     }
     
@@ -1176,6 +1226,17 @@
         }
     }
 </script>
+
+{#if version === "dev"}
+    <div class="fixed top-0 left-0 z-50 p-2 bg-black/80 text-white text-xs font-mono max-w-[300px]">
+        <p>Lang: {standardTag || 'none'}</p>
+        <p>Schemes: {romanizationSchemes?.length || 0}</p>
+        <p>Provider: {featureGroupStore.getGroupOption('subtitle', 'provider') || 'none'}</p>
+        <p>Style: {featureGroupStore.getGroupOption('subtitle', 'style') || 'none'}</p>
+        <button class="mt-1 px-2 py-1 bg-primary text-white rounded text-xs" 
+                on:click={enforceRomanizationUpdate}>Force Update</button>
+    </div>
+{/if}
 
 <div class="space-y-6">
     <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center pl-0 pr-0">
