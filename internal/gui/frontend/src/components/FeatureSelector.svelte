@@ -11,7 +11,6 @@
     import { 
         features, 
         createDefaultOptions, 
-        providerGithubUrls, 
         providersRequiringTokens,
         type RomanizationScheme 
     } from '../lib/featureModel';
@@ -1229,7 +1228,6 @@
                             {dockerEngine}
                             {needsScraper}
                             {standardTag}
-                            {providerGithubUrls}
                             {selectedFeatures}
                             on:enabledChange={handleFeatureEnabledChange}
                             on:optionChange={handleOptionChange}

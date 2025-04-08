@@ -33,8 +33,6 @@
     export let dockerEngine = 'Docker';
     export let needsScraper = false;
     export let standardTag = '';
-    
-    export let providerGithubUrls = {};
     export let selectedFeatures: Record<string, boolean> = {};
 
     const dispatch = createEventDispatcher();
@@ -239,10 +237,6 @@
         }, 600);
     }
     
-    // Memoization cache for expensive option evaluations
-    const optionVisibilityCache: Map<string, boolean> = new Map();
-    let lastContextHash = '';
-    
     // Simplified shouldShowOption function
     function shouldShowOption(optionId: string, optionDef: any): boolean {
       if (!optionDef.showCondition) return true;
@@ -297,14 +291,10 @@
         // Execute the evaluator
         const result = evaluator(context, featureData, featureGroupStore);
         
-        // Cache and return
-        // Note: Caching is removed as direct evaluation is simpler and less prone to context hash issues
-        // optionVisibilityCache.set(cacheKey, result);
         return Boolean(result);
 
       } catch (error) {
         console.error('Error evaluating condition:', optionDef.showCondition, error);
-        // optionVisibilityCache.set(cacheKey, false); // Cache removal
         return false;
       }
     }
@@ -726,9 +716,9 @@
         {/if}
     </div>
     
-    <!-- Options drawer with slide animation - only displayed if the feature has visible options -->
-    {#if hasVisibleOptions()}
-    {@const _logVisible = console.log('hasVisibleOptions() returned true')}
+<!-- Options drawer with slide animation - only displayed if the feature has visible options -->
+{#if hasVisibleOptions()}
+{@const _logVisible = console.log('hasVisibleOptions() returned true')}
     <div
     bind:this={optionsContainer} 
     class="overflow-hidden" 
@@ -745,13 +735,13 @@
                     {@const isGroupOption = feature.featureGroups != null &&
                         feature.groupSharedOptions != null &&
                         feature.featureGroups.some(groupId =>
-                            feature.groupSharedOptions?.[groupId]?.includes(optionId) ?? false // Ensure boolean
+                            feature.groupSharedOptions?.[groupId]?.includes(optionId) ?? false
                         )}
                     
                     <!-- Find the group that this option belongs to (if any) -->
                     {@const groupId = isGroupOption ?
                         feature.featureGroups?.find(gId =>
-                            feature.groupSharedOptions?.[gId]?.includes(optionId) ?? false // Ensure boolean
+                            feature.groupSharedOptions?.[gId]?.includes(optionId) ?? false
                         ) ?? null : null}
                     
                     <!-- Ensure this feature is registered in the group -->
@@ -760,8 +750,12 @@
                             featureGroupStore.addFeatureToGroup(groupId, feature.id)}
                     {/if}
                     
-                    {#if isGroupOption && groupId && featureGroupStore.isTopmostInGroup(groupId, feature.id) && !(feature.id !== 'subtitleRomanization' && optionDef.type === 'romanizationDropdown')}
-                        <!-- Using canonical ordering from the feature store -->
+                    <!-- Separate romanization special case handling -->
+                    {@const isRomanizationSpecialCase = optionDef.type === 'romanizationDropdown' && feature.id !== 'subtitleRomanization'}
+                    {@const shouldRenderAsGroupOption = isGroupOption && groupId && featureGroupStore.isTopmostInGroup(groupId, feature.id) && !isRomanizationSpecialCase}
+                    
+                    {#if shouldRenderAsGroupOption}
+                        <!-- Render as GroupOption with all necessary props -->
                         <div class="mb-4 w-full">
                             <GroupOption
                                 {groupId}
@@ -771,7 +765,9 @@
                                 {needsDocker}
                                 {needsScraper}
                                 {romanizationSchemes}
-                                on:groupOptionChange={(event: CustomEvent) => { // Add CustomEvent type
+                                {providerGithubUrls}
+                                showGroupIndicator={true}
+                                on:groupOptionChange={(event) => {
                                     const { groupId, optionId, value } = event.detail;
                                     // Update local option value for reactivity
                                     options[optionId] = value;
@@ -908,7 +904,7 @@
             </div>
         </div>
     </div>
-    {/if}
+{/if}
 
     <!-- Ripple effect container -->
     <style>
