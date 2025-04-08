@@ -1,6 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-    import { get } from 'svelte/store';
+    import { get, derived } from 'svelte/store'; // Import derived
     import type { RomanizationScheme } from '../lib/featureModel'; // Import the type
     import { debounce } from 'lodash';
     import { featureGroupStore } from '../lib/featureGroupStore';
@@ -129,40 +129,49 @@
         }
     }, 50);
     
+    let optionStore; // Declare optionStore
+
     onMount(() => {
         // Generate a unique ID for this component instance
         const componentId = `${groupId}.${optionId}`;
         
         // Track component mounting
         trackComponentMount(componentId);
+
+        // Create a derived store that only tracks this specific option
+        optionStore = featureGroupStore.createOptionSubscription(groupId, optionId);
         
-        // Initial sync with store
-        const initialStoreValue = featureGroupStore.getGroupOption(groupId, optionId);
-        if (initialStoreValue !== undefined && initialStoreValue !== localValue) {
-            localValue = initialStoreValue;
+        // Subscribe only to relevant changes
+        unsubscribeFromStore = optionStore.subscribe(storeValue => {
+            if (storeValue !== undefined && storeValue !== localValue) {
+                // Update local value from store
+                localValue = storeValue;
+                 // Validate the new value
+                const validation = validateValue(localValue);
+                isValid = validation.isValid;
+                validationMessage = validation.message;
+            }
+        });
+        
+        // Initialize with current value if needed
+        const initialValue = featureGroupStore.getGroupOption(groupId, optionId);
+        if (initialValue !== undefined && initialValue !== localValue) {
+            localValue = initialValue;
+        } else if (initialValue === undefined) {
+             // Store initial value in group store if not already set by sync
+             featureGroupStore.setGroupOption(groupId, optionId, localValue);
         }
-        
+
         // Validate initial value
         const validation = validateValue(localValue);
         isValid = validation.isValid;
         validationMessage = validation.message;
-        
-        // Store initial value in group store if not already set by sync
-        if (initialStoreValue === undefined) {
-            featureGroupStore.setGroupOption(groupId, optionId, localValue);
-        }
         
         // Mark as initialized and track external update time
         isInitialized = true;
         lastExternalUpdateTime = Date.now();
         
         if (DEBUG) console.log(`GroupOption mounted: ${componentId}=${localValue}`);
-        
-        // Subscribe to store changes
-        unsubscribeFromStore = featureGroupStore.subscribe(() => {
-            const storeValue = featureGroupStore.getGroupOption(groupId, optionId);
-            updateFromStore(storeValue);
-        });
     });
     
     // Handle external value changes (from parent or store) - Keep this for parent updates
