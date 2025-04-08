@@ -3,7 +3,10 @@
 
 import { writable, derived, get } from 'svelte/store';
 import { errorStore } from './errorStore';
-import type { FeatureDefinition } from './featureModel';
+import { features, type FeatureDefinition } from './featureModel'; // Import features
+import { debounce } from 'lodash'; // Import debounce
+// Add these imports at the top
+import { groupOptionDefinitions, type GroupOptionDefinition } from './groupOptions';
 
 // Types for the group system
 export interface FeatureGroup {
@@ -61,8 +64,20 @@ function createFeatureGroupStore() {
 
     const store = writable<GroupState>(initialState);
 
+    // Add caching for expensive calculations
+    const topmostCache = new Map<string, Map<string, boolean>>();
+
+    // Clear cache when features are enabled/disabled
+    function clearTopmostCache(groupId?: string) {
+      if (groupId) {
+        topmostCache.delete(groupId);
+      } else {
+        topmostCache.clear();
+      }
+    }
+
     // Return public API
-    return {
+    const publicApi = { // Assign to variable to allow self-reference in debounced function
         subscribe: store.subscribe,
 
         /**
@@ -109,6 +124,9 @@ function createFeatureGroupStore() {
          * Update a feature's enabled status within a group
          */
         updateFeatureEnabled(groupId: string, featureId: string, enabled: boolean) {
+            // Clear topmost cache for this group before updating state
+            clearTopmostCache(groupId);
+            
             // console.log(`Updating feature enabled: ${groupId} - ${featureId} - ${enabled}`);
             store.update(state => {
                 if (!state.groups[groupId]) return state;
@@ -430,10 +448,23 @@ function createFeatureGroupStore() {
          * Check if a feature is the topmost in its group based on canonical order
          */
         isTopmostInGroup(groupId: string, featureId: string): boolean {
+            // Check if result is cached
+            if (topmostCache.has(groupId)) {
+              const groupCache = topmostCache.get(groupId);
+              if (groupCache && groupCache.has(featureId)) {
+                return groupCache.get(featureId) || false;
+              }
+            }
+            
             const state = get(store);
             
             // First check if the feature is enabled
             if (!state.enabledFeatures[groupId]?.includes(featureId)) {
+                // Cache negative result
+                if (!topmostCache.has(groupId)) {
+                  topmostCache.set(groupId, new Map());
+                }
+                topmostCache.get(groupId)?.set(featureId, false);
                 return false;
             }
             
@@ -442,6 +473,7 @@ function createFeatureGroupStore() {
             
             // Standard handling for all groups (e.g., subtitle, merge)
             const groupOrder = state.groupCanonicalOrder[groupId] || [];
+            let isTopmost = false;
             if (groupOrder.length === 0) {
                 console.warn(`No canonical order for group ${groupId}, falling back to feature definition order`);
                 
@@ -450,14 +482,20 @@ function createFeatureGroupStore() {
                 
                 // Find the first enabled feature in group definition order
                 const topmostFeature = groupFeatures.find(id => enabledFeatures.includes(id));
-                return topmostFeature === featureId;
+                isTopmost = topmostFeature === featureId;
+            } else {
+                // Find the first enabled feature according to this group's canonical order
+                const topmostFeature = groupOrder.find(id => enabledFeatures.includes(id));
+                
+                // This feature is the topmost if it matches the first enabled feature in canonical order
+                isTopmost = topmostFeature === featureId;
             }
             
-            // Find the first enabled feature according to this group's canonical order
-            const topmostFeature = groupOrder.find(id => enabledFeatures.includes(id));
-            
-            // This feature is the topmost if it matches the first enabled feature in canonical order
-            const isTopmost = topmostFeature === featureId;
+            // Cache the result
+            if (!topmostCache.has(groupId)) {
+              topmostCache.set(groupId, new Map());
+            }
+            topmostCache.get(groupId)?.set(featureId, isTopmost);
             
             /*console.log(`isTopmostInGroup check for ${groupId}:`, {
                 featureId,
@@ -599,8 +637,118 @@ function createFeatureGroupStore() {
             
             // Also clear browser URL error
             errorStore.removeError(`group-${groupId}-browser-url`);
-        }
+        },
+
+        /**
+         * Initialize a feature's group options with defaults
+         * @param featureId Feature ID
+         * @param currentOptions Current options object
+         * @returns Updated options with defaults applied
+         */
+        initializeFeatureGroupOptions(featureId: string, currentOptions: Record<string, any> = {}): Record<string, any> {
+          // Find the feature definition using the imported 'features'
+          const feature = features.find(f => f.id === featureId);
+          if (!feature || !feature.featureGroups) return currentOptions;
+          
+          // Placeholder implementation removed
+          // const feature: FeatureDefinition | undefined = undefined; // Replace with actual lookup
+          // if (!feature || !feature.featureGroups) return currentOptions;
+          
+          // Create a copy of the current options
+          const updatedOptions = { ...currentOptions };
+          
+          // For each group the feature belongs to
+          feature.featureGroups.forEach(groupId => {
+            // Get the shared options for this group
+            const sharedOptions = feature.groupSharedOptions?.[groupId] || [];
+            
+            // For each shared option
+            sharedOptions.forEach(optionId => {
+              // Get the option definition
+              const optionDef = this.getGroupOptionDefinition(groupId, optionId);
+              if (!optionDef) return;
+              
+              // Only set if not already defined
+              if (updatedOptions[optionId] === undefined) {
+                updatedOptions[optionId] = optionDef.default;
+              }
+            });
+          });
+          
+          return updatedOptions;
+        },
+
+        /**
+         * Get the original definition of a group option
+         * @param groupId The group ID
+         * @param optionId The option ID
+         * @returns The group option definition or null if not found
+         */
+        getGroupOptionDefinition(groupId: string, optionId: string): GroupOptionDefinition | null {
+          return groupOptionDefinitions[groupId]?.[optionId] || null;
+        },
+        
+        /**
+         * Check if an option belongs to a specific group
+         * @param groupId The group ID to check
+         * @param optionId The option ID to check
+         * @returns True if the option belongs to the group
+         */
+        groupHasOption(groupId: string, optionId: string): boolean {
+          return Boolean(groupOptionDefinitions[groupId]?.[optionId]);
+        },
+        
+        /**
+         * Get all option IDs for a specific group
+         * @param groupId The group ID
+         * @returns Array of option IDs
+         */
+        getGroupOptionIds(groupId: string): string[] {
+          return Object.keys(groupOptionDefinitions[groupId] || {});
+        },
+        
+        /**
+         * Check if an option has additional display conditions beyond isTopmostForOption
+         * @param groupId The group ID
+         * @param optionId The option ID
+         * @returns True if the option has additional display conditions
+         */
+        hasAdditionalDisplayConditions(groupId: string, optionId: string): boolean {
+          return Boolean(groupOptionDefinitions[groupId]?.[optionId]?.conditionalDisplay);
+        },
+        
+        /**
+         * Get the additional display condition for an option
+         * @param groupId The group ID
+         * @param optionId The option ID
+         * @returns The additional display condition or null if not found
+         */
+        getAdditionalDisplayCondition(groupId: string, optionId: string): string | null {
+          return groupOptionDefinitions[groupId]?.[optionId]?.conditionalDisplay || null;
+        },
+        
+        /**
+         * Check if a group exists in the centralized definitions
+         * @param groupId The group ID to check
+         * @returns True if the group exists
+         */
+        isValidGroup(groupId: string): boolean {
+          return Boolean(groupOptionDefinitions[groupId]);
+        },
+
+        /**
+         * Debounced version of syncOptionsToFeatures to reduce frequent updates
+         */
+        debouncedSyncOptionsToFeatures: debounce(
+          function(this: typeof publicApi, groupId: string, currentOptions: Record<string, Record<string, any>>) {
+            return this.syncOptionsToFeatures(groupId, currentOptions);
+          },
+          50,
+          { leading: true }
+        )
     };
+
+    return publicApi; // Return the assigned variable
 }
 
 // Create the store

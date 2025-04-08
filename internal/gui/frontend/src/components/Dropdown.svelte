@@ -2,7 +2,7 @@
     import { createEventDispatcher, onMount } from 'svelte';
     import { clickOutside } from '../lib/clickOutside';
     import Hovertip from './Hovertip.svelte';
-    import Portal from 'svelte-portal/src/Portal.svelte';
+    import Portal from 'svelte-portal'; // Correct import path
 
     // Props
     export let options: any[] = [];
@@ -16,6 +16,8 @@
     export let labelFunction: ((option: any) => string) | null = null;
     export let tooltipFunction: ((option: any) => string) | null = null;
     export let className: string = ""; // Added className prop for consistency
+    export let invalid: boolean = false;
+    export let errorMessage: string = '';
 
     // Internal state
     let isOpen = false;
@@ -144,12 +146,12 @@
     });
 </script>
 
-<div class="relative w-full text-sm {className}" bind:this={dropdownRef} use:clickOutside on:clickoutside={closeDropdown}>
+<div class="relative w-full text-sm {className}" bind:this={dropdownRef} use:clickOutside on:clickoutside={closeDropdown}> <!-- Revert to original on:clickoutside -->
     {#if options.length > 0}
         <button 
             type="button" 
             bind:this={buttonRef}
-            class="dropdown-button w-full flex justify-between items-center rounded-md h-[42px] px-3 py-2 font-medium {error ? 'border-error-all/70' : ''} {disabled ? 'opacity-50 cursor-not-allowed' : 'focus:ring-offset-[3px] focus:ring-2 focus:ring-primary/30'} transition-all duration-200 relative"
+            class="dropdown-button w-full flex justify-between items-center rounded-md h-[42px] px-3 py-2 font-medium {invalid ? 'border-error-task' : (error ? 'border-error-all/70' : '')} {disabled ? 'opacity-50 cursor-not-allowed' : 'focus:ring-offset-[3px] focus:ring-2 focus:ring-primary/30'} transition-all duration-200 relative"
             aria-haspopup="listbox" 
             aria-expanded={isOpen} 
             aria-labelledby={label ? `${label}-label` : undefined} 
@@ -204,7 +206,9 @@
         </Portal>
     {/if}
 
-    {#if error}
+    {#if invalid && errorMessage}
+        <p class="mt-1 text-xs text-error-task">{errorMessage}</p>
+    {:else if error}
         <p class="mt-1 text-xs text-error-all">{error}</p>
     {/if}
 </div>
@@ -227,8 +231,14 @@
   /* Focus styles */
   .dropdown-button:focus:not(:disabled) {
     background-color: hsla(var(--input-bg-focus), 0.5);
+    /* Don't override border color on focus if invalid */
     border-color: var(--input-border-focus);
     box-shadow: var(--input-shadow-focus);
+  }
+  
+  /* Ensure invalid border takes precedence on focus */
+  .dropdown-button.border-error-task:focus {
+      border-color: var(--error-task-color);
   }
 
   /* Dropdown options styling */

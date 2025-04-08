@@ -9,6 +9,8 @@
     export let fullWidth: boolean = true;
     export let center: boolean = true;
     export let className: string = "";
+    export let invalid: boolean = false;
+    export let errorMessage: string = '';
     
     function handleKeydown(e: KeyboardEvent) {
         const input = e.target as HTMLInputElement;
@@ -31,7 +33,14 @@
     const conditionalClasses = `${center ? 'text-center' : ''} ${fullWidth ? 'w-full' : ''}`;
     
     // Merge classes with tailwind-merge to properly handle class conflicts
-    $: inputClasses = twMerge(baseClasses, defaultClasses, conditionalClasses, className);
+    // Add invalid class conditionally
+    $: inputClasses = twMerge(
+        baseClasses,
+        defaultClasses,
+        conditionalClasses,
+        className,
+        invalid ? 'border-error-task' : 'border-white/10' // Apply error border if invalid
+    );
 </script>
 
 <input 
@@ -44,6 +53,9 @@
     on:keydown={handleKeydown}
     class={inputClasses}
 />
+{#if invalid && errorMessage}
+    <p class="text-xs text-error-task mt-1">{errorMessage}</p>
+{/if}
 
 <style>
     input {
@@ -60,8 +72,14 @@
 
     input:focus {
         background-color: hsla(var(--input-bg-focus), 0.5);
+        /* Don't override border color on focus if invalid */
         border-color: var(--input-border-focus);
         box-shadow: var(--input-shadow-focus);
+    }
+    
+    /* Ensure invalid border takes precedence on focus */
+    input.border-error-task:focus {
+        border-color: var(--error-task-color);
     }
     
     input:active {

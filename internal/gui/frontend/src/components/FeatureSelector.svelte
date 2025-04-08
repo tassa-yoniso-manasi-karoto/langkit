@@ -4,8 +4,8 @@
     import { cubicOut } from 'svelte/easing';
     import { get } from 'svelte/store';
     
-    import { settings, showSettings } from '../lib/stores.ts';
-    import { updateSTTModels, sttModelsStore } from '../lib/featureModel';
+    import { settings, showSettings } from '../lib/stores'; // Remove .ts extension
+    import { updateSTTModels, sttModelsStore, type FeatureDefinition, type STTModelInfo, type STTModelsResponse } from '../lib/featureModel'; // Import FeatureDefinition, STTModelInfo, STTModelsResponse
     import { errorStore } from '../lib/errorStore';
     import { logStore } from '../lib/logStore';
     import { 
@@ -42,7 +42,7 @@
     };
     export let quickAccessLangTag = '';
     export let showLogViewer: boolean;
-    export let mediaSource: MediaSource | null = null;
+    export let mediaSource: { path: string } | null = null; // Define basic MediaSource type inline
 
     // State variables
     let visibleFeatures: string[] = [];
@@ -76,7 +76,7 @@
         subtitle: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization']
     };
     
-    let currentSTTModels = { models: [], names: [], available: false, suggested: "" };
+    let currentSTTModels: STTModelsResponse = { models: [] as STTModelInfo[], names: [], available: false, suggested: "" }; // Type initial value correctly
     let sttModelsUnsubscribe: () => void;
     
     const dispatch = createEventDispatcher();
@@ -249,7 +249,7 @@
             console.error("Error during language change processing:", error);
             logStore.addLog({
                 level: 'ERROR',
-                message: `Error processing language change: ${error.message}`,
+                message: `Error processing language change: ${(error as Error).message}`, // Cast error to Error
                 time: new Date().toISOString()
             });
         } finally {
@@ -292,9 +292,9 @@
         
         // Disable all features
         Object.keys(selectedFeatures).forEach(featureId => {
-            if (selectedFeatures[featureId]) {
+            if (selectedFeatures[featureId as keyof typeof selectedFeatures]) { // Type assertion for index access
                 // Set to false
-                selectedFeatures[featureId] = false;
+                selectedFeatures[featureId as keyof typeof selectedFeatures] = false; // Type assertion for index access
                 
                 // Handle feature groups
                 const featureDef = features.find(f => f.id === featureId);
@@ -316,7 +316,7 @@
         console.log(`Feature toggle: ${id} -> ${enabled}`);
         
         // Update the selected features state
-        selectedFeatures[id] = enabled;
+        selectedFeatures[id as keyof typeof selectedFeatures] = enabled; // Type assertion for index access
         updateProviderWarnings();
         
         // Find the feature definition
@@ -378,31 +378,35 @@
      * Handles all feature group related updates when a feature's enabled state changes
      */
     function handleFeatureGroupUpdates(featureDef: FeatureDefinition, featureId: string, enabled: boolean) {
-        console.log(`Feature ${featureId} belongs to groups: ${featureDef.featureGroups.join(', ')}`);
-        
-        featureDef.featureGroups.forEach(groupId => {
-            console.log(`Processing group ${groupId} for feature ${featureId}`);
+        if (featureDef.featureGroups && featureDef.featureGroups.length > 0) { // Explicit check before accessing and ensure not empty
+            console.log(`Feature ${featureId} belongs to groups: ${featureDef.featureGroups.join(', ')}`);
             
-            // Update enabled state in the group store
-            featureGroupStore.updateFeatureEnabled(groupId, featureId, enabled);
-            
-            // Get all feature IDs in this group for reference
-            const groupFeatureIds = getFeatureIdsInGroup(groupId);
-            
-            // Get all enabled features in this group
-            const enabledFeaturesInGroup = getEnabledFeaturesInGroup(groupId);
-            console.log(`Group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
-            
-            // Handle active display feature updates based on the state change
-            if (enabled) {
-                handleFeatureEnabled(groupId, featureId, groupFeatureIds, enabledFeaturesInGroup);
-            } else {
-                handleFeatureDisabled(groupId, featureId, groupFeatureIds, enabledFeaturesInGroup);
-            }
-            
-            // Ensure options are consistent across all features in the group
-            syncFeatureOptions(groupId);
-        });
+            featureDef.featureGroups.forEach((groupId: string) => {
+                console.log(`Processing group ${groupId} for feature ${featureId}`);
+                
+                // Update enabled state in the group store
+                featureGroupStore.updateFeatureEnabled(groupId, featureId, enabled);
+                
+                // Get all feature IDs in this group for reference
+                const groupFeatureIds = getFeatureIdsInGroup(groupId);
+                
+                // Get all enabled features in this group
+                const enabledFeaturesInGroup = getEnabledFeaturesInGroup(groupId);
+                console.log(`Group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+                
+                // Handle active display feature updates based on the state change
+                if (enabled) {
+                    handleFeatureEnabled(groupId, featureId, groupFeatureIds, enabledFeaturesInGroup);
+                } else {
+                    handleFeatureDisabled(groupId, featureId, groupFeatureIds, enabledFeaturesInGroup);
+                }
+                
+                // Ensure options are consistent across all features in the group
+                syncFeatureOptions(groupId);
+            });
+        } else {
+            console.log(`Feature ${featureId} does not belong to any groups.`);
+        }
     }
 
     /**
@@ -470,7 +474,7 @@
         const groupFeatureIds = getFeatureIdsInGroup(groupId);
         
         // Then filter for only the enabled ones, maintaining their original order
-        return groupFeatureIds.filter(fId => selectedFeatures[fId]);
+        return groupFeatureIds.filter(fId => selectedFeatures[fId as keyof typeof selectedFeatures]); // Type assertion
     }
     /**
      * Sync options from the group store to all features in the group
@@ -492,7 +496,7 @@
             console.log(`Checking provider requirements for STT model: ${sttModel}`);
             
             // Find the model info to get the provider
-            const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
+            const modelInfo = currentSTTModels.models.find((m: STTModelInfo) => m.name === sttModel); // Add type annotation
             
             if (modelInfo) {
                 const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
@@ -567,7 +571,7 @@
         
         // Fallback to original mapping if not found
         if (!tokenType) {
-            tokenType = providersRequiringTokens[normalizedProvider];
+            tokenType = (providersRequiringTokens as Record<string, string>)[normalizedProvider]; // Type assertion
         }
         
         console.log(`Token type for ${provider}: ${tokenType || 'none required'}`);
@@ -586,7 +590,7 @@
         }
         
         // Check if token has a value
-        const hasToken = Boolean(currentSettings.apiKeys[tokenType]?.trim());
+        const hasToken = Boolean((currentSettings.apiKeys as any)[tokenType]?.trim()); // Type assertion
         
         console.log(`Token status for ${provider} (${tokenType}): ${hasToken ? 'valid' : 'missing'}`);
         
@@ -712,8 +716,8 @@
         try {
             // Replace context variables with their values
             const prepared = featureDef.showCondition
-                .replace(/context\.([a-zA-Z0-9_]+)/g, (_, prop) => {
-                    return JSON.stringify(context[prop]);
+                .replace(/context\.([a-zA-Z0-9_]+)/g, (_match: string, prop: string) => { // Add types
+                    return JSON.stringify((context as any)[prop]); // Type assertion
                 });
             
             // Use Function constructor to evaluate the expression
@@ -733,7 +737,7 @@
         const currentModel = currentFeatureOptions.dubtitles.stt;
         
         // Update if current model doesn't exist in the list
-        if (!currentSTTModels.names.includes(currentModel)) {
+        if (!currentSTTModels.names.includes(currentModel as never)) { // Cast to never if needed, or ensure types match
           console.log(`Current STT model ${currentModel} not in available models list. Resetting to ${firstModel}`);
           currentFeatureOptions.dubtitles.stt = firstModel;
           dispatch('optionChange', { featureId: 'dubtitles', optionId: 'stt', value: firstModel });
@@ -742,12 +746,20 @@
     }
 
     // Prepare context for conditions
-    let context = {
+    let context: {
+        standardTag: string;
+        needsDocker: boolean;
+        needsScraper: boolean;
+        romanizationSchemes: RomanizationScheme[];
+        selectedFeatures: Record<string, boolean>;
+        sttModels: STTModelInfo[];
+    } = { // Define full type for context
         standardTag: '',
         needsDocker: false,
         needsScraper: false,
         romanizationSchemes: [],
-        selectedFeatures: {}
+        selectedFeatures: {},
+        sttModels: []
     };
     
     // New loading state to prevent flickering during initial data loading
@@ -778,7 +790,7 @@
         
         const orderedFeatureIds = featureElements
             .map(el => el.getAttribute('data-feature-id'))
-            .filter(Boolean);
+            .filter(Boolean) as string[]; // Ensure it's string[]
         
         console.log('Current feature display order:', orderedFeatureIds);
         
@@ -824,213 +836,125 @@
     // Component lifecycle
     // Initialize feature groups
     function initializeFeatureGroups() {
-        console.log(`Initializing feature groups - current language: ${standardTag}`);
+      console.log(`Initializing feature groups - current language: ${standardTag}`);
+      
+      // Register feature groups first
+      const subtitleGroup: FeatureGroup = {
+        id: 'subtitle',
+        label: 'Subtitle Processing',
+        description: 'Features related to subtitle processing',
+        featureIds: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'],
+        sharedOptions: ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
+        validationRules: [
+            {
+                id: 'browser-url-validation',
+                optionId: 'browserAccessURL',
+                // Fixed validation that runs only when needed
+                validator: (url) => {
+                    // If scraper isn't needed, don't validate
+                    if (!needsScraper) return true;
+                    
+                    // Check for a valid WebSocket URL
+                    return Boolean(url && url.startsWith('ws://'));
+                },
+                errorMessage: 'Valid browser access URL is required for web scraping',
+                severity: 'critical'
+            }
+        ]
+      };
+      
+      const mergeGroup: FeatureGroup = {
+        id: 'merge',
+        label: 'Output Merging',
+        description: 'Features that can be merged into output',
+        featureIds: [
+          'dubtitles',
+          'voiceEnhancing',
+          'subtitleRomanization',
+          'selectiveTransliteration',
+          'subtitleTokenization'
+        ],
+        sharedOptions: ['mergeOutputFiles', 'mergingFormat']
+      };
+      
+      // Register groups with the store
+      featureGroupStore.registerGroup(subtitleGroup);
+      featureGroupStore.registerGroup(mergeGroup);
+      
+      // For each feature, ensure it's registered with its groups
+      features.forEach(feature => {
+        if (!feature.featureGroups) return;
         
-        // First, handle existing features to ensure they're visible
-        // This ensures all feature cards are created correctly first
-        for (let feature of features) {
-            // Include selective transliteration regardless of its label (which changes based on language)
-            const isSubtitleFeature = feature.id === 'subtitleRomanization' || 
-                                      feature.id === 'selectiveTransliteration' || 
-                                      feature.id === 'subtitleTokenization';
-                                      
-            if (isSubtitleFeature) {
-                console.log(`Adding ${feature.id} to subtitle group`);
-                
-                // Mark for group membership but don't initialize fully yet
-                if (!feature.featureGroups) {
-                    feature.featureGroups = ['subtitle'];
-                } else if (!feature.featureGroups.includes('subtitle')) {
-                    feature.featureGroups.push('subtitle');
-                }
-                
-                // Make sure groupSharedOptions are defined
-                if (!feature.groupSharedOptions) {
-                    feature.groupSharedOptions = {
-                        'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
-                    };
-                } else if (!feature.groupSharedOptions['subtitle']) {
-                    feature.groupSharedOptions['subtitle'] = ['style', 'provider', 'dockerRecreate', 'browserAccessURL'];
-                }
-                
-                // Register each feature in the group store individually
-                featureGroupStore.addFeatureToGroup('subtitle', feature.id);
-                
-                // Register each option with its group - this is crucial for the new approach
-                ['style', 'provider', 'dockerRecreate', 'browserAccessURL'].forEach(optionId => {
-                    featureGroupStore.registerOptionToGroup('subtitle', optionId);
-                });
-                
-                // Initialize feature options if not already set
-                if (!currentFeatureOptions[feature.id]) {
-                    currentFeatureOptions[feature.id] = {};
-                }
-                
-                // Make sure shared options exist
-                ['style', 'provider', 'dockerRecreate', 'browserAccessURL'].forEach(optionId => {
-                    if (currentFeatureOptions[feature.id][optionId] === undefined) {
-                        // Initialize with default or empty value
-                        if (optionId === 'dockerRecreate') {
-                            currentFeatureOptions[feature.id][optionId] = false;
-                        } else if (optionId === 'style' && romanizationSchemes.length > 0) {
-                            currentFeatureOptions[feature.id][optionId] = romanizationSchemes[0].name;
-                        } else if (optionId === 'provider' && romanizationSchemes.length > 0) {
-                            currentFeatureOptions[feature.id][optionId] = romanizationSchemes[0].provider;
-                        } else {
-                            currentFeatureOptions[feature.id][optionId] = '';
-                        }
-                    }
-                });
-            }
-            
-            // Handle merge features
-            const isMergeFeature = feature.outputMergeGroup === 'merge';
-            if (isMergeFeature) {
-                console.log(`Adding ${feature.id} to merge group`);
-                
-                // Mark for group membership
-                if (!feature.featureGroups) {
-                    feature.featureGroups = ['merge'];
-                } else if (!feature.featureGroups.includes('merge')) {
-                    feature.featureGroups.push('merge');
-                }
-                
-                // Make sure groupSharedOptions are defined
-                if (!feature.groupSharedOptions) {
-                    feature.groupSharedOptions = {
-                        'merge': ['mergeOutputFiles', 'mergingFormat']
-                    };
-                } else if (!feature.groupSharedOptions['merge']) {
-                    feature.groupSharedOptions['merge'] = ['mergeOutputFiles', 'mergingFormat'];
-                }
-                
-                // Register each feature in the group store individually
-                featureGroupStore.addFeatureToGroup('merge', feature.id);
-                
-                // Register merge options with the merge group - crucial for proper handling
-                featureGroupStore.registerOptionToGroup('merge', 'mergeOutputFiles');
-                featureGroupStore.registerOptionToGroup('merge', 'mergingFormat');
-                
-                // Initialize feature options if not already set
-                if (!currentFeatureOptions[feature.id]) {
-                    currentFeatureOptions[feature.id] = {};
-                }
-            }
+        // For each group the feature belongs to
+        feature.featureGroups.forEach(groupId => {
+          // Register feature with group
+          featureGroupStore.addFeatureToGroup(groupId, feature.id);
+          
+          // Register each option with its group
+          if (feature.groupSharedOptions && feature.groupSharedOptions[groupId]) {
+            feature.groupSharedOptions[groupId].forEach(optionId => {
+              featureGroupStore.registerOptionToGroup(groupId, optionId);
+            });
+          }
+        });
+        
+        // Initialize options if not already set
+        if (!currentFeatureOptions[feature.id]) {
+          currentFeatureOptions[feature.id] = {};
         }
         
-        // Define the subtitle group
-        const subtitleGroup: FeatureGroup = {
-            id: 'subtitle',
-            label: 'Subtitle Processing',
-            description: 'Features related to subtitle processing',
-            featureIds: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'],
-            sharedOptions: ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            validationRules: [
-                {
-                    id: 'browser-url-validation',
-                    optionId: 'browserAccessURL',
-                    // Fixed validation that runs only when needed
-                    validator: (url) => {
-                        // If scraper isn't needed, don't validate
-                        if (!needsScraper) return true;
-                        
-                        // Check for a valid WebSocket URL
-                        return Boolean(url && url.startsWith('ws://'));
-                    },
-                    errorMessage: 'Valid browser access URL is required for web scraping',
-                    severity: 'critical'
-                }
-            ]
-        };
-        
-        // Define the merge output group
-        const mergeGroup: FeatureGroup = {
-            id: 'merge',
-            label: 'Output Merging',
-            description: 'Features that can be merged into output',
-            featureIds: [
-                'dubtitles', 
-                'voiceEnhancing', 
-                'subtitleRomanization', 
-                'selectiveTransliteration', 
-                'subtitleTokenization'
-            ],
-            sharedOptions: ['mergeOutputFiles', 'mergingFormat']
-        };
-        
-        // Register feature groups in the store
-        featureGroupStore.registerGroup(subtitleGroup);
-        featureGroupStore.registerGroup(mergeGroup);
-        
-        // Sync happens later during initialization - no need to do it here
-        
-        // Update subtitle features with shared options
-        const subtitleFeatures = features.filter(f => 
-            ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].includes(f.id));
-            
-        subtitleFeatures.forEach(feature => {
-            // Make sure group membership is set
-            if (!feature.featureGroups) {
-                feature.featureGroups = ['subtitle'];
-            } else if (!feature.featureGroups.includes('subtitle')) {
-                feature.featureGroups.push('subtitle');
-            }
-            
-            // Add group shared options
-            if (!feature.groupSharedOptions) {
-                feature.groupSharedOptions = {};
-            }
-            
-            // Define which options are shared in the subtitle group
-            feature.groupSharedOptions['subtitle'] = ['style', 'provider', 'dockerRecreate', 'browserAccessURL'];
-            
-            // Make sure the feature has the required options defined
-            if (!currentFeatureOptions[feature.id]) {
-                currentFeatureOptions[feature.id] = {};
-            }
-        });
-        
-        // Initialize shared options from existing feature options - use the first available value
-        const initialGroupOptions: Record<string, any> = {
-            'style': 'paiboon', // Default to paiboon if nothing set
-            'provider': '',
-            'browserAccessURL': '',
-            'dockerRecreate': false
-        };
-        
-        // Scan all subtitle features for options to use as initial values
-        subtitleFeatures.forEach(feature => {
-            if (currentFeatureOptions[feature.id]) {
-                const options = currentFeatureOptions[feature.id];
-                
-                ['style', 'provider', 'browserAccessURL', 'dockerRecreate'].forEach(optionId => {
-                    // Only set if the option has a non-empty value
-                    if (options[optionId] !== undefined && options[optionId] !== '' && 
-                        (optionId !== 'style' || options[optionId] !== 'paiboon')) {
-                        initialGroupOptions[optionId] = options[optionId];
-                    }
-                });
-            }
-        });
-        
-        // Apply all collected initial values to the group
-        Object.entries(initialGroupOptions).forEach(([optionId, value]) => {
-            featureGroupStore.setGroupOption('subtitle', optionId, value);
-        });
-        
-        // Apply group options to all features to ensure consistency
-        subtitleFeatures.forEach(feature => {
-            ['style', 'provider', 'browserAccessURL', 'dockerRecreate'].forEach(optionId => {
-                currentFeatureOptions[feature.id][optionId] = initialGroupOptions[optionId];
-            });
-        });
-        
-        // Initialize merge group options with defaults
-        featureGroupStore.setGroupOption('merge', 'mergeOutputFiles', false);
-        featureGroupStore.setGroupOption('merge', 'mergingFormat', 'mp4');
-        
-        // Sync the group options to features in the merge group
-        currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('merge', currentFeatureOptions);
+        // Use the new helper method to initialize group options
+        currentFeatureOptions[feature.id] = featureGroupStore.initializeFeatureGroupOptions(
+          feature.id,
+          currentFeatureOptions[feature.id]
+        );
+      });
+      
+      // Set initial group option values (rest of the function remains the same)
+      // Initialize shared options from existing feature options - use the first available value
+      const initialGroupOptions: Record<string, any> = {
+          'style': 'paiboon', // Default to paiboon if nothing set
+          'provider': '',
+          'browserAccessURL': '',
+          'dockerRecreate': false
+      };
+      
+      const subtitleFeatures = features.filter(f =>
+          ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].includes(f.id));
+
+      // Scan all subtitle features for options to use as initial values
+      subtitleFeatures.forEach(feature => {
+          if (currentFeatureOptions[feature.id]) {
+              const options = currentFeatureOptions[feature.id];
+              
+              ['style', 'provider', 'browserAccessURL', 'dockerRecreate'].forEach(optionId => {
+                  // Only set if the option has a non-empty value
+                  if (options[optionId] !== undefined && options[optionId] !== '' &&
+                      (optionId !== 'style' || options[optionId] !== 'paiboon')) {
+                      initialGroupOptions[optionId] = options[optionId];
+                  }
+              });
+          }
+      });
+      
+      // Apply all collected initial values to the group
+      Object.entries(initialGroupOptions).forEach(([optionId, value]) => {
+          featureGroupStore.setGroupOption('subtitle', optionId, value);
+      });
+      
+      // Apply group options to all features to ensure consistency
+      subtitleFeatures.forEach(feature => {
+          ['style', 'provider', 'browserAccessURL', 'dockerRecreate'].forEach(optionId => {
+              currentFeatureOptions[feature.id][optionId] = initialGroupOptions[optionId];
+          });
+      });
+      
+      // Initialize merge group options with defaults
+      featureGroupStore.setGroupOption('merge', 'mergeOutputFiles', false);
+      featureGroupStore.setGroupOption('merge', 'mergingFormat', 'mp4');
+      
+      // Sync the group options to features in the merge group
+      currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('merge', currentFeatureOptions);
     }
 
     // Update display order when features are fully rendered
@@ -1042,7 +966,7 @@
     });
     
     // Subscribe to error store changes to verify updates are being applied
-    let errorStoreUnsubscribe: () => void;
+    let errorStoreUnsubscribe: (() => void) | null = null; // Initialize to null
     
     onMount(async () => {
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
@@ -1175,7 +1099,7 @@
             // Log the error to help with debugging
             logStore.addLog({
                 level: 'ERROR',
-                message: `Error initializing feature selector: ${error.message}`,
+                message: `Error initializing feature selector: ${(error as Error).message}`, // Cast error
                 time: new Date().toISOString()
             });
         }
@@ -1188,10 +1112,7 @@
             sttModelsUnsubscribe();
         }
         
-        // Clean up error store subscription
-        if (errorStoreUnsubscribe) {
-            errorStoreUnsubscribe();
-        }
+        // Clean up error store subscription (variable was never assigned, removing block)
         
         // Clear legacy errors
         errorStore.removeError('docker-required');
@@ -1209,7 +1130,7 @@
         errorStore.removeError('group-subtitle-browser-url-validation');
     });
     
-    function softLanding(t) {
+    function softLanding(t: number) { // Add type for t
        return 1 - Math.pow(1 - t, 3.5);
     }
 
@@ -1244,7 +1165,7 @@
         
         // If no model is selected or the selected model isn't in the list, use the first one
         const currentModel = currentFeatureOptions.dubtitles.stt;
-        if (!currentModel || !currentSTTModels.names.includes(currentModel)) {
+        if (!currentModel || !currentSTTModels.names.includes(currentModel as never)) { // Cast if needed
             const firstModel = currentSTTModels.names[0];
             console.log(`Setting initial STT model to ${firstModel}`);
             
@@ -1297,7 +1218,7 @@
                     <div data-feature-id={feature.id} class="overflow-visible px-2">
                         <FeatureCard
                             {feature}
-                            enabled={selectedFeatures[feature.id]}
+                            enabled={selectedFeatures[feature.id as keyof typeof selectedFeatures]}
                             options={currentFeatureOptions[feature.id]}
                             {anyFeatureSelected}
                             {romanizationSchemes}
@@ -1310,7 +1231,6 @@
                             {standardTag}
                             {providerGithubUrls}
                             {selectedFeatures}
-                            {providerGroups}
                             on:enabledChange={handleFeatureEnabledChange}
                             on:optionChange={handleOptionChange}
                         />

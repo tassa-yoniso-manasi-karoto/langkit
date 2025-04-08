@@ -9,6 +9,8 @@
     export let fullWidth: boolean = true;
     export let center: boolean = false;
     export let className: string = "";
+    export let invalid: boolean = false;
+    export let errorMessage: string = '';
 
     // Create dispatcher for input events
     const dispatch = createEventDispatcher();
@@ -22,12 +24,19 @@
     // Conditional classes based on the component's props
     const conditionalClasses = `${center ? 'text-center' : ''} ${fullWidth ? 'w-full' : ''}`;
 
-    $: inputClasses = twMerge(baseClasses, defaultClasses, conditionalClasses, className);
+    $: inputClasses = twMerge(
+        baseClasses,
+        defaultClasses,
+        conditionalClasses,
+        className,
+        invalid ? 'border-error-task' : 'border-white/10' // Apply error border if invalid
+    );
 
     // Handle input changes with immediate effect
-    function handleInput(event) {
+    function handleInput(event: Event) { // Add type to event
         // Update value and dispatch event
-        value = event.target.value;
+        const target = event.target as HTMLInputElement; // Cast target
+        value = target.value;
         dispatch('input', event);
     }
 </script>
@@ -44,6 +53,9 @@
     on:focus
     on:blur
 />
+{#if invalid && errorMessage}
+    <p class="text-xs text-error-task mt-1">{errorMessage}</p>
+{/if}
 
 <style>
     input {
@@ -60,8 +72,14 @@
 
     input:focus {
         background-color: hsla(var(--input-bg-focus), 0.5);
+        /* Don't override border color on focus if invalid */
         border-color: var(--input-border-focus);
         box-shadow: var(--input-shadow-focus);
+    }
+    
+    /* Ensure invalid border takes precedence on focus */
+    input.border-error-task:focus {
+        border-color: var(--error-task-color);
     }
     
     input:active {

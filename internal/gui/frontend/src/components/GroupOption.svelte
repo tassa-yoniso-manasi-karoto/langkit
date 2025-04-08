@@ -2,8 +2,8 @@
     import { createEventDispatcher, onMount } from 'svelte';
     import type { RomanizationScheme } from '../lib/featureModel'; // Import the type
     import { debounce } from 'lodash';
-    
     import { featureGroupStore } from '../lib/featureGroupStore';
+    import { errorStore } from '../lib/errorStore';
     
     import Dropdown from './Dropdown.svelte';
     import Hovertip from './Hovertip.svelte';
@@ -47,20 +47,80 @@
     
     // Flag to prevent initialization feedback loops
     let isInitialized = false;
+    let isUpdating = false; // Add state for animation
+
+    // Input validity tracking
+    let isValid = true;
+    let validationMessage = '';
     
-    // Initialize from component props
+    // Error handling
+    function validateValue(val: any): { isValid: boolean; message: string } {
+      // Get the group option definition for validation
+      const optionDefinition = featureGroupStore.getGroupOptionDefinition(groupId, optionId);
+      if (!optionDefinition) {
+        return { isValid: true, message: '' };
+      }
+      
+      // Type-specific validation
+      switch (optionDefinition.type) {
+        case 'number':
+          // Ensure value is numeric
+          const numValue = typeof val === 'string' ? parseFloat(val) : val;
+          if (isNaN(numValue)) {
+            return {
+              isValid: false,
+              message: 'Value must be a number'
+            };
+          }
+          
+          // Check numeric bounds
+          if (typeof numValue === 'number') {
+            if (optionDefinition.min !== undefined && numValue < optionDefinition.min) {
+              return {
+                isValid: false,
+                message: `Value must be at least ${optionDefinition.min}`
+              };
+            }
+            if (optionDefinition.max !== undefined && numValue > optionDefinition.max) {
+              return {
+                isValid: false,
+                message: `Value must be at most ${optionDefinition.max}`
+              };
+            }
+          }
+          break;
+        
+        case 'string':
+          // For browserAccessURL, validate WebSocket URL format if needed
+          if (optionId === 'browserAccessURL' && val && !val.startsWith('ws://')) {
+            return {
+              isValid: false,
+              message: 'Browser URL must start with ws://'
+            };
+          }
+          break;
+      }
+      
+      return { isValid: true, message: '' };
+    }
+    
     onMount(() => {
-        // Set initial local value
-        localValue = value;
-        
-        // Store initial value in group store
-        featureGroupStore.setGroupOption(groupId, optionId, value);
-        
-        // Mark as initialized and track external update time
-        isInitialized = true;
-        lastExternalUpdateTime = Date.now();
-        
-        console.log(`GroupOption mounted: ${groupId}.${optionId}=${value}`);
+      // Set initial local value
+      localValue = value;
+      
+      // Validate initial value
+      const validation = validateValue(localValue);
+      isValid = validation.isValid;
+      validationMessage = validation.message;
+      
+      // Store initial value in group store
+      featureGroupStore.setGroupOption(groupId, optionId, value);
+      
+      // Mark as initialized and track external update time
+      isInitialized = true;
+      lastExternalUpdateTime = Date.now();
+      
+      console.log(`GroupOption mounted: ${groupId}.${optionId}=${value}`);
     });
     
     // Handle external value changes (from parent or store)
@@ -81,12 +141,22 @@
                     // Only apply the change if values actually differ
                     if (value !== localValue) {
                         localValue = value;
+                        
+                        // Validate the new value
+                        const validation = validateValue(localValue);
+                        isValid = validation.isValid;
+                        validationMessage = validation.message;
                     }
                 }
             } else {
                 // No user input yet - accept external value
                 if (value !== localValue) {
                     localValue = value;
+                    
+                    // Validate the new value
+                    const validation = validateValue(localValue);
+                    isValid = validation.isValid;
+                    validationMessage = validation.message;
                 }
             }
         }
@@ -107,22 +177,44 @@
     
     // Helper function to propagate user input to all necessary places
     function propagateUserValue(newValue: any) {
-        // Store in group store
-        featureGroupStore.setGroupOption(groupId, optionId, newValue);
-        
-        // Notify parent component
-        dispatch('groupOptionChange', { 
-            groupId, 
-            optionId, 
-            value: newValue,
-            isUserInput: true
+      // Validate before propagating
+      const validation = validateValue(newValue);
+      isValid = validation.isValid;
+      validationMessage = validation.message;
+      
+      // Store in group store
+      featureGroupStore.setGroupOption(groupId, optionId, newValue);
+      
+      // Add/remove error based on validity
+      const errorId = `group-option-${groupId}-${optionId}`;
+      if (!isValid) {
+        errorStore.addError({
+          id: errorId,
+          message: `${optionDef.label}: ${validationMessage}`,
+          severity: 'warning'
         });
+      } else {
+        errorStore.removeError(errorId);
+      }
+      
+      // Add update animation
+      isUpdating = true;
+      setTimeout(() => { isUpdating = false; }, 500);
+
+      // Notify parent component
+      dispatch('groupOptionChange', {
+        groupId,
+        optionId,
+        value: newValue,
+        isUserInput: true,
+        isValid
+      });
     }
     
     // Handle direct user input with high authority
     function handleUserInput(newValue: any) {
         // Set user input timestamp slightly in the future to ensure it's authoritative
-        lastUserUpdateTime = Date.now() + 100; // Small future timestamp
+        lastUserUpdateTime = Date.now() + 10;
         
         // Update local value
         localValue = newValue;
@@ -146,7 +238,7 @@
         console.log(`Romanization style change: ${newValue}`);
         
         // Mark as user update with authority
-        lastUserUpdateTime = Date.now() + 100;
+        lastUserUpdateTime = Date.now() + 10;
         localValue = newValue;
         
         // Update the style
@@ -166,7 +258,8 @@
                 groupId, 
                 optionId: 'provider', 
                 value: newProvider,
-                isUserInput: true
+                isUserInput: true,
+                isValid: true // Assume provider change is always valid for now
             });
         }
         
@@ -175,7 +268,8 @@
             groupId, 
             optionId, 
             value: newValue,
-            isUserInput: true
+            isUserInput: true,
+            isValid: true // Assume style change is always valid for now
         });
     }
 
@@ -188,16 +282,51 @@
         console.log(`Immediate change: ${valueToPropagate} for ${groupId}.${optionId}`);
         
         // Mark as user update with authority
-        lastUserUpdateTime = Date.now() + 100;
+        lastUserUpdateTime = Date.now() + 10;
         
         // Propagate the value (from event for checkboxes, from localValue otherwise)
         propagateUserValue(valueToPropagate);
     }
 
     // handleCheckboxChange function removed
+
+    // Handle value recovery for invalid inputs
+    function recoverFromInvalidInput() {
+      // If current value is invalid, try to recover with a valid value
+      if (!isValid && optionDef.default !== undefined) {
+        console.log(`Recovering invalid input for ${groupId}.${optionId} with default value`);
+        
+        // Reset to default value
+        localValue = optionDef.default;
+        
+        // Mark as external update
+        lastUserUpdateTime = 0;
+        lastExternalUpdateTime = Date.now();
+        
+        // Update the group store
+        featureGroupStore.setGroupOption(groupId, optionId, optionDef.default);
+        
+        // Clear validation error
+        isValid = true;
+        validationMessage = '';
+        
+        // Remove error from store
+        errorStore.removeError(`group-option-${groupId}-${optionId}`);
+        
+        // Notify parent
+        dispatch('groupOptionChange', {
+          groupId,
+          optionId,
+          value: optionDef.default,
+          isUserInput: false,
+          isValid: true,
+          isRecovered: true
+        });
+      }
+    }
 </script>
 
-<div class="group-option" data-group-id={groupId}>
+<div class="group-option" class:invalid={!isValid} class:updating={isUpdating} data-group-id={groupId}>
     <div class="option-label">
         <span class="text-gray-300 text-sm text-left flex items-center gap-2">
             {optionDef.label}
@@ -220,8 +349,9 @@
                         ? "text-group-merge"
                         : ""}
                 <Hovertip message={groupMessage}>
-                    <span slot="trigger" class="cursor-help">
-                        <GroupIcon size="1.5em" className={iconColorClass} />
+                    <!-- Group indicator -->
+                    <span class="group-badge" title={`This option is shared across ${groupId} features`}>
+                        <GroupIcon size="1.5em" className="group-icon-{groupId}" />
                     </span>
                 </Hovertip>
             {/if}
@@ -236,6 +366,8 @@
                 min={optionDef.min}
                 max={optionDef.max}
                 placeholder={optionDef.placeholder}
+                invalid={!isValid}
+                errorMessage={validationMessage}
                 on:change={(e) => handleImmediateChange(e)}
             />
         {:else if optionDef.type === 'boolean'}
@@ -277,6 +409,8 @@
                 on:change={handleChange}
                 label=""
                 placeholder={`Select ${optionDef.label}...`}
+                invalid={!isValid}
+                errorMessage={validationMessage}
             />
         {:else if optionDef.type === 'string'}
             {#if optionId === 'browserAccessURL'}
@@ -288,19 +422,39 @@
                         className="text-sm placeholder:text-gray-500 pr-20"
                         minLength={undefined}
                         maxLength={undefined}
+                        invalid={!isValid}
+                        errorMessage={validationMessage}
                         on:input={() => {
                             // Set user input timestamp for authority
-                            lastUserUpdateTime = Date.now() + 100;
+                            lastUserUpdateTime = Date.now() + 10;
                             
-                            // Update the group option value but don't validate
+                            // Update the group option value
                             featureGroupStore.setGroupOption(groupId, optionId, localValue);
+                            
+                            // Validate the input
+                            const validation = validateValue(localValue);
+                            isValid = validation.isValid;
+                            validationMessage = validation.message;
+                            
+                            // Add/remove error based on validity
+                            const errorId = `group-option-${groupId}-${optionId}`;
+                            if (!isValid && localValue) {  // Only show error if there's a value
+                              errorStore.addError({
+                                id: errorId,
+                                message: `${optionDef.label}: ${validationMessage}`,
+                                severity: 'warning'
+                              });
+                            } else {
+                              errorStore.removeError(errorId);
+                            }
                             
                             // Notify parent component
                             dispatch('groupOptionChange', {
                                 groupId,
                                 optionId,
                                 value: localValue,
-                                isUserInput: true
+                                isUserInput: true,
+                                isValid
                             });
                         }}
                     />
@@ -316,6 +470,8 @@
                     className="text-sm placeholder:text-gray-500"
                     minLength={undefined}
                     maxLength={undefined}
+                    invalid={!isValid}
+                    errorMessage={validationMessage}
                     on:input={handleChange}
                 />
             {/if}
@@ -329,6 +485,8 @@
                 on:change={handleRomanizationChange}
                 label=""
                 placeholder="Select style..."
+                invalid={!isValid}
+                errorMessage={validationMessage}
             />
         {:else if optionDef.type === 'provider'}
             <!-- Show provider with GitHub link if available -->
@@ -354,8 +512,7 @@
                     {#if providerKey && providerGithubUrls[providerKey]}
                         <ExternalLink
                             href={providerGithubUrls[providerKey]}
-                            className="text-primary/70 hover:text-primary transition-colors duration-200"
-                            title="View provider repository">
+                            className="text-primary/70 hover:text-primary transition-colors duration-200">
                             <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
                                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                             </svg>
@@ -369,8 +526,7 @@
                     {#if localProviderKey && providerGithubUrls[localProviderKey]}
                         <ExternalLink
                             href={providerGithubUrls[localProviderKey]}
-                            className="text-primary/70 hover:text-primary transition-colors duration-200"
-                            title="View provider repository">
+                            className="text-primary/70 hover:text-primary transition-colors duration-200">
                             <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
                                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                             </svg>
@@ -380,34 +536,86 @@
             </div>
         {/if}
     </div>
+    
+    {#if !isValid && validationMessage}
+      <div class="validation-error text-xs text-error-task mt-1 ml-[122px] flex items-center">
+        <span class="material-icons text-[14px] mr-1">error_outline</span>
+        <span>{validationMessage}</span>
+        <button
+          class="ml-2 text-primary text-xs hover:text-primary-300 transition-colors duration-200"
+          on:click={recoverFromInvalidInput}
+        >
+          Reset to default
+        </button>
+      </div>
+    {/if}
 </div>
 
 <style>
-    /* Styling for group options */
+    /* Option styling */
     .group-option {
-        display: grid;
-        grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr);
-        gap: 1.5rem;
-        align-items: center;
-        border-left: 3px solid; /* Color is applied dynamically */
-        padding-left: 0.25rem; /* Reduced padding to minimize indentation */
-        margin-left: 0;
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr);
+      gap: 1.5rem;
+      align-items: center;
+      border-left: 3px solid; /* Color is applied dynamically */
+      padding-left: 0.25rem;
+      margin-left: 0;
+      position: relative; /* For validation error positioning */
     }
     
-    /* Group-specific border colors using Tailwind color scheme */
+    /* Group-specific border colors */
     :global(.group-option[data-group-id='subtitle']) {
-        border-left-color: var(--group-subtitle-color);
+      border-left-color: var(--group-subtitle-color);
     }
     
     :global(.group-option[data-group-id='merge']) {
-        border-left-color: var(--group-merge-color);
+      border-left-color: var(--group-merge-color);
+    }
+
+    .group-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.7;
+      transition: opacity 0.2s ease;
+    }
+
+    .group-badge:hover {
+      opacity: 1;
+    }
+
+    :global(.group-icon-subtitle) {
+      color: var(--group-subtitle-color);
+    }
+
+    :global(.group-icon-merge) {
+      color: var(--group-merge-color);
     }
     
-    .option-label {
-        padding-left: 0.125rem;
+    /* Invalid state styling */
+    .group-option.invalid :global(input),
+    .group-option.invalid :global(select),
+    .group-option.invalid :global(textarea) {
+      border-color: var(--error-task-color);
+    }
+
+    /* Ensure invalid border takes precedence on focus */
+    .group-option.invalid :global(input:focus),
+    .group-option.invalid :global(select:focus),
+    .group-option.invalid :global(textarea:focus) {
+      border-color: var(--error-task-color);
+      box-shadow: 0 0 0 2px rgba(var(--error-task-rgb), 0.25);
+    }
+
+    /* Add animation styling */
+    .group-option.updating {
+      animation: option-update-pulse 0.5s ease;
     }
     
-    .option-input {
-        width: 100%; /* Ensure consistent width with regular options */
+    @keyframes option-update-pulse {
+      0% { background-color: transparent; }
+      30% { background-color: rgba(var(--primary-rgb), 0.1); }
+      100% { background-color: transparent; }
     }
 </style>

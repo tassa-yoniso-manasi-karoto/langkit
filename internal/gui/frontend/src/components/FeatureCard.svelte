@@ -2,7 +2,7 @@
     import { get } from 'svelte/store';
     import { createEventDispatcher, onMount, onDestroy, tick, afterUpdate } from 'svelte';
     
-    import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
+    import { formatDisplayText, sttModelsStore, type FeatureDefinition, type RomanizationScheme, type STTModelsResponse, type STTModelInfo } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
     import { showSettings } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
@@ -25,7 +25,7 @@
     export let options: any = {};
     export let anyFeatureSelected = false;
     
-    export let romanizationSchemes = [];
+    export let romanizationSchemes: RomanizationScheme[] = [];
     export let tokenizationAllowed = false;
     export let isRomanizationAvailable = true;
     export let needsDocker = false;
@@ -35,7 +35,7 @@
     export let standardTag = '';
     
     export let providerGithubUrls = {};
-    export let selectedFeatures = {};
+    export let selectedFeatures: Record<string, boolean> = {};
 
     const dispatch = createEventDispatcher();
     
@@ -75,7 +75,7 @@
     }
 
     // Create a local variable to track store changes
-    let currentSTTModels = { models: [], names: [], available: false, suggested: "" };
+    let currentSTTModels: STTModelsResponse = { models: [] as STTModelInfo[], names: [], available: false, suggested: "" }; // Explicitly type models array
     let sttModelsUnsubscribe: () => void;
     
     onMount(() => {
@@ -140,7 +140,7 @@
     }
     
     // Handle feature click for toggling and unavailable features
-    function handleFeatureClick(event: Event) {
+    function handleFeatureClick(event: Event) { // Revert to Event, handle cast later
         // Prevent toggling if clicking inside of the options drawer
         const targetEl = event.target as HTMLElement;
         const optionsEl = optionsContainer;
@@ -184,7 +184,7 @@
         }
 
         // Add ripple effect on click for available features
-        addRippleEffect(event);
+        if (event instanceof MouseEvent) addRippleEffect(event); // Check type before calling
 
         // Toggle the feature if it's available
         enabled = !enabled;
@@ -243,132 +243,70 @@
     const optionVisibilityCache: Map<string, boolean> = new Map();
     let lastContextHash = '';
     
-    // Check if option should be shown based on conditions
+    // Simplified shouldShowOption function
     function shouldShowOption(optionId: string, optionDef: any): boolean {
-        if (!optionDef.showCondition) return true;
-        
-        // Special handling for initialPrompt condition
-        if (feature.id === 'dubtitles' && optionId === 'initialPrompt') {
-            const sttModel = options.stt;
-            const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
-            return modelInfo?.takesInitialPrompt || false;
-        }
-        
-        // Find which group this option belongs to (if any)
-        let optionGroup = null;
-        if (feature.groupSharedOptions) {
-            for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
-                if (options.includes(optionId)) {
-                    optionGroup = groupId;
-                    
-                    // Register this option with the group store if not already registered
-                    // This ensures the store knows which option belongs to which group
-                    featureGroupStore.registerOptionToGroup(groupId, optionId);
-                    break;
-                }
-            }
-        }
-        
-        // Use the feature group store's isTopmostForOption function for precise option-based checks
-        let isTopmostForThisOption = false;
-        if (enabled) {
-            isTopmostForThisOption = featureGroupStore.isTopmostForOption(feature.id, optionId);
-            console.log(`Option ${optionId} isTopmostForOption check: ${isTopmostForThisOption}`);
-        }
-        
-        // For backwards compatibility, maintain generic isTopmostInGroup checks
-        let isTopmostInAnyGroup = false;
-        if (feature.featureGroups && feature.featureGroups.length > 0 && enabled) {
-            for (const groupId of feature.featureGroups) {
-                if (featureGroupStore.isTopmostInGroup(groupId, feature.id)) {
-                    isTopmostInAnyGroup = true;
-                    break;
-                }
-            }
-        }
-        
-        const contextValues = {
-            standardTag,
-            needsDocker,
-            needsScraper,
-            optionValues: JSON.stringify(options),
-            selectedFeatures: JSON.stringify(selectedFeatures),
-            featureId: feature.id,
-            isTopmostInGroup: isTopmostInAnyGroup,
-            isTopmostForOption: isTopmostForThisOption
-        };
-        
-        const contextHash = JSON.stringify(contextValues);
-        const cacheKey = `${optionId}-${optionDef.showCondition}`;
-        
-        // If context changed, clear cache
-        if (lastContextHash !== contextHash) {
-            optionVisibilityCache.clear();
-            lastContextHash = contextHash;
-        }
-        
-        // Check cache first
-        if (optionVisibilityCache.has(cacheKey)) {
-            return optionVisibilityCache.get(cacheKey);
-        }
-        
-        // Context object for evaluating conditions
-        const context = {
-            standardTag,
-            needsDocker,
-            needsScraper,
-            romanizationSchemes,
-            selectedFeatures,
-            isTopmostInGroup: isTopmostInAnyGroup,
-            isTopmostForOption: isTopmostForThisOption,
-            featureGroupStore // Add store to context
-        };
-        
-        // Feature options reference for conditions 
-        const featureData = {
-            [feature.id]: options,
-            id: feature.id // Include the feature id directly for easier checking
-        };
-        
-        // Simple expression evaluator
-        try {
-            // Replace context variables and group store references with their values
-            const prepared = optionDef.showCondition
-                .replace(/context\.([a-zA-Z0-9_]+)/g, (_, prop) => {
-                    // Handle featureGroupStore specifically if needed, otherwise stringify
-                    if (prop === 'featureGroupStore') {
-                        // This property won't be directly replaced here, handled below
-                        return 'featureGroupStore';
-                    }
-                    return JSON.stringify(context[prop]);
-                })
-                 // Handle featureGroupStore.getGroupOption calls
-                .replace(/featureGroupStore\.getGroupOption\(['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\)/g,
-                    (_, groupId, optId) => {
-                        // Directly call the store method and stringify the result
-                        return JSON.stringify(featureGroupStore.getGroupOption(groupId, optId));
-                    })
-                // Handle feature property access like feature.dubtitles.mergeOutputFiles
-                .replace(/feature\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)/g, (_, featureId, propId) => {
-                    // Access the value from the featureData object
-                    return JSON.stringify(featureData[featureId]?.[propId]);
-                })
-                 // Handle feature.id access
-                .replace(/feature\.id/g, () => {
-                    return JSON.stringify(feature.id);
-                });
+      if (!optionDef.showCondition) return true;
+      
+      // Special handling for initialPrompt condition
+      if (feature.id === 'dubtitles' && optionId === 'initialPrompt') {
+        const sttModel = options.stt;
+        const modelInfo = currentSTTModels.models.find((m: STTModelInfo) => m.name === sttModel);
+        return modelInfo?.takesInitialPrompt ?? false;
+      }
+      
+      // Find which group this option belongs to (if any)
+      let optionGroup = null;
+      if (feature.groupSharedOptions) {
+        for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
+          if (options.includes(optionId)) {
+            optionGroup = groupId;
             
-            // Use Function constructor to evaluate the expression
-            const result = new Function('return ' + prepared)();
-            
-            // Cache the result
-            optionVisibilityCache.set(cacheKey, result);
-            return result;
-        } catch (error) {
-            console.error('Error evaluating condition:', optionDef.showCondition, error);
-            optionVisibilityCache.set(cacheKey, false);
-            return false;
+            // Register this option with the group store
+            featureGroupStore.registerOptionToGroup(groupId, optionId);
+            break;
+          }
         }
+      }
+      
+      // Use the option-specific topmost check
+      const isTopmostForThisOption = optionGroup && enabled ?
+        featureGroupStore.isTopmostForOption(feature.id, optionId) :
+        true; // Default to true if not a group option or not enabled
+      
+      // Prepare context for condition evaluation
+      const context = {
+        standardTag,
+        needsDocker,
+        needsScraper,
+        romanizationSchemes: romanizationSchemes as RomanizationScheme[],
+        selectedFeatures: selectedFeatures as Record<string, boolean>,
+        isTopmostInGroup: false, // Legacy support - no longer needed for primary logic
+        isTopmostForOption: isTopmostForThisOption,
+        featureGroupStore // Pass the store itself for direct access in conditions
+      };
+      
+      // Evaluate the condition
+      try {
+        // Use Function constructor for safe evaluation
+        // We pass the context and feature options directly to the function scope
+        const evaluator = new Function('context', 'feature', 'featureGroupStore', `return ${optionDef.showCondition}`);
+        
+        // Prepare feature data for the evaluator scope
+        const featureData = { [feature.id]: options };
+        
+        // Execute the evaluator
+        const result = evaluator(context, featureData, featureGroupStore);
+        
+        // Cache and return
+        // Note: Caching is removed as direct evaluation is simpler and less prone to context hash issues
+        // optionVisibilityCache.set(cacheKey, result);
+        return Boolean(result);
+
+      } catch (error) {
+        console.error('Error evaluating condition:', optionDef.showCondition, error);
+        // optionVisibilityCache.set(cacheKey, false); // Cache removal
+        return false;
+      }
     }
     
     function handleDropdownChange(optionId: string, value: string) {
@@ -558,7 +496,7 @@
         }
         
         // Dependency messages
-        if (feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled) {
+        if (feature.dependentFeature && selectedFeatures[feature.dependentFeature] === true && enabled) { // Check existence and boolean value
             return true;
         }
         
@@ -759,7 +697,7 @@
                     {/if}
 
                     <!-- Dependency messages when a feature depends on dubtitles -->
-                    {#if feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled}
+                    {#if feature.dependentFeature && selectedFeatures[feature.dependentFeature] === true && enabled}
                         <div class={messageItemClass}>
                             <span class="material-icons text-[14px] text-log-info mt-0.5 group-hover:animate-subtlePulse">
                                 link
@@ -772,14 +710,16 @@
 
                     <!-- Output merge group banner (shown only when merge option is enabled) -->
                     {#if feature.outputMergeGroup && feature.showMergeBanner && enabled && options.mergeOutputFiles}
-                        <div class={messageItemClass} key="{options.mergeOutputFiles}">
-                            <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
-                                merge_type
-                            </span>
-                            <div class="flex-1 text-xs text-white/90">
-                                <span>All created content will be merged with originals in a new video</span>
+                        {#key options.mergeOutputFiles} <!-- Correct key block usage -->
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
+                                    merge_type
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>All created content will be merged with originals in a new video</span>
+                                </div>
                             </div>
-                        </div>
+                        {/key}
                     {/if}
                 </div>
         </div>
@@ -802,17 +742,17 @@
                     {@const value = options[optionId]}
                     
                     <!-- Check if this option is a group shared option -->
-                    {@const isGroupOption = feature.featureGroups && 
-                        feature.groupSharedOptions && 
-                        feature.featureGroups.some(groupId => 
-                            feature.groupSharedOptions[groupId]?.includes(optionId)
+                    {@const isGroupOption = feature.featureGroups != null &&
+                        feature.groupSharedOptions != null &&
+                        feature.featureGroups.some(groupId =>
+                            feature.groupSharedOptions?.[groupId]?.includes(optionId) ?? false // Ensure boolean
                         )}
                     
                     <!-- Find the group that this option belongs to (if any) -->
-                    {@const groupId = isGroupOption ? 
-                        feature.featureGroups.find(gId => 
-                            feature.groupSharedOptions[gId]?.includes(optionId)
-                        ) : null}
+                    {@const groupId = isGroupOption ?
+                        feature.featureGroups?.find(gId =>
+                            feature.groupSharedOptions?.[gId]?.includes(optionId) ?? false // Ensure boolean
+                        ) ?? null : null}
                     
                     <!-- Ensure this feature is registered in the group -->
                     {#if isGroupOption && groupId}
@@ -823,16 +763,15 @@
                     {#if isGroupOption && groupId && featureGroupStore.isTopmostInGroup(groupId, feature.id) && !(feature.id !== 'subtitleRomanization' && optionDef.type === 'romanizationDropdown')}
                         <!-- Using canonical ordering from the feature store -->
                         <div class="mb-4 w-full">
-                            <GroupOption 
+                            <GroupOption
                                 {groupId}
-                                featureId={feature.id}
                                 {optionId}
                                 optionDef={optionDef}
                                 value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
                                 {needsDocker}
                                 {needsScraper}
                                 {romanizationSchemes}
-                                on:groupOptionChange={event => {
+                                on:groupOptionChange={(event: CustomEvent) => { // Add CustomEvent type
                                     const { groupId, optionId, value } = event.detail;
                                     // Update local option value for reactivity
                                     options[optionId] = value;
@@ -906,7 +845,7 @@
                                             value={options[optionId]}
                                             labelFunction={(option) => {
                                                 // Find the model in the models list
-                                                const model = currentSTTModels.models.find(m => m.name === option);
+                                                const model = currentSTTModels.models.find((m: STTModelInfo) => m.name === option); // Add type
                                                 if (model) {
                                                     let label = `${model.displayName} @${formatProviderName(model.providerName)}`;
                                                     if (model.isDepreciated) label += ' (DEPRECATED)';
@@ -916,7 +855,7 @@
                                             }}
                                             tooltipFunction={(option) => {
                                                 // Find the model to get its description
-                                                const model = currentSTTModels.models.find(m => m.name === option);
+                                                const model = currentSTTModels.models.find((m: STTModelInfo) => m.name === option); // Add type
                                                 if (model) {
                                                     return model.description;
                                                 }
@@ -949,6 +888,8 @@
                                                 bind:value={options[optionId]}
                                                 placeholder={optionDef.placeholder}
                                                 className="text-sm placeholder:text-gray-500"
+                                                minLength={undefined}
+                                                maxLength={undefined}
                                                 on:input={() =>
                                                     dispatch('optionChange', {
                                                         featureId: feature.id,

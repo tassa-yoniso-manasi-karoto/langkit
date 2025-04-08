@@ -1,4 +1,5 @@
 // Feature configuration model to centralize all feature-related data
+import { enhanceFeaturesWithGroupOptions } from './featureEnhancer';
 
 export interface FeatureOption {
     type: 'number' | 'boolean' | 'string' | 'dropdown' | 'romanizationDropdown' | 'provider';
@@ -71,7 +72,8 @@ const commonMergeOptions = {
     }
 };
 
-export const features: FeatureDefinition[] = [
+// Define raw feature definitions first (original definitions)
+const rawFeatures: FeatureDefinition[] = [
     {
         id: 'subs2cards',
         label: 'Subs2cards',
@@ -103,7 +105,7 @@ export const features: FeatureDefinition[] = [
     {
         id: 'dubtitles',
         label: 'Dubtitles',
-        options: {
+        options: { // Remove merge options, they will be added dynamically
             padTiming: {
                 type: 'number',
                 label: 'Padding (ms)',
@@ -127,34 +129,19 @@ export const features: FeatureDefinition[] = [
                 hovertip: "Whisper works best when provided with an initial prompt containing exact names and terms from your audio.\n\n 🡆 List character names with correct spellings (e.g.,'Eren Yeager','Mikasa Ackerman'), unique terminology (e.g.,'ODM gear'), location names, recurring concepts that define the content's universe and any words the model might struggle with.\n 🡆 Limit your prompt to 30-50 key terms for optimal results. Prioritize words that appear frequently in your audio and those with unusual pronunciations or spellings.\n 🡆 Use comma separation rather than complete sentences. Avoid adding plot information or dialogue patterns - stick to names and terminology only.\n\nThe prompt should match the audio language.\nMaximum length is 224 tokens (approx. 850 characters).",
                 placeholder: "e.g. Attack on Titan: Eren Yeager, Mikasa Ackerman, Armin Arlert, Titans, Colossal Titan, Armored Titan, Survey Corps, Wall Maria, Wall Rose, Wall Sina, ODM gear, Omni-directional mobility gear, Captain Levi, Commander Erwin Smith, Cadet Corps, Garrison Regiment, Military Police, Trost District, Shiganshina District, 3D Maneuver Gear, Sasha Blouse, Jean Kirstein, Connie Springer, Reiner Braun, Bertholdt Hoover, Annie Leonhart, Hange Zoë, Grisha Yeager, Carla Yeager, Cannons, blades, survey mission, beyond the walls, Scout Regiment, titan attack, breach, trainees, The 104th Cadet Corps",
                 showCondition: "feature.dubtitles.stt === 'whisper'"
-            },
-            mergeOutputFiles: {
-                type: 'boolean',
-                label: 'Merge all processed outputs',
-                default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostForOption"
-            },
-            mergingFormat: {
-                type: 'dropdown',
-                label: 'Merging Format',
-                default: 'mp4',
-                choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
+            // mergeOutputFiles and mergingFormat removed
         },
         requiresToken: ['whisper', 'insanely-fast-whisper', 'universal-1'],
         outputMergeGroup: 'merge',
         showMergeBanner: true,
-        featureGroups: ['merge'],
-        groupSharedOptions: {
-            'merge': ['mergeOutputFiles', 'mergingFormat']
-        }
+        featureGroups: ['merge'] // groupSharedOptions removed, handled by enhancer
+        // groupSharedOptions removed
     },
     {
         id: 'voiceEnhancing',
         label: 'Voice Enhancing',
-        options: {
+        options: { // Remove merge options, they will be added dynamically
             sepLib: {
                 type: 'dropdown',
                 label: 'Voice separation library',
@@ -180,116 +167,37 @@ export const features: FeatureDefinition[] = [
                 min: 0.0625,
                 max: 1,
                 step: '0.0125'
-            },
-            mergeOutputFiles: {
-                type: 'boolean',
-                label: 'Merge all processed outputs',
-                default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostForOption"
-            },
-            mergingFormat: {
-                type: 'dropdown',
-                label: 'Merging Format',
-                default: 'mp4',
-                choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
+            // mergeOutputFiles and mergingFormat removed
         },
         requiresToken: ['demucs', 'spleeter'],
         outputMergeGroup: 'merge',
         showMergeBanner: true,
-        featureGroups: ['merge'],
-        groupSharedOptions: {
-            'merge': ['mergeOutputFiles', 'mergingFormat']
-        }
+        featureGroups: ['merge'] // groupSharedOptions removed, handled by enhancer
+        // groupSharedOptions removed
     },
     {
         id: 'subtitleRomanization',
         label: 'Subtitle Romanization',
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'mergeOutputFiles', 'mergingFormat'],
         options: {
-            style: {
-                type: 'romanizationDropdown',
-                label: 'Romanization Style',
-                default: '',
-                showCondition: "context.isTopmostForOption"
-            },
-            provider: {
-                type: 'provider',
-                label: 'Provider',
-                default: '',
-                showCondition: "context.isTopmostForOption && context.romanizationSchemes.length > 0"
-            },
-            dockerRecreate: {
-                type: 'boolean',
-                label: 'Recreate Docker containers',
-                default: false,
-                hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.isTopmostForOption && context.needsDocker"
-            },
-            browserAccessURL: {
-                type: 'string',
-                label: 'Browser access URL',
-                default: '',
-                hovertip: "Optional URL to a Chromium-based browser's DevTools interface.\nIf not provided or invalid, a browser will be automatically downloaded and managed.\n\nTo get a URL: Run Chrome/Chromium with:\n --remote-debugging-port=9222 flag\nand use the WebSocket URL displayed in the terminal or in:\nchrome://inspect/#devices",
-                placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.isTopmostForOption && context.needsScraper"
-            },
-            mergeOutputFiles: {
-                type: 'boolean',
-                label: 'Merge all processed outputs',
-                default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostForOption"
-            },
-            mergingFormat: {
-                type: 'dropdown',
-                label: 'Merging Format',
-                default: 'mp4',
-                choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
-            }
+            // No options defined here - they will be added dynamically by enhancer
         },
         requiresLanguage: true,
         requiresDocker: true,
         requiresScraper: true,
-        providerGroup: 'subtitle',
-        outputMergeGroup: 'merge',
+        providerGroup: 'subtitle', // Keep for potential future use
+        outputMergeGroup: 'merge', // Keep for potential future use
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for romanization when both features are enabled",
-        featureGroups: ['subtitle', 'merge'],
-        groupSharedOptions: {
-            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            'merge': ['mergeOutputFiles', 'mergingFormat']
-        }
+        featureGroups: ['subtitle', 'merge'] // groupSharedOptions removed, handled by enhancer
+        // groupSharedOptions removed
     },
     {
         id: 'selectiveTransliteration',
         label: 'Selective Transliteration',
-        options: {
-            provider: {
-                type: 'provider',
-                label: 'Provider',
-                default: '',
-                showCondition: "context.isTopmostForOption && context.romanizationSchemes.length > 0"
-            },
-            dockerRecreate: {
-                type: 'boolean',
-                label: 'Recreate Docker containers',
-                default: false,
-                hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.isTopmostForOption && context.needsDocker"
-            },
-            browserAccessURL: {
-                type: 'string',
-                label: 'Browser access URL',
-                default: '',
-                hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
-                placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.isTopmostForOption && context.needsScraper"
-            },
+        options: { // Remove group options, keep feature-specific ones
             tokenizeOutput: {
                 type: 'boolean',
                 label: 'Tokenize words',
@@ -305,94 +213,44 @@ export const features: FeatureDefinition[] = [
                 hovertip: "Set a threshold value so that high-frequency Kanji in subtitles are preserved while less common or irregular Kanjis are transliterated to hiragana.",
                 placeholder: "Enter threshold (e.g., 100)",
                 showCondition: "context.standardTag === 'jpn'"
-            },
-            mergeOutputFiles: {
-                type: 'boolean',
-                label: 'Merge all processed outputs',
-                default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostForOption"
-            },
-            mergingFormat: {
-                type: 'dropdown',
-                label: 'Merging Format',
-                default: 'mp4',
-                choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
+            // provider, dockerRecreate, browserAccessURL, mergeOutputFiles, mergingFormat removed
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'tokenizeOutput', 'kanjiFrequencyThreshold', 'mergeOutputFiles', 'mergingFormat'],
         requiresLanguage: true,
         availableLanguages: ['jpn'],
-        providerGroup: 'subtitle',
-        outputMergeGroup: 'merge',
+        providerGroup: 'subtitle', // Keep
+        outputMergeGroup: 'merge', // Keep
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for selective transliteration when both features are enabled",
-        featureGroups: ['subtitle', 'merge'],
-        groupSharedOptions: {
-            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            'merge': ['mergeOutputFiles', 'mergingFormat']
-        },
+        featureGroups: ['subtitle', 'merge'], // groupSharedOptions removed, handled by enhancer
         requiresDocker: true,
         requiresScraper: true
+        // groupSharedOptions removed
     },
     {
         id: 'subtitleTokenization',
         label: 'Subtitle Tokenization',
         options: {
-            provider: {
-                type: 'provider',
-                label: 'Provider',
-                default: '',
-                showCondition: "context.isTopmostForOption && context.romanizationSchemes.length > 0"
-            },
-            dockerRecreate: {
-                type: 'boolean',
-                label: 'Recreate Docker containers',
-                default: false,
-                hovertip: "Use this if the previous run failed or if you're experiencing issues.",
-                showCondition: "context.isTopmostForOption && context.needsDocker"
-            },
-            browserAccessURL: {
-                type: 'string',
-                label: 'Browser access URL',
-                default: '',
-                hovertip: "URL to programmatically control a Chromium-based browser through Devtools.\nYou can get the URL from running Chromium from a terminal with --remote-debugging-port=9222 flag.\n\n 𝗥𝗲𝗾𝘂𝗶𝗿𝗲𝗱 𝗳𝗼𝗿 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗿𝘀 𝘁𝗵𝗮𝘁 𝗻𝗲𝗲𝗱 𝘄𝗲𝗯 𝘀𝗰𝗿𝗮𝗽𝗶𝗻𝗴 𝗰𝗮𝗽𝗮𝗯𝗶𝗹𝗶𝘁𝗶𝗲𝘀.",
-                placeholder: "e.g. ws://127.0.0.1:9222/devtools/browser/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                showCondition: "context.isTopmostForOption && context.needsScraper"
-            },
-            mergeOutputFiles: {
-                type: 'boolean',
-                label: 'Merge all processed outputs',
-                default: false,
-                hovertip: "When enabled, all processed outputs (dubtitles, enhanced audio, romanized subtitles, etc.) will be merged into a single video file.",
-                showCondition: "context.isTopmostForOption"
-            },
-            mergingFormat: {
-                type: 'dropdown',
-                label: 'Merging Format',
-                default: 'mp4',
-                choices: ['mp4', 'mkv'],
-                showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
-            }
+            // No options defined here - they will be added dynamically by enhancer
         },
         optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'mergeOutputFiles', 'mergingFormat'],
         requiresLanguage: true,
         requiresDocker: true,
         requiresScraper: true,
-        providerGroup: 'subtitle',
-        outputMergeGroup: 'merge',
+        providerGroup: 'subtitle', // Keep
+        outputMergeGroup: 'merge', // Keep
         showMergeBanner: true,
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for tokenization when both features are enabled",
-        featureGroups: ['subtitle', 'merge'],
-        groupSharedOptions: {
-            'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            'merge': ['mergeOutputFiles', 'mergingFormat']
-        }
+        featureGroups: ['subtitle', 'merge'] // groupSharedOptions removed, handled by enhancer
+        // groupSharedOptions removed
     }
 ];
+
+// Export the enhanced features
+export const features: FeatureDefinition[] = enhanceFeaturesWithGroupOptions(rawFeatures);
 
 // Create default options object based on feature definitions
 export function createDefaultOptions() {
