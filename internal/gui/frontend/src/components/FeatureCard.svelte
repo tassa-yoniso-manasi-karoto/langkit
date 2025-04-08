@@ -87,9 +87,15 @@
         }
     });
     
+    let animationTimeoutId: number | null = null; // Added for animation cleanup
+
     onDestroy(() => {
         if (sttModelsUnsubscribe) {
             sttModelsUnsubscribe();
+        }
+        // Clean up any pending animations on destroy
+        if (animationTimeoutId) {
+            clearTimeout(animationTimeoutId);
         }
     });
     
@@ -111,65 +117,89 @@
     });
     
     // Update options height when they change
-    $: if (enabled && optionsWrapper && optionsContainer && !animating) {
-        // Small delay to ensure DOM is updated
-        setTimeout(() => {
-            if (optionsWrapper) {
+    // Single animation manager function
+    function animateOptionsDrawer(open: boolean) {
+        // Cancel any pending animation
+        if (animationTimeoutId) {
+            clearTimeout(animationTimeoutId);
+            animationTimeoutId = null;
+        }
+        
+        // Skip if necessary elements aren't available
+        if (!optionsContainer) return;
+        
+        // Set animating state
+        animating = true;
+        
+        if (open) {
+            // Opening animation
+            requestAnimationFrame(() => {
+                if (!optionsWrapper) {
+                    animating = false;
+                    return;
+                }
+                
+                // Measure content height
                 optionsHeight = optionsWrapper.offsetHeight;
                 
-                // Also update container height
-                if (optionsContainer) {
-                    optionsContainer.style.height = optionsHeight + 'px';
-                }
-            }
-        }, 50);
+                // Set target height to trigger transition
+                optionsContainer.style.height = optionsHeight + 'px';
+                
+                // Use transitionend to clean up
+                const handleTransitionEnd = () => {
+                    optionsContainer.removeEventListener('transitionend', handleTransitionEnd);
+                    animating = false;
+                    
+                    // Check topmost status after animation completes
+                    if (feature.featureGroups?.length) {
+                        checkTopmostFeatureStatus();
+                    }
+                };
+                
+                // Add listener
+                optionsContainer.addEventListener('transitionend', handleTransitionEnd);
+                
+                // Safety timeout in case transitionend doesn't fire
+                animationTimeoutId = window.setTimeout(() => { // Use window.setTimeout for clarity
+                    optionsContainer.removeEventListener('transitionend', handleTransitionEnd);
+                    animating = false;
+                    if (feature.featureGroups?.length) {
+                        checkTopmostFeatureStatus();
+                    }
+                }, 400); // Slightly longer than transition duration
+            });
+        } else {
+            // Closing animation
+            optionsContainer.style.height = '0px';
+            
+            // Reset topmost status when disabled
+            isTopmostFeatureForAnyGroup = false;
+            
+            // Handle transition completion
+            const handleTransitionEnd = () => {
+                optionsContainer.removeEventListener('transitionend', handleTransitionEnd);
+                animating = false;
+            };
+            
+            optionsContainer.addEventListener('transitionend', handleTransitionEnd);
+            
+            // Safety timeout
+            animationTimeoutId = window.setTimeout(() => { // Use window.setTimeout for clarity
+                optionsContainer.removeEventListener('transitionend', handleTransitionEnd);
+                animating = false;
+            }, 400);
+        }
     }
 
-    // When enabled status changes
-    $: {
-        if (optionsContainer) {
-            // Only animate if there are visible options
-            if (hasVisibleOptions()) {
-                animating = true;
-                
-                if (enabled) {
-                    // Opening animation - only if wrapper exists
-                    if (optionsWrapper) {
-                        setTimeout(() => {
-                            if (optionsWrapper && optionsContainer) {
-                                optionsHeight = optionsWrapper.offsetHeight;
-                                optionsContainer.style.height = optionsHeight + 'px';
-                                
-                                // Animation complete
-                                setTimeout(() => {
-                                    animating = false;
-                                    
-                                    // Check topmost status after animation completes
-                                    if (feature.featureGroups?.length) {
-                                        checkTopmostFeatureStatus();
-                                    }
-                                }, 350);
-                            }
-                        }, 10);
-                    }
-                } else if (optionsContainer) { // Add explicit check
-                    // Closing animation
-                    optionsContainer.style.height = '0px';
-                    
-                    // Reset topmost status when disabled
-                    isTopmostFeatureForAnyGroup = false;
-                    
-                    // Animation complete
-                    setTimeout(() => {
-                        animating = false;
-                    }, 350);
-                }
-            } else if (optionsContainer) { // Add explicit check
-                // No options to show, keep container closed
-                optionsContainer.style.height = '0px';
-                animating = false;
-            }
-        }
+    // Single reactive statement to trigger animations
+    // Ensure hasVisibleOptions() is checked correctly
+    $: if (optionsContainer && !animating) {
+         if (hasVisibleOptions()) {
+             animateOptionsDrawer(enabled);
+         } else {
+             // Ensure container is closed if no options are visible
+             optionsContainer.style.height = '0px';
+         }
     }
     
     // Helper function for text color classes
@@ -414,55 +444,7 @@
         return hasVisibleOptionsCache;
     }
     
-    // When enabled status changes, animate the height and check topmost status
-    $: {
-        if (optionsContainer) {
-            // Only animate if there are visible options
-            if (hasVisibleOptions()) {
-                animating = true;
-                
-                if (enabled) {
-                    // Opening animation
-                    // First measure height of the content
-                    if (optionsWrapper) {
-                        setTimeout(() => {
-                            if (optionsWrapper) {
-                                optionsHeight = optionsWrapper.offsetHeight;
-                            } else {
-                                optionsHeight = 0; // Default height when element doesn't exist
-                            }
-                            optionsContainer.style.height = optionsHeight + 'px';
-                            
-                            // Animation complete
-                            setTimeout(() => {
-                                animating = false;
-                                
-                                // Check topmost status after animation completes
-                                if (feature.featureGroups?.length) {
-                                    checkTopmostFeatureStatus();
-                                }
-                            }, 350);
-                        }, 10);
-                    }
-                } else {
-                    // Closing animation
-                    optionsContainer.style.height = '0px';
-                    
-                    // Reset topmost status when disabled
-                    isTopmostFeatureForAnyGroup = false;
-                    
-                    // Animation complete
-                    setTimeout(() => {
-                        animating = false;
-                    }, 350);
-                }
-            } else {
-                // No options to show, keep container closed
-                optionsContainer.style.height = '0px';
-                animating = false;
-            }
-        }
-    }
+    // Removed the second conflicting reactive block for animation
     
     // Reset topmost status when disabled
     $: if (!enabled && isTopmostFeatureForAnyGroup) {
