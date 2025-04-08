@@ -56,6 +56,10 @@
     // Flag to prevent initialization feedback loops
     let isInitialized = false;
     let isUpdating = false; // Add state for animation
+    
+    // Add flags to track update sources
+    let updatingFromProvider = false;
+    let updatingFromStyle = false;
 
     // Input validity tracking
     let isValid = true;
@@ -200,6 +204,50 @@
         }
     }
     
+    // Debounced update function with guards for style -> provider
+    const updateProviderForStyle = debounce((styleValue) => {
+        // Skip if already handling a provider update or no style value
+        if (updatingFromProvider || !styleValue) return;
+        
+        const selectedScheme = romanizationSchemes.find(s => s.name === styleValue);
+        if (!selectedScheme) return;
+        
+        const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
+        if (selectedScheme.provider !== currentProvider) {
+            // Set flag to prevent circular updates
+            updatingFromStyle = true;
+            
+            // Update provider in store
+            featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+            
+            // Reset flag after a short delay to allow store update to complete
+            setTimeout(() => {
+                updatingFromStyle = false;
+            }, 50);
+        }
+    }, 50);
+    
+    // Debounced handler for provider updates (if needed in future)
+    const updateStyleForProvider = debounce((providerValue) => {
+        // Skip if already handling a style update or no provider value
+        if (updatingFromStyle || !providerValue) return;
+        
+        // Only for provider components
+        if (optionId !== 'provider') return;
+        
+        // Logic if needed to update style based on provider
+        // This is typically not needed but included for completeness
+    }, 50);
+    
+    // Simplified reactive statements with guards
+    $: if (optionId === 'style' && localValue) {
+        updateProviderForStyle(localValue);
+    }
+    
+    $: if (optionId === 'provider' && localValue) {
+        updateStyleForProvider(localValue);
+    }
+    
     onDestroy(() => {
         const componentId = `${groupId}.${optionId}`;
         
@@ -209,20 +257,10 @@
         // Original cleanup logic...
         if (unsubscribeFromStore) unsubscribeFromStore();
         if (updateFromStore && updateFromStore.cancel) updateFromStore.cancel(); // Check if cancel exists
+        // Cancel new debounced functions
+        updateProviderForStyle.cancel();
+        updateStyleForProvider.cancel();
     });
-    
-    // Special handling for provider - use a safer approach
-    $: if (isInitialized && optionDef.type === 'provider' && groupId === 'subtitle') {
-        // Only run this rarely - when relevant values change
-        const styleValue = featureGroupStore.getGroupOption(groupId, 'style');
-        if (styleValue && romanizationSchemes.length > 0) {
-            const selectedScheme = romanizationSchemes.find(s => s.name === styleValue);
-            if (selectedScheme && selectedScheme.provider !== localValue) {
-                // Update local value only - avoid store update to prevent loops
-                localValue = selectedScheme.provider;
-            }
-        }
-    }
     
     // Helper function to propagate user input to all necessary places
     function propagateUserValue(newValue: any) {
@@ -291,18 +329,18 @@
         // Update the style in store
         featureGroupStore.setGroupOption(groupId, optionId, newValue);
         
-        // Find matching scheme for provider update
-        const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
-        if (selectedScheme) {
-            const newProvider = selectedScheme.provider;
-            // Update provider in store
-            featureGroupStore.setGroupOption(groupId, 'provider', newProvider);
-        }
+        // Find matching scheme for provider update - This is now handled by the reactive statement
+        // const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
+        // if (selectedScheme) {
+        //     const newProvider = selectedScheme.provider;
+        //     // Update provider in store
+        //     featureGroupStore.setGroupOption(groupId, 'provider', newProvider);
+        // }
         
         // Notify parent about style change
-        dispatch('groupOptionChange', {
-            groupId,
-            optionId,
+        dispatch('groupOptionChange', { 
+            groupId, 
+            optionId, 
             value: newValue
         });
     }, 50);
@@ -361,7 +399,7 @@
       }
     }
     
-    // Enhance romanization style handling - Removed redundant block, handled by provider logic
+    // Enhance romanization style handling - Removed redundant block, handled by reactive statements above
 </script>
 
 <div class="group-option" class:invalid={!isValid} class:updating={isUpdating} data-group-id={groupId}>
