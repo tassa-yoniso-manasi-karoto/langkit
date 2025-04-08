@@ -26,6 +26,8 @@
         NeedsTokenization,
         GetAvailableSTTModelsForUI
     } from '../../wailsjs/go/gui/App';
+    // Import metrics store and reset function
+    import { metricsStore, resetMetrics } from '../lib/metrics';
     
     import FeatureCard from './FeatureCard.svelte';
     import QuickAccessLangSelector from './QuickAccessLangSelector.svelte';
@@ -68,8 +70,9 @@
     let hasLanguageTags = true;
 
     // New loading state flags
-    let isProcessingLanguage = false;
     let isLoadingSchemes = false;
+    let languageProcessingInProgress = false; // Use this flag
+    let languageProcessingVersion = 0; // Add version tracking
 
     // Group tracking for reference
     let providerGroups: Record<string, string[]> = {
@@ -153,37 +156,22 @@
     }
     
     /**
-     * Applies the default romanization style when schemes are available
-     * This is a synchronous function that updates UI state
+     * Simplified romanization style application
      */
     function applyDefaultRomanizationStyle(): void {
-        if (romanizationSchemes.length === 0) {
-            console.log("No romanization schemes available to set as default");
-            return;
-        }
+        if (romanizationSchemes.length === 0) return;
         
         const newStyle = romanizationSchemes[0].name;
         const newProvider = romanizationSchemes[0].provider;
         
-        console.log("Setting default romanization style to " + newStyle + " with provider " + newProvider);
+        console.log(`Setting romanization defaults: style=${newStyle}, provider=${newProvider}`);
         
-        // Update group store options
+        // Update store first - single source of truth
         featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
         featureGroupStore.setGroupOption('subtitle', 'provider', newProvider);
         
-        // Update feature options for all subtitle features
-        ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
-            if (currentFeatureOptions[featureId]) {
-                currentFeatureOptions[featureId].style = newStyle;
-                currentFeatureOptions[featureId].provider = newProvider;
-            }
-        });
-        
-        // Force synchronization to all features
+        // Force options sync from store
         currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('subtitle', currentFeatureOptions);
-        
-        // Notify parent of changes
-        dispatch('optionsChange', currentFeatureOptions);
     }
     
     /**
@@ -202,108 +190,80 @@
     }
     
     /**
-     * Master function to handle language changes
-     * Coordinates all the steps in a clean, sequential way
+     * Optimized language change processing
      */
     async function processLanguageChange(newLanguage: string): Promise<void> {
-        if (isProcessingLanguage) {
+        if (languageProcessingInProgress) {
             console.log("Already processing language change, skipping");
             return;
         }
         
-        isProcessingLanguage = true;
-        console.log("Processing language change to: " + newLanguage);
+        languageProcessingInProgress = true;
+        languageProcessingVersion++;
+        const currentVersion = languageProcessingVersion;
         
         try {
-            // Step 1: Reset all feature selections for safety
+            // Reset all feature selections if needed
             if (newLanguage) {
                 resetAllFeatures();
             }
             
-            // Step 2: Validate the language
+            // Validate the language
             await validateLanguage(newLanguage, true);
+            
+            // Only continue if this is still the most recent language change
+            if (currentVersion !== languageProcessingVersion) return;
             
             if (!isValidLanguage && newLanguage) {
                 console.log(`Language ${newLanguage} is not valid`);
                 return;
             }
             
-            // Step 3: Use the standardized tag if available, otherwise use raw input
+            // Use standardized tag
             const effectiveTag = standardTag || newLanguage;
             
-            // Step 4: Load romanization schemes
-            console.log(`Loading romanization schemes for ${effectiveTag}`);
+            // Load romanization schemes
             const schemesAvailable = await loadRomanizationSchemes(effectiveTag);
-            console.log(`Loaded ${romanizationSchemes.length} schemes:`, romanizationSchemes);
             
-            // Step 5: Check tokenization support
+            // Check tokenization support
             await checkTokenization(effectiveTag);
             
-            // Step 6: Apply default style if schemes are available
+            // Only continue if this is still the most recent language change
+            if (currentVersion !== languageProcessingVersion) return;
+            
+            // Apply default style if schemes are available
             if (schemesAvailable) {
-                console.log(`Applying default romanization style with ${romanizationSchemes.length} schemes`);
                 applyDefaultRomanizationStyle();
-                setTimeout(enforceRomanizationUpdate, 50);
-                // Force a refresh of affected components
+                
+                // Force update after schemes load
                 setTimeout(() => {
-                    // This creates a new object reference, forcing reactivity
-                    currentFeatureOptions = { ...currentFeatureOptions };
-                    dispatch('optionsChange', currentFeatureOptions);
-                    
-                    // Log the update
-                    console.log('Forced UI update after language change');
-                }, 50);
+                    if (currentVersion === languageProcessingVersion) {
+                        forceUIRefresh();
+                    }
+                }, 100);
             }
             
-            // Step 7: Update errors based on availability
+            // Update errors based on availability
             updateFeatureAvailabilityErrors();
             
         } catch (error) {
             console.error("Error during language change processing:", error);
-            logStore.addLog({
-                level: 'ERROR',
-                message: `Error processing language change: ${(error as Error).message}`, // Cast error to Error
-                time: new Date().toISOString()
-            });
         } finally {
-            isProcessingLanguage = false;
+            languageProcessingInProgress = false;
         }
     }
     
-    // direct language change handler that updates romanization styles explicitly
-    function enforceRomanizationUpdate() {
-        console.log('Forcing romanization update after language change');
+    /**
+     * Force UI refresh with minimal impact
+     */
+    function forceUIRefresh() {
+        // Update Options
+        currentFeatureOptions = {...currentFeatureOptions};
         
-        // Re-apply default style if schemes are available
-        if (romanizationSchemes.length > 0) {
-            const newStyle = romanizationSchemes[0].name;
-            const newProvider = romanizationSchemes[0].provider;
-            
-            console.log(`Explicitly setting romanization style to ${newStyle} with provider ${newProvider}`);
-            
-            // Directly update the feature options for all subtitle features
-            ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
-                if (currentFeatureOptions[featureId]) {
-                    // Directly set both values
-                    currentFeatureOptions[featureId].style = newStyle;
-                    currentFeatureOptions[featureId].provider = newProvider;
-                }
-            });
-            
-            // Update group store with these values
-            featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
-            featureGroupStore.setGroupOption('subtitle', 'provider', newProvider);
-            
-            // Force synchronization to all features
-            currentFeatureOptions = featureGroupStore.syncOptionsToFeatures('subtitle', currentFeatureOptions);
-            
-            // Force UI update
-            setTimeout(() => {
-                // Trigger a full rerender to ensure components update
-                currentFeatureOptions = {...currentFeatureOptions};
-                dispatch('optionsChange', currentFeatureOptions);
-            }, 10);
-        }
+        // Force dropdown refresh on next render
+        setTimeout(() => {
+            dispatch('optionsChange', currentFeatureOptions);
+        }, 20);
     }
     
     /**
@@ -1154,12 +1114,37 @@
         }
     });
 
+    // Use the store values in the component
+    let storeUpdates = 0;
+    let updateRate = 0;
+    let activeSubscriptions = 0;
+    let totalSubscriptions = 0;
+    let lastUpdatedOption = '';
+    let activeComponents = 0;
+    let componentsCreated = 0;
+    let componentsDestroyed = 0;
+    let recentChanges: string[] = [];
+
+    // Subscribe to metrics updates
+    const unsubscribeMetrics = metricsStore.subscribe(m => {
+        storeUpdates = m.storeUpdates;
+        updateRate = m.updateRate;
+        activeSubscriptions = m.activeSubscriptions;
+        totalSubscriptions = m.totalSubscriptions;
+        lastUpdatedOption = m.lastUpdatedOption;
+        activeComponents = m.activeComponents;
+        componentsCreated = m.componentsCreated;
+        componentsDestroyed = m.componentsDestroyed;
+        recentChanges = m.recentChanges;
+    });
+
     onDestroy(() => {
         console.log('FeatureSelector unmounting, cleaning up errors');
        
         if (sttModelsUnsubscribe) {
             sttModelsUnsubscribe();
         }
+        if (unsubscribeMetrics) unsubscribeMetrics(); // Clean up metrics subscription
         
         // Clean up error store subscription (variable was never assigned, removing block)
         
@@ -1228,13 +1213,43 @@
 </script>
 
 {#if version === "dev"}
-    <div class="fixed top-0 left-0 z-50 p-2 bg-black/80 text-white text-xs font-mono max-w-[300px]">
+    <div class="fixed top-0 left-0 z-50 p-2 bg-black/80 text-white text-xs font-mono max-w-[300px] overflow-auto max-h-[80vh]">
         <p>Lang: {standardTag || 'none'}</p>
         <p>Schemes: {romanizationSchemes?.length || 0}</p>
         <p>Provider: {featureGroupStore.getGroupOption('subtitle', 'provider') || 'none'}</p>
         <p>Style: {featureGroupStore.getGroupOption('subtitle', 'style') || 'none'}</p>
-        <button class="mt-1 px-2 py-1 bg-primary text-white rounded text-xs" 
-                on:click={enforceRomanizationUpdate}>Force Update</button>
+        
+        <!-- Store Metrics -->
+        <hr class="my-1 border-white/20">
+        <p class="font-bold">Store Metrics:</p>
+        <p>Updates: {storeUpdates}</p>
+        <p>Rate: {updateRate.toFixed(1)}/sec</p>
+        <p>Active Subs: {activeSubscriptions}</p>
+        <p>Total Subs: {totalSubscriptions}</p>
+        <p>Last Update: {lastUpdatedOption}</p>
+        
+        <!-- Component Metrics -->
+        <hr class="my-1 border-white/20">
+        <p class="font-bold">Component Metrics:</p>
+        <p>Active Components: {activeComponents}</p>
+        <p>Created: {componentsCreated}</p>
+        <p>Destroyed: {componentsDestroyed}</p>
+        
+        <!-- Recent Changes -->
+        <hr class="my-1 border-white/20">
+        <p class="font-bold">Recent Changes:</p>
+        <div class="max-h-[150px] overflow-y-auto border border-white/20 p-1 mt-1">
+            {#each recentChanges as change}
+                <p class="text-[10px]">{change}</p>
+            {/each}
+        </div>
+        
+        <div class="mt-2 flex gap-2">
+            <button class="px-2 py-1 bg-primary text-white rounded text-xs" 
+                    on:click={forceUIRefresh}>Refresh UI</button>
+            <button class="px-2 py-1 bg-red-500 text-white rounded text-xs"
+                    on:click={resetMetrics}>Reset Metrics</button>
+        </div>
     </div>
 {/if}
 

@@ -1,9 +1,11 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount } from 'svelte';
+    import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+    import { get } from 'svelte/store';
     import type { RomanizationScheme } from '../lib/featureModel'; // Import the type
     import { debounce } from 'lodash';
     import { featureGroupStore } from '../lib/featureGroupStore';
     import { errorStore } from '../lib/errorStore';
+    import { trackComponentMount, trackComponentDestroy } from '../lib/metrics'; // Import metrics tracking
     
     import Dropdown from './Dropdown.svelte';
     import Hovertip from './Hovertip.svelte';
@@ -38,12 +40,18 @@
     const dispatch = createEventDispatcher();
     
     // Value tracking with authority management
-    let localValue = value; 
+    let localValue = value;
     
     // Track last update times to determine authoritative source
     // Epoch timestamp: 0 means no user update has occurred yet
     let lastUserUpdateTime = 0;
     let lastExternalUpdateTime = Date.now();
+    
+    // Debug control
+    const DEBUG = false;
+    
+    // Clean tracking of store changes
+    let unsubscribeFromStore: () => void;
     
     // Flag to prevent initialization feedback loops
     let isInitialized = false;
@@ -104,22 +112,30 @@
       return { isValid: true, message: '' };
     }
     
+    // Debounced update handler
+    const updateFromStore = debounce((newValue: any) => {
+        if (newValue !== undefined && newValue !== localValue) {
+            if (DEBUG) console.log(`[GroupOption] Update ${groupId}.${optionId}: ${localValue} → ${newValue}`);
+            localValue = newValue;
+            
+            // Validate but don't propagate back to store
+            const validation = validateValue(localValue);
+            isValid = validation.isValid;
+            validationMessage = validation.message;
+        }
+    }, 50);
+    
     onMount(() => {
-        // Set initial local value
-        localValue = value;
+        // Generate a unique ID for this component instance
+        const componentId = `${groupId}.${optionId}`;
         
-        // For romanization, ensure we update the provider
-        if (groupId === 'subtitle' && optionId === 'style' && romanizationSchemes.length > 0) {
-            console.log(`Initial romanization style: ${value}, checking schemes`, romanizationSchemes);
-            const selectedScheme = romanizationSchemes.find(s => s.name === value);
-            if (selectedScheme) {
-                // Ensure the provider is synchronized
-                const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
-                if (selectedScheme.provider !== currentProvider) {
-                    console.log(`Initializing provider to ${selectedScheme.provider} based on style ${value}`);
-                    featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
-                }
-            }
+        // Track component mounting
+        trackComponentMount(componentId);
+        
+        // Initial sync with store
+        const initialStoreValue = featureGroupStore.getGroupOption(groupId, optionId);
+        if (initialStoreValue !== undefined && initialStoreValue !== localValue) {
+            localValue = initialStoreValue;
         }
         
         // Validate initial value
@@ -127,17 +143,25 @@
         isValid = validation.isValid;
         validationMessage = validation.message;
         
-        // Store initial value in group store
-        featureGroupStore.setGroupOption(groupId, optionId, value);
+        // Store initial value in group store if not already set by sync
+        if (initialStoreValue === undefined) {
+            featureGroupStore.setGroupOption(groupId, optionId, localValue);
+        }
         
         // Mark as initialized and track external update time
         isInitialized = true;
         lastExternalUpdateTime = Date.now();
         
-        console.log(`GroupOption mounted: ${groupId}.${optionId}=${value}`);
+        if (DEBUG) console.log(`GroupOption mounted: ${componentId}=${localValue}`);
+        
+        // Subscribe to store changes
+        unsubscribeFromStore = featureGroupStore.subscribe(() => {
+            const storeValue = featureGroupStore.getGroupOption(groupId, optionId);
+            updateFromStore(storeValue);
+        });
     });
     
-    // Handle external value changes (from parent or store)
+    // Handle external value changes (from parent or store) - Keep this for parent updates
     $: {
         if (isInitialized && value !== undefined) {
             // Always update timestamp regardless of value truthiness
@@ -176,15 +200,26 @@
         }
     }
     
-    // Update provider when style changes
-    $: if (groupId === 'subtitle' && optionId === 'style' && localValue && romanizationSchemes.length > 0) {
-        const selectedScheme = romanizationSchemes.find(s => s.name === localValue);
-        if (selectedScheme) {
-            // Update the provider in the group store
-            const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
-            if (selectedScheme.provider !== currentProvider) {
-                console.log(`Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
-                featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+    onDestroy(() => {
+        const componentId = `${groupId}.${optionId}`;
+        
+        // Track component destruction
+        trackComponentDestroy(componentId);
+        
+        // Original cleanup logic...
+        if (unsubscribeFromStore) unsubscribeFromStore();
+        if (updateFromStore && updateFromStore.cancel) updateFromStore.cancel(); // Check if cancel exists
+    });
+    
+    // Special handling for provider - use a safer approach
+    $: if (isInitialized && optionDef.type === 'provider' && groupId === 'subtitle') {
+        // Only run this rarely - when relevant values change
+        const styleValue = featureGroupStore.getGroupOption(groupId, 'style');
+        if (styleValue && romanizationSchemes.length > 0) {
+            const selectedScheme = romanizationSchemes.find(s => s.name === styleValue);
+            if (selectedScheme && selectedScheme.provider !== localValue) {
+                // Update local value only - avoid store update to prevent loops
+                localValue = selectedScheme.provider;
             }
         }
     }
@@ -246,45 +281,34 @@
         debouncedUserInput(newValue);
     }
 
-    // Handle romanization style changes with special provider update logic
-    function handleRomanizationChange(event: any) {
+    // Handle romanization changes with debouncing
+    const debouncedRomanizationChange = debounce((event: CustomEvent) => { // Add CustomEvent type
         const newValue = event.detail;
-        console.log(`Romanization style change: ${newValue}`);
+        if (newValue === localValue) return; // No change
         
-        // Mark as user update with authority
-        lastUserUpdateTime = Date.now() + 10;
         localValue = newValue;
         
-        // Update the style
+        // Update the style in store
         featureGroupStore.setGroupOption(groupId, optionId, newValue);
         
-        // Also update the provider if a matching scheme is found
+        // Find matching scheme for provider update
         const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
         if (selectedScheme) {
             const newProvider = selectedScheme.provider;
-            console.log(`Updating provider to ${newProvider} based on style ${newValue}`);
-            
-            // Update the provider in the group store
+            // Update provider in store
             featureGroupStore.setGroupOption(groupId, 'provider', newProvider);
-            
-            // Notify about provider change too
-            dispatch('groupOptionChange', { 
-                groupId, 
-                optionId: 'provider', 
-                value: newProvider,
-                isUserInput: true,
-                isValid: true // Assume provider change is always valid for now
-            });
         }
         
-        // Notify about style change
-        dispatch('groupOptionChange', { 
-            groupId, 
-            optionId, 
-            value: newValue,
-            isUserInput: true,
-            isValid: true // Assume style change is always valid for now
+        // Notify parent about style change
+        dispatch('groupOptionChange', {
+            groupId,
+            optionId,
+            value: newValue
         });
+    }, 50);
+    
+    function handleRomanizationChange(event: CustomEvent) { // Add CustomEvent type
+        debouncedRomanizationChange(event);
     }
 
     // Handle immediate changes like checkboxes and numeric inputs
@@ -293,7 +317,7 @@
         const isCheckbox = event?.target instanceof HTMLInputElement && event.target.type === 'checkbox';
         const valueToPropagate = isCheckbox ? (event.target as HTMLInputElement).checked : localValue;
         
-        console.log(`Immediate change: ${valueToPropagate} for ${groupId}.${optionId}`);
+        if (DEBUG) console.log(`Immediate change: ${valueToPropagate} for ${groupId}.${optionId}`);
         
         // Mark as user update with authority
         lastUserUpdateTime = Date.now() + 10;
@@ -302,13 +326,11 @@
         propagateUserValue(valueToPropagate);
     }
 
-    // handleCheckboxChange function removed
-
     // Handle value recovery for invalid inputs
     function recoverFromInvalidInput() {
       // If current value is invalid, try to recover with a valid value
       if (!isValid && optionDef.default !== undefined) {
-        console.log(`Recovering invalid input for ${groupId}.${optionId} with default value`);
+        if (DEBUG) console.log(`Recovering invalid input for ${groupId}.${optionId} with default value`);
         
         // Reset to default value
         localValue = optionDef.default;
@@ -339,38 +361,7 @@
       }
     }
     
-    $: {
-      if (isInitialized && value !== undefined) {
-        // Only update on meaningful changes
-        if (value !== localValue) {
-          console.log(`External value change for ${groupId}.${optionId}: ${localValue} -> ${value}`);
-          lastExternalUpdateTime = Date.now();
-          localValue = value;
-        }
-      }
-    }
-    
-    // Enhance romanization style handling
-    $: if (groupId === 'subtitle' && optionId === 'style' && localValue && romanizationSchemes.length > 0) {
-      console.log(`Checking romanization style update for ${localValue}`);
-      const selectedScheme = romanizationSchemes.find(s => s.name === localValue);
-      if (selectedScheme) {
-        const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
-        if (selectedScheme.provider !== currentProvider) {
-          console.log(`Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
-          featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
-          
-          // Force a UI update by dispatching an event
-          dispatch('groupOptionChange', { 
-            groupId, 
-            optionId: 'provider', 
-            value: selectedScheme.provider,
-            isUserInput: false,
-            isValid: true
-          });
-        }
-      }
-    }
+    // Enhance romanization style handling - Removed redundant block, handled by provider logic
 </script>
 
 <div class="group-option" class:invalid={!isValid} class:updating={isUpdating} data-group-id={groupId}>
@@ -432,7 +423,7 @@
                             
                             // Directly toggle the value
                             const newValue = !localValue;
-                            console.log(`Toggle checkbox: ${localValue} -> ${newValue} for ${groupId}.${optionId}`);
+                            if (DEBUG) console.log(`Toggle checkbox: ${localValue} -> ${newValue} for ${groupId}.${optionId}`);
                             
                             // Update local state
                             localValue = newValue;
@@ -521,65 +512,43 @@
                 />
             {/if}
         {:else if optionDef.type === 'romanizationDropdown'}
-            <!-- Special handling for romanization style dropdown -->
-            <div style="display:none;">{console.log(`Romanization dropdown:`, {
-                schemes: romanizationSchemes,
-                currentValue: localValue
-            })}</div>
-            
-            <Dropdown
-                options={romanizationSchemes}
-                optionKey="name"
-                optionLabel="description"
-                value={localValue}
-                on:change={handleRomanizationChange}
-                label=""
-                placeholder="Select style..."
-                invalid={!isValid}
-                errorMessage={validationMessage}
-            />
+            <!-- Force dropdown re-render when value changes -->
+            {#key localValue + '-' + romanizationSchemes.length}
+                <Dropdown
+                    options={romanizationSchemes}
+                    optionKey="name"
+                    optionLabel="description"
+                    value={localValue}
+                    on:change={handleRomanizationChange}
+                    label=""
+                    placeholder="Select style..."
+                    invalid={!isValid}
+                    errorMessage={validationMessage}
+                />
+            {/key}
         {:else if optionDef.type === 'provider'}
-            <!-- Show provider with GitHub link if available -->
+            <!-- Simplified provider display -->
             <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
-                <!-- Force lookup of provider from style -->
-                {#if groupId === 'subtitle' && optionId === 'provider'}
+                {#if groupId === 'subtitle'}
+                    <!-- Get fresh values from store carefully -->
                     {@const styleValue = featureGroupStore.getGroupOption(groupId, 'style')}
                     {@const selectedScheme = romanizationSchemes.find(s => s.name === styleValue)}
-                    {@const providerValue = selectedScheme ? selectedScheme.provider : (localValue || '')}
-                    
-                    <!-- Debug info -->
-                    <div style="display:none;">{console.log(`Provider render:`, {
-                        styleValue,
-                        selectedScheme,
-                        providerValue,
-                        localValue,
-                        schemeCount: romanizationSchemes.length
-                    })}</div>
+                    {@const providerValue = selectedScheme ? selectedScheme.provider : localValue}
                     
                     <!-- Display the provider value -->
                     <span>{providerValue || 'No provider selected'}</span>
                     
-                    <!-- Update if needed - with stronger update logic -->
-                    {#if (providerValue !== localValue) && providerValue}
-                        {localValue = providerValue}
-                        {featureGroupStore.setGroupOption(groupId, 'provider', providerValue)}
-                    {/if}
-                    
-                    <!-- GitHub link section remains the same -->
-                {:else}
-                    <!-- Regular provider display for non-subtitle groups -->
-                    {localValue || ''}
-                    <!-- Ensure string -->
-                    {@const localProviderKey = String(localValue || '')}
-                    {#if localProviderKey && providerGithubUrls[localProviderKey]}
-                        <ExternalLink
-                            href={providerGithubUrls[localProviderKey]}
-                            className="text-primary/70 hover:text-primary transition-colors duration-200">
+                    <!-- GitHub link if available -->
+                    {#if providerValue && providerGithubUrls[providerValue]}
+                        <ExternalLink href={providerGithubUrls[providerValue]} className="text-primary/70 hover:text-primary transition-colors duration-200">
                             <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                             </svg>
                         </ExternalLink>
                     {/if}
+                {:else}
+                    <!-- Regular provider display -->
+                    {localValue || ''}
                 {/if}
             </div>
         {/if}
@@ -600,7 +569,7 @@
 </div>
 
 <style>
-    /* Option styling */
+    /* CSS remains largely the same with optimizations */
     .group-option {
       display: grid;
       grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr);
@@ -608,27 +577,27 @@
       align-items: center;
       padding-left: 0.25rem;
       margin-left: 0;
-      position: relative; /* For validation error positioning */
-      border-left: 3px solid transparent; /* Start with transparent */
+      position: relative;
+      border-left: 3px solid transparent;
     }
     
-    /* Group-specific border colors - don't use :global() */
+    /* Direct attribute selectors without :global() */
     .group-option[data-group-id='subtitle'] {
-      border-left-color: var(--group-subtitle-color, hsla(210, 90%, 60%, 0.35));
+      border-left-color: hsla(210, 90%, 60%, 0.35);
     }
     
     .group-option[data-group-id='merge'] {
-      border-left-color: var(--group-merge-color, hsla(130, 90%, 50%, 0.35));
+      border-left-color: hsla(130, 90%, 50%, 0.35);
     }
-
-  /* Simple color classes instead of complicated imports */
-  .bg-subtitle {
-    background-color: hsla(210, 90%, 60%, 0.8) !important;
-  }
-  
-  .bg-merge {
-    background-color: hsla(130, 90%, 50%, 0.8) !important;
-  }
+    
+    /* Simple color classes */
+    .bg-subtitle {
+      background-color: hsla(210, 90%, 60%, 0.8) !important;
+    }
+    
+    .bg-merge {
+      background-color: hsla(130, 90%, 50%, 0.8) !important;
+    }
   
   .group-badge {
     display: inline-flex;
@@ -643,15 +612,7 @@
       opacity: 1;
     }
 
-    /* Use direct class targeting with !important */
-    :global(.group-icon-subtitle) {
-      color: hsla(210, 90%, 60%, 0.35) !important;
-    }
-
-    :global(.group-icon-merge) {
-      color: hsla(130, 90%, 50%, 0.35) !important;
-    }
-    
+    /* Remove :global() selectors for icons as they are handled by class */
     /* Invalid state styling */
     .group-option.invalid :global(input),
     .group-option.invalid :global(select),
@@ -667,14 +628,14 @@
       box-shadow: 0 0 0 2px rgba(var(--error-task-rgb), 0.25);
     }
 
-    /* Add animation styling */
+    /* Updating animation */
     .group-option.updating {
       animation: option-update-pulse 0.5s ease;
     }
     
     @keyframes option-update-pulse {
       0% { background-color: transparent; }
-      30% { background-color: rgba(var(--primary-rgb), 0.1); }
+      30% { background-color: rgba(159, 110, 247, 0.1); }
       100% { background-color: transparent; }
     }
 </style>

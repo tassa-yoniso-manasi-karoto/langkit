@@ -291,16 +291,9 @@
         }, 600);
     }
     
-    // Simplified shouldShowOption function
+    // Improved shouldShowOption function
     function shouldShowOption(optionId: string, optionDef: any): boolean {
       if (!optionDef.showCondition) return true;
-      
-      // Special handling for initialPrompt condition
-      if (feature.id === 'dubtitles' && optionId === 'initialPrompt') {
-        const sttModel = options.stt;
-        const modelInfo = currentSTTModels.models.find((m: STTModelInfo) => m.name === sttModel);
-        return modelInfo?.takesInitialPrompt ?? false;
-      }
       
       // Find which group this option belongs to (if any)
       let optionGroup = null;
@@ -328,25 +321,16 @@
         needsScraper,
         romanizationSchemes: romanizationSchemes as RomanizationScheme[],
         selectedFeatures: selectedFeatures as Record<string, boolean>,
-        isTopmostInGroup: false, // Legacy support - no longer needed for primary logic
+        isTopmostInGroup: false, // Legacy support
         isTopmostForOption: isTopmostForThisOption,
-        featureGroupStore // Pass the store itself for direct access in conditions
+        featureGroupStore // Direct store access
       };
       
-      // Evaluate the condition
+      // Evaluate condition safely
       try {
-        // Use Function constructor for safe evaluation
-        // We pass the context and feature options directly to the function scope
         const evaluator = new Function('context', 'feature', 'featureGroupStore', `return ${optionDef.showCondition}`);
-        
-        // Prepare feature data for the evaluator scope
         const featureData = { [feature.id]: options };
-        
-        // Execute the evaluator
-        const result = evaluator(context, featureData, featureGroupStore);
-        
-        return Boolean(result);
-
+        return Boolean(evaluator(context, featureData, featureGroupStore));
       } catch (error) {
         console.error('Error evaluating condition:', optionDef.showCondition, error);
         return false;
@@ -798,46 +782,58 @@
                             feature.groupSharedOptions?.[gId]?.includes(optionId) ?? false
                         ) ?? null : null}
                     
-                    {#if isGroupOption && groupId}
-                        {#if true}
-                            <div style="display: none;">{console.log(`Group option: ${feature.id}.${optionId}`, {
-                                isGroupOption,
-                                groupId,
-                                type: optionDef.type,
-                                isTopmost: featureGroupStore.isTopmostInGroup(groupId, feature.id)
-                            })}</div>
-                        {/if}
-                    {/if}
-                    
-                    <!-- Ensure this feature is registered in the group -->
-                    {#if isGroupOption && groupId}
-                        {@const _ensureInGroup = 
-                            featureGroupStore.addFeatureToGroup(groupId, feature.id)}
-                    {/if}
-                    
-                    {#if 1 == 1}
-                    {/if}
-                    <!-- Separate romanization special case handling -->
+                    <!-- Modified special case handling -->
                     {@const isRomanizationSpecialCase = optionDef.type === 'romanizationDropdown' && feature.id !== 'subtitleRomanization'}
-                    {@const shouldRenderAsGroupOption = isGroupOption && groupId && 
+                    {@const shouldRenderAsGroupOption = isGroupOption && groupId &&
                         featureGroupStore.isTopmostInGroup(groupId, feature.id) && !isRomanizationSpecialCase}
                     
-                    <!-- Add debug logging -->
-                    <div style="display:none;">{console.log(`Option ${feature.id}.${optionId}`, {
-                        isGroupOption,
-                        groupId,
-                        isRomanizationSpecialCase,
-                        shouldRenderAsGroupOption,
-                        type: optionDef.type
-                    })}</div>
-
-                    {#if shouldRenderAsGroupOption}
-                        <!-- Render as GroupOption with all necessary props -->
+                    {#if optionDef.type === 'romanizationDropdown' || optionDef.type === 'provider'}
+                        {#if feature.id === 'subtitleRomanization' || (optionDef.type === 'provider' && optionId === 'provider')}
+                            <!-- Always render these special cases in their primary feature -->
+                            <div class="mb-4 w-full">
+                                <GroupOption
+                                    {groupId}
+                                    {optionId}
+                                    {optionDef}
+                                    value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                    {needsDocker}
+                                    {needsScraper}
+                                    {romanizationSchemes}
+                                    showGroupIndicator={true}
+                                    on:groupOptionChange={(event) => {
+                                        const { groupId, optionId, value } = event.detail;
+                                        options[optionId] = value;
+                                        dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
+                                    }}
+                                />
+                            </div>
+                        {:else if featureGroupStore.isTopmostInGroup(groupId, feature.id)}
+                            <!-- For other features, only render if it's the topmost -->
+                            <div class="mb-4 w-full">
+                                <GroupOption
+                                    {groupId}
+                                    {optionId}
+                                    {optionDef}
+                                    value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                    {needsDocker}
+                                    {needsScraper}
+                                    {romanizationSchemes}
+                                    showGroupIndicator={true}
+                                    on:groupOptionChange={(event) => {
+                                        const { groupId, optionId, value } = event.detail;
+                                        options[optionId] = value;
+                                        dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
+                                    }}
+                                />
+                            </div>
+                        {/if}
+                    {:else if shouldRenderAsGroupOption}
+                        <!-- Standard group option rendering -->
                         <div class="mb-4 w-full">
                             <GroupOption
                                 {groupId}
                                 {optionId}
-                                optionDef={optionDef}
+                                {optionDef}
                                 value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
                                 {needsDocker}
                                 {needsScraper}
@@ -845,26 +841,13 @@
                                 showGroupIndicator={true}
                                 on:groupOptionChange={(event) => {
                                     const { groupId, optionId, value } = event.detail;
-                                    // Update local option value for reactivity
                                     options[optionId] = value;
+                                    dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
                                     
-                                    // Dispatch to parent with all necessary metadata
-                                    dispatch('optionChange', {
-                                        featureId: feature.id,
-                                        optionId,
-                                        value,
-                                        isGroupOption: true,
-                                        groupId
-                                    });
-
                                     // Force reactivity update on dependent options if mergeOutputFiles changed
                                     if (groupId === 'merge' && optionId === 'mergeOutputFiles') {
-                                        // Add small delay to ensure the group store has updated and sync is complete
                                         setTimeout(() => {
-                                            // Force reevaluation of dependent options by marking cache dirty
                                             visibleOptionsDirty = true;
-                                            // Trigger a UI update by forcing Svelte to re-render
-                                            // Re-assigning options triggers reactivity for calculations depending on it
                                             options = { ...options };
                                         }, 10);
                                     }
@@ -889,7 +872,7 @@
                             <div class="option-input">
                                 <div class="input-wrapper">
                                     {#if optionDef.type === 'number'}
-                                        <NumericInput 
+                                        <NumericInput
                                             bind:value={options[optionId]}
                                             step={optionDef.step || '1'}
                                             min={optionDef.min}
@@ -898,11 +881,10 @@
                                             on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
                                         />
                                     {:else if optionDef.type === 'boolean'}
-                                        <!-- Boolean input (unchanged) -->
                                         <label class="inline-flex items-center cursor-pointer">
-                                            <input 
-                                                type="checkbox" 
-                                                class="w-5 h-5 accent-primary rounded border-2 border-primary/50 
+                                            <input
+                                                type="checkbox"
+                                                class="w-5 h-5 accent-primary rounded border-2 border-primary/50
                                                     checked:bg-primary checked:border-primary
                                                     focus:ring-2 focus:ring-primary/30
                                                     transition-all duration-200
@@ -916,8 +898,7 @@
                                             options={optionDef.choices || []}
                                             value={options[optionId]}
                                             labelFunction={(option) => {
-                                                // Find the model in the models list
-                                                const model = currentSTTModels.models.find((m: STTModelInfo) => m.name === option); // Add type
+                                                const model = currentSTTModels.models.find((m: STTModelInfo) => m.name === option);
                                                 if (model) {
                                                     let label = `${model.displayName} @${formatProviderName(model.providerName)}`;
                                                     if (model.isDepreciated) label += ' (DEPRECATED)';
@@ -926,12 +907,8 @@
                                                 return option;
                                             }}
                                             tooltipFunction={(option) => {
-                                                // Find the model to get its description
-                                                const model = currentSTTModels.models.find((m: STTModelInfo) => m.name === option); // Add type
-                                                if (model) {
-                                                    return model.description;
-                                                }
-                                                return '';
+                                                const model = currentSTTModels.models.find((m: STTModelInfo) => m.name === option);
+                                                return model ? model.description : '';
                                             }}
                                             on:change={(e) => handleDropdownChange(optionId, e.detail)}
                                             label={optionDef.label}

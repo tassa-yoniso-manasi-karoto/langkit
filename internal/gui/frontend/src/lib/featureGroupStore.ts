@@ -5,9 +5,9 @@ import { writable, derived, get } from 'svelte/store';
 import { errorStore } from './errorStore';
 import { features, type FeatureDefinition } from './featureModel'; // Import features
 import { debounce } from 'lodash'; // Import debounce
-// Add these imports at the top
 import { groupOptionDefinitions, type GroupOptionDefinition } from './groupOptions';
-
+// Import metrics tracking functions
+import { trackStoreUpdate, trackSubscription } from './metrics';
 // Types for the group system
 export interface FeatureGroup {
     id: string;
@@ -44,6 +44,10 @@ export interface GroupState {
     displayOrder: Record<string, string[]>;
     // Maps option IDs to their owning group IDs
     optionGroups: Record<string, string>;
+    // Add state version for tracking changes
+    stateVersion: number;
+    // Track pending updates by group+option
+    pendingUpdates: Record<string, boolean>;
 }
 
 function createFeatureGroupStore() {
@@ -59,10 +63,13 @@ function createFeatureGroupStore() {
         canonicalOrder: [],
         groupCanonicalOrder: {},
         // Option to group mapping
-        optionGroups: {}
+        optionGroups: {},
+        // Initialize state version
+        stateVersion: 0,
+        pendingUpdates: {} // Initialize pending updates
     };
-
-    const store = writable<GroupState>(initialState);
+const store = writable<GroupState>(initialState);
+let batchUpdateTimeout: number | null = null;
 
     // Add caching for expensive calculations
     const topmostCache = new Map<string, Map<string, boolean>>();
@@ -202,22 +209,39 @@ function createFeatureGroupStore() {
          * Set a group option value - central store of all option values
          */
         setGroupOption(groupId: string, optionId: string, value: any) {
-            // console.log(`Setting group option: ${groupId} - ${optionId}`, value);
-            store.update(state => {
-                if (!state.groups[groupId]) return state;
+            const currentValue = get(store).groupOptions[groupId]?.[optionId];
+            
+            // Only update if value actually changed
+            if (value !== currentValue) {
+                // Track the update in metrics before updating the store
+                trackStoreUpdate(groupId, optionId, value);
                 
-                const newState = { ...state };
-                if (!newState.groupOptions[groupId]) {
-                    newState.groupOptions[groupId] = {};
+                store.update(state => {
+                    const newState = { ...state };
+                    if (!newState.groupOptions[groupId]) {
+                        newState.groupOptions[groupId] = {};
+                    }
+                    
+                    newState.groupOptions[groupId][optionId] = value;
+                    
+                    // Track that this option was updated (for batching version)
+                    if (!newState.pendingUpdates) newState.pendingUpdates = {};
+                    newState.pendingUpdates[`${groupId}.${optionId}`] = true;
+                    
+                    return newState;
+                });
+                
+                // Schedule batched version update
+                if (batchUpdateTimeout === null) {
+                    batchUpdateTimeout = window.setTimeout(() => {
+                        this.batchProcessUpdates(); // Use 'this' to call the method
+                        batchUpdateTimeout = null;
+                    }, 50);
                 }
                 
-                newState.groupOptions[groupId][optionId] = value;
-                
-                return newState;
-            });
-            
-            // Validate the option that was just set
-            this.validateOption(groupId, optionId);
+                // Still validate immediately
+                this.validateOption(groupId, optionId);
+            }
         },
 
         /**
@@ -745,7 +769,41 @@ function createFeatureGroupStore() {
           },
           50,
           { leading: true }
-        )
+      ),
+      
+      /**
+       * Debounced version update
+       */
+      batchProcessUpdates() {
+          store.update(state => {
+              const newState = { ...state };
+              newState.stateVersion++;
+              newState.pendingUpdates = {};
+              return newState;
+          });
+      },
+      
+      /**
+       * Get the current state version number
+       */
+      getStateVersion(): number {
+          return get(store).stateVersion || 0;
+      }
+  };
+
+    // Wrap the original subscribe method to track subscriptions
+    const originalSubscribe = publicApi.subscribe;
+    publicApi.subscribe = (callback: (value: GroupState) => void) => {
+        // Track new subscription
+        trackSubscription(true);
+        
+        const unsubscribe = originalSubscribe(callback);
+        
+        // Return enhanced unsubscribe that tracks removal
+        return () => {
+            trackSubscription(false);
+            unsubscribe();
+        };
     };
 
     return publicApi; // Return the assigned variable
@@ -755,7 +813,7 @@ function createFeatureGroupStore() {
 export const featureGroupStore = createFeatureGroupStore();
 
 // Derived store for checking if any feature in a group is enabled
-export const groupHasEnabledFeature = (groupId: string) => 
+export const groupHasEnabledFeature = (groupId: string) =>
     derived(featureGroupStore, ($store) => {
         return $store.enabledFeatures[groupId]?.length > 0 || false;
     });
