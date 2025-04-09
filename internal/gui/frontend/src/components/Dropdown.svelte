@@ -3,6 +3,7 @@
     import { clickOutside } from '../lib/clickOutside';
     import Hovertip from './Hovertip.svelte';
     import Portal from 'svelte-portal';
+    import { type Readable } from 'svelte/store';
 
     // Props
     export let options: any[] = [];
@@ -18,6 +19,8 @@
     export let className: string = "";
     export let invalid: boolean = false;
     export let errorMessage: string = '';
+    // Add new prop for direct store access
+    export let storeBinding: {groupId?: string, optionId?: string} | null = null;
 
     // Internal state
     let isOpen = false;
@@ -27,10 +30,19 @@
     let hasRenderedOptions = false;
     let dropdownPosition = { top: 0, left: 0, width: 0 };
     const dispatch = createEventDispatcher();
+    
+    // Local value tracking
+    let internalValue = value;
+    let unsubscribeFromStore: (() => void) | null = null;
+    
+    // Important: Track both internal and prop values
+    $: if (value !== internalValue) {
+        internalValue = value;
+    }
 
     // CRITICAL FIX: Make all relevant variables reactive dependencies
-    $: selectedDisplayText = getSelectedDisplayText(value, options);
-    $: selectedOption = getSelectedOptionObject(value, options);
+    $: selectedDisplayText = getSelectedDisplayText(internalValue, options);
+    $: selectedOption = getSelectedOptionObject(internalValue, options);
 
     function toggleDropdown() {
         if (disabled) return;
@@ -59,8 +71,9 @@
 
     function selectOption(option: any) {
         const selectedValue = optionKey && typeof option === 'object' ? option[optionKey] : option;
-        if (value !== selectedValue) {
-            value = selectedValue;
+        if (internalValue !== selectedValue) {
+            internalValue = selectedValue;
+            value = selectedValue; // Update external value
             dispatch('change', selectedValue);
         }
         closeDropdown();
@@ -147,10 +160,27 @@
         window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
         window.addEventListener('resize', handleResize);
         
-        return () => {
-            window.removeEventListener('scroll', handleScroll, { capture: true });
-            window.removeEventListener('resize', handleResize);
-        };
+        // Subscribe to store if store binding is provided
+        if (storeBinding?.groupId && storeBinding?.optionId && typeof window.featureGroupStore !== 'undefined') {
+            const optionStore = window.featureGroupStore.createOptionSubscription(
+                storeBinding.groupId,
+                storeBinding.optionId
+            );
+            
+            unsubscribeFromStore = optionStore.subscribe(storeValue => {
+                if (storeValue !== undefined && storeValue !== internalValue) {
+                    internalValue = storeValue;
+                    // Not updating external value to avoid loops
+                }
+            });
+        }
+    });
+    
+    onDestroy(() => {
+        window.removeEventListener('scroll', handleScroll, { capture: true });
+        window.removeEventListener('resize', handleResize);
+        
+        if (unsubscribeFromStore) unsubscribeFromStore();
     });
 </script>
 
@@ -173,7 +203,7 @@
         >
             <!-- Fixed-width container for text -->
             <div class="flex-grow min-w-0 overflow-hidden text-center">
-                <span class="block truncate {!value ? 'text-gray-400' : ''}">
+                <span class="block truncate {!internalValue ? 'text-gray-400' : ''}">
                     {selectedDisplayText}
                 </span>
             </div>

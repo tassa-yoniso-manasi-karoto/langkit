@@ -584,6 +584,7 @@ declare global {
         featureGroupStore: {
             createOptionSubscription: FeatureGroupStore['createOptionSubscription'];
             getGroupOption: FeatureGroupStore['getGroupOption'];
+            getStateVersion: FeatureGroupStore['getStateVersion'];
             // Add other methods if needed by components directly accessing window.featureGroupStore
         };
     }
@@ -602,7 +603,8 @@ if (typeof window !== 'undefined') {
         // In production, only expose minimal needed methods
         window.featureGroupStore = {
             createOptionSubscription: storeInstance.createOptionSubscription,
-            getGroupOption: storeInstance.getGroupOption
+            getGroupOption: storeInstance.getGroupOption,
+            getStateVersion: storeInstance.getStateVersion
             // Add other minimal exports here if required
         };
     }

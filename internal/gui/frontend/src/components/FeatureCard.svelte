@@ -774,23 +774,21 @@
                         {#if feature.id === 'subtitleRomanization' || (optionDef.type === 'provider' && optionId === 'provider')}
                             <!-- Always render these special cases in their primary feature -->
                             <div class="mb-4 w-full">
-                                {#key romanizationSchemes} <!-- FIXME doesn't update default displayed option properly -->
-                                    <GroupOption
-                                        {groupId}
-                                        {optionId}
-                                        {optionDef}
-                                        value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
-                                        {needsDocker}
-                                        {needsScraper}
-                                        {romanizationSchemes}
-                                        showGroupIndicator={true}
-                                        on:groupOptionChange={(event) => {
-                                            const { groupId, optionId, value } = event.detail;
-                                            options[optionId] = value;
-                                            dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
-                                        }}
-                                    />
-                                {/key}
+                                  <GroupOption
+                                      {groupId}
+                                      {optionId}
+                                      {optionDef}
+                                      value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                      {needsDocker}
+                                      {needsScraper}
+                                      {romanizationSchemes}
+                                      showGroupIndicator={true}
+                                      on:groupOptionChange={(event) => {
+                                          const { groupId, optionId, value } = event.detail;
+                                          options[optionId] = value;
+                                          dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
+                                      }}
+                                  />
                             </div>
                         {:else if featureGroupStore.isTopmostInGroup(groupId, feature.id)}
                             <!-- For other features, only render if it's the topmost -->

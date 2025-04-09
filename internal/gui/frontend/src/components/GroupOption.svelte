@@ -504,6 +504,7 @@
                <Dropdown
                    options={optionDef.choices || []}
                    value={localValue}
+                   storeBinding={{ groupId, optionId }}
                    on:change={handleChange}
                    label=""
                    placeholder={`Select ${optionDef.label}...`}
@@ -582,6 +583,7 @@
                    optionKey="name"
                    optionLabel="description"
                    value={localValue}
+                   storeBinding={{ groupId, optionId }}
                    on:change={handleRomanizationChange}
                    label=""
                    placeholder="Select style..."
@@ -591,7 +593,7 @@
            {/key}
         {:else if optionDef.type === 'provider'}
            <!-- Provider special case - Not a dropdown, but display depends on style -->
-           {#key `provider-${localValue}-${featureGroupStore.getStateVersion()}`}
+           {#key `provider-${featureGroupStore.getGroupOption(groupId, 'style')}`}
                <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
                    {#if groupId === 'subtitle'}
                        <!-- Get fresh values directly from store -->

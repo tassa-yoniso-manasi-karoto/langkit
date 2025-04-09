@@ -277,25 +277,32 @@
                   if (currentVersion === languageProcessingVersion) { // Check version again before final update
                       console.log(`[Language] Final UI refresh for v${currentVersion}`);
 
-                      // Update local feature options to match store (important after batch update)
-                       ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
-                          if (currentFeatureOptions[featureId]) {
-                              const styleVal = featureGroupStore.getGroupOption('subtitle', 'style');
-                              const providerVal = featureGroupStore.getGroupOption('subtitle', 'provider');
-
-                              // Check if values are defined before assigning
-                              if (styleVal !== undefined && currentFeatureOptions[featureId].style !== styleVal) {
-                                  currentFeatureOptions[featureId].style = styleVal;
-                              }
-
-                              if (providerVal !== undefined && currentFeatureOptions[featureId].provider !== providerVal) {
-                                  currentFeatureOptions[featureId].provider = providerVal;
-                              }
+                      // Create fresh object reference to force reactivity
+                      currentFeatureOptions = {...currentFeatureOptions};
+                      
+                      // Update all affected features with current store values
+                      ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
+                          if (!currentFeatureOptions[featureId]) {
+                              currentFeatureOptions[featureId] = {};
+                          }
+                          
+                          // Create new reference for this feature's options
+                          currentFeatureOptions[featureId] = {...currentFeatureOptions[featureId]};
+                          
+                          // Update with fresh store values
+                          const styleVal = featureGroupStore.getGroupOption('subtitle', 'style');
+                          const providerVal = featureGroupStore.getGroupOption('subtitle', 'provider');
+                          
+                          if (styleVal !== undefined) {
+                              currentFeatureOptions[featureId].style = styleVal;
+                          }
+                          
+                          if (providerVal !== undefined) {
+                              currentFeatureOptions[featureId].provider = providerVal;
                           }
                       });
 
                       // Force UI refresh
-                      currentFeatureOptions = {...currentFeatureOptions}; // Trigger reactivity
                       dispatch('optionsChange', currentFeatureOptions); // Dispatch updated options
                   } else {
                        console.log(`[Language] Skipping final UI refresh for v${currentVersion} as newer version exists.`);
