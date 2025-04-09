@@ -329,10 +329,19 @@ function createFeatureGroupStore(): FeatureGroupStore {
     function getStateVersion(): number {
         return get(store).stateVersion || 0;
     }
+    
+    // Force state version increment even if values don't change
+    function forceStateVersionIncrement() {
+        store.update(state => ({
+            ...state,
+            stateVersion: state.stateVersion + 1
+        }));
+    }
 
     // --- Public API ---
     // Define the methods object first
     const publicApiMethods = {
+        forceStateVersionIncrement,
         registerGroup(group: FeatureGroup) {
             store.update(state => {
                 const newState = { ...state };
@@ -585,6 +594,7 @@ declare global {
             createOptionSubscription: FeatureGroupStore['createOptionSubscription'];
             getGroupOption: FeatureGroupStore['getGroupOption'];
             getStateVersion: FeatureGroupStore['getStateVersion'];
+            forceStateVersionIncrement: FeatureGroupStore['forceStateVersionIncrement'];
             // Add other methods if needed by components directly accessing window.featureGroupStore
         };
     }
@@ -604,7 +614,8 @@ if (typeof window !== 'undefined') {
         window.featureGroupStore = {
             createOptionSubscription: storeInstance.createOptionSubscription,
             getGroupOption: storeInstance.getGroupOption,
-            getStateVersion: storeInstance.getStateVersion
+            getStateVersion: storeInstance.getStateVersion,
+            forceStateVersionIncrement: storeInstance.forceStateVersionIncrement
             // Add other minimal exports here if required
         };
     }

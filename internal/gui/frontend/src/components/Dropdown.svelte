@@ -35,9 +35,13 @@
     let internalValue = value;
     let unsubscribeFromStore: (() => void) | null = null;
     
-    // Important: Track both internal and prop values
-    $: if (value !== internalValue) {
-        internalValue = value;
+    // CRITICAL FIX: Make reactive statements directly depend on props
+    $: {
+        // This will run whenever 'value' changes
+        if (value !== internalValue) {
+            console.log(`Dropdown value prop changed: ${internalValue} → ${value}`);
+            internalValue = value;
+        }
     }
 
     // CRITICAL FIX: Make all relevant variables reactive dependencies

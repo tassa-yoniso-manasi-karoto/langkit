@@ -503,9 +503,12 @@
            {#key `${optionId}-${localValue}-${featureGroupStore.getStateVersion()}`}
                <Dropdown
                    options={optionDef.choices || []}
-                   value={localValue}
+                   value={featureGroupStore.getGroupOption(groupId, optionId) || localValue}
                    storeBinding={{ groupId, optionId }}
-                   on:change={handleChange}
+                   on:change={e => {
+                       localValue = e.detail;
+                       propagateUserValue(localValue);
+                   }}
                    label=""
                    placeholder={`Select ${optionDef.label}...`}
                    invalid={!isValid}
@@ -577,14 +580,17 @@
             {/if}
         {:else if optionDef.type === 'romanizationDropdown'}
            <!-- Force recreation when value or schemes list changes -->
-           {#key `${localValue}-${romanizationSchemes.length}-${featureGroupStore.getStateVersion()}`}
+           {#key `dropdown-${optionId}-${featureGroupStore.getGroupOption(groupId, optionId)}-${romanizationSchemes.length}-${featureGroupStore.getStateVersion()}`}
                <Dropdown
                    options={romanizationSchemes}
                    optionKey="name"
                    optionLabel="description"
-                   value={localValue}
+                   value={featureGroupStore.getGroupOption(groupId, optionId) || localValue}
                    storeBinding={{ groupId, optionId }}
-                   on:change={handleRomanizationChange}
+                   on:change={e => {
+                       localValue = e.detail;
+                       propagateUserValue(localValue);
+                   }}
                    label=""
                    placeholder="Select style..."
                    invalid={!isValid}

@@ -277,6 +277,10 @@
                   if (currentVersion === languageProcessingVersion) { // Check version again before final update
                       console.log(`[Language] Final UI refresh for v${currentVersion}`);
 
+                      // Force state version change (even if values are the same)
+                      // This is critical for ensuring components recreate and pick up new values
+                      featureGroupStore.forceStateVersionIncrement();
+
                       // Create fresh object reference to force reactivity
                       currentFeatureOptions = {...currentFeatureOptions};
                       
