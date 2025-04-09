@@ -12,6 +12,28 @@ The Feature Group system allows multiple features to share common options and se
 4. **Value Synchronization**: Changes to a shared option in one feature must propagate to all features in the group
 5. **Reliable Order Determination**: The system must reliably determine which feature should show the options
 6. **Multi-Group Support**: Features can belong to multiple groups, with proper handling of options from each group
+7. **Validation**: The system validates configuration integrity to prevent common errors
+8. **Performance Optimization**: Optimized for minimal re-renders and efficient state management
+
+## File Structure and Organization
+
+The feature group system is organized across several specialized files:
+
+| File | Purpose |
+|------|---------|
+| `featureGroupStore.ts` | Central store that manages group state, membership, and coordination |
+| `groupOptions.ts` | Single source of truth for all group option definitions |
+| `GroupOption.svelte` | Component for rendering and managing shared group options with authority-based synchronization |
+| `featureEnhancer.ts` | Enhances feature definitions with their group options during initialization |
+| `groupValidation.ts` | Comprehensive validation system for group configuration |
+| `featureGroupErrorHandling.ts` | Error handling utilities with safe operations and fallbacks |
+| `groupInspector.ts` | Debugging tools for inspecting group system state |
+| `groupSystem.ts` | Core concepts documentation and utilities |
+| `featureMixins.ts` | Reusable feature configurations as composable mixins |
+| `groupOptionsValidator.ts` | Validates option definitions and relationships |
+| `migrationUtils.ts` | Utilities for migrating from old feature-based to centralized option definitions |
+| `cleanupUtils.ts` | Tools for identifying and resolving redundant or inconsistent option definitions |
+| `GroupDebugPanel.svelte` | Debug UI component for real-time group system inspection |
 
 ## Key Components
 
@@ -26,245 +48,272 @@ The central store manages all group-related state, including:
 - Topmost feature determination
 - Value validation
 - Option-to-group mapping
+- Performance metrics and optimization
 
-The store provides these key methods:
-- `initializeCanonicalOrder()`: Sets the definitive ordering of features based on the feature model
-- `isTopmostInGroup()`: Determines if a feature is the first enabled one in its group
-- `registerOptionToGroup()`: Associates an option with a specific group
-- `getGroupForOption()`: Retrieves which group an option belongs to
-- `isTopmostForOption()`: Determines if a feature should display a specific option based on its group
-- `syncOptionsToFeatures()`: Ensures all features in a group have the same option values
-- `updateFeatureEnabled()`: Updates which features are enabled in each group
+Key methods include:
+```typescript
+// Initialize canonical feature order
+initializeCanonicalOrder(orderedFeatureIds: string[]): void
 
-### 2. Group Option Component (`GroupOption.svelte`)
+// Determine if a feature is the topmost in its group
+isTopmostInGroup(groupId: string, featureId: string): boolean
+
+// Associate an option with a specific group
+registerOptionToGroup(groupId: string, optionId: string): void
+
+// Get the group an option belongs to
+getGroupForOption(optionId: string): string | null
+
+// Check if a feature should display a specific option
+isTopmostForOption(featureId: string, optionId: string): boolean
+
+// Synchronize option values across all features in a group
+syncOptionsToFeatures(groupId: string, currentOptions: Record<string, Record<string, any>>): Record<string, Record<string, any>>
+
+// Create a derived store for a specific option
+createOptionSubscription(groupId: string, optionId: string): Readable<any>
+```
+
+### 2. Centralized Option Definitions (`groupOptions.ts`)
+
+All group-shared options are defined in a central location:
+
+```typescript
+export const groupOptionDefinitions: Record<string, Record<string, GroupOptionDefinition>> = {
+  // Subtitle Group Options
+  subtitle: {
+    style: {
+      type: 'romanizationDropdown',
+      label: 'Romanization Style',
+      default: '',
+      conditionalDisplay: "context.romanizationSchemes.length > 0"
+    },
+    provider: {
+      type: 'provider',
+      label: 'Provider',
+      default: '',
+      conditionalDisplay: "context.romanizationSchemes.length > 0"
+    },
+    // More options...
+  },
+  // Merge Group Options
+  merge: {
+    mergeOutputFiles: {
+      type: 'boolean',
+      label: 'Merge all processed outputs',
+      default: false,
+      hovertip: "When enabled, all processed outputs will be merged into a single video file."
+    },
+    // More options...
+  }
+};
+```
+
+### 3. Group Option Component (`GroupOption.svelte`)
 
 A specialized component for rendering and managing group-shared options with:
 
 - Authority-based value synchronization
-- User input priority handling
+- User input priority handling 
 - Validation integration
-- Value persistence across feature toggling
+- Input recovery for invalid values
+- Automatic relationship management (e.g., style → provider)
+- Performance optimization with debounced updates
 
-### 3. Feature Selector Component
+### 4. Feature Enhancement (`featureEnhancer.ts`)
 
-Manages feature initialization and UI coordination:
-
-- Initializes canonical feature ordering from the feature model
-- Registers feature groups and their shared options
-- Registers options to their respective groups
-- Manages feature enable/disable events
-- Coordinates value synchronization across the system
-
-### 4. Feature Card Component
-
-Manages individual feature display including:
-
-- Context-aware option visibility determination 
-- Automatic option-to-group registration
-- Conditional rendering of group options
-- Handling user inputs for option values
-- Propagating changes to the central store
-
-## Implementation Approach
-
-### Option-Group Relationship Management
-
-The system maintains a clear mapping between options and their owning groups:
+Features are enhanced with their group options during initialization:
 
 ```typescript
-// In featureGroupStore.ts
-interface GroupState {
-    // ... existing fields
-    optionGroups: Record<string, string>; // Maps option IDs to their owning group IDs
-}
-
-registerOptionToGroup(groupId: string, optionId: string) {
-    store.update(state => {
-        const newState = { ...state };
-        newState.optionGroups[optionId] = groupId;
-        return newState;
+export function enhanceFeaturesWithGroupOptions(features: FeatureDefinition[]): FeatureDefinition[] {
+  return features.map(feature => {
+    // Skip features without group membership
+    if (!feature.featureGroups || feature.featureGroups.length === 0) {
+      return feature;
+    }
+    
+    // Clone and enhance the feature with group options
+    const enhancedFeature = { ...feature };
+    
+    // Apply group options from centralized definitions
+    feature.featureGroups.forEach(groupId => {
+      const groupOptions = groupOptionDefinitions[groupId];
+      // Apply options to feature...
     });
-}
-
-getGroupForOption(optionId: string): string | null {
-    const state = get(store);
-    return state.optionGroups[optionId] || null;
+    
+    return enhancedFeature;
+  });
 }
 ```
 
-### Context-Aware Option Visibility
+### 5. Validation System (`groupValidation.ts`)
+
+Comprehensive validation ensures system integrity:
+
+```typescript
+export class GroupSystemValidator {
+  validateSystem(silent: boolean = false): ValidationError[] {
+    this.errors = [];
+    
+    // Run all validation checks
+    this.validateFeatureGroups();
+    this.validateGroupOptions();
+    this.validateOptionTypes();
+    this.validateOptionOrder();
+    this.validateRedundantOptions();
+    
+    // Return validation results
+    return this.errors;
+  }
+  
+  // Individual validation methods...
+}
+```
+
+## Implementation Approach
+
+### Centralized Option Definitions
+
+Options are now defined centrally rather than in individual features:
+
+```typescript
+// OLD: Feature-based definitions
+{
+  id: 'subtitleRomanization',
+  options: {
+    style: {
+      type: 'romanizationDropdown',
+      label: 'Romanization Style',
+      default: '',
+      showCondition: "context.isTopmostInGroup && context.romanizationSchemes.length > 0"
+    },
+    // More options...
+  }
+}
+
+// NEW: Centralized definitions with feature enhancement
+// In groupOptions.ts:
+subtitle: {
+  style: {
+    type: 'romanizationDropdown',
+    label: 'Romanization Style',
+    default: '',
+    conditionalDisplay: "context.romanizationSchemes.length > 0"
+  },
+  // More options...
+}
+
+// In feature definition:
+{
+  id: 'subtitleRomanization',
+  featureGroups: ['subtitle', 'merge'],
+  // Options are applied automatically during enhancement
+}
+```
+
+### Option-Specific Context Awareness
 
 The system uses option-specific context to determine visibility:
 
 ```typescript
-// In FeatureCard.svelte
 function shouldShowOption(optionId: string, optionDef: any): boolean {
-    // Find which group this option belongs to (if any)
-    let optionGroup = null;
-    if (feature.groupSharedOptions) {
-        for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
-            if (options.includes(optionId)) {
-                optionGroup = groupId;
-                
-                // Register this option with the group store
-                featureGroupStore.registerOptionToGroup(groupId, optionId);
-                break;
-            }
-        }
-    }
-    
-    // Use the option-specific topmost check
-    let isTopmostForThisOption = false;
-    if (enabled) {
-        isTopmostForThisOption = featureGroupStore.isTopmostForOption(feature.id, optionId);
-    }
-    
-    // Context for conditional rendering
-    const context = {
-        // ...other context properties
-        isTopmostForOption: isTopmostForThisOption
-    };
-}
-```
-
-### Option-Specific Topmost Check
-
-```typescript
-// In featureGroupStore.ts
-isTopmostForOption(featureId: string, optionId: string): boolean {
-    // Get the group this option belongs to
-    const groupId = this.getGroupForOption(optionId);
-    if (!groupId) {
-        console.warn(`Option ${optionId} is not registered with any group`);
-        return true; // Default to showing if not registered
-    }
-    
-    // Check if this feature is the topmost in the option's group
-    return this.isTopmostInGroup(groupId, featureId);
-}
-```
-
-### Canonical Order Approach
-
-The system uses canonical ordering (not DOM position) to determine the topmost feature:
-
-```typescript
-// In FeatureSelector.svelte
-onMount(() => {
-  // Get ordered feature IDs from the original features array
-  const canonicalOrder = features.map(f => f.id);
-
-  // Initialize feature group store with this canonical order
-  featureGroupStore.initializeCanonicalOrder(canonicalOrder);
-});
-```
-
-Special handling is provided for the merge group:
-
-```typescript
-// In featureGroupStore.ts
-isTopmostInGroup(groupId: string, featureId: string): boolean {
-    // ... basic checks
-
-    // Special case for merge group
-    if (groupId === 'merge') {
-        // Use global canonical order for merge group
-        const globalOrder = state.canonicalOrder || [];
-        
-        // Find first enabled feature in the merge group using global order
-        const topmostFeature = globalOrder.find(id => enabledFeatures.includes(id));
-        
-        return topmostFeature === featureId;
-    }
-    
-    // Standard group handling...
-}
-```
-
-### Feature Model Option Visibility
-
-Options use the new `isTopmostForOption` context variable:
-
-```typescript
-// In featureModel.ts
-options: {
-    mergeOutputFiles: {
-        type: 'boolean',
-        label: 'Merge all processed outputs',
-        default: false,
-        hovertip: "When enabled, all processed outputs will be merged into a single video file.",
-        showCondition: "context.isTopmostForOption"
-    },
-    // ...
-}
-```
-
-## Group Initialization
-
-During initialization, groups and their options are registered:
-
-```typescript
-// In FeatureSelector.svelte
-function initializeFeatureGroups() {
-    // Register subtitle group
-    const subtitleGroup = {
-        id: 'subtitle',
-        label: 'Subtitle Processing',
-        featureIds: [...],
-        sharedOptions: ['style', 'provider', 'dockerRecreate', 'browserAccessURL']
-    };
-    
-    featureGroupStore.registerGroup(subtitleGroup);
-    
-    // Register options to their groups
-    ['style', 'provider', 'dockerRecreate', 'browserAccessURL'].forEach(optionId => {
-        featureGroupStore.registerOptionToGroup('subtitle', optionId);
-    });
-    
-    // Register merge group and its options
-    featureGroupStore.registerOptionToGroup('merge', 'mergeOutputFiles');
-    featureGroupStore.registerOptionToGroup('merge', 'mergingFormat');
-}
-```
-
-## Value Synchronization Logic
-
-The system ensures values are properly synchronized through the central store:
-
-```typescript
-// Store's sync method ensures all features have identical values
-syncOptionsToFeatures(groupId, currentOptions) {
-  const newOptions = { ...currentOptions };
-  const groupOptions = this.getGroupOptions(groupId);
-  
-  // Apply group option values to all features in the group
-  this.getGroupFeatures(groupId).forEach(featureId => {
-    // Apply each shared option value
-    this.getSharedOptions(groupId).forEach(optionId => {
-      if (groupOptions[optionId] !== undefined) {
-        newOptions[featureId][optionId] = groupOptions[optionId];
+  // Find which group this option belongs to
+  let optionGroup = null;
+  if (feature.groupSharedOptions) {
+    for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
+      if (options.includes(optionId)) {
+        optionGroup = groupId;
+        featureGroupStore.registerOptionToGroup(groupId, optionId);
+        break;
       }
-    });
+    }
+  }
+  
+  // Use the option-specific topmost check
+  const isTopmostForThisOption = optionGroup && enabled ?
+    featureGroupStore.isTopmostForOption(feature.id, optionId) :
+    true;
+  
+  // Prepare context for condition evaluation
+  const context = {
+    standardTag,
+    needsDocker,
+    romanizationSchemes,
+    isTopmostForOption: isTopmostForThisOption,
+    // Other context properties...
+  };
+  
+  // Evaluate condition safely
+  try {
+    const evaluator = new Function('context', 'feature', 'featureGroupStore', 
+      `return ${optionDef.showCondition}`);
+    return Boolean(evaluator(context, {[feature.id]: options}, featureGroupStore));
+  } catch (error) {
+    console.error('Error evaluating condition:', optionDef.showCondition, error);
+    return false;
+  }
+}
+```
+
+### Feature Mixins for Common Configurations
+
+Reusable feature configurations are provided as mixins:
+
+```typescript
+export const subtitleFeatureMixin = {
+  featureGroups: ['subtitle', 'merge'],
+  requiresLanguage: true,
+  requiresDocker: true,
+  requiresScraper: true,
+  optionOrder: ['style', 'provider', 'dockerRecreate', 'browserAccessURL', 'mergeOutputFiles', 'mergingFormat'],
+};
+
+export function applyFeatureMixins(feature: FeatureDefinition, ...mixins: Partial<FeatureDefinition>[]): FeatureDefinition {
+  let result = { ...feature };
+  
+  // Apply each mixin
+  mixins.forEach(mixin => {
+    // Merge properties...
   });
   
-  return newOptions;
+  return result;
 }
 ```
 
-## Multi-Group Feature Configuration
+### Performance Optimizations
 
-Features can belong to multiple groups:
+The system includes several performance optimizations:
+
+1. **Caching**: Topmost status and visible options are cached to reduce redundant calculations
+2. **Debounced Updates**: Changes are batched and debounced to prevent excessive re-rendering
+3. **Selective Re-rendering**: Components only re-render when their specific data changes
+4. **Store Subscriptions**: Fine-grained subscriptions to only relevant state changes
+5. **Metrics Tracking**: Performance monitoring for identifying bottlenecks
 
 ```typescript
-// In featureModel.ts
-{
-  id: 'subtitleRomanization',
-  // ...
-  featureGroups: ['subtitle', 'merge'],
-  groupSharedOptions: {
-    'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-    'merge': ['mergeOutputFiles', 'mergingFormat']
+// Example of option-specific subscription
+createOptionSubscription(gId: string, oId: string): Readable<any> {
+  return derived(store, ($store) => {
+    return $store.groupOptions[gId]?.[oId];
+  });
+}
+
+// Example of performance metrics tracking
+export class GroupPerformanceMonitor {
+  private operations: Map<string, { count: number; totalTime: number; maxTime: number }> = new Map();
+  
+  measure<T>(operationName: string, operation: () => T): T {
+    const start = performance.now();
+    
+    try {
+      return operation();
+    } finally {
+      const time = performance.now() - start;
+      // Record metrics...
+    }
   }
+  
+  // Methods for reporting metrics...
 }
 ```
 
@@ -286,32 +335,125 @@ Features can belong to multiple groups:
    - Problem: Without explicit option-to-group mapping, conflicts arise
    - Solution: Register each option to exactly one group in the store
 
+5. **Performance Issues**:
+   - Problem: Too many re-renders when options change
+   - Solution: Fine-grained subscriptions and debounced updates
+
+6. **Value Synchronization Races**:
+   - Problem: Race conditions between user input and programmatic updates
+   - Solution: Authority-based synchronization with timestamp tracking
+
 ## Best Practices for Working with the Group System
 
-1. **Adding new shared options**:
-   - Add option definition to feature model
-   - Add to groupSharedOptions array for each feature in the group
-   - Register option with its group during initialization
-   - Use `context.isTopmostForOption` in showCondition
+### 1. Adding new shared options
 
-2. **Creating a new group**:
-   - Define group with ID, features, and shared options
-   - Register with featureGroupStore
-   - Register options to the group
-   - Update feature definitions with group membership
-   - Provide default values for shared options
+```typescript
+// 1. Define the option in groupOptions.ts
+merge: {
+  newOption: {
+    type: 'boolean',
+    label: 'New Option',
+    default: false,
+    conditionalDisplay: "context.someCondition"
+  }
+}
 
-3. **Implementing conditional visibility**:
-   - Use the option-specific context variable:
-   ```typescript
-   showCondition: "context.isTopmostForOption && context.needsDocker"
-   ```
+// 2. Update feature definitions to use the group
+{
+  id: 'myFeature',
+  featureGroups: ['merge'],
+  groupSharedOptions: {
+    'merge': ['mergeOutputFiles', 'mergingFormat', 'newOption']
+  }
+}
 
-4. **Features in multiple groups**:
-   - Ensure each option is registered with exactly one group
-   - Organize groupSharedOptions by group ID
-   - Test visibility when multiple group features are enabled
+// 3. Register the option with its group during initialization
+featureGroupStore.registerOptionToGroup('merge', 'newOption');
+```
 
-## Summary
+### 2. Creating a new group
 
-The Feature Group system provides a robust mechanism for sharing options across related features, even when features belong to multiple groups. By tracking which option belongs to which group and using context-aware visibility checks, the system ensures consistent display of shared options regardless of which combination of features is enabled.
+```typescript
+// 1. Define group in groupOptions.ts
+newGroup: {
+  option1: {
+    type: 'boolean',
+    label: 'Option 1',
+    default: false
+  },
+  option2: {
+    type: 'string',
+    label: 'Option 2',
+    default: ''
+  }
+}
+
+// 2. Register group with the store
+const newGroup = {
+  id: 'newGroup',
+  label: 'New Group',
+  featureIds: ['feature1', 'feature2'],
+  sharedOptions: ['option1', 'option2']
+};
+featureGroupStore.registerGroup(newGroup);
+
+// 3. Register options to the group
+['option1', 'option2'].forEach(optionId => {
+  featureGroupStore.registerOptionToGroup('newGroup', optionId);
+});
+
+// 4. Update feature definitions
+{
+  id: 'feature1',
+  featureGroups: ['newGroup'],
+  groupSharedOptions: {
+    'newGroup': ['option1', 'option2']
+  }
+}
+```
+
+### 3. Implementing conditional visibility
+
+Use the option-specific context variable with additional conditions:
+
+```typescript
+// In groupOptions.ts
+option1: {
+  type: 'boolean',
+  label: 'Option 1',
+  default: false,
+  conditionalDisplay: "context.needsDocker && context.romanizationSchemes.length > 0"
+}
+
+// In GroupOption component, conditionalDisplay becomes:
+showCondition: "context.isTopmostForOption && (context.needsDocker && context.romanizationSchemes.length > 0)"
+```
+
+### 4. Features in multiple groups
+
+```typescript
+{
+  id: 'subtitleRomanization',
+  featureGroups: ['subtitle', 'merge'],
+  groupSharedOptions: {
+    'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
+    'merge': ['mergeOutputFiles', 'mergingFormat']
+  }
+}
+```
+
+## Debugging and Validation
+
+The system includes comprehensive debugging and validation tools:
+
+1. **GroupDebugPanel**: UI component for inspecting group system state in real-time
+2. **GroupInspector**: Programmatic access to detailed group system information
+3. **GroupSystemValidator**: Validates group system configuration integrity
+4. **Console Utilities**: Helper functions for debugging via the browser console
+
+```typescript
+// Example console debugging
+window.__groupInspector.getGroupSystemState();
+window.__featureGroupStore.getGroupOptions('subtitle');
+validateGroupSystem();
+```

@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount } from 'svelte';
+    import { createEventDispatcher, onMount, onDestroy } from 'svelte';
     import { clickOutside } from '../lib/clickOutside';
     import Hovertip from './Hovertip.svelte';
-    import Portal from 'svelte-portal'; // Correct import path
+    import Portal from 'svelte-portal';
 
     // Props
     export let options: any[] = [];
@@ -15,7 +15,7 @@
     export let optionLabel: string = '';
     export let labelFunction: ((option: any) => string) | null = null;
     export let tooltipFunction: ((option: any) => string) | null = null;
-    export let className: string = ""; // Added className prop for consistency
+    export let className: string = "";
     export let invalid: boolean = false;
     export let errorMessage: string = '';
 
@@ -27,6 +27,10 @@
     let hasRenderedOptions = false;
     let dropdownPosition = { top: 0, left: 0, width: 0 };
     const dispatch = createEventDispatcher();
+
+    // CRITICAL FIX: Make all relevant variables reactive dependencies
+    $: selectedDisplayText = getSelectedDisplayText(value, options);
+    $: selectedOption = getSelectedOptionObject(value, options);
 
     function toggleDropdown() {
         if (disabled) return;
@@ -40,12 +44,10 @@
     function updateDropdownPosition() {
         if (!buttonRef) return;
         
-        // Get button position relative to viewport
         const rect = buttonRef.getBoundingClientRect();
         
-        // Calculate positions
         dropdownPosition = {
-            top: rect.bottom + window.scrollY, // Position below button
+            top: rect.bottom + window.scrollY,
             left: rect.left + window.scrollX,
             width: rect.width
         };
@@ -86,35 +88,37 @@
 
     /**
      * Consistent method to find the currently selected option object
+     * FIXED: Explicitly accept value and options as parameters to track dependencies
      */
-    function getSelectedOptionObject() {
-        if (!value || !options || !options.length) return null;
+    function getSelectedOptionObject(currentValue: any, currentOptions: any[]): any {
+        if (!currentValue || !currentOptions || !currentOptions.length) return null;
         
         // For object options with optionKey
-        if (optionKey && typeof options[0] === 'object') {
-            return options.find(opt => opt[optionKey] === value) || null;
+        if (optionKey && currentOptions.length > 0 && typeof currentOptions[0] === 'object') {
+            return currentOptions.find(opt => opt[optionKey] === currentValue) || null;
         } 
         
         // For primitive options (strings, numbers, etc.)
-        return options.find(opt => opt === value) || null;
+        return currentOptions.find(opt => opt === currentValue) || null;
     }
     
     /**
      * Get the display text for the currently selected value
+     * FIXED: Explicitly accept value and options as parameters to track dependencies
      */
-    function getSelectedDisplayText(): string {
-        if (!value) return placeholder || `Select ${label || 'option'}...`;
+    function getSelectedDisplayText(currentValue: any, currentOptions: any[]): string {
+        if (!currentValue) return placeholder || `Select ${label || 'option'}...`;
         
-        // Find the selected option object
-        const selectedOption = getSelectedOptionObject();
+        // Find the selected option object using the current values
+        const selectedOpt = getSelectedOptionObject(currentValue, currentOptions);
         
         // If we found it, use the same display formatting used in dropdown
-        if (selectedOption) {
-            return getOptionDisplayText(selectedOption);
+        if (selectedOpt) {
+            return getOptionDisplayText(selectedOpt);
         }
         
         // Fallback if the option isn't found in the list
-        return value.toString();
+        return currentValue.toString();
     }
 
     function getOptionTooltip(option: any): string | null {
@@ -134,6 +138,10 @@
         }
     }
 
+    function handleClickOutside(event: CustomEvent) {
+        closeDropdown();
+    }
+
     onMount(() => {
         // Add listeners for events that should close the dropdown
         window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
@@ -146,7 +154,12 @@
     });
 </script>
 
-<div class="relative w-full text-sm {className}" bind:this={dropdownRef} use:clickOutside on:clickoutside={closeDropdown}> <!-- Revert to original on:clickoutside -->
+<div 
+    class="relative w-full text-sm {className}" 
+    bind:this={dropdownRef} 
+    use:clickOutside 
+    on:clickoutside={handleClickOutside}
+>
     {#if options.length > 0}
         <button 
             type="button" 
@@ -161,7 +174,7 @@
             <!-- Fixed-width container for text -->
             <div class="flex-grow min-w-0 overflow-hidden text-center">
                 <span class="block truncate {!value ? 'text-gray-400' : ''}">
-                    {getSelectedDisplayText()}
+                    {selectedDisplayText}
                 </span>
             </div>
             <!-- Icon with flex-shrink-0 to prevent it from being compressed -->

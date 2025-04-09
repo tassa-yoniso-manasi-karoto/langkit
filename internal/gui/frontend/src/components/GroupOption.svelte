@@ -51,13 +51,13 @@
     const DEBUG = false;
     
     // Clean tracking of store changes
-    let unsubscribeFromStore: () => void;
-    
+    let unsubscribeFromStore: (() => void) | null = null; // Initialize to null
+
     // Flag to prevent initialization feedback loops
     let isInitialized = false;
     let isUpdating = false; // Add state for animation
-    
-    // Add flags to track update sources
+
+    // Style-provider update guards
     let updatingFromProvider = false;
     let updatingFromStyle = false;
 
@@ -129,48 +129,50 @@
         }
     }, 50);
     
-    let optionStore; // Declare optionStore
+    let optionStore: Readable<any> | null = null; // Declare optionStore with type and initialize to null
 
     onMount(() => {
         // Generate a unique ID for this component instance
         const componentId = `${groupId}.${optionId}`;
-        
+
         // Track component mounting
         trackComponentMount(componentId);
 
-        // Create a derived store that only tracks this specific option
-        optionStore = featureGroupStore.createOptionSubscription(groupId, optionId);
-        
-        // Subscribe only to relevant changes
+        // Create option-specific store subscription
+        const optionStore = featureGroupStore.createOptionSubscription(groupId, optionId);
+
+        // Subscribe to changes
         unsubscribeFromStore = optionStore.subscribe(storeValue => {
             if (storeValue !== undefined && storeValue !== localValue) {
-                // Update local value from store
+                console.log(`Store update detected for ${groupId}.${optionId}: ${localValue} → ${storeValue}`); // Added debug log
                 localValue = storeValue;
-                 // Validate the new value
+                isUpdating = true;
+                setTimeout(() => { isUpdating = false; }, 300); // Adjusted timeout
+
+                // Validate the new value
                 const validation = validateValue(localValue);
                 isValid = validation.isValid;
                 validationMessage = validation.message;
             }
         });
-        
-        // Initialize with current value if needed
+
+        // Initialize with current store value
         const initialValue = featureGroupStore.getGroupOption(groupId, optionId);
         if (initialValue !== undefined && initialValue !== localValue) {
             localValue = initialValue;
-        } else if (initialValue === undefined) {
-             // Store initial value in group store if not already set by sync
-             featureGroupStore.setGroupOption(groupId, optionId, localValue);
+        } else if (initialValue === undefined && localValue !== undefined) {
+            // Store initial value in group store if not already set
+            featureGroupStore.setGroupOption(groupId, optionId, localValue);
         }
 
         // Validate initial value
         const validation = validateValue(localValue);
         isValid = validation.isValid;
         validationMessage = validation.message;
-        
-        // Mark as initialized and track external update time
+
         isInitialized = true;
-        lastExternalUpdateTime = Date.now();
-        
+        lastExternalUpdateTime = Date.now(); // Keep track of external updates
+
         if (DEBUG) console.log(`GroupOption mounted: ${componentId}=${localValue}`);
     });
     
@@ -248,13 +250,14 @@
         // This is typically not needed but included for completeness
     }, 50);
     
-    // Simplified reactive statements with guards
-    $: if (optionId === 'style' && localValue) {
+    // Reactive statement with guard for style -> provider updates
+    $: if (optionId === 'style' && localValue && !updatingFromProvider) {
         updateProviderForStyle(localValue);
     }
-    
-    $: if (optionId === 'provider' && localValue) {
-        updateStyleForProvider(localValue);
+
+    // Reactive statement for provider -> style (if needed in future, currently empty)
+    $: if (optionId === 'provider' && localValue && !updatingFromStyle) {
+        // updateStyleForProvider(localValue); // Keep commented out as per spec
     }
     
     onDestroy(() => {
@@ -307,16 +310,27 @@
       });
     }
     
-    // Handle direct user input with high authority
+    // Handle user input with proper propagation
     function handleUserInput(newValue: any) {
-        // Set user input timestamp slightly in the future to ensure it's authoritative
-        lastUserUpdateTime = Date.now() + 10;
-        
-        // Update local value
         localValue = newValue;
-        
-        // User input is authoritative - propagate immediately
-        propagateUserValue(newValue);
+        featureGroupStore.setGroupOption(groupId, optionId, newValue); // Update store
+
+        // Add update animation
+        isUpdating = true;
+        setTimeout(() => { isUpdating = false; }, 300); // Adjusted timeout
+
+        // Note: propagateUserValue is not called here directly
+        // The store update will trigger the subscription, which updates other instances.
+        // We still need to dispatch the change to the parent if necessary for other logic.
+        dispatch('groupOptionChange', {
+            groupId,
+            optionId,
+            value: newValue,
+            isUserInput: true, // Indicate this was user input
+            isValid: validateValue(newValue).isValid // Include validity
+        });
+
+        // Special handling for style changes is now done via reactive statement
     }
     
     // Create a debounced version of user input handler
@@ -485,16 +499,18 @@
                 {/key}
             </label>
         {:else if optionDef.type === 'dropdown'}
-            <!-- Remove label to avoid duplication -->
-            <Dropdown
-                options={optionDef.choices || []}
-                value={localValue}
-                on:change={handleChange}
-                label=""
-                placeholder={`Select ${optionDef.label}...`}
-                invalid={!isValid}
-                errorMessage={validationMessage}
-            />
+           <!-- Regular dropdown with key for forced recreation -->
+           {#key `${optionId}-${localValue}-${featureGroupStore.getStateVersion()}`}
+               <Dropdown
+                   options={optionDef.choices || []}
+                   value={localValue}
+                   on:change={handleChange}
+                   label=""
+                   placeholder={`Select ${optionDef.label}...`}
+                   invalid={!isValid}
+                   errorMessage={validationMessage}
+               />
+           {/key}
         {:else if optionDef.type === 'string'}
             {#if optionId === 'browserAccessURL'}
                 <!-- Browser URL with optional badge -->
@@ -559,45 +575,47 @@
                 />
             {/if}
         {:else if optionDef.type === 'romanizationDropdown'}
-            <!-- Force dropdown re-render when value changes -->
-            {#key localValue + '-' + romanizationSchemes.length}
-                <Dropdown
-                    options={romanizationSchemes}
-                    optionKey="name"
-                    optionLabel="description"
-                    value={localValue}
-                    on:change={handleRomanizationChange}
-                    label=""
-                    placeholder="Select style..."
-                    invalid={!isValid}
-                    errorMessage={validationMessage}
-                />
-            {/key}
+           <!-- Force recreation when value or schemes list changes -->
+           {#key `${localValue}-${romanizationSchemes.length}-${featureGroupStore.getStateVersion()}`}
+               <Dropdown
+                   options={romanizationSchemes}
+                   optionKey="name"
+                   optionLabel="description"
+                   value={localValue}
+                   on:change={handleRomanizationChange}
+                   label=""
+                   placeholder="Select style..."
+                   invalid={!isValid}
+                   errorMessage={validationMessage}
+               />
+           {/key}
         {:else if optionDef.type === 'provider'}
-            <!-- Simplified provider display -->
-            <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
-                {#if groupId === 'subtitle'}
-                    <!-- Get fresh values from store carefully -->
-                    {@const styleValue = featureGroupStore.getGroupOption(groupId, 'style')}
-                    {@const selectedScheme = romanizationSchemes.find(s => s.name === styleValue)}
-                    {@const providerValue = selectedScheme ? selectedScheme.provider : localValue}
-                    
-                    <!-- Display the provider value -->
-                    <span>{providerValue || 'No provider selected'}</span>
-                    
-                    <!-- GitHub link if available -->
-                    {#if providerValue && providerGithubUrls[providerValue]}
-                        <ExternalLink href={providerGithubUrls[providerValue]} className="text-primary/70 hover:text-primary transition-colors duration-200">
-                            <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                            </svg>
-                        </ExternalLink>
-                    {/if}
-                {:else}
-                    <!-- Regular provider display -->
-                    {localValue || ''}
-                {/if}
-            </div>
+           <!-- Provider special case - Not a dropdown, but display depends on style -->
+           {#key `provider-${localValue}-${featureGroupStore.getStateVersion()}`}
+               <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
+                   {#if groupId === 'subtitle'}
+                       <!-- Get fresh values directly from store -->
+                       {@const styleValue = featureGroupStore.getGroupOption(groupId, 'style')}
+                       {@const selectedScheme = romanizationSchemes.find(s => s.name === styleValue)}
+                       {@const providerValue = selectedScheme ? selectedScheme.provider : localValue}
+
+                       <!-- Display the provider value -->
+                       <span>{providerValue || 'No provider selected'}</span>
+
+                       <!-- GitHub link if available -->
+                       {#if providerValue && providerGithubUrls[providerValue]}
+                           <ExternalLink href={providerGithubUrls[providerValue]} className="text-primary/70 hover:text-primary transition-colors duration-200">
+                                <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
+                                     <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                                </svg>
+                           </ExternalLink>
+                       {/if}
+                   {:else}
+                       <!-- Regular provider display -->
+                       {localValue || ''}
+                   {/if}
+               </div>
+           {/key}
         {/if}
     </div>
     
@@ -626,13 +644,14 @@
       margin-left: 0;
       position: relative;
       border-left: 3px solid transparent;
+      transition: background-color 0.5s ease; /* Add transition for pulse */
     }
-    
-    /* Direct attribute selectors without :global() */
+
+    /* Fix CSS selectors - direct attribute selectors without :global() */
     .group-option[data-group-id='subtitle'] {
       border-left-color: hsla(210, 90%, 60%, 0.35);
     }
-    
+
     .group-option[data-group-id='merge'] {
       border-left-color: hsla(130, 90%, 50%, 0.35);
     }
@@ -660,26 +679,26 @@
     }
 
     /* Remove :global() selectors for icons as they are handled by class */
-    /* Invalid state styling */
-    .group-option.invalid :global(input),
-    .group-option.invalid :global(select),
-    .group-option.invalid :global(textarea) {
-      border-color: var(--error-task-color);
+    /* Invalid state styling - simplified */
+    .group-option.invalid input,
+    .group-option.invalid select,
+    .group-option.invalid textarea {
+      border-color: var(--error-task-color) !important; /* Use important to override defaults */
     }
 
     /* Ensure invalid border takes precedence on focus */
-    .group-option.invalid :global(input:focus),
-    .group-option.invalid :global(select:focus),
-    .group-option.invalid :global(textarea:focus) {
-      border-color: var(--error-task-color);
-      box-shadow: 0 0 0 2px rgba(var(--error-task-rgb), 0.25);
+    .group-option.invalid input:focus,
+    .group-option.invalid select:focus,
+    .group-option.invalid textarea:focus {
+      border-color: var(--error-task-color) !important;
+      box-shadow: 0 0 0 2px rgba(var(--error-task-rgb), 0.25) !important;
     }
 
-    /* Updating animation */
+    /* Animation for updates */
     .group-option.updating {
       animation: option-update-pulse 0.5s ease;
     }
-    
+
     @keyframes option-update-pulse {
       0% { background-color: transparent; }
       30% { background-color: rgba(159, 110, 247, 0.1); }

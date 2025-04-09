@@ -71,9 +71,9 @@
 
     // New loading state flags
     let isLoadingSchemes = false;
-    let languageProcessingInProgress = false; // Use this flag
-    let languageProcessingVersion = 0; // Add version tracking
-    let languageUpdateTimeoutId: number | null = null; // Added for timeout management
+    let languageProcessingInProgress = false; // Add tracking variable
+    let languageProcessingVersion = 0; // Add tracking variable
+    let languageUpdateTimeoutId: number | null = null; // Add tracking variable
 
     // Group tracking for reference
     let providerGroups: Record<string, string[]> = {
@@ -198,105 +198,140 @@
     /**
      * Optimized language change processing with coordinated updates
      */
-    async function processLanguageChange(newLanguage: string): Promise<void> {
-        // Clear any pending update from previous language changes
-        if (languageUpdateTimeoutId) {
-            clearTimeout(languageUpdateTimeoutId);
-            languageUpdateTimeoutId = null;
-        }
+  async function processLanguageChange(newLanguage: string): Promise<void> {
+      // Clear pending updates
+      if (languageUpdateTimeoutId) {
+          clearTimeout(languageUpdateTimeoutId);
+          languageUpdateTimeoutId = null;
+      }
 
-        if (languageProcessingInProgress) {
-            console.log("Already processing language change, skipping");
-            return;
-        }
-        
-        languageProcessingInProgress = true;
-        languageProcessingVersion++;
-        const currentVersion = languageProcessingVersion; // Capture version for this run
-        
-        console.log(`[Language] Processing language change to: ${newLanguage} (v${currentVersion})`);
-        
-        try {
-            // Reset all feature selections if needed
-            if (newLanguage) {
-                resetAllFeatures();
-            }
-            
-            // Validate the language
-            await validateLanguage(newLanguage, true);
-            
-            // Only continue if this is still the most recent language change
-            if (currentVersion !== languageProcessingVersion) {
-                 console.log(`[Language] Aborting v${currentVersion} due to newer change.`);
-                 return;
-            }
-            
-            if (!isValidLanguage && newLanguage) {
-                console.log(`Language ${newLanguage} is not valid`);
-                return; // Exit early if language is invalid
-            }
-            
-            // Use standardized tag
-            const effectiveTag = standardTag || newLanguage;
-            
-            // Load romanization schemes
-            console.log(`[Language] Loading romanization schemes for ${effectiveTag} (v${currentVersion})`);
-            const schemesAvailable = await loadRomanizationSchemes(effectiveTag);
-            console.log(`[Language] Loaded ${romanizationSchemes.length} schemes (v${currentVersion})`);
-            
-            // Check tokenization support
-            await checkTokenization(effectiveTag);
-            
-            // Only continue if this is still the most recent language change
-            if (currentVersion !== languageProcessingVersion) {
-                 console.log(`[Language] Aborting v${currentVersion} after loading data.`);
-                 return;
-            }
-            
-            // Apply default style if schemes are available
-            if (schemesAvailable) {
-                console.log(`[Language] Applying romanization defaults (v${currentVersion})`);
-                applyDefaultRomanizationStyle(); // This now uses batchSetGroupOptions
-                
-                // Single coordinated update after store changes have likely propagated
-                languageUpdateTimeoutId = window.setTimeout(() => { // Use window.setTimeout
-                    languageUpdateTimeoutId = null;
-                    if (currentVersion === languageProcessingVersion) { // Check version again before final update
-                        console.log(`[Language] Final UI refresh for v${currentVersion}`);
-                        // Update local feature options to match store (important after batch update)
-                         ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
-                            if (currentFeatureOptions[featureId]) {
-                                const styleVal = featureGroupStore.getGroupOption('subtitle', 'style');
-                                const providerVal = featureGroupStore.getGroupOption('subtitle', 'provider');
-                                if (currentFeatureOptions[featureId].style !== styleVal) {
-                                    currentFeatureOptions[featureId].style = styleVal;
-                                }
-                                if (currentFeatureOptions[featureId].provider !== providerVal) {
-                                    currentFeatureOptions[featureId].provider = providerVal;
-                                }
-                            }
-                        });
-                        forceUIRefresh(); // Trigger the UI update
-                    } else {
-                         console.log(`[Language] Skipping final UI refresh for v${currentVersion} as newer version exists.`);
-                    }
-                }, 100); // Increased delay slightly
-            }
-            
-            // Update errors based on availability
-            updateFeatureAvailabilityErrors();
-            
-        } catch (error) {
-            console.error("Error during language change processing:", error);
-            logStore.addLog({
-                level: 'ERROR',
-                message: `Error processing language change: ${(error as Error).message}`,
-                time: new Date().toISOString()
-            });
-        } finally {
-            languageProcessingInProgress = false;
-            console.log(`[Language] Processing finished for v${currentVersion}`);
-        }
+      if (languageProcessingInProgress) {
+          console.log("Already processing language change, skipping");
+          return;
+      }
+
+      languageProcessingInProgress = true;
+      languageProcessingVersion++;
+      const currentVersion = languageProcessingVersion; // Capture version for this run
+
+      try {
+          console.log(`[Language] Processing language change to: ${newLanguage} (v${currentVersion})`);
+
+          // Reset all feature selections if needed (Keep this logic)
+          if (newLanguage) {
+              resetAllFeatures();
+          }
+
+          // Language validation
+          await validateLanguage(newLanguage, true);
+
+          // Version check - abort if newer change is processing
+          if (currentVersion !== languageProcessingVersion) {
+              console.log(`[Language] Aborting v${currentVersion} due to newer change.`);
+              return;
+          }
+
+          if (!isValidLanguage && newLanguage) {
+              console.log(`Language ${newLanguage} is not valid`);
+               // Reset relevant state even if invalid (Keep this logic)
+               romanizationSchemes = [];
+               isRomanizationAvailable = false;
+               isSelectiveTransliterationAvailable = false;
+               tokenizationAllowed = false;
+               needsDocker = false;
+               needsScraper = false;
+               updateFeatureAvailabilityErrors();
+               forceUIRefresh(); // Refresh UI to reflect reset state
+              return; // Exit early if language is invalid
+          }
+
+          // Use standardized tag
+          const effectiveTag = standardTag || newLanguage;
+
+          // Load romanization schemes
+          console.log(`[Language] Loading romanization schemes for ${effectiveTag} (v${currentVersion})`);
+          const schemesAvailable = await loadRomanizationSchemes(effectiveTag);
+
+          // Check tokenization support
+          await checkTokenization(effectiveTag);
+
+          // Version check again
+          if (currentVersion !== languageProcessingVersion) {
+              console.log(`[Language] Aborting v${currentVersion} after loading data.`);
+              return;
+          }
+
+          // Apply default style if schemes are available
+          if (schemesAvailable && romanizationSchemes.length > 0) {
+              console.log(`[Language] Applying romanization defaults (v${currentVersion})`);
+
+              // Use batch update instead of individual updates
+              featureGroupStore.batchSetGroupOptions('subtitle', {
+                  style: romanizationSchemes[0].name,
+                  provider: romanizationSchemes[0].provider
+              });
+
+              // Single coordinated update after store changes have propagated
+              languageUpdateTimeoutId = window.setTimeout(() => { // Use window.setTimeout
+                  languageUpdateTimeoutId = null;
+                  if (currentVersion === languageProcessingVersion) { // Check version again before final update
+                      console.log(`[Language] Final UI refresh for v${currentVersion}`);
+
+                      // Update local feature options to match store (important after batch update)
+                       ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
+                          if (currentFeatureOptions[featureId]) {
+                              const styleVal = featureGroupStore.getGroupOption('subtitle', 'style');
+                              const providerVal = featureGroupStore.getGroupOption('subtitle', 'provider');
+
+                              // Check if values are defined before assigning
+                              if (styleVal !== undefined && currentFeatureOptions[featureId].style !== styleVal) {
+                                  currentFeatureOptions[featureId].style = styleVal;
+                              }
+
+                              if (providerVal !== undefined && currentFeatureOptions[featureId].provider !== providerVal) {
+                                  currentFeatureOptions[featureId].provider = providerVal;
+                              }
+                          }
+                      });
+
+                      // Force UI refresh
+                      currentFeatureOptions = {...currentFeatureOptions}; // Trigger reactivity
+                      dispatch('optionsChange', currentFeatureOptions); // Dispatch updated options
+                  } else {
+                       console.log(`[Language] Skipping final UI refresh for v${currentVersion} as newer version exists.`);
+                  }
+              }, 100); // Increased delay slightly
+          } else {
+               // If no schemes available, ensure related options are cleared in the store (Keep this logic)
+               featureGroupStore.batchSetGroupOptions('subtitle', {
+                   style: '', // Clear style
+                   provider: '' // Clear provider
+               });
+               // And update local state immediately
+               ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].forEach(featureId => {
+                   if (currentFeatureOptions[featureId]) {
+                       currentFeatureOptions[featureId].style = '';
+                       currentFeatureOptions[featureId].provider = '';
+                   }
+               });
+               forceUIRefresh(); // Refresh UI to reflect cleared state
+          }
+
+          // Update errors based on availability
+          updateFeatureAvailabilityErrors();
+
+      } catch (error) {
+          console.error("Error during language change processing:", error);
+          // Log error (Keep this logic)
+           logStore.addLog({
+               level: 'ERROR',
+               message: `Error processing language change: ${(error as Error).message}`,
+               time: new Date().toISOString()
+           });
+      } finally {
+          languageProcessingInProgress = false; // Reset flag
+          console.log(`[Language] Processing finished for v${currentVersion}`);
+      }
     }
     
     /**
@@ -1192,9 +1227,9 @@
         }
         if (unsubscribeMetrics) unsubscribeMetrics(); // Clean up metrics subscription
         
-        // Clean up language update timeout
+        // Cleanup on component destroy
         if (languageUpdateTimeoutId) {
-            clearTimeout(languageUpdateTimeoutId);
+            clearTimeout(languageUpdateTimeoutId); // Add cleanup
         }
 
         // Clean up error store subscription (variable was never assigned, removing block)

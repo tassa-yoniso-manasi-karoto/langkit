@@ -764,6 +764,7 @@
                             feature.groupSharedOptions?.[gId]?.includes(optionId) ?? false
                         ) ?? null : null}
                     
+                    
                     <!-- Modified special case handling -->
                     {@const isRomanizationSpecialCase = optionDef.type === 'romanizationDropdown' && feature.id !== 'subtitleRomanization'}
                     {@const shouldRenderAsGroupOption = isGroupOption && groupId &&
@@ -773,21 +774,23 @@
                         {#if feature.id === 'subtitleRomanization' || (optionDef.type === 'provider' && optionId === 'provider')}
                             <!-- Always render these special cases in their primary feature -->
                             <div class="mb-4 w-full">
-                                <GroupOption
-                                    {groupId}
-                                    {optionId}
-                                    {optionDef}
-                                    value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
-                                    {needsDocker}
-                                    {needsScraper}
-                                    {romanizationSchemes}
-                                    showGroupIndicator={true}
-                                    on:groupOptionChange={(event) => {
-                                        const { groupId, optionId, value } = event.detail;
-                                        options[optionId] = value;
-                                        dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
-                                    }}
-                                />
+                                {#key romanizationSchemes} <!-- FIXME doesn't update default displayed option properly -->
+                                    <GroupOption
+                                        {groupId}
+                                        {optionId}
+                                        {optionDef}
+                                        value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                        {needsDocker}
+                                        {needsScraper}
+                                        {romanizationSchemes}
+                                        showGroupIndicator={true}
+                                        on:groupOptionChange={(event) => {
+                                            const { groupId, optionId, value } = event.detail;
+                                            options[optionId] = value;
+                                            dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
+                                        }}
+                                    />
+                                {/key}
                             </div>
                         {:else if featureGroupStore.isTopmostInGroup(groupId, feature.id)}
                             <!-- For other features, only render if it's the topmost -->
@@ -810,32 +813,41 @@
                             </div>
                         {/if}
                     {:else if shouldRenderAsGroupOption}
-                        <!-- Standard group option rendering -->
-                        <div class="mb-4 w-full">
-                            <GroupOption
-                                {groupId}
-                                {optionId}
-                                {optionDef}
-                                value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
-                                {needsDocker}
-                                {needsScraper}
-                                {romanizationSchemes}
-                                showGroupIndicator={true}
-                                on:groupOptionChange={(event) => {
-                                    const { groupId, optionId, value } = event.detail;
-                                    options[optionId] = value;
-                                    dispatch('optionChange', { featureId: feature.id, optionId, value, isGroupOption: true, groupId });
-                                    
-                                    // Force reactivity update on dependent options if mergeOutputFiles changed
-                                    if (groupId === 'merge' && optionId === 'mergeOutputFiles') {
-                                        setTimeout(() => {
-                                            visibleOptionsDirty = true;
-                                            options = { ...options };
-                                        }, 10);
-                                    }
-                                }}
-                            />
-                        </div>
+                         <!-- Standard group option rendering -->
+                         <!-- Key on multiple values to force recreation when any important value changes -->
+                         {#key `${groupId}-${optionId}-${featureGroupStore.getStateVersion()}`}
+                             <div class="mb-4 w-full">
+                                 <GroupOption
+                                     {groupId}
+                                     {optionId}
+                                     {optionDef}
+                                     value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                     {needsDocker}
+                                     {needsScraper}
+                                     {romanizationSchemes}
+                                     showGroupIndicator={true}
+                                     on:groupOptionChange={(event) => {
+                                         const { groupId, optionId, value } = event.detail;
+                                         options[optionId] = value;
+                                         dispatch('optionChange', {
+                                             featureId: feature.id,
+                                             optionId,
+                                             value,
+                                             isGroupOption: true,
+                                             groupId
+                                         });
+
+                                         // Force reactivity update on dependent options if mergeOutputFiles changed
+                                         if (groupId === 'merge' && optionId === 'mergeOutputFiles') {
+                                             setTimeout(() => {
+                                                 visibleOptionsDirty = true;
+                                                 options = { ...options };
+                                             }, 10);
+                                         }
+                                     }}
+                                 />
+                             </div>
+                         {/key}
                     {:else}
                         <!-- Regular option with label and input -->
                         <div class="option-row">

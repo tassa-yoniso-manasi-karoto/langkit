@@ -36,9 +36,9 @@ export interface GroupState {
     canonicalOrder: string[];
     groupCanonicalOrder: Record<string, string[]>;
     displayOrder: Record<string, string[]>;
-    optionGroups: Record<string, string>;
-    stateVersion: number;
-    pendingUpdates: Record<string, boolean>;
+    optionGroups: Record<string, string>; // Maps option IDs to their owning group IDs
+    stateVersion: number; // Add version counter
+    // pendingUpdates removed from interface
 }
 
 // Define the interface for the store's public API
@@ -76,9 +76,9 @@ export interface FeatureGroupStore extends Readable<GroupState> {
     getAdditionalDisplayCondition(groupId: string, optionId: string): string | null;
     isValidGroup(groupId: string): boolean;
     debouncedSyncOptionsToFeatures: (groupId: string, currentOptions: Record<string, Record<string, any>>) => Record<string, Record<string, any>>;
-    batchProcessUpdates(): void;
+    // batchProcessUpdates removed from interface
     getStateVersion(): number;
-    createOptionSubscription(gId: string, oId: string): Readable<any>;
+    createOptionSubscription(groupId: string, optionId: string): Readable<any>; // Add new interface method
 }
 
 
@@ -93,9 +93,9 @@ function createFeatureGroupStore(): FeatureGroupStore {
         displayOrder: {},
         canonicalOrder: [],
         groupCanonicalOrder: {},
-        optionGroups: {},
-        stateVersion: 0,
-        pendingUpdates: {}
+        optionGroups: {}, // Initialize optionGroups
+        stateVersion: 0, // Initialize version
+        // pendingUpdates fully removed from initialState
     };
     const store = writable<GroupState>(initialState);
     let batchUpdateTimeout: number | null = null;
@@ -194,20 +194,9 @@ function createFeatureGroupStore(): FeatureGroupStore {
         });
         validateGroup(groupId); // Use the internal validateGroup
     }
-
-    function batchProcessUpdates() {
-        store.update(state => {
-            const newState = { ...state };
-            if (Object.keys(newState.pendingUpdates || {}).length > 0) {
-                newState.stateVersion++;
-                // if (import.meta.env.DEV) { // Reduced logging
-                //      console.log(`[Store] Batch processed updates, new version: ${newState.stateVersion}`);
-                // }
-            }
-            newState.pendingUpdates = {};
-            return newState;
-        });
-    }
+    
+    // Process pending updates in batches
+    // batchProcessUpdates function definition fully removed
 
     function setGroupOption(groupId: string, optionId: string, value: any) {
         const currentValue = get(store).groupOptions[groupId]?.[optionId];
@@ -217,44 +206,36 @@ function createFeatureGroupStore(): FeatureGroupStore {
                 const newState = { ...state };
                 if (!newState.groupOptions[groupId]) newState.groupOptions[groupId] = {};
                 newState.groupOptions[groupId][optionId] = value;
-                if (!newState.pendingUpdates) newState.pendingUpdates = {};
-                newState.pendingUpdates[`${groupId}.${optionId}`] = true;
+                newState.stateVersion++; // Increment version directly
+                // pendingUpdates logic removed
                 return newState;
             });
-            if (batchUpdateTimeout === null) {
-                batchUpdateTimeout = window.setTimeout(() => {
-                    batchProcessUpdates(); // Call internal function
-                    batchUpdateTimeout = null;
-                }, 50);
-            }
+            // batchUpdateTimeout logic removed
             validateOption(groupId, optionId); // Use internal function
         }
     }
 
+    // Correct implementation of batchSetGroupOptions
     function batchSetGroupOptions(groupId: string, options: Record<string, any>) {
         if (!options || Object.keys(options).length === 0) return;
-        // if (import.meta.env.DEV) console.log(`Batch updating group ${groupId} options:`, options); // Reduced logging
+
         store.update(state => {
             const newState = { ...state };
             if (!newState.groupOptions[groupId]) newState.groupOptions[groupId] = {};
+
             let hasChanges = false;
             Object.entries(options).forEach(([optionId, value]) => {
                 if (newState.groupOptions[groupId][optionId] !== value) {
                     newState.groupOptions[groupId][optionId] = value;
-                    trackStoreUpdate(groupId, optionId, value);
+                    trackStoreUpdate(groupId, optionId, value); // Keep tracking for metrics
                     hasChanges = true;
                 }
             });
+
             if (hasChanges) {
-                 if (!newState.pendingUpdates) newState.pendingUpdates = {};
-                 Object.keys(options).forEach(optionId => newState.pendingUpdates[`${groupId}.${optionId}`] = true);
-                if (batchUpdateTimeout === null) {
-                    batchUpdateTimeout = window.setTimeout(() => {
-                        batchProcessUpdates(); // Call internal function
-                        batchUpdateTimeout = null;
-                    }, 50);
-                }
+                newState.stateVersion++; // Increment version only if changes occurred
             }
+            // pendingUpdates and batchUpdateTimeout logic removed
             return newState;
         });
         Object.keys(options).forEach(optionId => validateOption(groupId, optionId)); // Use internal function
@@ -264,9 +245,11 @@ function createFeatureGroupStore(): FeatureGroupStore {
         return groupOptionDefinitions[groupId]?.[optionId] || null;
     }
 
-    function createOptionSubscription(gId: string, oId: string): Readable<any> { // Add return type
+    // Implementation of createOptionSubscription
+    function createOptionSubscription(groupId: string, optionId: string): Readable<any> {
         return derived(store, ($store) => {
-            return $store.groupOptions[gId]?.[oId];
+            // Ensure nested properties exist before accessing
+            return $store?.groupOptions?.[groupId]?.[optionId];
         });
     }
 
@@ -277,18 +260,28 @@ function createFeatureGroupStore(): FeatureGroupStore {
             const state = get(store);
             const group = state.groups[groupId];
             if (!group) return currentOptions;
+
+            // Create new options object (don't mutate existing)
             const newOptions = { ...currentOptions };
             const groupOptions = state.groupOptions[groupId] || {};
+
+            // Update each feature's options with new references
             group.featureIds.forEach(featureId => {
                 if (!newOptions[featureId]) {
                     newOptions[featureId] = {};
+                } else {
+                    // Create new reference for this feature's options
+                    newOptions[featureId] = { ...newOptions[featureId] };
                 }
+
+                // Apply group options
                 group.sharedOptions.forEach(optionId => {
                     if (groupOptions[optionId] !== undefined) {
                         newOptions[featureId][optionId] = groupOptions[optionId];
                     }
                 });
             });
+
             return newOptions;
     }
 
@@ -328,6 +321,13 @@ function createFeatureGroupStore(): FeatureGroupStore {
          }
          topmostCache.get(groupId)?.set(featureId, isTopmost);
          return isTopmost;
+    }
+
+    // --- Public API ---
+    // Define the methods object first
+    // Implementation of getStateVersion
+    function getStateVersion(): number {
+        return get(store).stateVersion || 0;
     }
 
     // --- Public API ---
@@ -385,7 +385,7 @@ function createFeatureGroupStore(): FeatureGroupStore {
         },
 
         setGroupOption, 
-        batchSetGroupOptions, 
+        batchSetGroupOptions, // Expose new method
 
         getGroupOptions(groupId: string) {
             const state = get(store);
@@ -553,13 +553,10 @@ function createFeatureGroupStore(): FeatureGroupStore {
           { leading: true }
         ),
       
-        batchProcessUpdates: batchProcessUpdates, 
-        // batchSetGroupOptions: batchSetGroupOptions, // Removed duplicate
-        createOptionSubscription: createOptionSubscription,
-      
-        getStateVersion(): number {
-            return get(store).stateVersion || 0;
-        }
+        // batchProcessUpdates removed from export
+        createOptionSubscription: createOptionSubscription, // Expose new method
+
+        getStateVersion: getStateVersion // Expose correct getStateVersion function
     };
 
     // Wrap the original subscribe method to track subscriptions and return the correct type
@@ -580,8 +577,40 @@ function createFeatureGroupStore(): FeatureGroupStore {
     } as FeatureGroupStore; // Cast to the defined interface
 }
 
+// Create a typed window augmentation
+declare global {
+    interface Window {
+        // Define minimal structure needed by Dropdown
+        featureGroupStore: {
+            createOptionSubscription: FeatureGroupStore['createOptionSubscription'];
+            getGroupOption: FeatureGroupStore['getGroupOption'];
+            // Add other methods if needed by components directly accessing window.featureGroupStore
+        };
+    }
+}
+
+// Create the store instance before exposing it
+const storeInstance = createFeatureGroupStore();
+
+// Expose store or necessary methods to window
+// Use a check for 'typeof window' to avoid errors during SSR or testing environments
+if (typeof window !== 'undefined') {
+    // In dev mode, expose the full store for debugging
+    if (import.meta.env.DEV) {
+        window.featureGroupStore = storeInstance;
+    } else {
+        // In production, only expose minimal needed methods
+        window.featureGroupStore = {
+            createOptionSubscription: storeInstance.createOptionSubscription,
+            getGroupOption: storeInstance.getGroupOption
+            // Add other minimal exports here if required
+        };
+    }
+}
+
 // Create the store
-export const featureGroupStore = createFeatureGroupStore();
+// Export the created store instance
+export const featureGroupStore = storeInstance;
 
 // Derived store for checking if any feature in a group is enabled
 // Ensure derived subscribes to the final store object which has the correct subscribe method
