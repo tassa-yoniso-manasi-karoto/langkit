@@ -1,3 +1,5 @@
+**This branch is the result of an attempt to refactor the group system into a more solid architecture. You can see the group specification document to see the architecture used here. This implementation has a better separation of concerns and a more sturdy design because it uses dedicated stores for each particular aspect of the group system. However, this has caused the reactivity issues to blow out of proportion due to the necessity of keeping all these separate stores somewhat in sync. Claude 3.7 was not able to fix the reactivity issues observed even after extensive probing and prompting. The current group system implementation, which is much more modest and rough around the edges, works well enough already, so I will reject this ongoing refactor because it's not worthbthe hassle.**
+
 <p align="center">
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="https://github.com/tassa-yoniso-manasi-karoto/langkit/raw/refs/heads/master/internal/drawing-blackBg.webp">
