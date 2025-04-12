@@ -55,7 +55,6 @@
     let version: string = "";
     let updateAvailable: boolean = false;
 
-    // Other state variables
     let mediaSource: MediaSource | null = null;
     let previewFiles: MediaSource[] = [];
     let selectedFeatures = {
@@ -68,6 +67,7 @@
     };
     let currentFeatureOptions: FeatureOptions | undefined;
     let isProcessing = false;
+    let processingStartTime: number = 0;
     let showLogViewer = false;
     let progress = 0;
     let showGlow = true;
@@ -176,13 +176,20 @@
 
     // Helper to check for actual error logs (not user cancellations)
     function hasErrorLogs(): boolean {
-        return $logStore.some(log => 
-            (log.behavior === 'abort_task' && log.level.toUpperCase() === 'ERROR') || 
-            (log.behavior === 'abort_all' && log.level.toUpperCase() === 'ERROR') ||
-            (log.level.toUpperCase() === 'ERROR' && 
-             (!log.behavior || log.behavior !== 'user_cancel') &&
-             (!log.message || !log.message.toLowerCase().includes('cancel')))
-        );
+        return $logStore.some(log => {
+            // Only consider logs from current run
+            const logTime = log._unix_time || 0;
+            const isCurrentRun = logTime >= processingStartTime;
+            
+            // Only show errors from current run
+            if (!isCurrentRun) return false;
+            
+            return (log.behavior === 'abort_task' && log.level.toUpperCase() === 'ERROR') || 
+                   (log.behavior === 'abort_all' && log.level.toUpperCase() === 'ERROR') ||
+                   (log.level.toUpperCase() === 'ERROR' && 
+                    (!log.behavior || log.behavior !== 'user_cancel') &&
+                    (!log.message || !log.message.toLowerCase().includes('cancel')));
+        });
     }
     
     // Tooltip visibility state
@@ -228,6 +235,7 @@
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
 
+        processingStartTime = Date.now();
         isProcessing = true;
         progress = 0;
         
@@ -1010,6 +1018,7 @@
                                  tooltipVisible
                                 ) && !showLogViewer && logViewerButtonPosition}
                                 <LogViewerNotification 
+                                    processingStartTime={processingStartTime}
                                     position={logViewerButtonPosition} 
                                     mode={hasErrorLogs() ? 'error' : 'processing'}
                                     onOpenLogViewer={toggleLogViewer}

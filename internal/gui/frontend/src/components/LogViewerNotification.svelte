@@ -5,6 +5,7 @@
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
 
+    export let processingStartTime: number = 0;
     // Position is passed in from the parent component
     export let position = { x: 0, y: 0 };
     // Mode determines the type of notification to show
@@ -59,13 +60,14 @@
     
     // Subscribe to logs to detect different types of errors
     const unsubscribeLogs = logStore.subscribe(logs => {
-        // Only consider logs that are both ERROR level AND have relevant behaviors
         abortTaskLogs = logs.filter(log => 
+            log._unix_time >= processingStartTime &&
             log.behavior === 'abort_task' && 
             log.level.toUpperCase() === 'ERROR'
         );
         
         abortAllLogs = logs.filter(log => 
+            log._unix_time >= processingStartTime &&
             log.behavior === 'abort_all' && 
             log.level.toUpperCase() === 'ERROR'
         );
@@ -73,6 +75,7 @@
         // Count ERROR level logs that don't have a user_cancel behavior
         // Also exclude errors with cancellation messages
         errorLevelLogs = logs.filter(log => 
+            log._unix_time >= processingStartTime &&
             log.level.toUpperCase() === 'ERROR' && 
             (!log.behavior || log.behavior !== 'user_cancel') &&
             (!log.message || !log.message.toLowerCase().includes('cancel'))
