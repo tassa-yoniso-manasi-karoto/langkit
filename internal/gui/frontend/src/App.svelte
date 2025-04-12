@@ -739,6 +739,11 @@
             }
         });
 
+        EventsOn("progress-remove", (taskId: string) => {
+            console.log(`Explicitly removing progress bar: ${taskId}`);
+            removeProgressBar(taskId);
+        });
+
         // Efficient progress batch handler with smart grouping
         EventsOn("progress-batch", (progressBatch) => {
             if (!Array.isArray(progressBatch) || progressBatch.length === 0) return;

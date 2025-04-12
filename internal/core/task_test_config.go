@@ -559,6 +559,8 @@ func (h *TestMessageHandler) GetContext() context.Context {
 	return context.TODO()
 }
 
+func (h *TestMessageHandler) RemoveProgressBar(_ string){
+}
 
 // SetHighLoadMode is a no-op for tests
 func (h *TestMessageHandler) SetHighLoadMode(durations ...time.Duration) {

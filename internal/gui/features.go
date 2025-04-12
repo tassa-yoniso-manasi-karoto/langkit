@@ -69,6 +69,7 @@ func (a *App) CancelProcessing() {
 	handler.ZeroLog().Debug().
 		Msg("Calling procCancel()")
 	a.procCancel()
+	handler.ResetProgress()
 }
 
 

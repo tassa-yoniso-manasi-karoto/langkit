@@ -43,6 +43,7 @@ type MessageHandler interface {
 	
 	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
 	ResetProgress()
+	RemoveProgressBar(taskID string)
 	
 	// SetHighLoadMode enables high performance processing for intensive operations
 	// Optional duration parameter - defaults to 5 seconds if not provided
@@ -133,6 +134,24 @@ func (h *CLIHandler) HandleStatus(status string) {
 func (h *CLIHandler) ResetProgress() {
 }
 
+
+// RemoveProgressBar explicitly removes a specific progress bar by ID
+// TODO
+func (h *CLIHandler) RemoveProgressBar(taskID string) {
+	if h.progressBars == nil {
+		return
+	}
+
+	// If the bar exists in CLI, clear and remove it
+	if bar, exists := h.progressBars[taskID]; exists {
+		bar.Clear()
+		delete(h.progressBars, taskID)
+
+		h.logger.Debug().
+			Str("taskID", taskID).
+			Msg("Removed progress bar")
+	}
+}
 
 
 func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, desc, size string) {
@@ -340,6 +359,17 @@ func (h *GUIHandler) ResetProgress() {
 	runtime.EventsEmit(h.ctx, "progress-reset", true)
 }
 
+
+// RemoveProgressBar explicitly removes a specific progress bar by ID
+func (h *GUIHandler) RemoveProgressBar(taskID string) {
+	delete(h.progressMap, taskID)
+
+	runtime.EventsEmit(h.ctx, "progress-remove", taskID)
+
+	h.ZeroLog().Debug().
+		Str("taskID", taskID).
+		Msg("Explicitly removed progress bar")
+}
 
 func (h *GUIHandler) IncrementProgress(
 	taskID string, 

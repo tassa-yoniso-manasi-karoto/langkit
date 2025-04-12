@@ -401,6 +401,10 @@ func (tsk *Task) setupSubtitles(ctx context.Context, reporter *crash.ReporterIns
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortTask, "can't read foreign subtitles")
 	}
+	
+	if !tsk.IsBulkProcess {
+		totalItems = len(tsk.TargSubs.Items)
+	}
 
 	return nil
 }

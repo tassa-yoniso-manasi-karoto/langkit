@@ -43,7 +43,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 
 	toCheckChan := make(chan string)
 	isAlreadyChan := make(chan bool)
-	// FIXME Claude added a resumption service, see note added at the top of worker_pool.go
+	// FIXME Claude drafted a dedicated resumption service, see note added at the top of worker_pool.go
 	// TODO: merge/simplify checkStringsInFile and resumption_service.go
 	go func() {
 		if err := checkStringsInFile(tsk.outputFile(), toCheckChan, isAlreadyChan); err != nil {
@@ -51,9 +51,16 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		}
 	}()
 	
+
 	updateBar := func(incr int) {
+		id := "item-bar"
+		if totalItems == 0 {
+			tsk.Handler.RemoveProgressBar(id)
+			tsk.Handler.ZeroLog().Debug().Msgf("rm %s as totalItems is zero", id)
+			return
+		}
 		tsk.Handler.IncrementProgress(
-			"item-bar",
+			id,
 			incr,
 			totalItems,
 			20,
