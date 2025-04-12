@@ -54,29 +54,14 @@
         if (userCancelled) {
             statusText = "Processing canceled by user";
         } else if (isGlobalAbort) {
-            statusText = "Processing failed following an error";
+            statusText = "Processing failed due to an error";
         } else if (abortedTasksCount > 0) {
-            statusText = `Continuing with errors (${abortedTasksCount} ${abortedTasksCount === 1 ? 'task' : 'tasks'})`;
+            statusText = `Continuing with errors (${abortedTasksCount} media processing ${abortedTasksCount === 1 ? 'task' : 'tasks'} aborted)`;
         } else {
             statusText = "Processing complete";
         }
-        
-        // If user becomes active and then inactive again, set a timeout to clear the error state
-        // This ensures user sees the error message before it gets cleared
-        if (errorClearTimeout) {
-            clearTimeout(errorClearTimeout);
-        }
     }
     
-    // Only set the auto-clear if the user becomes active first
-    $: if (userActive && (!isProcessing)) {
-        errorClearTimeout = setTimeout(() => {
-            if (!isProcessing) {
-                statusText = "Processing Status";
-            }
-        }, 5000); // Auto-clear after 5 seconds of user inactivity
-    }
-
     // Monitor user cancellation globally across all bars
     $: userCancelled = $progressBars.some(bar => bar.errorState === 'user_cancel');
 

@@ -221,12 +221,10 @@
                             {#if mode === 'processing'}
                                 Open the Log Viewer to see ongoing processing details
                             {:else}
-                                {#if abortTaskLogs.length > 0 && abortAllLogs.length > 0}
-                                    {abortTaskLogs.length} specific task{abortTaskLogs.length !== 1 ? 's' : ''} and {abortAllLogs.length} major process{abortAllLogs.length !== 1 ? 'es' : ''} stopped with errors
+                                {#if abortAllLogs.length > 0}
+                                    {abortTaskLogs.length !== 1 ? 'Media processing' : 'All media processing task'} aborted following {abortAllLogs.length} critical error{abortAllLogs.length !== 1 ? 's' : ''}
                                 {:else if abortTaskLogs.length > 0}
-                                    {abortTaskLogs.length} specific task{abortTaskLogs.length !== 1 ? 's' : ''} stopped with errors
-                                {:else if abortAllLogs.length > 0}
-                                    {abortAllLogs.length} major process{abortAllLogs.length !== 1 ? 'es' : ''} stopped with errors
+                                    {abortTaskLogs.length} media processing task{abortTaskLogs.length !== 1 ? 's' : ''} aborted with {errorLevelLogs.length} error{errorLevelLogs.length !== 1 ? 's' : ''}
                                 {:else}
                                     {errorLevelLogs.length} error{errorLevelLogs.length !== 1 ? 's' : ''} detected during processing
                                 {/if}
