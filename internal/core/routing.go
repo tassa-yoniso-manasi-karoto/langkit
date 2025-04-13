@@ -29,6 +29,10 @@ var (
 )
 
 func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
+	if !tsk.Handler.IsCLI() {
+		tsk.Handler.ZeroLog().Trace().Msg("SLEEPING 750ms FOR FRONTEND TO BE READY")
+		time.Sleep(750 * time.Millisecond)
+	}
 	reporter := crash.Reporter
    	reporter.SaveSnapshot("Starting routing", tsk.DebugVals()) // necessity: high
 

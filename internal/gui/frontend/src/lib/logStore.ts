@@ -540,6 +540,10 @@ function createLogStore() {
         });
     }
     
+    function hasPendingLogs(): boolean {
+        return pendingBatch.length > 0;
+    }
+    
     // Create derived stores for filtered logs by level - pass the store itself
     const errorLogs = derived(logsWritable, ($logs) =>
         $logs.filter(log => log.level?.toUpperCase() === 'ERROR')
@@ -577,6 +581,7 @@ function createLogStore() {
         getLogIndexBySequence,
         hasVisibleLogs,
         setLogsVisible,
+        hasPendingLogs,
         
         // Derived stores for log levels
         errorLogs,

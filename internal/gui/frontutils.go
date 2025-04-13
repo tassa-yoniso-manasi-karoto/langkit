@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"fmt"
+	"time"
 	
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
@@ -20,6 +21,12 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
+
+// GetCurrentTimestamp returns the current timestamp in milliseconds since Unix epoch,
+// using the same format as log timestamps in pkg batch/throttler.go
+func (a *App) GetCurrentTimestamp() int64 {
+    return time.Now().UnixNano() / int64(time.Millisecond)
+}
 
 func (a *App) OpenURL(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)

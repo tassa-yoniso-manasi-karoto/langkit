@@ -1,99 +1,106 @@
-<!-- LogViewerNotification.svelte -->
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import { fade, fly } from 'svelte/transition';
+    import { fade } from 'svelte/transition';
     import Portal from 'svelte-portal/src/Portal.svelte';
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
 
+    // Component props
     export let processingStartTime: number = 0;
-    // Position is passed in from the parent component
     export let position = { x: 0, y: 0 };
-    // Mode determines the type of notification to show
     export let mode: 'processing' | 'error' = 'processing';
-    // Function to toggle the log viewer
+    export let isProcessing: boolean = false;
+    export let isVisible: boolean = false;
     export let onOpenLogViewer: () => void;
-    // Function to call when dismissing the notification
     export let onDismiss: () => void = () => {};
 
-    // Track logs with different error types
+    // Track previous processingStartTime to detect changes
+    let prevProcessingStartTime: number = 0;
+
+    // State for logs
+    let allLogs: LogMessage[] = [];
     let abortTaskLogs: LogMessage[] = [];
     let abortAllLogs: LogMessage[] = [];
     let errorLevelLogs: LogMessage[] = [];
-    let processingActive = false;
-    let shouldShowTooltip = false;
     
-    // Keep track of the current app start count
-    let appStartCount = 0;
+    // Component state
     let hasSeenTooltip = false;
-
-    // Calculate if we should show the processing tooltip based on app start count
-    $: shouldShowProcessingTooltip = mode === 'processing' && 
-        processingActive && 
-        appStartCount <= 5 && 
-        !hasSeenTooltip;
-    
-    // Determine the most severe error type
-    $: errorType = abortAllLogs.length > 0 ? 'error_all' : 
-                   abortTaskLogs.length > 0 ? 'error_task' : 
-                   'none';
-    
-    // Calculate if we should show the error tooltip based on different error types
-    // Only show if there are task abortions or error level logs (NOT user cancellations)
-    $: shouldShowErrorTooltip = mode === 'error' && 
-        (abortTaskLogs.length > 0 || abortAllLogs.length > 0 || errorLevelLogs.length > 0);
-    
-    // Combined condition to determine if we should show the tooltip
-    $: shouldShowTooltip = shouldShowProcessingTooltip || shouldShowErrorTooltip;
-    
-    // Count total errors - exclude user_cancel behaviors
-    $: totalErrorCount = abortTaskLogs.length + abortAllLogs.length + errorLevelLogs.length;
-
-    // Animation duration - longer for errors to draw more attention
-    $: animationDuration = mode === 'error' ? 400 : 300;
-    
-    // Auto-hide timeout for processing tooltip (not for errors)
-    let autoHideTimeout: number | null = null;
-    
-    // Add a visibility variable to control the transition
+    let appStartCount = 0;
     let visible = false;
 
-    // Subscribe to settings to get app start count
+    // Subscribe to settings
     const unsubscribeSettings = settings.subscribe(val => {
         appStartCount = val.appStartCount || 0;
         hasSeenTooltip = val.hasSeenLogViewerTooltip || false;
     });
     
-    // Subscribe to logs to detect different types of errors
+    // Subscribe to logs
     const unsubscribeLogs = logStore.subscribe(logs => {
-        abortTaskLogs = logs.filter(log => 
-            log._unix_time >= processingStartTime &&
-            log.behavior === 'abort_task' && 
-            log.level.toUpperCase() === 'ERROR'
-        );
-        
-        abortAllLogs = logs.filter(log => 
-            log._unix_time >= processingStartTime &&
-            log.behavior === 'abort_all' && 
-            log.level.toUpperCase() === 'ERROR'
-        );
-        
-        // Count ERROR level logs that don't have a user_cancel behavior
-        // Also exclude errors with cancellation messages
-        errorLevelLogs = logs.filter(log => 
-            log._unix_time >= processingStartTime &&
-            log.level.toUpperCase() === 'ERROR' && 
-            (!log.behavior || log.behavior !== 'user_cancel') &&
-            (!log.message || !log.message.toLowerCase().includes('cancel'))
-        );
-        
-        // Check for recent logs to detect active processing
-        checkForProcessingLogs(logs);
+        allLogs = logs;
+        if (processingStartTime > 0) {
+            performFiltering();
+        }
     });
+    
+    // Watch isVisible changes to trigger animation
+    $: if (isVisible !== visible) {
+        visible = isVisible;
+    }
+    
+    // Filter logs based on processing start time
+    function performFiltering() {
+        if (!processingStartTime || processingStartTime <= 0) return;
+        
+        abortTaskLogs = [];
+        abortAllLogs = [];
+        errorLevelLogs = [];
+        
+        allLogs.forEach(log => {
+            const logTime = log._unix_time || 0;
+            if (logTime < processingStartTime) return;
+            
+            if (log.behavior === 'abort_task' && log.level.toUpperCase() === 'ERROR') {
+                abortTaskLogs.push(log);
+            }
+            
+            if (log.behavior === 'abort_all' && log.level.toUpperCase() === 'ERROR') {
+                abortAllLogs.push(log);
+            }
+            
+            if (log.level.toUpperCase() === 'ERROR' && 
+                (!log.behavior || log.behavior !== 'user_cancel') &&
+                (!log.message || !log.message.toLowerCase().includes('cancel'))) {
+                errorLevelLogs.push(log);
+            }
+        });
+    }
 
-    // Handle click to open log viewer
+    // Handle processingStartTime changes
+    $: if (processingStartTime !== prevProcessingStartTime && processingStartTime > 0) {
+        abortTaskLogs = [];
+        abortAllLogs = [];
+        errorLevelLogs = [];
+        prevProcessingStartTime = processingStartTime;
+        performFiltering();
+    }
+    
+    // Determine error type based on log counts
+    $: errorType = abortAllLogs.length > 0 ? 'error_all' : 
+                   abortTaskLogs.length > 0 ? 'error_task' : 
+                   'none';
+    
+    // Content selection (not visibility)
+    $: shouldShowProcessingTooltip = mode === 'processing' && 
+                                    appStartCount <= 5 && 
+                                    !hasSeenTooltip;
+    
+    $: shouldShowErrorTooltip = mode === 'error' && 
+                               (abortTaskLogs.length > 0 || abortAllLogs.length > 0 || errorLevelLogs.length > 0);
+    
+    // Count total errors
+    $: totalErrorCount = abortTaskLogs.length + abortAllLogs.length + errorLevelLogs.length;
+
     function handleOpenClick() {
-        // Mark that the user has seen the tooltip
         if (mode === 'processing' && !hasSeenTooltip) {
             settings.update(s => ({
                 ...s,
@@ -101,68 +108,32 @@
             }));
         }
         
-        // Start fade out animation
         visible = false;
-        
-        // Wait for animation to complete, then open log viewer
         setTimeout(() => {
-            // Hide the tooltip
-            shouldShowTooltip = false;
-            
-            // Open the log viewer
             onOpenLogViewer();
         }, 300);
     }
-
-    // Set processing status based on log activity
-    function checkForProcessingLogs(logs: LogMessage[]) {
-        // Look for logs within the last 5 seconds that indicate processing
-        const now = Date.now();
-        const recentLogs = logs.filter(log => {
-            // Parse the time from the log (e.g., "14:23:45")
-            const logParts = log.time.split(':');
-            if (logParts.length !== 3) return false;
-            
-            const today = new Date();
-            const logDate = new Date(
-                today.getFullYear(),
-                today.getMonth(),
-                today.getDate(),
-                parseInt(logParts[0]),
-                parseInt(logParts[1]),
-                parseInt(logParts[2])
-            );
-            
-            // Check if log is within last 5 seconds
-            return now - logDate.getTime() < 5000;
-        });
-        
-        // Set processing active if there are recent logs
-        processingActive = recentLogs.length > 0;
+    
+    function handleDismiss() {
+        visible = false;
+        setTimeout(() => {
+            onDismiss();
+        }, 300);
     }
 
     onMount(() => {
-        // Set visible after a short delay to trigger transition
-        setTimeout(() => {
-            visible = true;
-        }, 50);
-        
-        // No auto-hide for notifications - user must dismiss them
-        // Only fade in the notification
-        visible = true;
+        if (processingStartTime > 0) {
+            performFiltering();
+        }
     });
 
     onDestroy(() => {
         unsubscribeSettings();
         unsubscribeLogs();
-        
-        if (autoHideTimeout) {
-            clearTimeout(autoHideTimeout);
-        }
     });
 </script>
 
-{#if shouldShowTooltip}
+{#if isVisible}
     <Portal target="body">
         <div
             class="fixed transform -translate-x-1/2 -translate-y-full z-[1000] transition-opacity duration-300 ease-in-out {visible ? 'opacity-100' : 'opacity-0'}"
@@ -197,13 +168,7 @@
                            : 'shadow-primary/20'
                        } 
                        cursor-pointer notification-container"
-                 on:click={() => {
-                     visible = false;
-                     setTimeout(() => {
-                         shouldShowTooltip = false;
-                         onDismiss();
-                     }, 300);
-                 }}>
+                 on:click={handleDismiss}>
                 
                 <div class="text-sm font-medium mb-3 text-gray-300 flex items-center gap-2">
                     <span class="material-icons text-xl 

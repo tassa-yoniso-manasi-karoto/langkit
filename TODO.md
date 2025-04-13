@@ -9,6 +9,10 @@
   - correct sub line count, even accross resume
   - processedCount for ETA calculation
   - ⭐ ETA calculation itself
+  
+
+- non-virtualized logger has autoscroll broken
+- wasm no memory estimate
  
 - appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
 

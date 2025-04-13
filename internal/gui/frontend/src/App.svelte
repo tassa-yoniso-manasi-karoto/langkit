@@ -26,8 +26,16 @@
     import UpdateNotification from './components/UpdateNotification.svelte';
     import ProgressManager from './components/ProgressManager.svelte';
     import LogViewerNotification from './components/LogViewerNotification.svelte';
-
-    import { SendProcessingRequest, CancelProcessing, GetVersion, LoadSettings, SaveSettings, RefreshSTTModelsAfterSettingsUpdate } from '../wailsjs/go/gui/App'; 
+    
+    import { 
+        SendProcessingRequest, 
+        CancelProcessing, 
+        GetVersion, 
+        LoadSettings, 
+        SaveSettings, 
+        GetCurrentTimestamp,
+        RefreshSTTModelsAfterSettingsUpdate 
+    } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
     import type { gui } from '../wailsjs/go/models';
 
@@ -235,7 +243,8 @@
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
 
-        processingStartTime = Date.now();
+        processingStartTime = await GetCurrentTimestamp();
+        console.log(`Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
         isProcessing = true;
         progress = 0;
         
@@ -1013,21 +1022,22 @@
                             </button>
                             
                             <!-- Log Viewer Notification -->
-                            {#if ((isProcessing && !tooltipDismissed) || 
-                                 hasErrorLogs() || 
-                                 tooltipVisible
-                                ) && !showLogViewer && logViewerButtonPosition}
-                                <LogViewerNotification 
-                                    processingStartTime={processingStartTime}
-                                    position={logViewerButtonPosition} 
-                                    mode={hasErrorLogs() ? 'error' : 'processing'}
-                                    onOpenLogViewer={toggleLogViewer}
-                                    onDismiss={() => {
-                                        tooltipDismissed = true;
-                                        tooltipVisible = false;
-                                    }}
-                                />
-                            {/if}
+                            <LogViewerNotification 
+                                processingStartTime={processingStartTime}
+                                position={logViewerButtonPosition} 
+                                mode={hasErrorLogs() ? 'error' : 'processing'}
+                                isProcessing={isProcessing}
+                                isVisible={((isProcessing && !tooltipDismissed) || 
+                                            hasErrorLogs() || 
+                                            tooltipVisible) && 
+                                            !showLogViewer && 
+                                            !!logViewerButtonPosition}
+                                onOpenLogViewer={toggleLogViewer}
+                                onDismiss={() => {
+                                    tooltipDismissed = true;
+                                    tooltipVisible = false;
+                                }}
+                            />
                         </div>
                     </div>
                 </div>
