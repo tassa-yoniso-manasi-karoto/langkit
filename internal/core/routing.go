@@ -29,6 +29,8 @@ var (
 )
 
 func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
+	// safety measure against cross-runtime dataraces: see commit message 
+	// of b8faf4e for lessons learned on this topic
 	if !tsk.Handler.IsCLI() {
 		tsk.Handler.ZeroLog().Trace().Msg("SLEEPING 750ms FOR FRONTEND TO BE READY")
 		time.Sleep(750 * time.Millisecond)
