@@ -1,4 +1,6 @@
 
+replace wasm-logger by a general purpose logger bc webkit console has abyssimal perf
+
 - go-rod
   - correct reverted Hovertip for Browser Access URL + GIT BLAME
   - ⭐ make currenlty running browser download known in the GUI

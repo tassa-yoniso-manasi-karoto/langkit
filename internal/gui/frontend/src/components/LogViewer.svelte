@@ -47,18 +47,92 @@
     // DOM references
     let scrollContainer: HTMLElement;
     
-    // Scroll state management
-    let autoScroll = true;
+    // Track direct scrolling by wrapping direct calls
+    function setScrollTop(value: number, source: string = 'unknown') {
+        if (!scrollContainer) return;
+        
+        if (value === 0) {
+            // Track the direct calls to scrollTop = 0
+            trackScrollTrigger(`setScrollTop:${source}`);
+        }
+        
+        // Actually perform the scroll
+        scrollContainer.scrollTop = value;
+    }
+    
+    // Disable debug logs in the log viewer and use console instead
+    function debugLog(message: string, level: string = "DEBUG"): void {
+        // Only log in dev mode
+        if (version === "dev") {
+            // Use console logs instead of logStore to avoid the duplicate key issue
+            if (level === "ERROR") {
+                console.error(`[AUTO-SCROLL] ${message}`);
+            } else if (level === "WARN") {
+                console.warn(`[AUTO-SCROLL] ${message}`);
+            } else if (level === "INFO") {
+                console.info(`[AUTO-SCROLL] ${message}`);
+            } else {
+                console.debug(`[AUTO-SCROLL] ${message}`);
+            }
+        }
+    }
+    
+    // AUTO-SCROLL STATE MANAGEMENT - SINGLE SOURCE OF TRUTH
+    // We use a simple boolean with a controlled setter function
+    let autoScroll = true; // Start with auto-scroll enabled
+    
+    // Debug variables to track auto-scroll state
+    let lastAutoScrollChangeSource = 'initial';
+    let autoScrollToggleCount = 0;
+    
+    // Scroll state management - ENHANCED
     let isUserScrolling = false;
     let userScrollTimeout: number | null = null;
     let scrollRAF: number | null = null;
-    let scheduledScrollToBottom = false;
-    let isProgrammaticScroll = false;
     let lastScrollTop = 0;
-    let scrollDirection: 'up' | 'down' | 'none' = 'none';
-    let lastUserScrollTime = 0;
-    let scrollEventCount = 0;
-    let consecutiveSystemScrollEvents = 0;
+    let lastScrollTime = Date.now();
+    let scrollVelocity = 0;
+    let scrollSamples: number[] = []; // Keep a history of recent scroll deltas
+    let stableAtBottomTimer: number | null = null;
+    let manualScrollLock = false; // Lock to prevent auto-scroll from fighting with user
+    let manualScrollLockTimer: number | null = null;
+    let velocityDecayTimer: number | null = null; // Timer for aggressive velocity decay
+    
+    // DEBUG: Tracking which parts of the code trigger scrolls
+    let scrollTriggerHistory: {id: string, timestamp: number}[] = [];
+    const MAX_SCROLL_HISTORY = 5; // Only keep last 5 events
+    
+    // Track a scroll trigger for debug overlay - FIXED version
+    function trackScrollTrigger(triggerId: string) {
+        console.log(`SCROLL TRIGGER: ${triggerId}`);
+        
+        // Create a new array with the new trigger at the beginning
+        scrollTriggerHistory = [
+            {
+                id: triggerId,
+                timestamp: Date.now()
+            },
+            ...scrollTriggerHistory.slice(0, MAX_SCROLL_HISTORY - 1)
+        ];
+    }
+    
+    // Tracked scroll to bottom function - use this instead of direct scrollTop = 0
+    function trackedScrollToBottom(triggerId: string) {
+        if (!scrollContainer) return;
+        
+        // ONLY scroll if auto-scroll is on and user is not actively scrolling
+        if (!autoScroll || isUserScrolling || manualScrollLock) {
+            if (debug) console.warn(`BLOCKED scroll from ${triggerId}: autoScroll=${autoScroll}, isUserScrolling=${isUserScrolling}, manualLock=${manualScrollLock}`);
+            return;
+        }
+        
+        // Track the source of this scroll event
+        trackScrollTrigger(triggerId);
+        
+        // Perform the scroll using our tracked setter
+        setScrollTop(0, triggerId);
+    }
+    // Removed isStableAtBottom as it's handled within checkStableAtBottom
     
     // Animation state tracking
     let animationInProgress = false;
@@ -78,6 +152,13 @@
         sequence: number, 
         offsetTop: number
     } | null = null;
+    
+    // User intent tracking (Variables from new plan)
+    let scrollDirectionToBottom = false; // Keep existing
+    // Removed significantScrollTowardBottom as it's not used in new plan
+    let lastDirectionChangeTime = 0; // Keep existing
+    let consistentDirectionDuration = 0; // Keep existing
+    let intentToReturnToBottom = false; // Keep existing
     
     // Virtualization
     let virtualStart = 0;
@@ -113,6 +194,7 @@
     
     // Debugging and development logging
     let debug = version === 'dev';
+    let debugAutoScroll = false; // Developer option for auto-scroll debug overlay
     
     // Auto-scroll debug stats 
     let lastAutoScrollTime = Date.now();
@@ -121,7 +203,13 @@
     
     // Track active transitions for non-virtualized mode
     let activeTransitions = 0;
-    
+
+    // Visual feedback state
+    let showReturnToBottomButton = false;
+    let showAutoScrollToast = false;
+    let autoScrollToastMessage = "";
+    let autoScrollToastTimer: number | null = null;
+
     // Filter logs by level
     $: filteredLogs = $logStore.filter(log => 
         logLevelPriority[log.level?.toLowerCase() || 'info'] >= 
@@ -169,6 +257,7 @@
         setTimeout(() => {
             filterTransitionRunning = false;
             recalculatePositions();
+            // Use the reactive autoScroll boolean here
             if (!autoScroll) {
                 restoreViewportAnchor();
             } else {
@@ -183,6 +272,7 @@
             if (debug) console.log(`Processing state changed: ${prevIsProcessing} -> ${isProcessing}`);
             
             // When processing ends, schedule final scroll checks
+            // Use the reactive autoScroll boolean here
             if (!isProcessing && prevIsProcessing && autoScroll) {
                 if (debug) console.log("Processing ended - scheduling final scroll checks");
                 schedulePostProcessingScrolls();
@@ -203,6 +293,7 @@
                 const currentRate = recentLogAdditions;
                 
                 // Schedule forced scroll for high volume scenarios
+                // Use the reactive autoScroll boolean here
                 if (currentRate > 30 && autoScroll) {
                     scheduleForceScroll();
                 }
@@ -216,11 +307,18 @@
     
     // React to new logs being added
     $: if (filteredLogs.length > 0 && scrollContainer) {
-        // Save scroll position before updating
-        const wasAtBottom = isScrolledToBottom();
+        // Check auto-scroll state and scroll position
+        const exactlyAtBottom = scrollContainer.scrollTop === 0;
         
-        // Track current viewport anchor if not at bottom
-        if (!wasAtBottom && !autoScroll) {
+        // If auto-scroll is on but we're not at the bottom, this is inconsistent
+        if (autoScroll && !exactlyAtBottom && !isUserScrolling) {
+            if (debug) console.log(`Detected inconsistency: auto-scroll ON but scrollTop=${scrollContainer.scrollTop}px`);
+            // Turn off auto-scroll
+            setAutoScroll(false, 'reactiveInconsistency');
+        }
+        
+        // Save viewport position if not at bottom and auto-scroll is off
+        if (!exactlyAtBottom && !autoScroll) {
             saveViewportAnchor();
         }
         
@@ -247,7 +345,10 @@
                 // If scroll was requested during animation, execute it now
                 if (pendingScrollToBottom && autoScroll) {
                     pendingScrollToBottom = false;
-                    scrollToBottomWithStrategy();
+                    // Verify we're still at bottom and auto-scroll is on before scrolling
+                    if (scrollContainer && scrollContainer.scrollTop === 0 && autoScroll) {
+                        scrollContainer.scrollTop = 0; // Direct DOM manipulation is most reliable
+                    }
                 }
             }, 350); // Slightly longer than transition duration to ensure completion
         }
@@ -274,27 +375,106 @@
                     updateVirtualization();
                 }
                 
+                // Verify state again after DOM update
+                const stillAtBottom = scrollContainer && scrollContainer.scrollTop === 0;
+                
                 // Restore scroll position using the appropriate strategy
-                if (wasAtBottom && autoScroll) {
-                    // If at bottom, maintain position at bottom
-                    scrollToBottomWithStrategy();
+                if (stillAtBottom && autoScroll && !isUserScrolling && !manualScrollLock) {
+                    // If at bottom, maintain position at bottom with tracked scrolling
+                    setScrollTop(0, 'batchMeasurementAtBottom');
                 } else if (!autoScroll && viewportAnchor) {
                     // Otherwise restore anchor position
                     restoreViewportAnchor();
+                } else if (autoScroll && !stillAtBottom && !isUserScrolling) {
+                    // Fix inconsistency: we're supposed to be at bottom but aren't
+                    setAutoScroll(false, 'measurementInconsistency');
                 }
                 
                 pendingMeasurements = false;
                 batchMeasurementTimer = null;
+                
+                // Verify checkbox state matches our internal state
+                const checkbox = document.getElementById('auto-scroll-checkbox') as HTMLInputElement;
+                if (checkbox && checkbox.checked !== autoScroll) {
+                    checkbox.checked = autoScroll; // Force sync
+                }
             }, 10); // Small delay to batch updates
         }
     }
     
-    // After DOM updates, handle any needed scrolling
+    // Minimal, direct DOM approach after updates
     afterUpdate(() => {
-        // If auto-scroll is on and we're not user scrolling, scroll to bottom
-        if (autoScroll && !isUserScrolling && !pendingMeasurements) {
-            scrollToBottomWithStrategy();
+        // Generate update ID for tracing
+        const updateId = Date.now().toString().slice(-6);
+        debugLog(`AFTER-UPDATE triggered [id=${updateId}]`, "INFO");
+        
+        // Get current states
+        const svelteState = autoScroll;
+        const visibleCheckbox = document.getElementById('auto-scroll-checkbox') as HTMLInputElement;
+        const uiState = visibleCheckbox ? visibleCheckbox.checked : 'unknown';
+        
+        // Log all current states
+        debugLog(`States: Svelte=${svelteState}, UI=${uiState} [id=${updateId}]`, "INFO");
+        
+        // Synchronize UI checkbox with svelte state if needed
+        if (visibleCheckbox && visibleCheckbox.checked !== autoScroll) {
+            visibleCheckbox.checked = autoScroll;
         }
+        
+        // Skip during active user scrolling
+        if (isUserScrolling) {
+            debugLog(`Skipping auto-scroll checks - user is actively scrolling [id=${updateId}]`, "DEBUG");
+            return;
+        }
+        
+        // Skip during active measurements
+        if (pendingMeasurements) {
+            debugLog(`Skipping auto-scroll checks - measurements pending [id=${updateId}]`, "DEBUG");
+            return;
+        }
+        
+        // If auto-scroll is off, just verify UI consistency
+        if (!autoScroll) {
+            // If UI is out of sync, update it
+            if (uiState !== 'false' && uiState !== false) {
+                debugLog(`UI checkbox out of sync: UI=${uiState}, actual=false - fixing [id=${updateId}]`, "WARN");
+                if (visibleCheckbox) visibleCheckbox.checked = false;
+            }
+            return;
+        }
+        
+        // If auto-scroll is ON, verify we're at bottom
+        if (scrollContainer) {
+            const currentScrollTop = scrollContainer.scrollTop;
+            debugLog(`Checking scroll position: ${currentScrollTop}px with auto-scroll ON [id=${updateId}]`, "INFO");
+            
+            // Auto-scroll is on but we're not at bottom - inconsistency
+            if (currentScrollTop !== 0 && autoScroll) {
+                debugLog(`INCONSISTENCY: Auto-scroll ON but not at bottom (${currentScrollTop}px) [id=${updateId}]`, "WARN");
+                
+                if (currentScrollTop < 5 && !isUserScrolling && !manualScrollLock) {
+                    // Very close to bottom - just scroll
+                    trackScrollTrigger('afterUpdate:closeToBottom');
+                    scrollContainer.scrollTop = 0;
+                    debugLog(`Very close to bottom, forcing to 0px [id=${updateId}]`, "INFO");
+                } else {
+                    // Significantly away - disable auto-scroll
+                    debugLog(`Not at bottom (${currentScrollTop}px), DISABLING auto-scroll [id=${updateId}]`, "WARN");
+                    
+                    // Use our setter function to ensure consistency
+                    setAutoScroll(false, 'afterUpdateInconsistency');
+                }
+            } else if (currentScrollTop === 0 && autoScroll && !isUserScrolling && !manualScrollLock) {
+                // Normal case - at bottom with auto-scroll on
+                // We're already at bottom (scrollTop = 0), no need to scroll again
+                debugLog(`At exact bottom (0px), position already correct [id=${updateId}]`, "DEBUG");
+            }
+        }
+        
+        // Update return to bottom button visibility
+        updateReturnToBottomButtonVisibility();
+        
+        // No need to update checkbox state as we now have a single source of truth
     });
     
     // Schedule scroll checks after processing completes
@@ -307,6 +487,8 @@
         
         checkTimes.forEach((delay, index) => {
             const timerId = window.setTimeout(() => {
+                // Only auto-scroll if it's enabled and user isn't manually scrolling
+                // This prevents forcing auto-scroll when it was disabled by user action
                 if (autoScroll && !isUserScrolling) {
                     if (debug) console.log(`Post-processing scroll check #${index + 1} at t+${delay}ms`);
                     executeScrollToBottom(index === checkTimes.length - 1); // Force on last check
@@ -334,6 +516,7 @@
         
         // Set a new timer for force scroll
         forceScrollTimer = window.setTimeout(() => {
+            // Use the reactive autoScroll boolean here
             if (autoScroll) {
                 // Force scroll regardless of other state
                 if (debug) console.log("Executing force scroll after high volume");
@@ -343,26 +526,65 @@
         }, delay);
     }
     
-    // Force scroll to bottom - updated for column-reverse layout
-    // In column-reverse, "bottom" means scrollTop = 0
+    // Force scroll to bottom - COMPLETELY REWRITTEN WITH CRITICAL FIXES
     function forceScrollToBottom() {
-        if (!scrollContainer) return;
+        // CRITICAL: Don't scroll if auto-scroll is off, user is scrolling, or manual lock active
+        if (!scrollContainer || !autoScroll || isUserScrolling || manualScrollLock) {
+            if (debug) console.warn(`Forced scroll BLOCKED: autoScroll=${autoScroll}, userScrolling=${isUserScrolling}, manualLock=${manualScrollLock}`);
+            return;
+        }
         
-        // Avoid animations for this scroll
+        // Set flag to avoid our scroll handler treating this as user scroll
         isProgrammaticScroll = true;
         
         try {
-            // In column-reverse, set scrollTop to 0 to get to the bottom (newest logs)
-            scrollContainer.scrollTop = 0;
+            // Record this scroll attempt
+            trackScrollTrigger('forceScrollToBottom:main');
             
-            // Schedule another scroll in the next frame to ensure it worked
+            // In column-reverse, set scrollTop to 0 to get to the bottom (newest logs)
+            setScrollTop(0, 'forceScrollToBottom:initial');
+            
+            // Use multiple techniques with escalating forcefulness
             requestAnimationFrame(() => {
-                scrollContainer.scrollTop = 0;
-                
-                // And one more time after a short delay to really make sure
-                setTimeout(() => {
+                // CRITICAL CHECK: Only if still eligible for scrolling 
+                if (!scrollContainer || !autoScroll || isUserScrolling || manualScrollLock) {
                     isProgrammaticScroll = false;
-                    scrollContainer.scrollTop = 0;
+                    return;
+                }
+                
+                // Record this scroll attempt
+                trackScrollTrigger('forceScrollToBottom:rAF');
+                
+                // Try direct assignment first, but tracked
+                setScrollTop(0, 'forceScrollToBottom:rAF');
+                
+                // Then use scrollTo with instant behavior
+                try {
+                    scrollContainer.scrollTo({ top: 0, behavior: 'instant' });
+                } catch (e) {
+                    // No fallback needed - we already did scrollTop = 0
+                }
+                
+                // ONE retry is sufficient - remove the multiple retries
+                setTimeout(() => {
+                    // Final check before scrolling
+                    if (!scrollContainer || !autoScroll || isUserScrolling || manualScrollLock) {
+                        isProgrammaticScroll = false;
+                        return;
+                    }
+                    
+                    trackScrollTrigger('forceScrollToBottom:finalCheck');
+                    
+                    // Still maintain programmatic flag
+                    isProgrammaticScroll = true;
+                    
+                    // One final scroll attempt with tracking
+                    setScrollTop(0, 'forceScrollToBottom:finalAttempt');
+                    
+                    // End programmatic scroll state
+                    setTimeout(() => {
+                        isProgrammaticScroll = false;
+                    }, 10);
                 }, 50);
             });
         } catch (e) {
@@ -371,48 +593,48 @@
         }
     }
     
-    // Helper function to intelligently scroll to bottom based on current state
-    // Updated for column-reverse layout
+    // Ultra-simplified scroll to bottom function
     function scrollToBottomWithStrategy(): void {
+        // CRITICAL FIX: If auto-scroll is off, DO NOT SCROLL under any circumstances
         if (!autoScroll || !scrollContainer) return;
         
-        // Cancel any existing animations if processing just ended
-        if (!isProcessing && prevIsProcessing) {
-            pendingScrollToBottom = false;
-            executeScrollToBottom(true);
+        // If user is actively scrolling or manual lock is active, DO NOT SCROLL
+        if (isUserScrolling || manualScrollLock) {
+            if (debug) console.warn("Blocked auto-scroll due to user scrolling or manual lock");
             return;
         }
+
+        // Track this scroll trigger
+        trackScrollTrigger('scrollToBottomWithStrategy:main');
         
-        // If animation is in progress in non-virtualized mode, defer scroll
+        // Direct DOM access but with tracking
+        setScrollTop(0, 'scrollToBottomWithStrategy:main');
+        
+        // Special cases
         if (!virtualEnabled && animationInProgress) {
+            // For animations, queue for later
             pendingScrollToBottom = true;
             return;
         }
         
-        // For virtualized mode, ensure virtualization range is updated before scrolling
+        // For virtualized mode, ensure range includes newest logs
         if (virtualEnabled && virtualizationReady) {
-            // Ensure last logs are included in virtual range first
             const lastLogIndex = filteredLogs.length - 1;
             if (virtualEnd < lastLogIndex) {
-                // Update virtual range
+                // Update range to include newest logs
                 virtualEnd = lastLogIndex;
                 virtualStart = Math.max(0, virtualEnd - visibleLogCount - BUFFER_SIZE);
-                // Note: visibleLogCount update removed as per guide's code snippet
                 
-                // Need an extra tick to ensure DOM reflects the updated range
+                // Force scroll after range update
                 tick().then(() => {
-                    executeScrollToBottom(true);
+                    // Check again if auto-scroll is still on
+                    if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                        trackScrollTrigger('scrollToBottomWithStrategy:tick');
+                        scrollContainer.scrollTop = 0;
+                    }
                 });
-                return;
             }
-            
-            // Even if range is OK, be more aggressive in virtualized mode
-            executeScrollToBottom(true);
-            return;
         }
-        
-        // For non-virtualized mode with no active animations, execute scroll
-        executeScrollToBottom();
     }
     
     // Helper function to get log level styling
@@ -463,13 +685,17 @@
             .join(' ');
     }
     
-    // Check if we're at the bottom of the scroll container
-    // Updated for column-reverse layout - bottom is now at scrollTop = 0
-    // Reduce tolerance for more precise control
-    function isScrolledToBottom(tolerance = 10): boolean {
+    // Check if we're exactly at the bottom (scrollTop = 0) of the scroll container
+    // For terminal-style layout with column-reverse, this is a strict check
+    function isScrolledToBottom(tolerance = 0): boolean {
         if (!scrollContainer) return true;
         
-        // In column-reverse, we're at bottom when scrollTop is near 0
+        // Check if scrolling is even possible
+        const canScrollFurther = scrollContainer.scrollHeight > scrollContainer.clientHeight;
+        if (!canScrollFurther) return true; // Can't scroll, so we're at the "bottom"
+        
+        // In column-reverse, we're only at bottom when scrollTop is EXACTLY 0
+        // Only use tolerance for special cases where explicitly requested
         return scrollContainer.scrollTop <= tolerance;
     }
     
@@ -488,11 +714,121 @@
             animationInProgress = false;
             
             // Execute any pending scrolls
+            // Use the reactive autoScroll boolean here
             if (pendingScrollToBottom && autoScroll) {
                 pendingScrollToBottom = false;
                 executeScrollToBottom();
             }
         }
+    }
+    
+    // Enhanced auto-scroll state management with single source of truth
+    function setAutoScroll(newValue: boolean, source: string = 'direct') {
+        // Skip if no change
+        if (newValue === autoScroll) return;
+        
+        // Debug logging
+        if (debug) console.log(`Auto-scroll ${newValue ? 'enabled' : 'disabled'} via ${source}`);
+        
+        // Track this state change
+        trackScrollTrigger(`setAutoScroll:${newValue ? 'ON' : 'OFF'}:${source}`);
+        
+        // IMPORTANT: If trying to enable auto-scroll but manual lock is active, refuse
+        if (newValue && manualScrollLock && source !== 'userPreference') {
+            if (debug) console.warn(`Auto-scroll enable BLOCKED due to active manual scroll lock`);
+            return; // Early return - don't enable against user's wishes
+        }
+        
+        // Update our state variable
+        autoScroll = newValue;
+        
+        // Sync UI checkbox - CRITICAL for consistency
+        const checkbox = document.getElementById('auto-scroll-checkbox') as HTMLInputElement;
+        if (checkbox) {
+            checkbox.checked = newValue;
+            
+            if (debug) console.log(`UI checkbox synced to ${newValue ? 'checked' : 'unchecked'}`);
+        } else {
+            if (debug) console.warn(`Could not find UI checkbox to update!`);
+        }
+        
+        // Additional state updates when needed
+        if (newValue) {
+            // When enabling auto-scroll:
+            viewportAnchor = null; // Clear any saved position
+            
+            // SCROLL ONLY IF the user toggled it on or it came from certain sources
+            // that are expected to scroll
+            if (source === 'userPreference' || source === 'scrolledToBottom' || source === 'stableAtBottom') {
+                trackScrollTrigger(`setAutoScroll:scroll:${source}`);
+                
+                // Force scroll to bottom with direct DOM manipulation
+                if (scrollContainer && !isUserScrolling && !manualScrollLock) {
+                    // Direct scrolling once - column-reverse layout needs scrollTop = 0 for bottom
+                    scrollContainer.scrollTop = 0;
+                    
+                    // One retry is sufficient
+                    setTimeout(() => {
+                        if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                            trackScrollTrigger(`setAutoScroll:retry:${source}`);
+                            scrollContainer.scrollTop = 0;
+                        }
+                    }, 50);
+                }
+            }
+        } else {
+            // When disabling auto-scroll, save position for restoration
+            if (source !== 'userScrollAway') { // Don't save if already handled
+                saveViewportAnchor();
+            }
+        }
+        
+        // Show visual confirmation - customized message based on source
+        let message;
+        if (newValue) {
+            message = "Auto-scroll enabled";
+        } else {
+            if (source === 'userScrollAway' || source === 'inconsistencyFix') {
+                message = "Auto-scroll disabled - scroll to bottom to re-enable";
+            } else {
+                message = "Auto-scroll disabled";
+            }
+        }
+        
+        showAutoScrollToastMessage(message);
+    }
+    
+    
+    // Show a temporary toast message about auto-scroll state
+    function showAutoScrollToastMessage(message: string) {
+        // Clear any existing timer
+        if (autoScrollToastTimer) {
+            clearTimeout(autoScrollToastTimer);
+        }
+        
+        // Set message and show toast
+        autoScrollToastMessage = message;
+        showAutoScrollToast = true;
+        
+        // Hide after 2 seconds
+        autoScrollToastTimer = window.setTimeout(() => {
+            showAutoScrollToast = false;
+            autoScrollToastTimer = null;
+        }, 2000);
+    }
+    
+    // Update visibility of the "Return to Bottom" button
+    function updateReturnToBottomButtonVisibility() {
+        // Show button when:
+        // 1. Auto-scroll is disabled
+        // 2. User is not at the bottom
+        // 3. There are logs to view
+        const notAtBottom = scrollContainer ? scrollContainer.scrollTop > 0 : false;
+        
+        showReturnToBottomButton = 
+            !autoScroll && 
+            notAtBottom &&
+            filteredLogs.length > 0;
     }
     
     // Measure individual log height using full bounding rect
@@ -527,6 +863,7 @@
                         const wasAtBottom = isScrolledToBottom();
                         
                         // Maintain scroll position
+                        // Use the reactive autoScroll boolean here
                         if (wasAtBottom && autoScroll) {
                             scrollToBottomWithStrategy();
                         } else if (!autoScroll && viewportAnchor) {
@@ -547,6 +884,7 @@
                             }
                             
                             // Maintain scroll position
+                            // Use the reactive autoScroll boolean here
                             const wasAtBottom = isScrolledToBottom();
                             if (wasAtBottom && autoScroll) {
                                 scrollToBottomWithStrategy();
@@ -577,8 +915,6 @@
     }
     
     // Calculate positions for all logs based on individual heights (with WASM optimization)
-    // This function doesn't need to change for column-reverse layout as it just
-    // calculates positions - the rendering logic will handle the reversal
     function recalculatePositions(): void {
         // Get current settings
         const $settings = get(settings);
@@ -676,7 +1012,6 @@
     }
     
     // Find which log corresponds to a scroll position using binary search (with WASM optimization)
-    // Updated for column-reverse layout
     function findLogAtScrollPosition(scrollTop: number, scrollMetrics?: {
         frequency?: number,
         visibleLogs?: number
@@ -773,6 +1108,7 @@
         };
         
         // When auto-scroll is enabled, ensure we prioritize latest logs
+        // Use the reactive autoScroll boolean here
         if (autoScroll && isScrolledToBottom()) {
             // Start from the end of the list and work backwards
             const lastLogIndex = filteredLogs.length - 1;
@@ -806,7 +1142,8 @@
     function saveViewportAnchor(): void {
         if (!scrollContainer) return;
         
-        // If already at bottom, don't create an anchor
+        // If already at bottom and auto-scroll is enabled, don't create an anchor
+        // Use the reactive autoScroll boolean here
         if (isScrolledToBottom() && autoScroll) {
             viewportAnchor = null;
             return;
@@ -874,6 +1211,7 @@
             }
             
             // If auto scroll enabled, scroll to bottom
+            // Use the reactive autoScroll boolean here
             if (autoScroll) {
                 scrollToBottomWithStrategy();
             }
@@ -881,22 +1219,27 @@
     }
     
     // Wrapper to mark scroll operations as programmatic
+    let isProgrammaticScroll = false; // Keep this flag
     function withProgrammaticScroll(callback: () => void): void {
         isProgrammaticScroll = true;
         try {
             callback();
         } finally {
             // Use a timeout to account for any scroll events that might be triggered
-            setTimeout(() => {
+            // Use requestAnimationFrame for potentially better timing relative to rendering
+            requestAnimationFrame(() => {
                 isProgrammaticScroll = false;
-            }, 50);
+            });
         }
     }
     
     // Execute scroll to bottom with programmatic flag - updated for column-reverse
-    // Simplified as per guide (removed debug block and scheduledScrollToBottom flag)
     function executeScrollToBottom(force: boolean = false): void {
-        if (!scrollContainer) return;
+        // CRITICAL: Never scroll if auto-scroll is off or user is actively scrolling
+        if (!scrollContainer || !autoScroll || isUserScrolling || manualScrollLock) {
+            if (debug) console.warn(`Execute scroll BLOCKED: autoScroll=${autoScroll}, userScrolling=${isUserScrolling}, manualLock=${manualScrollLock}`);
+            return;
+        }
         
         // Skip during animations unless forced
         if (animationInProgress && !force) {
@@ -904,20 +1247,27 @@
             return;
         }
         
-        // Debugging logs (kept as per guide comment, but implementation removed in guide code)
-        // if (debug) { ... }
+        // Track this scroll request
+        trackScrollTrigger(`executeScrollToBottom:${force ? 'forced' : 'normal'}`);
         
         // Use rAF for better performance
         requestAnimationFrame(() => {
+            // Check again in case conditions changed
+            if (!autoScroll || isUserScrolling || manualScrollLock) return;
+            
             withProgrammaticScroll(() => {
                 if (scrollContainer) {
+                    trackScrollTrigger('executeScrollToBottom:rAF');
+                    
                     // In column-reverse, bottom is at scrollTop = 0
                     scrollContainer.scrollTop = 0;
                     
                     // For critical scrolls, add a second scroll after a tiny delay
                     if (force) {
                         setTimeout(() => {
-                            if (scrollContainer) {
+                            // Final check before scrolling
+                            if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                                trackScrollTrigger('executeScrollToBottom:forceRetry');
                                 scrollContainer.scrollTop = 0;
                             }
                         }, 50);
@@ -927,32 +1277,7 @@
         });
     }
     
-    // Toggle auto-scroll with proper cleanup - updated for column-reverse
-    function toggleAutoScroll(value: boolean): void {
-        if (autoScroll === value) return;
-        
-        autoScroll = value;
-        
-        if (autoScroll) {
-            // When turning on auto-scroll, clear any viewport anchor and scroll to bottom
-            viewportAnchor = null;
-            executeScrollToBottom(true);
-            
-            // Additionally, schedule a forced scroll after a short delay just to be sure
-            scheduleForceScroll(100);
-            
-            // If processing just ended, schedule post-processing scrolls
-            if (!isProcessing && prevIsProcessing === false) { // Guide used prevIsProcessing === false, matching current
-                schedulePostProcessingScrolls();
-            }
-        } else {
-            // When turning off, save scroll position for stability
-            saveViewportAnchor();
-            
-            // Cancel any pending post-processing checks
-            cancelPostProcessingChecks();
-        }
-    }
+    // Removed old toggleAutoScroll function, replaced by setAutoScroll
     
     // Toggle virtualization manually (dev mode)
     function toggleVirtualization(): void {
@@ -963,112 +1288,331 @@
     
     // Clear logs while preserving auto-scroll state
     function clearLogsPreserveAutoScroll(): void {
-        // Save current auto-scroll state
-        const currentAutoScroll = autoScroll;
+        // Save current auto-scroll state (using the boolean)
+        const wasAutoScrollEnabled = autoScroll;
         
         // Clear logs
         logStore.clearLogs();
         
-        // Ensure auto-scroll state is preserved
-        if (currentAutoScroll !== autoScroll) {
-            toggleAutoScroll(currentAutoScroll);
-        }
+        // Reset key tracking data
+        viewportAnchor = null;
         
-        // Force scroll to bottom if auto-scroll was enabled
-        if (currentAutoScroll) {
+        // Restore auto-scroll state using the setter
+        setAutoScroll(wasAutoScrollEnabled, 'clearLogs');
+        
+        // If it was enabled, ensure we scroll to bottom after clearing
+        if (wasAutoScrollEnabled) {
             setTimeout(() => {
                 executeScrollToBottom(true);
-            }, 50);
+            }, 50); // Delay slightly to allow logStore clear to process
         }
     }
     
-    // Simplified scroll handler based on guide for column-reverse
-    function handleScroll(): void {
-        // Count scroll events for metrics (keep existing metrics code)
-        scrollCallCounter++;
-        
-        // Calculate call frequency every second (keep existing metrics code)
+    // FIXED: Velocity tracking with aggressive decay
+    function updateScrollMetrics(currentScrollTop: number): void {
         const now = Date.now();
-        if (now - scrollStartTime > 1000) {
-            scrollCallFrequency = scrollCallCounter / ((now - scrollStartTime) / 1000);
-            scrollCallCounter = 0;
-            scrollStartTime = now;
+        const timeDelta = Math.max(1, now - lastScrollTime); // Ensure non-zero denominator
+        
+        // CRITICAL FIX: If it's been more than 100ms since the last update,
+        // clear all samples to prevent old momentum from persisting
+        if (timeDelta > 100) {
+            scrollSamples = [];
         }
         
-        // Skip if programmatically scrolling
-        if (isProgrammaticScroll) {
-            // Note: Removed consecutiveSystemScrollEvents logic as per simplified guide
-            return;
+        // Calculate the scroll delta (change in scroll position)
+        const scrollDelta = currentScrollTop - lastScrollTop;
+        
+        // IMPORTANT: Only add non-zero deltas to the samples
+        if (Math.abs(scrollDelta) > 0.01) {
+            // Add to scroll samples for smoothing (keep last 3 samples - REDUCED)
+            scrollSamples.push(scrollDelta);
+            if (scrollSamples.length > 3) scrollSamples.shift();
+        } else {
+            // If there's no movement, add a zero to quickly decay the average
+            scrollSamples.push(0);
+            if (scrollSamples.length > 3) scrollSamples.shift();
         }
         
-        // Use requestAnimationFrame for smooth scrolling (keep existing rAF code)
-        if (scrollRAF) cancelAnimationFrame(scrollRAF);
+        // Calculate average delta for smoother velocity
+        const avgDelta = scrollSamples.length > 0 ? 
+            scrollSamples.reduce((sum, delta) => sum + delta, 0) / scrollSamples.length : 0;
         
-        scrollRAF = requestAnimationFrame(() => {
-            // Only update virtualization if it's ready and enabled
-            if (virtualizationReady && virtualEnabled) {
-                updateVirtualization();
+        // ULTRA-FAST DECAY: If average delta is very small, reset to exactly zero
+        // This prevents tiny values from keeping velocity non-zero
+        const cleanedAvgDelta = Math.abs(avgDelta) < 0.1 ? 0 : avgDelta;
+        
+        // DRAMATICALLY amplify velocity (2000x) so it registers meaningful values
+        // This helps detect even slight user movements
+        scrollVelocity = (cleanedAvgDelta / timeDelta) * 2000;
+        
+        // DECAY VELOCITY: If velocity is very small, force it to exactly zero
+        if (Math.abs(scrollVelocity) < 0.5) {
+            scrollVelocity = 0;
+        }
+        
+        // Determine scroll direction (toward bottom or not)
+        // In column-reverse with positive values:
+        // - Negative delta = scrolling toward bottom
+        // - Positive delta = scrolling away from bottom
+        const newDirectionToBottom = cleanedAvgDelta < 0;
+        
+        // Track direction changes
+        if (newDirectionToBottom !== scrollDirectionToBottom) {
+            lastDirectionChangeTime = now;
+            consistentDirectionDuration = 0;
+        } else {
+            consistentDirectionDuration = now - lastDirectionChangeTime;
+        }
+        
+        // Update direction state
+        scrollDirectionToBottom = newDirectionToBottom;
+        
+        // IMPORTANT: If velocity is exactly zero, we're not moving in ANY direction
+        if (scrollVelocity === 0) {
+            intentToReturnToBottom = false;
+        } else {
+            // Detect intent to return to bottom - more sensitive parameters
+            intentToReturnToBottom =
+                scrollDirectionToBottom &&
+                consistentDirectionDuration > 50 && // Only need 50ms of consistent direction
+                Math.abs(scrollVelocity) > 10; // Lower threshold for detection
+        }
+        
+        // Always log scroll metrics in debug mode, even for small movements
+        if (debug && Math.abs(scrollDelta) > 0.01) {
+            console.log(`🔍 SCROLL METRICS:
+                - Delta: ${scrollDelta.toFixed(2)}
+                - Avg Delta: ${cleanedAvgDelta.toFixed(2)}
+                - Raw Velocity: ${(scrollDelta/timeDelta).toFixed(3)}
+                - Amplified Velocity: ${scrollVelocity.toFixed(2)}
+                - Direction: ${scrollDirectionToBottom ? '⬇️ TO BOTTOM' : '⬆️ TO TOP'}
+                - Consistent Duration: ${consistentDirectionDuration}ms
+                - Intent to Bottom: ${intentToReturnToBottom}`);
+        }
+        
+        // Store current values for next calculation
+        lastScrollTop = currentScrollTop;
+        lastScrollTime = now;
+    }
+    
+    // Add function to check if position is stable at bottom - ENHANCED
+    function checkStableAtBottom(): void {
+        if (stableAtBottomTimer) {
+            clearTimeout(stableAtBottomTimer);
+        }
+        
+        stableAtBottomTimer = window.setTimeout(() => {
+            // Only re-enable auto-scroll if ALL of these conditions are met:
+            // 1. We're EXACTLY at the bottom (scrollTop = 0) - super strict here
+            // 2. User was deliberately scrolling toward the bottom
+            // 3. Auto-scroll is currently off
+            // 4. User is not actively scrolling
+            // 5. Manual scroll lock is not active
+            if (scrollContainer && 
+                Math.abs(scrollContainer.scrollTop) === 0 && 
+                scrollDirectionToBottom && 
+                !autoScroll &&
+                !isUserScrolling &&
+                !manualScrollLock) {
+                if (debug) console.log('Position stable at exact bottom with no manual locks - enabling auto-scroll');
+                setAutoScroll(true, 'stableAtBottom');
+            } else if (scrollContainer && Math.abs(scrollContainer.scrollTop) === 0 && !autoScroll) {
+                // Log why we're not re-enabling for debugging
+                if (debug) {
+                    console.log(`At bottom but not re-enabling auto-scroll because:
+                      - Direction to bottom: ${scrollDirectionToBottom}
+                      - User scrolling: ${isUserScrolling}
+                      - Manual lock: ${manualScrollLock}`);
+                }
             }
-            
+            stableAtBottomTimer = null;
+        }, 500); // 500ms timeout to ensure truly stable position
+    }
+    
+    // Low-level scroll event handler with direct DOM manipulation
+    // Completely rewritten scroll handler - ultra simplified for maximum reliability
+    function handleScroll(): void {
+        // Always ignore programmatic scrolling
+        if (isProgrammaticScroll) return;
+        
+        // Mark as user scrolling - SET THIS FLAG IMMEDIATELY
+        isUserScrolling = true;
+        
+        // IMPORTANT: Set manual scroll lock to prevent auto-scroll from fighting with user
+        manualScrollLock = true;
+        
+        // Cancel any existing timers/animations
+        if (scrollRAF) cancelAnimationFrame(scrollRAF);
+        if (stableAtBottomTimer) {
+            clearTimeout(stableAtBottomTimer);
+            stableAtBottomTimer = null;
+        }
+        if (manualScrollLockTimer) {
+            clearTimeout(manualScrollLockTimer);
+        }
+        
+        // Reset the manual scroll lock after a LONG period (3 seconds)
+        // This gives user plenty of time to read without auto-scroll interfering
+        manualScrollLockTimer = window.setTimeout(() => {
+            if (debug) console.log("Manual scroll lock timeout expired");
+            manualScrollLock = false;
+            manualScrollLockTimer = null;
+        }, 3000);
+        
+        // Use RAFrame for precise timing
+        scrollRAF = requestAnimationFrame(() => {
             if (!scrollContainer) {
                 scrollRAF = null;
                 return;
             }
             
-            // Get current scroll position
-            const { scrollTop } = scrollContainer;
+            // CRITICAL FIX: Get absolute value of scrollTop
+            // In column-reverse layout, scrollTop is negative when scrolled up
+            // We use absolute value for easier handling
+            const scrollTop = Math.abs(scrollContainer.scrollTop);
             
-            // Store current position for reference (removed scrollDirection logic)
-            lastScrollTop = scrollTop;
-            
-            // Check if we're at the bottom (newest logs)
-            const atBottom = isScrolledToBottom();
-            
-            // SIMPLIFIED AUTO-SCROLL LOGIC:
-            
-            // 1. If we've scrolled to bottom, enable auto-scroll immediately
-            if (atBottom && !autoScroll) {
-                autoScroll = true;
-                viewportAnchor = null; // Clear anchor when enabling auto-scroll
-                if (debug) console.log(`Auto-scroll enabled by user scrolling to bottom`);
-            }
-            
-            // 2. If we're not at bottom and auto-scroll is on, disable it
-            else if (!atBottom && autoScroll) {
-                autoScroll = false;
-                saveViewportAnchor(); // Save position when disabling auto-scroll
-                if (debug) console.log(`Auto-scroll disabled by user scrolling away from bottom`);
-            }
-            
-            // Mark as user scrolling (simplified - assume any non-programmatic scroll is user)
-            isUserScrolling = true;
-            
-            // Clear any existing user scroll timeout
-            if (userScrollTimeout) {
-                clearTimeout(userScrollTimeout);
-            }
-            
-            // Reset user scrolling after a timeout
-            userScrollTimeout = window.setTimeout(() => {
-                isUserScrolling = false;
+            // IMPORTANT: If user has scrolled away from bottom and auto-scroll is on,
+            // immediately disable auto-scroll before doing anything else
+            if (scrollTop > 1 && autoScroll) {
+                if (debug) console.warn(`CRITICAL: Disabling auto-scroll due to scrollTop=${scrollTop}px`);
+                // Force auto-scroll off
+                setAutoScroll(false, 'userScrollAway');
+                // Save position for restoration
+                saveViewportAnchor();
                 
-                // If auto-scroll is enabled and we're at the bottom, ensure we stay there
-                if (autoScroll && isScrolledToBottom()) {
-                    scrollToBottomWithStrategy();
+                // Show toast notification
+                showAutoScrollToastMessage("Auto-scroll disabled - scroll to bottom to re-enable");
+            }
+            
+            // CRITICAL: Check if we're debugging mode
+            if (debug) {
+                // Get scroll container details for analysis
+                const { scrollTop: rawScrollTop, scrollHeight, clientHeight } = scrollContainer;
+                console.log("📊 SCROLL ANALYSIS 📊");
+                console.log(`- raw scrollTop: ${rawScrollTop}px (negative in column-reverse)`);
+                console.log(`- abs scrollTop: ${scrollTop}px (converted to positive)`);
+                console.log(`- scrollHeight: ${scrollHeight}px`);
+                console.log(`- clientHeight: ${clientHeight}px`);
+                console.log(`- max scrollTop: ${scrollHeight - clientHeight}px`);
+                console.log(`- percentage scrolled: ${(scrollTop / (scrollHeight - clientHeight) * 100).toFixed(1)}%`);
+                console.log(`- current auto-scroll: ${autoScroll}`);
+                console.log(`- user scrolling: ${isUserScrolling}`);
+                console.log(`- manual scroll lock: ${manualScrollLock}`);
+            }
+            
+            // Update scroll metrics with corrected scrollTop value
+            updateScrollMetrics(scrollTop); // We pass the positive value
+            
+            // Virtualization update if needed
+            if (virtualizationReady && virtualEnabled) {
+                updateVirtualization();
+            }
+            
+            // Set a timeout to mark user scrolling complete - MUCH LONGER TIMEOUT
+            if (userScrollTimeout) clearTimeout(userScrollTimeout);
+            userScrollTimeout = window.setTimeout(() => {
+                // Only clear the flag if we're not in a locked state
+                // This prevents clearing too early when user is actively reading
+                if (!manualScrollLock) {
+                    isUserScrolling = false;
+                    
+                    if (debug) console.log("User scrolling flag cleared - manual scroll lock: " + manualScrollLock);
+                } else {
+                    if (debug) console.log("Keeping user scrolling flag due to active manual scroll lock");
                 }
-            }, 200);
+                
+                // Get final scroll position - absolute value for easier comparison
+                const finalScrollTop = Math.abs(scrollContainer?.scrollTop || 0);
+                
+                if (debug) {
+                    console.log(`User scrolling timeout finished:
+                        - Position: ${finalScrollTop}px
+                        - Auto-scroll: ${autoScroll}
+                        - Direction: ${scrollDirectionToBottom ? 'TO BOTTOM' : 'TO TOP'}
+                        - User scrolling: ${isUserScrolling}
+                        - Manual lock: ${manualScrollLock}`);
+                }
+                
+                // Check if we're exactly at the bottom (scrollTop = 0 in column-reverse)
+                if (scrollContainer && finalScrollTop === 0) {
+                    if (debug) console.log("User at EXACT bottom position after scrolling");
+                    
+                    // ONLY re-enable auto-scroll if:
+                    // 1. Auto-scroll is currently off
+                    // 2. User is scrolling toward the bottom
+                    // 3. Manual scroll lock is not active (user isn't actively reading)
+                    if (!autoScroll && scrollDirectionToBottom && !manualScrollLock) {
+                        if (debug) console.warn("Re-enabling auto-scroll - user at bottom and not locked");
+                        
+                        // Use setAutoScroll to ensure UI sync
+                        setAutoScroll(true, 'scrolledToBottom');
+                    } else if (!autoScroll && manualScrollLock) {
+                        if (debug) console.log("Not re-enabling auto-scroll despite being at bottom - manual lock active");
+                    }
+                } else {
+                    if (debug) console.log(`Not at bottom after scroll: ${finalScrollTop}px`);
+                    
+                    // SAFETY CHECK: if not at bottom but auto-scroll is on, fix it
+                    if (autoScroll) {
+                        if (debug) console.error("INCONSISTENCY: Not at bottom but auto-scroll is on - fixing");
+                        
+                        // Use setAutoScroll to ensure UI sync
+                        setAutoScroll(false, 'inconsistencyFix');
+                    }
+                }
+            }, 800); // MUCH longer timeout (800ms instead of 200ms)
             
             scrollRAF = null;
         });
     }
     
+    // For testing - toggle debug overlay
+    function toggleDebugOverlay() {
+        debugAutoScroll = !debugAutoScroll;
+        if (debug) console.log(`Debug overlay ${debugAutoScroll ? 'enabled' : 'disabled'}`);
+    }
+
     onMount(async () => {
+        // CRITICAL FIX: Set up a velocity decay timer that aggressively decays velocity
+        // This ensures velocity goes to zero quickly when scrolling stops
+        velocityDecayTimer = window.setInterval(() => {
+            // If no scrolling happens, velocity should decay toward zero
+            if (!isUserScrolling && Math.abs(scrollVelocity) > 0) {
+                // Extremely aggressive decay - 90% reduction every 50ms
+                scrollVelocity *= 0.1;
+                
+                // If very small, snap to exactly zero
+                if (Math.abs(scrollVelocity) < 0.5) {
+                    scrollVelocity = 0;
+                    scrollSamples = []; // Clear samples history too
+                }
+                
+                if (debug && Math.abs(scrollVelocity) > 0) {
+                    console.log(`Velocity decay: ${scrollVelocity.toFixed(2)}`);
+                }
+            }
+        }, 50); // Decay every 50ms
+        // Set up key press listener for toggling debug (press 'd' key)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'd' && e.ctrlKey) {
+                toggleDebugOverlay();
+            }
+        });
+        // Start with auto-scroll enabled
+        
         // Initial update
         await tick();
         recalculatePositions();
         
         // Start with virtualization disabled until measurements are ready
         virtualizationReady = false;
+        
+        // Initial scroll to bottom if needed - in column-reverse, this means scrollTop = 0
+        if (autoScroll && scrollContainer) {
+            // Mark this initial scroll
+            trackScrollTrigger('onMount:initialScroll');
+            scrollContainer.scrollTop = 0;
+        }
         
         // Set a timeout to enable virtualization after initial rendering
         setTimeout(async () => {
@@ -1084,23 +1628,19 @@
                 updateVirtualization();
             }
             
-            if (autoScroll) {
-                scrollToBottomWithStrategy();
+            // Double-check auto-scroll state - but be careful to check for user interaction
+            if (autoScroll && scrollContainer && !isUserScrolling && !manualScrollLock) {
+                // Only do this initial setup scroll if we're supposed to auto-scroll
+                trackScrollTrigger('onMount:setupComplete');
+                scrollContainer.scrollTop = 0;
             }
         }, 200);
-        
-        // Initial scroll to bottom - in column-reverse, this means scrollTop = 0
-        if (autoScroll) {
-            scrollToBottomWithStrategy();
-            
-            // Schedule a force scroll after a short delay just to be sure
-            scheduleForceScroll(200);
-        }
         
         // Set up ResizeObserver to detect size changes
         const resizeObserver = new ResizeObserver(() => {
             // Save scroll position
-            const wasAtBottom = isScrolledToBottom();
+            const wasAtBottom = isScrolledToBottom(0); // Use strict check (exactly at bottom)
+            
             if (!wasAtBottom && !autoScroll) {
                 saveViewportAnchor();
             }
@@ -1112,12 +1652,21 @@
                 updateVirtualization();
             }
             
-            // Restore scroll position
-            if (wasAtBottom && autoScroll) {
-                scrollToBottomWithStrategy();
+            // Restore scroll position - but only if user isn't actively scrolling
+            if (wasAtBottom && autoScroll && !isUserScrolling && !manualScrollLock) {
+                // Record this resize-triggered scroll
+                trackScrollTrigger('resizeObserver:wasAtBottom');
+                
+                // Scroll directly instead of using forceScrollToBottom (simpler)
+                if (scrollContainer) {
+                    scrollContainer.scrollTop = 0;
+                }
             } else if (viewportAnchor) {
                 restoreViewportAnchor();
             }
+            
+            // Update return to bottom button visibility
+            updateReturnToBottomButtonVisibility();
         });
         
         if (scrollContainer) {
@@ -1125,47 +1674,105 @@
             resizeObserver.observe(document.documentElement);
         }
         
-        // Set up observer to track log store changes
+        // Log store subscription with detailed logging
         const unsubscribeLogStore = logStore.subscribe((logs) => {
-            // If auto-scroll is enabled and no user scrolling is happening,
-            // ensure we stay at the bottom when new logs arrive
-            if (autoScroll && !isUserScrolling && scrollContainer && logs.length > 0) {
-                // Check if we're already at the bottom
-                const wasAtBottom = isScrolledToBottom();
-                
-                // If at bottom or auto-scroll is on, scroll to bottom
-                if (wasAtBottom || autoScroll) {
-                    scrollToBottomWithStrategy();
-                }
+            // Generate unique ID for log events
+            const logEventId = Date.now().toString().slice(-6);
+            
+            // Basic requirements
+            if (!scrollContainer || logs.length === 0) return;
+            
+            debugLog(`LOG UPDATE DETECTED [id=${logEventId}], logs=${logs.length}`, "INFO");
+            
+            // Check auto-scroll state
+            // Get current auto-scroll state from Svelte
+            const autoScrollEnabled = autoScroll;
+            
+            // Get visible checkbox state
+            const visibleCheckbox = document.getElementById('auto-scroll-checkbox') as HTMLInputElement;
+            const uiCheckboxState = visibleCheckbox ? visibleCheckbox.checked : 'unknown';
+            
+            // Log current states
+            debugLog(`Auto-scroll states: DOM=${autoScrollEnabled}, UI=${uiCheckboxState}, Svelte=${autoScroll} [id=${logEventId}]`, "INFO");
+            
+            // If auto-scroll is disabled, don't do anything
+            if (!autoScrollEnabled) {
+                debugLog(`Auto-scroll disabled, not scrolling [id=${logEventId}]`, "DEBUG");
+                return;
             }
-        });
+            
+            // Never interrupt active user scrolling or manual lock
+            if (isUserScrolling || manualScrollLock) {
+                debugLog(`User is actively scrolling or manual lock active, won't auto-scroll [id=${logEventId}]`, "DEBUG");
+                return;
+            }
+            
+            // Get current scroll position
+            const scrollPos = scrollContainer.scrollTop;
+            debugLog(`Current scroll position: ${scrollPos}px [id=${logEventId}]`, "INFO");
+            
+            // CRITICAL CONSISTENCY CHECK:
+            // If we think auto-scroll is on but we're not at bottom, we need to fix this
+            if (scrollPos > 0 && autoScrollEnabled) {
+                debugLog(`INCONSISTENCY DETECTED: scrollTop=${scrollPos}px but auto-scroll=true [id=${logEventId}]`, "WARN");
+                
+                // If very close to bottom, just force it down
+                if (scrollPos < 5 && !isUserScrolling && !manualScrollLock) {
+                    trackScrollTrigger('logUpdate:closeToBottom');
+                    scrollContainer.scrollTop = 0;
+                    debugLog(`Very close to bottom (${scrollPos}px), forced to bottom [id=${logEventId}]`, "INFO");
+                } else {
+                    // Otherwise disable auto-scroll
+                    debugLog(`Not at bottom (${scrollPos}px), DISABLING auto-scroll [id=${logEventId}]`, "WARN");
+                    
+                    // Use our setter function to ensure consistency
+                    setAutoScroll(false, 'logUpdateInconsistency');
+                }
+                return;
+            }
+            
+            // If we're at bottom and auto-scroll is on, scroll to display new logs
+            if (scrollPos === 0 && autoScrollEnabled && !isUserScrolling && !manualScrollLock) {
+                debugLog(`At exact bottom with auto-scroll on, scrolling to bottom [id=${logEventId}]`, "INFO");
+                
+                // Direct DOM manipulation for reliability
+                trackScrollTrigger('logUpdate:exactBottom');
+                scrollContainer.scrollTop = 0;
+                
+                // One retry is sufficient
+                setTimeout(() => {
+                    if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                        trackScrollTrigger('logUpdate:followUp');
+                        scrollContainer.scrollTop = 0;
+                        debugLog(`Follow-up scroll to bottom (scrollTop=${scrollContainer.scrollTop}px) [id=${logEventId}]`, "DEBUG");
+                    }
+                }, 10);
+            }
+        }); // Correctly close subscribe call
         
-        return () => {
+        // onMount cleanup function
+        const cleanup = () => {
             resizeObserver.disconnect();
             unsubscribeLogStore();
             
-            if (userScrollTimeout) {
-                clearTimeout(userScrollTimeout);
-            }
-            
-            if (scrollRAF) {
-                cancelAnimationFrame(scrollRAF);
-            }
-            
-            if (batchMeasurementTimer) {
-                clearTimeout(batchMeasurementTimer);
-            }
-            
-            if (forceScrollTimer) {
-                clearTimeout(forceScrollTimer);
-            }
-            
-            // Clean up any post-processing timers
+            if (userScrollTimeout) clearTimeout(userScrollTimeout);
+            if (scrollRAF) cancelAnimationFrame(scrollRAF);
+            if (batchMeasurementTimer) clearTimeout(batchMeasurementTimer);
+            if (forceScrollTimer) clearTimeout(forceScrollTimer);
             cancelPostProcessingChecks();
+            if (stableAtBottomTimer) clearTimeout(stableAtBottomTimer);
+            if (autoScrollToastTimer) clearTimeout(autoScrollToastTimer);
         };
+        
+        return cleanup; // Return the synchronous cleanup function
     });
     
     onDestroy(() => {
+        // Clean up velocity decay timer
+        if (velocityDecayTimer) {
+            clearInterval(velocityDecayTimer);
+            velocityDecayTimer = null;
+        }
         // Clean up any remaining timeouts
         if (userScrollTimeout) {
             clearTimeout(userScrollTimeout);
@@ -1189,6 +1796,18 @@
         
         // Clean up any post-processing timers
         cancelPostProcessingChecks();
+        
+        // Clean up stable bottom checking timer
+        if (stableAtBottomTimer) {
+            clearTimeout(stableAtBottomTimer);
+            stableAtBottomTimer = null;
+        }
+        
+        // Clean up auto-scroll toast timer
+        if (autoScrollToastTimer) {
+            clearTimeout(autoScrollToastTimer);
+            autoScrollToastTimer = null;
+        }
     });
 </script>
 
@@ -1222,26 +1841,61 @@
                 </select>
             </div>
 
-            <!-- Auto-scroll toggle -->
-            <button 
-                type="button" 
-                class="flex items-center gap-1 px-3 py-1 bg-[#333] h-7
-                       text-text rounded whitespace-nowrap flex-shrink-0 text-[11px] uppercase tracking-wider 
-                       hover:bg-primary/10 hover:text-white hover:border-primary/55 hover:shadow-input
-                       transition-all duration-200"
-                on:click={() => toggleAutoScroll(!autoScroll)}
-                aria-pressed={autoScroll}
-                aria-label="Toggle auto-scroll"
-            >
-                <input 
-                    type="checkbox" 
+            <!-- Auto-scroll toggle with completely manual control -->
+            <div class="flex items-center gap-1 px-3 py-1 bg-[#333] h-7 rounded hover:bg-primary/10 hover:border-primary/55 hover:shadow-input transition-all duration-200">
+                <input
+                    id="auto-scroll-checkbox"
+                    type="checkbox"
                     checked={autoScroll}
-                    on:change={(e) => toggleAutoScroll(e.target.checked)}
-                    class="w-3.5 h-3.5 accent-primary m-0"
-                    aria-hidden="true"
+                    on:change={(e) => {
+                        // Stop event propagation
+                        e.stopPropagation();
+                        
+                        // Get directly from the DOM
+                        const target = e.target as HTMLInputElement;
+                        const newValue = target.checked;
+                        
+                        // Log the event detail
+                        debugLog(`Checkbox changed: ${newValue}, id=${e.timeStamp}`, "INFO");
+                        
+                        // Log the current state before changing
+                        debugLog(`Before change - autoScroll: ${autoScroll}`, "INFO");
+                        
+                        // CRITICAL: When user directly toggles checkbox, clear the manual scroll lock
+                        // This gives precedence to explicit user preference
+                        if (manualScrollLock) {
+                            debugLog(`Clearing manual scroll lock due to explicit user checkbox toggle`, "INFO");
+                            manualScrollLock = false;
+                            if (manualScrollLockTimer) {
+                                clearTimeout(manualScrollLockTimer);
+                                manualScrollLockTimer = null;
+                            }
+                        }
+                        
+                        // Use our central setter with special source to indicate user preference
+                        setAutoScroll(newValue, 'userPreference');
+                        
+                        // Schedule check to verify state is maintained
+                        setTimeout(() => {
+                            const visibleCheckbox = document.getElementById('auto-scroll-checkbox') as HTMLInputElement;
+                            const uiState = visibleCheckbox ? visibleCheckbox.checked : 'unknown';
+                            debugLog(`50ms after change - autoScroll: ${autoScroll}, checkbox UI: ${uiState}`, "INFO");
+                        }, 50);
+                    }}
+                    class="w-3.5 h-3.5 accent-primary m-0 cursor-pointer"
+                    aria-label="Toggle auto-scroll"
                 />
-                Auto-scroll
-            </button>
+                <label 
+                    for="auto-scroll-checkbox"
+                    class="cursor-pointer text-text text-[11px] uppercase tracking-wider whitespace-nowrap flex-shrink-0 hover:text-white transition-colors duration-200"
+                    on:click={(e) => {
+                        // We'll let the label handle naturally through the 'for' attribute
+                        // which will trigger the checkbox change event
+                    }}
+                >
+                    Auto-scroll
+                </label>
+            </div>
 
             <!-- Clear button -->
             <button 
@@ -1273,6 +1927,20 @@
                 <span class="text-xs text-primary/50" aria-live="polite">
                     {filteredLogs.length} logs {virtualEnabled ? '| ' + visibleLogCount + ' visible' : ''} {isProcessing ? '| PROCESSING' : ''}
                 </span>
+            {/if}
+
+            <!-- Debug Auto-Scroll Button -->
+            {#if version === 'dev'}
+                <button
+                    on:click={() => debugAutoScroll = !debugAutoScroll}
+                    class="px-3 py-1 h-7 bg-[#444] text-text rounded whitespace-nowrap
+                           flex-shrink-0 text-[11px] uppercase tracking-wider
+                           hover:bg-primary/20 hover:text-white hover:border-primary/55 hover:shadow-input
+                           transition-all duration-200"
+                    aria-pressed={debugAutoScroll}
+                >
+                    Debug Scroll
+                </button>
             {/if}
         </div>
     </div>
@@ -1311,7 +1979,7 @@
                                 py-1.5 px-3 border-b border-primary/10 
                                 flex items-start justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
                                 data-log-sequence={log._sequence}
-                                data-unix-time={log._unix_time}
+                                data-unix-time={log._unix_time ?? 0}
                                 use:measureLogEntry={log}
                                 role="listitem"
                                 aria-label={`${log.level} log: ${log.message || ''}`}
@@ -1353,7 +2021,7 @@
                                 flex items-start justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
                                 style="position: absolute; bottom: {totalLogHeight - (logPositions.get(log._sequence) || 0) - (logHeights.get(log._sequence) || 0)}px; left: 0; right: 0;"
                                 data-log-sequence={log._sequence}
-                                data-unix-time={log._unix_time}
+                                data-unix-time={log._unix_time ?? 0}
                                 use:measureLogEntry={log}
                                 role="listitem"
                                 aria-label={`${log.level} log: ${log.message || ''}`}
@@ -1395,9 +2063,9 @@
                                 flex items-start justify-start text-left w-full hover:bg-white/5 transition-colors duration-200
                                 {isNewLog(log) ? 'new-log ' + getFlashClass(log.level) : ''}"
                                 data-log-sequence={log._sequence}
-                                data-unix-time={log._unix_time}
+                                data-unix-time={log._unix_time ?? 0}
                                 use:measureLogEntry={log}
-                                transition:fade|local={{ duration: autoScroll ? 150 : 300, easing: autoScroll ? null : backOut }}
+                                transition:fade|local={{ duration: autoScroll ? 150 : 300, easing: autoScroll ? undefined : backOut }}
                                 on:introstart={handleTransitionStart}
                                 on:introend={handleTransitionEnd}
                                 on:outrostart={handleTransitionStart}
@@ -1438,6 +2106,39 @@
             {/if}
         </div>
     </div>
+
+    <!-- Debug Auto-Scroll Overlay (Updated) -->
+    {#if version === 'dev' && scrollContainer}
+        <!-- Debug overlay for auto-scroll investigation -->
+        <div class="fixed bottom-4 left-4 bg-black/80 p-3 text-white text-xs rounded shadow-lg z-50 pointer-events-none border-2 border-red-500">
+            <div class="text-sm font-bold mb-1 text-red-400">AUTO-SCROLL DEBUGGER</div>
+            <div class="flex flex-col space-y-0.5">
+                <div>Auto-Scroll: {autoScroll ? 'ON' : 'OFF'}</div>
+                <div>UI Checkbox: {document.getElementById('auto-scroll-checkbox')?.checked ? 'ON' : 'OFF'}</div>
+                <div class="border-t border-gray-600 my-1 pt-1"></div>
+                <div>ScrollTop: {Math.abs(scrollContainer?.scrollTop || 0).toFixed(1)}px</div>
+                <div>At Bottom: {Math.abs(scrollContainer?.scrollTop || 0) === 0 ? 'YES' : 'NO'}</div>
+                <div>Direction: {scrollDirectionToBottom ? '⬇️ TO BOTTOM' : '⬆️ TO TOP'}</div>
+                <div>Velocity: {scrollVelocity.toFixed(2)}</div>
+                <div class="font-bold {isUserScrolling ? 'text-green-400' : 'text-red-400'}">User Scrolling: {isUserScrolling ? 'YES' : 'NO'}</div>
+                <div class="font-bold {manualScrollLock ? 'text-green-400' : ''}">Manual Lock: {manualScrollLock ? 'YES' : 'NO'}</div>
+                
+                <!-- SCROLL TRIGGER TRACERS -->
+                <div class="border-t border-gray-600 my-1 pt-1"></div>
+                <div class="text-red-400 font-bold">Last Scroll Triggers:</div>
+                {#each scrollTriggerHistory as trace, i}
+                    <div class="text-xs">
+                        {i+1}. {trace.id} ({(Date.now() - trace.timestamp < 1000) ? 
+                              ((Date.now() - trace.timestamp) + 'ms ago') : 
+                              ((Date.now() - trace.timestamp)/1000).toFixed(1) + 's ago'})
+                    </div>
+                {/each}
+                {#if scrollTriggerHistory.length === 0}
+                    <div class="text-gray-400 text-xs">No scroll triggers yet</div>
+                {/if}
+            </div>
+        </div>
+    {/if}
 </div>
 
 <style>
