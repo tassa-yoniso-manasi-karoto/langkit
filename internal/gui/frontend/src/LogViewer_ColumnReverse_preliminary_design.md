@@ -1,4 +1,4 @@
-# Enhanced Design Specification: LogViewer Scrolling System with flex-direction: column-reverse CSS property and WebAssembly Integration
+# Preliminary Design Specification: LogViewer Scrolling System with flex-direction: column-reverse CSS property and WebAssembly Integration
 
 ## 1. Core Design Principles
 
@@ -24,16 +24,152 @@
 - **Reactive Statement Discipline**: Exercise extreme caution with reactive statements (`$:`) that modify scroll position or DOM state
 - **Optimized Performance Path**: Delegate performance-critical operations to WebAssembly when appropriate, with automatic TypeScript fallbacks when necessary
 
-## 2. System Components & Relationships
+## 2. Visual Representations
 
-### 2.1 Core Conceptual Model
+### Figure 1: Column-Reverse Coordinate System
+
+```
+┌───────────────────────────────┐  ◄── Top of Visual Display
+│                               │      (scrollTop = maxScrollTop)
+│  ┌───────────────────────┐    │
+│  │ Older Log Entry #1    │    │
+│  └───────────────────────┘    │
+│                               │
+│  ┌───────────────────────┐    │
+│  │ Older Log Entry #2    │    │      DOM Order: Bottom-to-Top
+│  └───────────────────────┘    │      Visual Order: Top-to-Bottom
+│                               │
+│  ┌───────────────────────┐    │      scrollTop increases ▲
+│  │ Newer Log Entry #N-1  │    │      as you scroll UP to older logs
+│  └───────────────────────┘    │
+│                               │
+│  ┌───────────────────────┐    │
+│  │ Newest Log Entry #N   │    │
+│  └───────────────────────┘    │
+│                               │
+└───────────────────────────────┘  ◄── Bottom of Visual Display
+                                       (scrollTop = 0)
+```
+
+**Key Characteristics**:
+- **DOM Structure**: In column-reverse, elements are added at the beginning of the container but appear visually at the bottom.
+- **scrollTop = 0**: Corresponds to viewing the newest logs (visual bottom).
+- **scrollTop > 0**: Corresponds to scrolling up to view older logs.
+- **Coordinate Transformation**: When calculations designed for standard layouts are used with column-reverse, they must transform coordinates:
+  - `scrollPositionFromTop = totalHeight - clientHeight - scrollTop`
+
+### Figure 2: Auto-Scroll State Transitions
+
+```
+                          ┌────────────────────────────────┐
+                          │     Auto-Scroll Enabled        │
+                          │ (Newest Logs Visible, VAS Off) │
+                          └──────────────┬─────────────────┘
+                                         │
+                ┌────────────────────────┼────────────────────────┐
+                │                        │                        │
+                ▼                        ▼                        ▼
+┌────────────────────────┐    ┌─────────────────────┐    ┌────────────────────────┐
+│ User Scrolls Away From │    │ User Toggles        │    │ Log Updates Arrive     │
+│ Bottom (scrollTop > 0) │    │ Checkbox OFF        │    │                        │
+└───────────┬────────────┘    └──────────┬──────────┘    └────────────┬───────────┘
+            │                            │                            │
+            ▼                            ▼                            ▼
+┌────────────────────────┐    ┌─────────────────────┐    ┌────────────────────────┐
+│ Auto-Scroll Disabled   │    │ Auto-Scroll Disabled│    │ Browser Maintains      │
+│ VAS Enabled            │    │ VAS Enabled         │    │ Position at Bottom     │
+│ Save Anchor Position   │    │ Save Anchor Position│    │ scrollTop = 0          │
+└───────────┬────────────┘    └──────────┬──────────┘    └────────────────────────┘
+            │                            │
+            └────────────────┬───────────┘
+                             │
+                             ▼
+        ┌─────────────────────────────────────────┐
+        │                                         │
+        │          Auto-Scroll Disabled           │
+        │        (Stable View, VAS Active)        │
+        │                                         │
+        └───────────────────┬─────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+        ▼                   ▼                   ▼
+┌────────────────┐  ┌──────────────────┐  ┌────────────────────┐
+│ User Scrolls To │  │ User Toggles     │  │ Log Updates Arrive │
+│ Bottom          │  │ Checkbox ON      │  │                    │
+└───────┬─────────┘  └────────┬─────────┘  └──────────┬─────────┘
+        │                     │                       │
+        │                     │                       │
+        ▼                     ▼                       ▼
+┌────────────────┐  ┌──────────────────┐  ┌────────────────────┐
+│ Option 1: Stay │  │ Auto-Scroll ON   │  │ VAS Restores       │
+│ in OFF state   │  │ VAS Disabled     │  │ Anchor Position    │
+│ (Default)      │  │ Scroll to Bottom │  │ View Stays Stable  │
+└────────────────┘  └──────────────────┘  └────────────────────┘
+```
+
+**Key States and Transitions**:
+- When auto-scroll is **ON**: VAS is disabled; browser naturally keeps newest logs visible
+- When auto-scroll is **OFF**: VAS is enabled to maintain stable view position as logs are added
+- State transitions are initiated by: user scrolling, checkbox toggling, and content updates
+- Each transition involves proper coordination of auto-scroll state and VAS behavior
+
+### Figure 3: Component Interaction Diagram
+
+```
+┌─────────────────┐     ┌───────────────────┐     ┌───────────────────┐
+│                 │     │                   │     │                   │
+│  User Interface │     │  Svelte Component │     │  Backend Systems  │
+│                 │     │                   │     │                   │
+└───────┬─────────┘     └─────────┬─────────┘     └─────────┬─────────┘
+        │                         │                         │
+        │ ┌───────────────────────┴───────────────────┐    │
+        │ │                                           │    │
+        │ │         AutoScroll State (Boolean)        │◄───┘
+        │ │                                           │    Event Throttling System
+        │ └───┬───────────────────────────────┬───────┘    sends batched logs
+        │     │                               │            via "log-batch" events
+┌───────▼─────▼───┐                   ┌───────▼───────────┐
+│               │                     │                   │
+│ Checkbox UI   │                     │  Viewport         │
+│               │◄────setAutoScroll───│  Anchoring        │
+└───────┬───────┘                     │  System           │
+        │                             │                   │
+        │                             └─────────┬─────────┘
+        │                                       │
+        │                                       │
+┌───────▼───────────────────────────────────────▼─────────┐
+│                                                         │
+│                    Scroll Container                     │
+│                                                         │
+└─────────────────────────────┬───────────────────────────┘
+                              │
+                              │
+                 ┌────────────▼────────────┐
+                 │                         │
+                 │      DOM Events         │
+                 │  (scroll, resize, etc)  │
+                 │                         │
+                 └─────────────────────────┘
+```
+
+**Key Interactions**:
+- **Central State**: The `autoScroll` boolean is the single source of truth
+- **Backend Integration**: The existing Adaptive Event Throttling System in the backend batches logs and sends them to the frontend via `log-batch` events
+- **Coordination**: All components reference the central `autoScroll` state for decisions
+- **User Input**: UI interactions (checkbox, scrolling) affect the central state through the `setAutoScroll` function
+- **VAS Behavior**: Viewport Anchoring System is conditionally active based on `autoScroll` state
+
+## 3. System Components & Relationships
+
+### 3.1 Core Conceptual Model
 - **Auto-Scroll Mode**: A binary state determining whether the view should automatically follow newest logs
 - **Viewport Anchoring System (VAS)**: A position preservation mechanism that maintains stable viewing experience
 - **Scroll Event Management**: A system for differentiating between user and programmatic scroll events
 - **Virtualization Integration**: Specialized behavior modifications when dealing with virtualized content
 - **WebAssembly Integration**: Performance optimization layer for computationally intensive operations with automatic fallbacks
 
-### 2.2 State Management Architecture
+### 3.2 State Management Architecture
 - **Primary Control State**: `autoScroll` boolean - the single source of truth for tracking mode
 - **Centralized State Modification**: `setAutoScroll()` function as the only method to modify auto-scroll state
 - **Internal Operational Flags**:
@@ -44,7 +180,7 @@
   - Manual scroll locks to prevent state fighting
   - Animation tracking to coordinate transitions
 
-### 2.3 System Interactions & Dependencies
+### 3.3 System Interactions & Dependencies
 - **UI → State**: User interactions with checkbox directly affect the `autoScroll` state through the central setter function
 - **State → Behavior**: `autoScroll` state determines whether VAS is active and how scroll positions are maintained
 - **Logs → Position**: Log additions trigger a position preservation flow depending on `autoScroll` state
@@ -52,7 +188,94 @@
 - **Performance → Delegation**: Log processing operations are delegated to WebAssembly or TypeScript based on performance metrics and thresholds
 - **CRITICAL CAUTION**: Avoid circular dependencies where state changes trigger DOM updates that trigger further state changes
 
-### 2.4 WebAssembly Integration Architecture
+### 3.4 Integration with Existing Backend Systems
+
+The LogViewer interacts with several backend systems, most notably the **Adaptive Event Throttling System** which already exists in the Go backend (`internal/pkg/batch/throttler.go`).
+
+#### 3.4.1 Adaptive Event Throttling System
+
+The backend already implements a sophisticated throttling system that:
+
+1. **Batches Logs**: Collects multiple log entries before sending them to the frontend
+2. **Adapts Frequency**: Dynamically adjusts batch frequency based on event volume
+3. **Optimizes Performance**: Reduces frontend overhead during high-volume logging
+4. **Maintains Order**: Preserves chronological ordering of logs
+
+This system communicates with the frontend through `EventsOn` events, specifically:
+- `log-batch`: Contains arrays of multiple log entries
+- `progress-batch`: Contains progress updates (if applicable)
+
+#### 3.4.2 Frontend Integration
+
+The LogViewer should leverage this existing system rather than implementing its own throttling:
+
+```javascript
+// In component initialization
+onMount(() => {
+  // Subscribe to batched log updates
+  window.go.events.on("log-batch", (batchedLogs) => {
+    // Process the batch of logs from the backend throttling system
+    processBatchedLogs(batchedLogs);
+  });
+});
+
+// Process batched logs efficiently
+function processBatchedLogs(batchedLogs) {
+  // Before processing: Save viewport anchor if auto-scroll is OFF
+  if (!autoScroll && !isUserScrolling) {
+    saveViewportAnchor();
+  }
+
+  // Process logs through the WebAssembly-optimized merge function
+  // or its TypeScript fallback for chronological ordering
+  const mergedLogs = mergeInsertLogs(filteredLogs, batchedLogs);
+  filteredLogs = applyCurrentFilter(mergedLogs); // Apply filtering after merging
+
+  // After processing: Schedule scroll position management
+  setTimeout(async () => {
+    await tick(); // Wait for DOM update
+
+    if (autoScroll && !isUserScrolling && !manualScrollLock && !animationInProgress) {
+      scrollToBottom(); // Auto-scroll ON: Go to bottom
+    } else if (!autoScroll && viewportAnchor && !isUserScrolling && !manualScrollLock && !animationInProgress) {
+      restoreViewportAnchor(); // Auto-scroll OFF: Maintain position
+    }
+  }, 0);
+}
+```
+
+#### 3.4.3 Throttling Configuration
+
+The backend throttling system has configurable parameters that affect frontend behavior:
+
+```go
+// In internal/pkg/batch/throttler.go
+type AdaptiveEventThrottler struct {
+    minInterval time.Duration // Minimum time between events
+    maxInterval time.Duration // Maximum time between events
+    rateWindow  time.Duration // Window for measuring event frequency
+    enabled     bool          // Whether throttling is active
+    // ...other fields
+}
+```
+
+These parameters can be adjusted either through settings in the UI or directly in the backend code:
+
+```javascript
+// Example: Setting throttling parameters from the frontend
+async function updateThrottlingSettings(settings) {
+  try {
+    await window.go.gui.App.SetEventThrottling(settings.enabled);
+    // Other parameters might need their own setters
+  } catch (error) {
+    console.error("Failed to update throttling settings:", error);
+  }
+}
+```
+
+**IMPORTANT**: The frontend should not duplicate the backend's throttling logic. Instead, it should focus on efficiently consuming and rendering the batched logs provided by the backend system.
+
+### 3.5 WebAssembly Integration Architecture
 - **Performance-Critical Functions**: Functions with high computational costs are candidates for WebAssembly optimization:
   - `mergeInsertLogs`: Log merging and chronological ordering
   - `findLogAtScrollPosition`: Virtualization scroll position calculation
@@ -90,17 +313,17 @@
 - **Performance Metrics Collection**: Tracks execution time and speedup ratios to optimize future decisions
 - **IMPORTANT**: Utilize the existing backend Adaptive Event Throttling System (from `internal/pkg/batch/throttler.go`) for batched log handling, potentially influencing how logs are passed to the frontend for processing.
 
-### 2.5 Reactive Statement Safety
+### 3.6 Reactive Statement Safety
 - **CAUTION**: Svelte's reactive declarations (`$:`) can create hidden dependencies and circular update patterns
 - **CAVEAT**: Multiple sources observing and updating the same state can cause "reactive loops"
 - **PRACTICE**: Isolate DOM state (scrollTop position) from component state (auto-scroll flag)
 - **DEFENSIVE APPROACH**: Use guard flags to prevent reactive statements from triggering multiple times during a single logical update
 
-## 3. Detailed Behavioral Specifications
+## 4. Detailed Behavioral Specifications
 
-### 3.1 Auto-Scroll State Transitions
+### 4.1 Auto-Scroll State Transitions
 
-#### 3.1.1 User-Initiated Mode Changes (Checkbox Toggle)
+#### 4.1.1 User-Initiated Mode Changes (Checkbox Toggle)
 - **OFF → ON**:
   - VAS must be immediately disabled
   - Any current viewport anchor must be discarded
@@ -116,7 +339,7 @@
   - No automatic scrolling should occur while in this state
   - **CRITICAL**: Must only update state through the centralized setter function
 
-#### 3.1.2 Implicit State Changes (User Scrolling)
+#### 4.1.2 Implicit State Changes (User Scrolling)
 - **ON → OFF (Automatic)**:
   - When user scrolls away from bottom with auto-scroll ON, the system must:
     - Automatically transition to auto-scroll OFF through the centralized setter
@@ -153,11 +376,11 @@
     - *Option 1*: Maintain OFF state (requires explicit user checkbox action)
     - *Option 2*: Automatically re-enable auto-scroll (more automated but potentially unexpected)
     - Design recommendation: Implement Option 1 for predictability, with clear visual cues to re-enable
-    - **CRITICAL**: If implementing Option 2, apply a subtle timing delay to avoid accidental triggers (as shown in `handleScroll` implementation example `8.2`)
+    - **CRITICAL**: If implementing Option 2, apply a subtle timing delay to avoid accidental triggers (as shown in `handleScroll` implementation example `9.2`)
 
-### 3.2 Viewport Anchoring System (VAS) Behavior
+### 4.2 Viewport Anchoring System (VAS) Behavior
 
-#### 3.2.1 Fundamental Operation
+#### 4.2.1 Fundamental Operation
 - **When Active**: Only when auto-scroll is OFF
 - **Purpose**: Maintain stable viewing position during log additions and container changes
 - **Core Process**:
@@ -169,31 +392,37 @@
     ```javascript
     // SAFER APPROACH (Illustrative reactive block)
     $: if (filteredLogs.length > 0 && scrollContainer) {
-      if (autoScroll) {
-        // Use direct approach for auto-scroll ON
-        viewportAnchor = null; // Clear any anchor
-        if (!isUserScrolling && !manualScrollLock && !animationInProgress) {
-          scrollToBottom(); // Simple direct scroll (programmatically safe)
-        }
-      } else {
-        // Use viewport anchoring only when auto-scroll is OFF
-        // Save happens *before* DOM update trigger (e.g., before log processing)
-        // saveViewportAnchor();
-        // ...later after DOM updates...
-        if (viewportAnchor && !isUserScrolling && !manualScrollLock && !animationInProgress) {
-          restoreViewportAnchor(); // Restore happens *after* DOM update
-        }
-      }
+      // Schedule post-update actions
+      setTimeout(async () => {
+          await tick(); // Wait for DOM update
+
+          // Re-check state *after* tick, as it could have changed
+          if (autoScroll) {
+            // Use direct approach for auto-scroll ON
+            viewportAnchor = null; // Clear any anchor
+            if (!isUserScrolling && !manualScrollLock && !animationInProgress) {
+              scrollToBottom(); // Simple direct scroll (programmatically safe)
+            }
+          } else {
+            // Use viewport anchoring only when auto-scroll is OFF
+            // Save happens *before* DOM update trigger (e.g., before log processing)
+            // saveViewportAnchor(); was called earlier
+            // Restore happens *after* DOM update
+            if (viewportAnchor && !isUserScrolling && !manualScrollLock && !animationInProgress) {
+              restoreViewportAnchor();
+            }
+          }
+      }, 0);
     }
     ```
 
-#### 3.2.2 Anchor Selection Strategy
+#### 4.2.2 Anchor Selection Strategy
 - **Primary Strategy**: Anchor to visible log entry near viewport center
 - **Alternative Strategy**: Use scroll percentage or offset from top/bottom when specific elements aren't reliable
 - **Fallback Mechanism**: When anchor elements are removed (filtering, virtualization), recalculate based on nearby elements
 - **TIMING CRITICAL**: Always use `await tick()` before measuring positions to ensure DOM has updated
 
-#### 3.2.3 Coordinate Calculations
+#### 4.2.3 Coordinate Calculations
 - **Column-Reverse Transformation**: All position calculations must account for inverted coordinate system
 - **Precision Considerations**: Use tolerance values (±1-2px) for position comparisons to account for rounding and subpixel rendering
 - **Boundary Handling**: Ensure calculated positions remain within valid scroll range, particularly near content boundaries
@@ -229,9 +458,9 @@
     }
     ```
 
-### 3.3 Log Update & Rendering Flow
+### 4.3 Log Update & Rendering Flow
 
-#### 3.3.1 With Auto-Scroll ON
+#### 4.3.1 With Auto-Scroll ON
 - **Expected Behavior**: View remains at newest logs (bottom)
 - **Primary Mechanism**: Browser's natural tendency to maintain scrollTop=0 in column-reverse layout when content is added at the start (bottom visually).
 - **Safety Mechanism**: Explicit `scrollTop=0` enforcement after updates when necessary, particularly:
@@ -241,7 +470,7 @@
   - Following potential browser inconsistencies
 - **TIMING CONSIDERATION**: Use `requestAnimationFrame` or `await tick()` followed by programmatic scroll for position enforcement to ensure it happens after rendering/layout.
 
-#### 3.3.2 With Auto-Scroll OFF
+#### 4.3.2 With Auto-Scroll OFF
 - **Expected Behavior**: View maintains stable position relative to existing content
 - **Primary Mechanism**: VAS captures position before update, restores equivalent position after
 - **Critical Timing**: Position capture must occur *before* the DOM update begins. Position restoration must occur *after* DOM updates are complete (e.g., after `await tick()`).
@@ -268,11 +497,11 @@
     }
     ```
 
-## 4. Event Handling & Coordination
+## 5. Event Handling & Coordination
 
-### 4.1 Scroll Event Management
+### 5.1 Scroll Event Management
 
-#### 4.1.1 Event Categorization
+#### 5.1.1 Event Categorization
 - **User-Initiated Scrolling**: Direct interaction (mouse wheel, scrollbar drag, touch, keyboard) requiring state changes (potentially disabling auto-scroll).
 - **Programmatic Scrolling**: System-initiated scroll (e.g., `scrollToBottom`, `restoreViewportAnchor`) requiring exclusion from user-scroll feedback loops.
 - **Momentum/Inertial Scrolling**: Post-interaction scrolling (e.g., trackpad fling) requiring careful timing considerations for scroll end detection.
@@ -302,7 +531,7 @@
     }
     ```
 
-#### 4.1.2 Scroll Cycle Behavior
+#### 5.1.2 Scroll Cycle Behavior
 - **Start**: Mark active scrolling (`isUserScrolling`), prevent competing operations (e.g., pause anchor restoration), set `manualScrollLock`.
 - **During**: Update internal state (e.g., `currentScrollTop`), track direction/extent if needed, potentially trigger auto-scroll disable if scrolling away from bottom. Throttle handler execution.
 - **End (Debounced/Timeout)**: Clear `isUserScrolling` flag, evaluate final position for potential state changes (e.g., re-enable auto-scroll if user scrolled back to bottom - Option 2). Clear `manualScrollLock` after a longer delay.
@@ -341,7 +570,7 @@
            // Option 2: Consider auto-enabling when scrolled back to bottom
            // setAutoScroll(true, 'scrolledToBottom');
         }
-        // Manual lock should persist longer via its own timer (see 8.2)
+        // Manual lock should persist longer via its own timer (see 9.2)
       }, 300); // Adjust timeout duration as needed
     }
 
@@ -359,12 +588,12 @@
         scrollRAF = null;
       });
 
-      // Reset manual lock timer (defined elsewhere, see 8.2)
+      // Reset manual lock timer (defined elsewhere, see 9.2)
       // resetManualScrollLockTimer();
     }
     ```
 
-### 4.2 Resize Event Handling
+### 5.2 Resize Event Handling
 - **Container Resizing**: Recalculate dimensions (`clientHeight`, etc.) and maintain appropriate scroll position (e.g., re-apply anchor if VAS is active, or scroll to bottom if auto-scroll is ON).
 - **Window Resizing**: May trigger container resizing. Adjust virtualization parameters if applicable, while preserving view stability.
 - **Content Height Changes**: Not a direct event, but occurs due to log additions/filtering/virtualization. Recalculate total height and adjust scroll position proportionally or via VAS/auto-scroll logic.
@@ -395,18 +624,18 @@
     });
     ```
 
-### 4.3 DOM Lifecycle Integration
+### 5.3 DOM Lifecycle Integration
 - **Before DOM Updates**: Capture necessary state, primarily viewport position references for VAS (`saveViewportAnchor()`). This often happens just before triggering the state change that causes the update (e.g., processing new logs).
 - **After DOM Updates**: Apply position restoration (`restoreViewportAnchor()`) or enforce scroll position (`scrollToBottom()`) only *after* the DOM has finished rendering the changes. Use `await tick()` in Svelte, potentially followed by `requestAnimationFrame` for positioning to ensure layout is stable.
 - **Batched Operations**: Group multiple measurements or DOM manipulations where possible (e.g., using `requestAnimationFrame` or short `setTimeout` for batching) to reduce layout thrashing and improve performance.
 - **ASYNCHRONOUS AWARENESS**: Always use `await tick()` in Svelte before measuring DOM elements (like `offsetTop`, `clientHeight`, `scrollHeight`) or manipulating scroll position (`scrollTop`) *after* a reactive state change that affects the DOM.
 - **SVELTE REACTIVITY CAUTION**: Be aware that Svelte's reactivity updates the DOM asynchronously. Props passed down might not reflect immediately in the child component's DOM until the next tick.
 
-## 5. Edge Cases & Robustness Measures
+## 6. Edge Cases & Robustness Measures
 
-### 5.1 Race Conditions & Timing Issues
+### 6.1 Race Conditions & Timing Issues
 
-#### 5.1.1 Rapid Interaction Sequences
+#### 6.1.1 Rapid Interaction Sequences
 - **Rapid Checkbox Toggling**: Ensure the `setAutoScroll` function handles rapid calls gracefully, possibly debouncing slightly or ensuring the latest call takes precedence. State should only transition based on the final intended value.
 - **Scrolling During Transitions**: Prioritize direct user interaction (scrolling). If a user starts scrolling while a programmatic scroll (like `scrollToBottom` after enabling auto-scroll) is happening, the user scroll should take over, and the system should react accordingly (e.g., immediately disable auto-scroll again). Guard flags (`isUserScrolling`, `manualScrollLock`) are crucial here.
 - **Updates During Scrolling**: When auto-scroll is OFF and logs arrive while the user is scrolling, the VAS should ideally *not* try to restore position until the user scroll finishes. The `isUserScrolling` flag prevents `restoreViewportAnchor` from running. When auto-scroll is ON and logs arrive while the user is scrolling *away* from the bottom, auto-scroll should already be disabled by the scroll handler, so the new logs will just be added without forcing a scroll-to-bottom.
@@ -416,7 +645,7 @@
     3.  Programmatic Scrolls (`scrollToBottom`, `restoreViewportAnchor`): Lower priority. Should check flags (`!isUserScrolling`, `!manualScrollLock`, `!animationInProgress`) before executing.
     4.  DOM Updates/Log Processing: Happen reactively, but subsequent positioning depends on flags and state.
 
-#### 5.1.2 Animation & Transition Timing
+#### 6.1.2 Animation & Transition Timing
 - **CSS Transitions**: Be aware that CSS transitions on log elements (e.g., fade-in) can affect layout calculations temporarily. Measurements should ideally occur *after* transitions complete, or calculations need to account for the animated state if necessary. Often, anchoring logic is best applied after animations.
 - **Svelte Animations**: Similar to CSS transitions, ensure Svelte `in:`/`out:` directives or `animate:` directives complete before relying on final element positions for critical logic like VAS restoration. Use animation/transition event listeners (`on:transitionend`, `on:animationend`) or track state via flags.
 - **Browser Painting**: `requestAnimationFrame` is useful for ensuring code runs just before the browser paints, which is generally after layout calculation. Using `await tick()` followed by `requestAnimationFrame` can be a robust pattern for applying scroll changes after DOM updates.
@@ -445,9 +674,9 @@
     // Attach these handlers to relevant elements/transitions
     ```
 
-### 5.2 Initialization & Edge States
+### 6.2 Initialization & Edge States
 
-#### 5.2.1 Component Initialization
+#### 6.2.1 Component Initialization
 - **Initial Rendering**: Establish default auto-scroll state (ON recommended for typical log viewing). `autoScroll = true;`
 - **Asynchronous Loading**: Handle cases where logs arrive *after* the initial component mount. The initial `scrollToBottom` might need to happen after the first batch of logs arrives if the component mounts empty.
 - **Empty State**: Manage gracefully when the log container starts empty. Scroll logic should not cause errors. `scrollHeight`, `scrollTop` etc. will be 0.
@@ -472,29 +701,29 @@
 
     onDestroy(() => {
       // Clean up all resources: observers, timers, event listeners
-      // ... (as shown in 4.2) ...
+      // ... (as shown in 5.2) ...
     });
     ```
 
-#### 5.2.2 Focus & Accessibility Considerations
+#### 6.2.2 Focus & Accessibility Considerations
 - **Keyboard Navigation**: Ensure standard keyboard scrolling (arrow keys, PgUp/PgDown, Home/End) works as expected. These actions count as user scrolls and should disable auto-scroll if active and moving away from the bottom.
 - **Screen Readers**: Use appropriate ARIA roles (`role="log"`, `aria-live="polite"` or `assertive` depending on needs) for the log container. Ensure controls (`checkbox`, buttons) have proper labels and ARIA attributes. Manage focus appropriately, especially when new content loads or controls appear/disappear.
 - **Tab Visibility**: Consider pausing intensive operations (like frequent background polling or complex rendering updates) when the browser tab is not visible using the Page Visibility API, unless required for background operation. Auto-scroll logic might not need to run if the tab is hidden.
 
-### 5.3 Browser & Environment Variations
+### 6.3 Browser & Environment Variations
 
-#### 5.3.1 Browser-Specific Behaviors
+#### 6.3.1 Browser-Specific Behaviors
 - **Scroll Position Maintenance**: Test `flex-direction: column-reverse` behavior rigorously across target browsers (Chrome, Firefox, Safari, Edge). Safari, in particular, sometimes has quirks with scroll anchoring and layout. Browser's native scroll anchoring might interfere or assist; understand its behavior.
 - **Event Timing**: The exact order and timing of `scroll`, `resize`, and DOM mutation events can vary slightly between browsers. Robust logic should not depend on precise micro-timing between different event types.
 - **Rendering Optimizations**: Be aware of browser-specific rendering optimizations (like content visibility) that might affect element measurements if not handled carefully.
 - **BROWSER DETECTION**: Avoid browser-specific sniffing if possible. Rely on feature detection. Implement browser-specific workarounds *only* as a last resort for known, unavoidable bugs, with clear documentation and targeted application.
 
-#### 5.3.2 Performance Degradation Scenarios
+#### 6.3.2 Performance Degradation Scenarios
 - **Large Log Volumes**: Ensure performance remains acceptable with tens or hundreds of thousands of entries. Virtualization is key here. Test Wasm thresholds and performance gains.
 - **Limited Resources**: Test on lower-spec devices or use browser developer tools to simulate CPU throttling and reduced memory. Ensure the UI remains usable, even if slower. Graceful degradation might involve disabling cosmetic animations or using Wasm more conservatively.
-- **Slow Connections/Bursty Logs**: Handle logs arriving infrequently or in large bursts without freezing the UI. Batch processing and asynchronous operations are important. Ensure scroll logic behaves correctly when many logs arrive at once.
+- **Slow Connections/Bursty Logs**: Handle logs arriving infrequently or in large bursts without freezing the UI. Batch processing (via backend throttler) and asynchronous operations are important. Ensure scroll logic behaves correctly when many logs arrive at once.
 
-### 5.4 WebAssembly-Specific Edge Cases
+### 6.4 WebAssembly-Specific Edge Cases
 - **Feature Detection**: Check for WebAssembly support (`typeof WebAssembly === 'object'`) during initialization. Fall back entirely to TypeScript implementations if Wasm is not supported.
 - **Module Loading Failures**: Handle errors during Wasm module fetching (`fetch`) or instantiation (`WebAssembly.instantiate`). Log the error and gracefully fall back to TypeScript, potentially disabling Wasm for the session.
 - **Memory Constraints**: Monitor Wasm memory usage if performing operations that could significantly grow memory. Implement checks (`checkMemoryAvailability`) before attempting large Wasm operations. Handle potential `RangeError: WebAssembly.Memory.grow()` failures by catching the error, logging it, blacklisting the operation, and falling back to TypeScript.
@@ -530,17 +759,17 @@
     }
     ```
 
-## 6. Feature Integration Specifications
+## 7. Feature Integration Specifications
 
-### 6.1 Virtualization Compatibility
+### 7.1 Virtualization Compatibility
 
-#### 6.1.1 Auto-Scroll with Virtualization
+#### 7.1.1 Auto-Scroll with Virtualization
 - **Scroll Position Management**: When auto-scroll is ON, the browser's native behavior is insufficient with virtualization. After new logs are added (and potentially processed by Wasm), explicitly calculate the scroll position required to show the very latest items at the bottom (visually, so `scrollTop = 0` in column-reverse) and apply it programmatically. Ensure this happens *after* the virtualizer has updated the rendered items.
 - **Render Window Adjustment**: The virtualization logic must ensure that when auto-scroll is ON, the "render window" (the subset of logs actually in the DOM) includes the newest log entries.
 - **Performance Considerations**: Minimize layout thrashing during rapid updates. Ensure virtualization calculations (potentially using Wasm's `findLogAtScrollPosition` or `recalculatePositions`) are efficient.
 - **STATE CONSISTENCY**: Ensure virtualization updates (changing the rendered items) don't inadvertently trigger scroll handlers that disable auto-scroll. Programmatic scrolls initiated by the virtualizer or auto-scroll logic must use the `isProgrammaticScroll` flag.
 
-#### 6.1.2 VAS with Virtualization
+#### 7.1.2 VAS with Virtualization
 - **Anchor Strategy Adaptation**: DOM element anchoring is unreliable because elements scroll out of the virtual window. Use index-based anchoring instead. Store the index of the log item the user was viewing (e.g., the one closest to the viewport center) and its offset relative to the viewport top/bottom.
 - **Calculations Adjustment**: When logs are added/removed, recalculate the scroll position needed to bring the anchored log index back to its previous offset within the viewport. This involves knowing the estimated total height and the positions/heights of items (potentially calculated via Wasm `recalculatePositions`).
 - **Position Estimation**: Handle gracefully when exact positions cannot be determined (e.g., using average item height for items outside the render window). Accept some potential jitter, especially with variable height content.
@@ -557,8 +786,11 @@
 
       // Calculate target scrollTop for column-reverse
       // scrollTop = totalHeight - clientHeight - (estimatedItemTop - anchor.offset)
+      // Need to adjust anchor.offset based on how it was captured (from top or bottom of viewport)
       const clientHeight = scrollContainer ? scrollContainer.clientHeight : 0;
+      // Assuming offset was captured from top of viewport:
       let targetScrollTop = totalHeight - clientHeight - (estimatedItemTop - anchor.offset);
+
 
       // Clamp targetScrollTop to valid range [0, maxScrollTop]
       const maxScrollTop = Math.max(0, totalHeight - clientHeight);
@@ -575,9 +807,9 @@
     }
     ```
 
-### 6.2 Log Filtering & Manipulation
+### 7.2 Log Filtering & Manipulation
 
-#### 6.2.1 Filter Application
+#### 7.2.1 Filter Application
 - **Position Handling**: When filters change, the set of visible logs changes dramatically.
   - If auto-scroll is ON: Maintain it, and scroll to the bottom (`scrollTop = 0`) of the newly filtered log set after the update.
   - If auto-scroll is OFF: Attempt to maintain the user's view using VAS. This can be challenging. Save the anchor *before* applying the filter. After filtering, try to find the anchored item (or a nearby item if the original is filtered out) in the new set and restore the view to it. If the anchor context is completely lost, falling back to scrolling to the top or bottom of the filtered view might be necessary, potentially with user notification.
@@ -601,7 +833,7 @@
       setTimeout(async () => {
         await tick(); // Wait for DOM to reflect filtered logs
 
-        if (autoScroll && !isUserScrolling && !manualScrollLock) {
+        if (autoScroll && !isUserScrolling && !manualScrollLock && !animationInProgress) {
           scrollToBottom();
         } else if (!autoScroll && savedAnchor) {
           // Attempt to restore anchor in the new filtered set
@@ -614,7 +846,7 @@
     }
     ```
 
-#### 6.2.2 Log Truncation & Clearing
+#### 7.2.2 Log Truncation & Clearing
 - **State Preservation**: Maintain the `autoScroll` setting when logs are cleared or truncated.
 - **Position Recalculation**:
   - If logs are cleared: Scroll position naturally goes to 0 (`scrollTop = 0`). If auto-scroll was OFF, it might remain OFF but the view is now empty or at the top/bottom.
@@ -624,9 +856,9 @@
 - **Empty State Handling**: Ensure the component functions correctly when all logs are cleared/filtered out.
 - **USER NOTIFICATION**: Consider subtle visual feedback or a toast message when large-scale truncation or clearing occurs, especially if it significantly shifts the user's view when auto-scroll is OFF.
 
-### 6.3 WebAssembly Performance Optimization
+### 7.3 WebAssembly Performance Optimization
 
-#### 6.3.1 Optimized Operations
+#### 7.3.1 Optimized Operations
 - **Log Merging and Sorting**: Delegate `mergeInsertLogs` (or similar function handling insertion of new, potentially out-of-order logs into the existing sorted list) to WebAssembly when the number of logs involved (existing + new) exceeds a threshold (e.g., >500 logs).
 - **Scroll Position Calculation**: Use WebAssembly (`findLogAtScrollPositionWasm`) for efficient searching (e.g., binary search) within large, potentially virtualized log lists to find the log index corresponding to a given `scrollTop`, especially when item heights are variable but calculable.
 - **Position Recalculation**: Leverage WebAssembly (`recalculatePositionsWasm`) when virtualization requires recalculating the estimated top positions or total height of a large number of log entries, particularly after filtering or significant additions/removals.
@@ -669,7 +901,7 @@
     // Call updateOperationThresholds periodically or after significant batches of operations
     ```
 
-#### 6.3.2 Performance Monitoring
+#### 7.3.2 Performance Monitoring
 - **Execution Time Tracking**: Use `performance.now()` before and after both Wasm calls and their equivalent TypeScript fallback implementations (run TS version occasionally even when Wasm is used, or run both in dev mode) to gather timing data.
 - **Speedup Ratio Analysis**: Calculate `tsExecutionTime / wasmExecutionTime` for specific operations and log/store these metrics. Account for data serialization/deserialization overhead for Wasm calls.
 - **Memory Usage Monitoring**: If using Wasm memory features directly, monitor `WebAssembly.Memory.buffer.byteLength`. If memory grows significantly, investigate potential leaks or inefficient memory use in the Wasm module.
@@ -704,11 +936,11 @@
     // {/if}
     ```
 
-## 7. User Experience Design
+## 8. User Experience Design
 
-### 7.1 Control Design & Placement
+### 8.1 Control Design & Placement
 
-#### 7.1.1 Auto-Scroll Toggle
+#### 8.1.1 Auto-Scroll Toggle
 - **Checkbox Presentation**: Standard HTML checkbox with a clear, concise label (e.g., "Auto-scroll", "Follow Logs").
 - **Placement**: Logically grouped with other log view controls, easily visible and accessible near the log output area.
 - **State Indication**: The checkbox state (`checked`/`unchecked`) is the primary indicator. Consider subtle secondary indicators if needed (e.g., a slightly different background/border when scrolling is paused due to user interaction).
@@ -721,7 +953,8 @@
         type="checkbox"
         class="accent-primary"
         aria-describedby="auto-scroll-description"
-        checked={autoScroll}
+        bind:checked={autoScroll} {/* Note: This binding might need adjustment if direct binding causes issues. */}
+                                   {/* Prefer on:change handler */}
         on:change={(event) => setAutoScroll(event.currentTarget.checked, 'userInteraction:checkbox')}
       />
       <label for="auto-scroll-checkbox" class="cursor-pointer">
@@ -730,8 +963,9 @@
     </div>
     <p id="auto-scroll-description" class="sr-only">Automatically scroll to the newest logs</p>
     ```
+    *Self-Correction*: Using `bind:checked` directly might bypass the centralized `setAutoScroll` if not careful. The `on:change` handler triggering `setAutoScroll` is the safer pattern, ensuring all state changes go through the controlled path. The `checked={autoScroll}` attribute ensures the UI reflects the state.
 
-#### 7.1.2 Supplementary Controls
+#### 8.1.2 Supplementary Controls
 - **Scroll to Bottom Button**: Consider adding a button (e.g., "Go to Bottom", "↓") that appears only when `autoScroll` is OFF and the user is scrolled up away from the bottom (`scrollTop > tolerance`). Clicking this button should scroll smoothly or instantly to the bottom and, optionally, re-enable auto-scroll (consistent with Option 2 behavior).
 - **Log Navigation Aids**: For very large logs, consider adding jump-to-time or search functionality, separate from the core scrolling mechanism.
 - **Visual Indicators**:
@@ -762,7 +996,7 @@
     // showAutoScrollToastFeedback("Auto-scroll paused. Scroll to bottom to resume.");
     ```
 
-### 7.2 Scrolling Aesthetics
+### 8.2 Scrolling Aesthetics
 - **Scrolling Animation**:
   - Use **instant** scrolling (`scroll-behavior: auto` or direct `scrollTop` manipulation without smooth options) for programmatic scrolls related to auto-scroll ON (`scrollToBottom`) and potentially VAS restoration (`restoreViewportAnchor`) to ensure precise positioning without delay or interference from user actions.
   - Consider using smooth scrolling (`scroll-behavior: smooth`) *only* for explicit user actions like clicking a "Scroll to Bottom" button, if desired. Avoid global smooth scrolling on the container itself.
@@ -777,18 +1011,19 @@
     }
     ```
 
-### 7.3 Performance Perception
+### 8.3 Performance Perception
 - **Responsiveness Priority**: The UI thread must remain responsive. Ensure log processing (parsing, filtering, preparing for render), especially large batches or Wasm operations, doesn't block the main thread for extended periods. Use web workers for complex parsing if necessary, or ensure Wasm operations yield if extremely long-running (though Wasm runs synchronously on the main thread unless in a worker).
 - **Progressive Loading**: If dealing with extremely large logs loaded initially, fetch and render them incrementally rather than all at once.
 - **Background Processing**: Defer non-critical work (like updating secondary indices or detailed metrics) using `requestIdleCallback` or `setTimeout(..., 0)`.
 - **VIRTUALIZATION THRESHOLD**: Implement virtualization based on log count (e.g., enable above 500-1000 logs) to maintain performance.
 
-## 8. Implementation Approach
+## 9. Implementation Approach
 
-### 8.1. Unified Auto-Scroll State Management
+### 9.1. Unified Auto-Scroll State Management
 
 ```javascript
 // In Svelte component script
+import { onMount, onDestroy, tick } from 'svelte';
 
 // --- State Variables ---
 let autoScroll = true; // Default: ON. Single source of truth.
@@ -822,7 +1057,9 @@ function setAutoScroll(newValue, source = 'unknown') {
   if (debug) console.log(`setAutoScroll: ${newValue ? 'ON' : 'OFF'} (Source: ${source})`);
 
   autoScroll = newValue;
-  // NOTE: Checkbox UI update is handled by Svelte's reactive binding: checked={autoScroll}
+  // Checkbox UI update is handled by Svelte's reactive binding: checked={autoScroll} attribute
+  // We might need to trigger a reactivity update if direct binding isn't used:
+  // autoScroll = autoScroll; // Force Svelte to see the change if needed
 
   if (newValue) {
     // --- Enabling Auto-Scroll ---
@@ -847,7 +1084,7 @@ function setAutoScroll(newValue, source = 'unknown') {
     if (source !== 'userScrollAway' && !isUserScrolling) {
       // Capture current position immediately *before* user might scroll further
       saveViewportAnchor(); // Implement this function
-      if (debug) console.log(`AutoScroll OFF: Saved anchor`, viewportAnchor);
+      if (debug && viewportAnchor) console.log(`AutoScroll OFF: Saved anchor`, viewportAnchor);
     }
     showAutoScrollToastFeedback(source === 'userScrollAway' ?
       "Auto-scroll paused. Scroll to bottom to resume." :
@@ -875,51 +1112,144 @@ function scrollToBottom() {
       if (debug && scrollContainer.scrollTop !== 0) console.log("Programmatic scroll to bottom (scrollTop=0)");
       scrollContainer.scrollTop = 0; // column-reverse: 0 is bottom
       // If virtualized, may need to trigger virtualizer update here too
-      // updateVirtualization(0);
+      // if (virtualizationReady && virtualEnabled) updateVirtualization(0);
     }
   });
 }
 
 function saveViewportAnchor() {
-  // Implementation depends on virtualization state
-  // If virtual: Find center item index + offset
-  // If not virtual: Find center element + offset from viewport top
-  // Store in `viewportAnchor`
-  // ... implementation needed ...
-  viewportAnchor = { /* ... captured data ... */ };
+    if (!scrollContainer || !scrollContainer.clientHeight) {
+        viewportAnchor = null;
+        return;
+    }
+
+    if (virtualEnabled && virtualizationReady) {
+        // Virtualization: Find center item index + offset
+        const viewportCenterY = scrollContainer.scrollTop + scrollContainer.clientHeight / 2;
+        const centerItem = findItemAtScrollPosition(viewportCenterY); // Needs implementation
+        if (centerItem) {
+            const itemTop = calculateItemTopPosition(centerItem.index); // Needs implementation
+            // Offset from top of viewport to top of item
+            const offset = itemTop - scrollContainer.scrollTop;
+            viewportAnchor = { type: 'virtual', index: centerItem.index, offset: offset };
+            if (debug) console.log(`Saved virtual anchor: index=${centerItem.index}, offset=${offset}`);
+        } else {
+            viewportAnchor = null; // Fallback or use scroll percentage?
+        }
+    } else {
+        // Non-Virtualized: Find center element + offset
+        const viewportCenterY = scrollContainer.scrollTop + scrollContainer.clientHeight / 2;
+        let centerElement = null;
+        let minDistance = Infinity;
+
+        // Simplified approach: Find visible element closest to center
+        const children = scrollContainer.children;
+        for (let i = 0; i < children.length; i++) {
+            const element = children[i];
+            const elementRect = element.getBoundingClientRect();
+            const scrollRect = scrollContainer.getBoundingClientRect();
+            const elementCenter = elementRect.top - scrollRect.top + elementRect.height / 2;
+            const distance = Math.abs(elementCenter - scrollContainer.clientHeight / 2); // Distance from visual center
+
+            if (distance < minDistance) {
+                minDistance = distance;
+                centerElement = element;
+            }
+        }
+
+        if (centerElement) {
+            const elementRect = centerElement.getBoundingClientRect();
+            const scrollRect = scrollContainer.getBoundingClientRect();
+            // Offset from top of viewport to top of element
+            const offset = elementRect.top - scrollRect.top;
+            // Get a stable identifier (e.g., index, or a data-id attribute if available)
+            const elementId = centerElement.dataset.logId || Array.from(scrollContainer.children).indexOf(centerElement);
+            viewportAnchor = { type: 'element', identifier: elementId, offset: offset };
+            if (debug) console.log(`Saved element anchor: identifier=${elementId}, offset=${offset}`);
+        } else {
+            viewportAnchor = null; // Fallback: use scroll percentage?
+            const scrollPercentage = scrollContainer.scrollTop / (scrollContainer.scrollHeight - scrollContainer.clientHeight);
+            viewportAnchor = { type: 'percentage', value: scrollPercentage };
+             if (debug) console.log(`Saved percentage anchor: value=${scrollPercentage}`);
+        }
+    }
 }
 
 function restoreViewportAnchor() {
-  if (!viewportAnchor || !scrollContainer) return;
+  if (!viewportAnchor || !scrollContainer || !scrollContainer.clientHeight) {
+    if (debug && !viewportAnchor) console.log("Restore skipped: No anchor saved.");
+    if (debug && !scrollContainer) console.log("Restore skipped: Scroll container not available.");
+    return;
+  }
   if (debug) console.log("Attempting to restore viewport anchor:", viewportAnchor);
 
-  withProgrammaticScroll(() => {
-    // Implementation depends on virtualization state and anchor data
-    // Calculate target scrollTop based on anchor data
-    // ... implementation needed ...
-    let targetScrollTop = calculateScrollTopForAnchor(viewportAnchor);
+  withProgrammaticScroll(async () => {
+    // Ensure DOM is stable before calculations
+    await tick();
 
-    // Clamp and apply
-    const totalHeight = scrollContainer.scrollHeight;
-    const clientHeight = scrollContainer.clientHeight;
-    const maxScrollTop = Math.max(0, totalHeight - clientHeight);
-    targetScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+    let targetScrollTop = scrollContainer.scrollTop; // Default to current if restore fails
 
-    if (Math.abs(scrollContainer.scrollTop - targetScrollTop) > 1) {
-       if (debug) console.log(`Restoring scroll top to ${targetScrollTop}`);
-       scrollContainer.scrollTop = targetScrollTop;
-       // If virtualized, may need to trigger virtualizer update
-       // updateVirtualization(targetScrollTop);
-    } else {
-       if (debug) console.log(`Anchor restore skipped, already near target (${scrollContainer.scrollTop} ≈ ${targetScrollTop})`);
+    try {
+        if (viewportAnchor.type === 'virtual') {
+            const itemTop = calculateItemTopPosition(viewportAnchor.index); // Needs implementation
+            if (itemTop !== null) {
+                // Target scroll pos = item's top position - offset from viewport top
+                targetScrollTop = itemTop - viewportAnchor.offset;
+                if (debug) console.log(`Virtual Restore: index=${viewportAnchor.index}, itemTop=${itemTop}, offset=${viewportAnchor.offset} -> targetScrollTop=${targetScrollTop}`);
+            } else {
+                if(debug) console.warn(`Virtual Restore Failed: Could not find position for index ${viewportAnchor.index}`);
+                // Fallback? Maybe use percentage if available?
+            }
+        } else if (viewportAnchor.type === 'element') {
+            let targetElement = null;
+            if (typeof viewportAnchor.identifier === 'number') { // Index-based identifier
+                targetElement = scrollContainer.children[viewportAnchor.identifier];
+            } else { // ID-based identifier
+                targetElement = scrollContainer.querySelector(`[data-log-id="${viewportAnchor.identifier}"]`);
+            }
+
+            if (targetElement) {
+                 const elementRect = targetElement.getBoundingClientRect();
+                 const scrollRect = scrollContainer.getBoundingClientRect();
+                 const currentElementTop = elementRect.top - scrollRect.top;
+                 // Adjustment needed = current element top - desired element top (offset)
+                 const scrollAdjustment = currentElementTop - viewportAnchor.offset;
+                 targetScrollTop = scrollContainer.scrollTop + scrollAdjustment;
+                 if (debug) console.log(`Element Restore: id=${viewportAnchor.identifier}, currentTop=${currentElementTop}, offset=${viewportAnchor.offset}, adjustment=${scrollAdjustment} -> targetScrollTop=${targetScrollTop}`);
+            } else {
+                 if(debug) console.warn(`Element Restore Failed: Could not find element with identifier ${viewportAnchor.identifier}`);
+                 // Fallback? Use percentage?
+            }
+        } else if (viewportAnchor.type === 'percentage') {
+             const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+             targetScrollTop = viewportAnchor.value * maxScroll;
+             if (debug) console.log(`Percentage Restore: value=${viewportAnchor.value}, maxScroll=${maxScroll} -> targetScrollTop=${targetScrollTop}`);
+        }
+
+        // Clamp and apply
+        const totalHeight = scrollContainer.scrollHeight;
+        const clientHeight = scrollContainer.clientHeight;
+        const maxScrollTop = Math.max(0, totalHeight - clientHeight);
+        const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+
+        if (Math.abs(scrollContainer.scrollTop - clampedScrollTop) > 1) {
+           if (debug) console.log(`Restoring scroll top from ${scrollContainer.scrollTop} to ${clampedScrollTop}`);
+           scrollContainer.scrollTop = clampedScrollTop;
+           // If virtualized, may need to trigger virtualizer update
+           // if (virtualizationReady && virtualEnabled) updateVirtualization(clampedScrollTop);
+        } else {
+           if (debug) console.log(`Anchor restore skipped, already near target (${scrollContainer.scrollTop} ≈ ${clampedScrollTop})`);
+        }
+    } catch (error) {
+        console.error("Error during restoreViewportAnchor:", error);
     }
   });
-  // Clear anchor after successful restore? Maybe not, keep it until next save/disable.
+  // Keep the anchor until next save/disable, allows retries if needed.
 }
 
 // --- Toast Feedback ---
 function showAutoScrollToastFeedback(message) {
-  // (Implementation as shown in 7.1.2)
+  // (Implementation as shown in 8.1.2)
   if (autoScrollToastTimer) clearTimeout(autoScrollToastTimer);
   autoScrollToastMessage = message;
   showAutoScrollToast = true;
@@ -935,11 +1265,15 @@ onMount(() => {
     if (scrollContainer && autoScroll && !isUserScrolling) {
        scrollToBottom();
     }
+    // Add scroll listener
+    scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
+    // Initialize observers...
   }, 50);
 });
 
 onDestroy(() => {
   // Cleanup listeners, timers, observers
+  scrollContainer?.removeEventListener('scroll', handleScroll);
   if (manualScrollLockTimer) clearTimeout(manualScrollLockTimer);
   if (userScrollTimeout) clearTimeout(userScrollTimeout);
   if (scrollRAF) cancelAnimationFrame(scrollRAF);
@@ -949,7 +1283,7 @@ onDestroy(() => {
 });
 ```
 
-### 8.2. Scroll Event Handling with Proper Throttling
+### 9.2. Scroll Event Handling with Proper Throttling
 
 ```javascript
 // In Svelte component script
@@ -993,11 +1327,11 @@ function handleScroll() {
     // If user scrolls away from the bottom (scrollTop > tolerance) while autoScroll is ON
     if (absScrollTop > 2 && autoScroll) {
       if (debug) console.warn(`User scrolled away (${scrollTop}px), disabling auto-scroll.`);
+      // IMPORTANT: Call setAutoScroll *before* saving the anchor
       setAutoScroll(false, 'userScrollAway');
-      // IMPORTANT: Auto-scroll is now OFF, subsequent logic should respect this.
       // Capture anchor position *now* as user defined it by scrolling.
       saveViewportAnchor();
-      if (debug) console.log(`Saved anchor immediately after user scroll away`, viewportAnchor);
+      if (debug && viewportAnchor) console.log(`Saved anchor immediately after user scroll away`, viewportAnchor);
     }
 
     // Update scroll metrics / virtualization view
@@ -1024,114 +1358,129 @@ function checkScrollPositionForAutoScrollEnable() {
     const absScrollTop = Math.abs(scrollContainer.scrollTop);
     if (absScrollTop <= 1 && !autoScroll) {
       // Option 2 Implementation: If user scrolled to bottom, re-enable auto-scroll
-      if (debug) console.log("User scrolled to bottom, re-enabling auto-scroll.");
+      // This is currently DISABLED based on recommendation in 4.1.2
+      // if (debug) console.log("User scrolled to bottom, re-enabling auto-scroll. (Option 2 - Currently Disabled)");
       // setAutoScroll(true, 'scrolledToBottom'); // UNCOMMENT FOR OPTION 2
     }
   }
 }
 
 // Add listener in onMount:
-// scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
+// scrollContainer?.addEventListener('scroll', handleScroll, { passive: true }); // Done in 9.1
 // Remove listener in onDestroy:
-// scrollContainer?.removeEventListener('scroll', handleScroll);
+// scrollContainer?.removeEventListener('scroll', handleScroll); // Done in 9.1
 ```
 
-### 8.3. Reactive Log Addition Handling
+### 9.3. Reactive Log Addition Handling
 
 ```javascript
 // In Svelte component script
 import { tick } from 'svelte';
 
-let filteredLogs = []; // Assume this is reactively updated
+let filteredLogs = []; // Assume this is reactively updated from log processing
 let recentlyAddedLogs = new Set(); // For highlighting new logs
 let pendingMeasurements = false; // Flag for batching post-update work
 
-// $: Reactive statement triggered when `filteredLogs` changes
-$: if (filteredLogs && filteredLogs.length >= 0 && scrollContainer) { // Check length >= 0 for clear events
-  const logsChanged = true; // More sophisticated check if needed (e.g., compare length or content hash)
+// This logic should likely be triggered *after* processBatchedLogs updates filteredLogs
+// or whatever upstream process updates the logs.
+// Maybe turn processBatchedLogs into an async function and call this logic at the end.
+async function handleLogUpdateCompletion() {
+    if (!scrollContainer) return;
 
-  if (logsChanged) {
-    if (autoScroll) {
-      // --- Auto-Scroll ON ---
-      // Browser might handle it, but enforce for reliability, especially with virt/filtering.
-      // Only enforce if user isn't interacting and no animations are running.
-      if (!isUserScrolling && !manualScrollLock && !animationInProgress) {
-        // Needs to run *after* DOM update. Schedule it.
-        setTimeout(async () => {
-          await tick(); // Wait for Svelte DOM update
-          // Double check state in case it changed during timeout/tick
-          if (autoScroll && !isUserScrolling && !manualScrollLock && scrollContainer) {
-            // Use RAF for final timing before paint
-            requestAnimationFrame(() => {
-              if (autoScroll && !isUserScrolling && !manualScrollLock && scrollContainer) {
-                 // Check if we are already visually at the bottom due to browser behavior
-                 if (Math.abs(scrollContainer.scrollTop) > 1) {
-                    if(debug) console.log("AutoScroll ON: Enforcing scroll to bottom after log update.");
-                    scrollToBottom();
-                 } else {
-                    if(debug) console.log("AutoScroll ON: Already at bottom after log update.");
-                 }
-              }
-            });
-          }
-        }, 0); // Schedule slightly after current execution context
-      } else {
-        if(debug) console.log("AutoScroll ON: Skipped enforcing bottom scroll due to user interaction/animation.");
-      }
-    } else {
-      // --- Auto-Scroll OFF ---
-      // Need to maintain position using VAS. Anchor should have been saved *before*
-      // the log update process began if the update wasn't triggered by user scroll.
-      // Here, we schedule the *restoration* after the DOM updates.
+    // --- Identify condition leading to this call (e.g., new logs added) ---
+    const logsJustChanged = true; // Assume logs were just updated before calling this
 
-      // Mark new logs for potential highlighting (if not virtualizing heavily)
-      // (Implementation depends on log structure and highlighting approach)
-      // markRecentlyAddedLogs(filteredLogs);
+    if (logsJustChanged) {
+        if (autoScroll) {
+            // --- Auto-Scroll ON ---
+            if (!isUserScrolling && !manualScrollLock && !animationInProgress) {
+                // Schedule scroll to bottom after the next tick/paint
+                await tick(); // Wait for Svelte DOM update
+                requestAnimationFrame(() => {
+                    // Double check state in case it changed during delays
+                    if (autoScroll && !isUserScrolling && !manualScrollLock && scrollContainer) {
+                        if (Math.abs(scrollContainer.scrollTop) > 1) {
+                            if (debug) console.log("AutoScroll ON: Enforcing scroll to bottom after log update.");
+                            scrollToBottom();
+                        } else {
+                            if (debug) console.log("AutoScroll ON: Already at bottom after log update.");
+                        }
+                    }
+                });
+            } else {
+                if (debug) console.log("AutoScroll ON: Skipped enforcing bottom scroll due to user interaction/animation.");
+            }
+        } else {
+            // --- Auto-Scroll OFF ---
+            // Anchor should have been saved *before* the log update started.
+            // Mark new logs for highlighting
+            // markRecentlyAddedLogs(filteredLogs); // Needs implementation details
 
-      // Set animation flag if using CSS transitions for new logs
-      // if (usingLogEntryAnimations) { animationInProgress = true; ... setTimeout clear ... }
+            // Track animations if applicable
+            // if (usingLogEntryAnimations) { animationInProgress = true; ... }
 
-      // Schedule measurements and anchor restoration after DOM updates
-      if (!pendingMeasurements) {
-        pendingMeasurements = true;
-        // Use setTimeout 0 or RAF to batch potential rapid updates
-        batchMeasurementTimer = window.setTimeout(async () => {
-          await tick(); // Ensure Svelte DOM updates are finished
+            // Schedule restoration after DOM updates and potential animations
+            if (!pendingMeasurements) {
+                pendingMeasurements = true;
+                batchMeasurementTimer = window.setTimeout(async () => {
+                    await tick(); // Ensure Svelte DOM updates are finished
 
-          // Perform any necessary measurements after updates (e.g., total height)
-          // recalculatePositionsIfNeeded();
+                    // Perform measurements if needed
+                    // recalculatePositionsIfNeeded();
 
-          // Update virtualization if needed based on new content/height
-          // if (virtualizationReady && virtualEnabled) { updateVirtualization(); }
+                    // Update virtualization
+                    // if (virtualizationReady && virtualEnabled) { updateVirtualization(); }
 
-          // Restore position *only if* conditions still hold
-          if (!autoScroll && viewportAnchor && !isUserScrolling && !manualScrollLock && !animationInProgress) {
-            restoreViewportAnchor();
-          } else {
-            if(debug) console.log("AutoScroll OFF: Skipped anchor restore due to state change/interaction/animation.");
-          }
+                    // Restore position if conditions still hold
+                    if (!autoScroll && viewportAnchor && !isUserScrolling && !manualScrollLock && !animationInProgress) {
+                        restoreViewportAnchor();
+                    } else {
+                        if (debug) console.log("AutoScroll OFF: Skipped anchor restore due to state/interaction/animation.");
+                    }
 
-          pendingMeasurements = false;
-          batchMeasurementTimer = null; // Clear timer ID
-        }, 10); // Small delay for batching
-      }
+                    pendingMeasurements = false;
+                    batchMeasurementTimer = null;
+                }, 10); // Small delay for batching
+            }
+        }
     }
-  }
 }
 
-// Function to mark logs (example)
+// Modify processBatchedLogs from 3.4.2 to call this handler:
+async function processBatchedLogs(batchedLogs) {
+  let savedAnchorBeforeUpdate = null;
+  // Before processing: Save viewport anchor if auto-scroll is OFF
+  if (!autoScroll && !isUserScrolling && !manualScrollLock) {
+    // Need to save *synchronously* before logs change
+    saveViewportAnchor();
+    savedAnchorBeforeUpdate = viewportAnchor; // Keep track of the saved anchor
+  } else {
+     savedAnchorBeforeUpdate = null; // Ensure no stale anchor is used
+  }
+
+  // Process logs (this might be async if using Wasm workers, but assumed sync here)
+  const mergedLogs = mergeInsertLogs(filteredLogs, batchedLogs);
+  filteredLogs = applyCurrentFilter(mergedLogs); // Update the reactive variable
+
+  // Now that filteredLogs is updated, Svelte will schedule a DOM update.
+  // Call the completion handler to schedule post-update actions.
+  // Use setTimeout to ensure it runs after the current synchronous flow.
+  setTimeout(() => handleLogUpdateCompletion(), 0);
+}
+
+// Function to mark logs (example - needs refinement)
 function markRecentlyAddedLogs(logs) {
-  if (virtualEnabled) return; // Skip if virtualizing heavily
+  if (virtualEnabled || !logs) return; // Skip if virtualizing or no logs
   const now = Date.now();
   logs.forEach(log => {
-    // Assuming log has a timestamp field `_unix_time` and a unique `_sequence`
-    if (log._unix_time && now - log._unix_time < 1000 && log._sequence) {
-      if (!recentlyAddedLogs.has(log._sequence)) {
-        recentlyAddedLogs.add(log._sequence);
-        // Remove from set after animation duration
+    // Assuming log has a unique ID and timestamp
+    if (log._internal_timestamp && now - log._internal_timestamp < 1000 && log.id) {
+      if (!recentlyAddedLogs.has(log.id)) {
+        recentlyAddedLogs.add(log.id);
         setTimeout(() => {
-          recentlyAddedLogs.delete(log._sequence);
-          // Trigger reactivity if needed for CSS class removal
+          recentlyAddedLogs.delete(log.id);
+          // Trigger reactivity if CSS class depends on this set
+          // recentlyAddedLogs = recentlyAddedLogs;
         }, 1500); // Match CSS animation duration
       }
     }
@@ -1140,7 +1489,7 @@ function markRecentlyAddedLogs(logs) {
 }
 ```
 
-### 8.4. WebAssembly-Enhanced Log Processing
+### 9.4. WebAssembly-Enhanced Log Processing
 
 ```javascript
 // Example Wasm integration for a log processing function
@@ -1157,11 +1506,16 @@ function mergeInsertLogs(existingLogs, newLogs) {
   const operation = 'mergeInsertLogs';
   trackOperationStart(operation); // For metrics
 
-  const totalLogCount = existingLogs.length + newLogs.length;
+  const totalLogCount = (existingLogs?.length || 0) + (newLogs?.length || 0);
 
   // Handle trivial cases
-  if (newLogs.length === 0) return existingLogs;
-  if (existingLogs.length === 0) return newLogs.sort((a, b) => a._unix_time - b._unix_time); // Ensure new logs are sorted if needed
+  if (!newLogs || newLogs.length === 0) return existingLogs || [];
+  if (!existingLogs || existingLogs.length === 0) {
+     // Ensure new logs are sorted chronologically if needed (Wasm might do this)
+     newLogs.sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
+     return newLogs;
+  }
+
 
   let result = null;
   let wasmTime = -1, tsTime = -1, serializeTime = -1, deserializeTime = -1;
@@ -1171,27 +1525,27 @@ function mergeInsertLogs(existingLogs, newLogs) {
   if (shouldUseWasm(totalLogCount, operation)) {
     try {
       const wasmModule = getWasmModule(); // Get loaded Wasm instance
-      if (!wasmModule || !wasmModule.merge_insert_logs) { // Check function exists
+      if (!wasmModule || !wasmModule.instance?.exports?.merge_insert_logs) { // Check function exists
         throw new Error("WebAssembly module or merge_insert_logs function not available");
       }
+      const wasmExports = wasmModule.instance.exports;
 
       // --- Prepare Data for Wasm ---
       const serializeStart = performance.now();
       // Combine logs first might be simpler for some Wasm implementations
       const combinedLogs = [...existingLogs, ...newLogs];
-      const serialized = serializeLogsForWasm(combinedLogs); // Convert logs to format Wasm expects (e.g., Float64Array)
+      const { pointer, size } = serializeLogsForWasm(combinedLogs, wasmExports.memory, wasmExports.allocate_logs); // Pass memory/allocator if needed
       serializeTime = performance.now() - serializeStart;
 
       // --- Call Wasm Function ---
       const wasmStart = performance.now();
-      // Example: Wasm function takes pointers/offsets into memory
-      // Adjust call based on actual Wasm function signature
-      const wasmResultPtr = wasmModule.merge_insert_logs(serialized.pointer, combinedLogs.length);
+      // Example: Wasm function takes pointer/size, returns new pointer/size
+      const resultPtrSize = wasmExports.merge_insert_logs(pointer, size);
       wasmTime = performance.now() - wasmStart;
 
       // --- Process Result from Wasm ---
       const deserializeStart = performance.now();
-      const deserialized = deserializeLogsFromWasm(wasmResultPtr, wasmModule.memory); // Convert result back
+      const deserialized = deserializeLogsFromWasm(resultPtrSize, wasmExports.memory, wasmExports.free_logs); // Convert result back, free memory
       deserializeTime = performance.now() - deserializeStart;
 
       result = deserialized.logs;
@@ -1211,7 +1565,9 @@ function mergeInsertLogs(existingLogs, newLogs) {
 
   // --- TypeScript Fallback ---
   if (result === null) {
-    if (debug && usedWasm) console.log(`Falling back to TS for ${operation}`);
+    if (debug && usedWasm) console.log(`Falling back to TS for ${operation}`); // Logged if Wasm was attempted but failed
+    else if(debug && !usedWasm) console.log(`Using TS for ${operation} (Wasm threshold not met or Wasm disabled)`);
+
     const tsStart = performance.now();
     result = mergeInsertLogsTS(existingLogs, newLogs); // Call the TS version
     tsTime = performance.now() - tsStart;
@@ -1234,10 +1590,10 @@ function mergeInsertLogs(existingLogs, newLogs) {
 }
 ```
 
-## 9. Testing & Validation Requirements
+## 10. Testing & Validation Requirements
 
-### 9.1 Critical Test Scenarios
-- **Rapid Log Addition**: Simulate adding logs at high frequency (e.g., 50-200 logs/sec) in bursts and continuously. Verify UI responsiveness, correct auto-scroll behavior, and stable VAS positioning. Test with and without Wasm active.
+### 10.1 Critical Test Scenarios
+- **Rapid Log Addition**: Simulate adding logs at high frequency (e.g., 50-200 logs/sec) in bursts and continuously via the backend throttler's `log-batch` event. Verify UI responsiveness, correct auto-scroll behavior, and stable VAS positioning. Test with and without Wasm active.
 - **Browser Compatibility**: Test extensively on latest versions of Chrome, Firefox, Safari, and Edge. Pay special attention to `column-reverse` layout, scroll event timing, and Wasm support/performance differences (especially Safari).
 - **Interaction Combinations**:
   - Scroll manually (up/down) while logs are rapidly arriving (auto-scroll ON and OFF).
@@ -1250,7 +1606,7 @@ function mergeInsertLogs(existingLogs, newLogs) {
 - **CIRCULAR DEPENDENCY TESTS**: Add verbose logging around state changes (`autoScroll`, `scrollTop`, `filteredLogs`) and function calls (`setAutoScroll`, `handleScroll`, reactive blocks, `scrollToBottom`, `restoreViewportAnchor`). Manually inspect logs during complex interactions to ensure no infinite loops or unintended chained reactions occur.
 - **COMPONENT INTERACTION TESTS**: If the log viewer is part of a larger application, test interactions with other components that might affect its state or data (e.g., global filters, data sources).
 
-### 9.2 User Interaction Testing
+### 10.2 User Interaction Testing
 - **Natural Usage Patterns**: Simulate typical user behavior: scrolling up to read older logs, pausing, scrolling back down, enabling/disabling auto-scroll. Verify behavior matches expectations and principles (user control, predictability).
 - **Edge Interaction Sequences**:
   - Start scrolling *immediately* after toggling auto-scroll ON/OFF.
@@ -1263,7 +1619,7 @@ function mergeInsertLogs(existingLogs, newLogs) {
 - **ASSUMPTION TESTING**: Create minimal test cases specifically verifying browser behavior with `flex-direction: column-reverse`, `scrollTop` values (0 at bottom, positive values scrolling up), and how adding content at the beginning affects scroll position with/without native scroll anchoring.
 - **STATE SYNC VERIFICATION**: Add assertions or visual checks in tests to ensure the `autoScroll` state variable is *always* perfectly synchronized with the checkbox UI `checked` state under all conditions (user interaction, programmatic changes, implicit changes).
 
-### 9.3 WebAssembly Integration Testing
+### 10.3 WebAssembly Integration Testing
 - **Feature Detection**: Test in environments where Wasm is disabled or unsupported (e.g., older browsers, specific browser settings). Verify the application loads correctly and all log processing functions fall back to TypeScript seamlessly without errors.
 - **Threshold Behavior**: Design tests that feed varying numbers of logs (below, around, and above the default/adaptive thresholds) to Wasm-enhanced functions (`mergeInsertLogs`, etc.). Verify that the system correctly delegates to Wasm or TypeScript based on the threshold logic. Test `forceWasmMode` settings.
 - **Error Recovery**: Simulate Wasm errors (e.g., by providing invalid data to a Wasm function, modifying the Wasm module to throw errors, or simulating memory allocation failures if possible). Verify that:
@@ -1284,59 +1640,137 @@ function mergeInsertLogs(existingLogs, newLogs) {
         it(`should produce identical results for test case ${index}`, () => {
           const { existingLogs, newLogs } = testCase;
 
-          // Force Wasm (mock shouldUseWasm or use settings)
-          forceWasmUsage(true);
-          const wasmResult = mergeInsertLogs([...existingLogs], [...newLogs]); // Use copies
-
-          // Force TS (mock shouldUseWasm or use settings)
-          forceWasmUsage(false);
-          const tsResult = mergeInsertLogs([...existingLogs], [...newLogs]); // Use copies
+          // Mock wasmUtils and wasmStore as needed
+          const wasmResult = runMergeWithWasmForced(true, [...existingLogs], [...newLogs]);
+          const tsResult = runMergeWithWasmForced(false, [...existingLogs], [...newLogs]);
 
           // Deep comparison of the resulting log arrays
           // Ensure logs are compared by content and order
           expect(wasmResult).toEqual(tsResult);
-
-          // Reset Wasm usage forcing
-          resetWasmUsageForcing();
         });
       });
     });
+
+    // Helper function for testing
+    function runMergeWithWasmForced(forceWasm, existing, news) {
+        // Mock shouldUseWasm to return forceWasm
+        // ... mock setup ...
+        const result = mergeInsertLogs(existing, news);
+        // ... mock cleanup ...
+        return result;
+    }
     ```
 
-## 10. Success Criteria
+## 11. Phased Implementation Plan
 
-### 10.1 Functional Requirements
-- Auto-scroll correctly follows the newest logs (maintains `scrollTop` near 0) when enabled and user is not interacting.
-- Viewport remains stable (within a few pixels tolerance) relative to the viewed content when auto-scroll is disabled and logs are added/removed outside the view.
-- Transitions between auto-scroll ON/OFF (via checkbox or implicit user scroll) are reliable, immediate, and predictable.
-- Core scrolling system behaves consistently and correctly across latest versions of Chrome, Firefox, Safari, and Edge.
-- The auto-scroll checkbox UI state accurately reflects the internal `autoScroll` state variable at all times.
-- User scrolling (mouse, keyboard, touch) feels intuitive and correctly interacts with the auto-scroll state in the `column-reverse` layout.
+### Phase 1: Core Auto-Scroll Fix
 
-### 10.2 Performance Requirements
-- UI thread remains responsive (no freezes > 100ms) during rapid log additions (target: 50-200 logs/second) and filtering operations on large datasets (e.g., 100k logs).
-- Scroll event handling and associated logic (position calculations, state updates) complete well within a single frame budget (< 16ms).
-- Memory usage remains stable and does not grow unbounded during long-running sessions with continuous log additions (no memory leaks from listeners, observers, state).
-- CPU utilization remains reasonable during typical usage and does not spike excessively during background processing or Wasm operations.
-- Clear debuggability: System provides useful console logs (when debug flag is enabled) for state transitions, event handling, Wasm decisions, and errors.
-- **WebAssembly Optimization**: WebAssembly implementations provide statistically significant and measurable performance improvements for targeted operations on relevant data sizes (compared to optimized TS fallbacks):
-  - Target Speedup (Examples - adjust based on profiling):
-    - Small datasets (near threshold, e.g., 500-1k logs): > 1.5× faster
-    - Medium datasets (e.g., 5k-10k logs): > 3× faster
-    - Large datasets (e.g., 50k+ logs): > 5-8× faster
-- **Adaptive Efficiency**: The adaptive threshold system demonstrates ability to adjust thresholds based on measured performance, favoring Wasm when it's significantly faster and TS when speedup is marginal or negative.
+**Objective**: Resolve the primary issue where VAS runs unconditionally, causing unintended auto-scroll behavior.
 
-### 10.3 User Experience Requirements
-- Controls (checkbox, potential buttons) are easily discoverable, understandable, and behave as expected.
-- Visual feedback (toast messages, new log highlights) clearly and unobtrusively communicates the system's state and actions (auto-scroll enabled/disabled/paused).
-- Scrolling feels smooth and predictable; no unexpected jumps or jarring movements, especially when auto-scroll is OFF (VAS active).
-- Auto-scroll behavior feels natural – it stays on when expected, pauses intuitively when the user scrolls away, and (if Option 2 implemented) resumes predictably when scrolling back to the bottom.
-- The user always feels in control; user-initiated scrolls immediately override automated behaviors.
+**Key Tasks**:
+1. Implement the centralized `autoScroll` state variable.
+2. Create the `setAutoScroll()` function as the single update path.
+3. Modify log update handling (`processBatchedLogs` / `handleLogUpdateCompletion`) to conditionally save anchor *before* updates and conditionally restore anchor / scroll to bottom *after* updates, based on `autoScroll` state.
+4. Update `handleScroll` to correctly call `setAutoScroll(false, 'userScrollAway')` when scrolling away from the bottom while auto-scroll is ON.
+5. Ensure checkbox `on:change` correctly calls `setAutoScroll`.
+6. Implement basic toast notifications for state changes using `showAutoScrollToastFeedback`.
 
-### 10.4 Integration Requirements
-- WebAssembly integration is seamless; the application functions identically (except for performance) whether Wasm is active or falling back to TypeScript.
-- TypeScript fallbacks are robust and correctly handle all cases when WebAssembly is unavailable or fails.
-- Wasm error recovery (blacklisting, fallback) works transparently to the user, maintaining application stability.
-- Performance monitoring provides accurate data for diagnosing issues and verifying Wasm effectiveness. This data can be included in diagnostic reports.
-- Coordinate transformations required for `column-reverse` layout are handled correctly and consistently in both JavaScript logic and data passed to/from WebAssembly functions.
-- Wasm state (enabled, errors, performance summary) integrates with any existing application-wide state management and backend crash/error reporting systems.
+**Success Criteria**:
+- Auto-scroll can be reliably toggled ON/OFF via checkbox.
+- When disabled (OFF), the view remains stable (anchor restored correctly) when new logs are added.
+- When enabled (ON), the view follows the newest logs (`scrollToBottom` works).
+- Scrolling up while ON correctly disables auto-scroll (`setAutoScroll(false, 'userScrollAway')` is triggered).
+
+### Phase 2: Enhanced User Experience
+
+**Objective**: Improve usability with robust interaction handling and visual feedback.
+
+**Key Tasks**:
+1. Implement full scroll event handling (`handleScroll`) with RAF throttling and scroll end detection (`userScrollTimeout`).
+2. Implement `manualScrollLock` logic with its timer to prevent state fighting after user scrolls.
+3. Implement `isProgrammaticScroll` flag and `withProgrammaticScroll` wrapper for system scrolls.
+4. Add "scroll to bottom" button (conditional visibility).
+5. Implement `animationInProgress` flag and `handleTransitionStart/End` if using CSS/Svelte animations for logs. Ensure scroll actions wait for animations.
+6. Refine toast notifications for clarity (e.g., "Auto-scroll paused").
+7. Implement subtle highlighting for new logs when auto-scroll is OFF (`markRecentlyAddedLogs`).
+
+**Success Criteria**:
+- User scrolling away from bottom reliably disables auto-scroll and saves the correct anchor position.
+- Programmatic scrolls don't trigger implicit state changes.
+- Manual lock prevents VAS/auto-scroll interference immediately after user scroll.
+- Users receive clear visual feedback about state changes and new logs.
+- Scrolling feels natural and responsive without visual jumps.
+- UI components update properly after animations complete (if used).
+
+### Phase 3: Virtualization and Performance
+
+**Objective**: Ensure the solution works efficiently with large log volumes and virtualization.
+
+**Key Tasks**:
+1. Integrate with the chosen virtualization library.
+2. Adapt `saveViewportAnchor` and `restoreViewportAnchor` for index-based anchoring when virtualization is enabled.
+3. Implement `findItemAtScrollPosition` and `calculateItemTopPosition` (potentially using estimated heights) for virtual anchors.
+4. Ensure coordinate transformations (`scrollTop` vs. position from top) are correct in virtual calculations.
+5. Implement the `virtualEnabled` flag and conditional logic.
+6. Test and optimize performance with 10,000+ logs.
+7. Ensure backend integration (`processBatchedLogs`) efficiently handles large batches.
+8. Review and apply Memory Management Guidelines (Section 12).
+
+**Success Criteria**:
+- Solution performs well with 10,000+ logs (smooth scrolling, responsive UI).
+- Virtual scrolling maintains correct view positions for both auto-scroll ON and OFF (VAS).
+- Memory usage remains stable during extended use with large log sets.
+- UI remains responsive during high-frequency log updates.
+
+### Phase 4: WebAssembly & Final Polish
+
+**Objective**: Integrate WebAssembly optimizations and ensure overall robustness.
+
+**Key Tasks**:
+1. Finalize WebAssembly integration for `mergeInsertLogs` (and potentially `findLogAtScrollPosition`, `recalculatePositions` if needed for virtualization).
+2. Implement `shouldUseWasm` logic with adaptive thresholds and settings override.
+3. Implement robust Wasm error handling (`handleWasmError`), blacklisting, and TypeScript fallbacks.
+4. Implement performance monitoring (`updatePerformanceMetrics`) and data consistency checks between Wasm/TS versions.
+5. Add comprehensive browser testing (Chrome, Firefox, Safari, Edge), focusing on `column-reverse` quirks and Wasm compatibility.
+6. Add graceful degradation for Wasm loading failures or unsupported environments.
+7. Perform thorough accessibility testing (keyboard navigation, screen readers).
+8. Final code cleanup, documentation updates, and review.
+
+**Success Criteria**:
+- WebAssembly provides measurable performance benefits for target operations when enabled and appropriate.
+- System gracefully falls back to TypeScript when Wasm fails or is unavailable.
+- Implementation works consistently and reliably across all target browsers.
+- Edge cases (empty logs, rapid interactions, filtering) are handled gracefully.
+- Accessibility requirements are met.
+- Code is clean, well-documented, and maintainable.
+
+## 12. Memory Management Guidelines
+
+1.  **Maximum Log Retention**:
+    *   Adhere strictly to the user-configurable `maxLogEntries` setting (e.g., default 10,000).
+    *   When new logs arrive via `processBatchedLogs` and the total count exceeds `maxLogEntries`, efficiently prune the *oldest* logs from the `filteredLogs` array *before* storing the result. For `column-reverse`, oldest logs are at the end of the array.
+        ```javascript
+        // Inside mergeInsertLogs or after its result
+        if (result.length > maxLogEntries) {
+            const numberToRemove = result.length - maxLogEntries;
+            result = result.slice(numberToRemove); // Keep the latest maxLogEntries
+        }
+        ```
+    *   Investigate virtual pagination or dynamic loading from storage/backend for accessing logs beyond the retention limit, rather than keeping them in memory.
+
+2.  **DOM Element Efficiency**:
+    *   Implement virtualization, triggering it when the number of logs rendered *could* exceed a threshold (e.g., ~500-1000 logs). Ensure the virtualizer correctly calculates the number of DOM nodes needed based on container height and estimated item height.
+    *   Keep log entry components lightweight. Avoid unnecessary DOM nesting within each log entry. Pass only essential data as props.
+    *   Apply CSS `contain: strict` or `contain: content` to the log container and potentially individual log entries (if heights are fixed or predictable) to help browser layout optimization.
+
+3.  **Event Listener Management**:
+    *   Attach core listeners (`scroll`, `resize`) only once to the main scroll container element (`scrollContainer`).
+    *   For interactions specific to log entries (e.g., click to expand details), use event delegation on the scroll container instead of attaching listeners to every log entry. Check `event.target` to identify the specific log entry clicked.
+    *   **Crucially**: Ensure all event listeners (`scroll`, delegated listeners) and observers (`ResizeObserver`, `MutationObserver`) are explicitly removed/disconnected in the Svelte component's `onDestroy` lifecycle hook to prevent leaks when the component is unmounted.
+
+4.  **Garbage Collection Optimization**:
+    *   Minimize object/array creation within frequently called functions like `handleScroll` or log processing loops. Reuse objects where feasible.
+    *   When updating `filteredLogs`, ensure the old array is dereferenced so it can be garbage collected. Avoid patterns that keep references to previous large log arrays unintentionally.
+    *   Batch DOM read/write operations. For example, in `restoreViewportAnchor`, perform all measurements (getBoundingClientRect) together before applying the final `scrollTop` change. Use `requestAnimationFrame` to schedule writes just before the paint.
+    *   Be mindful of closures in event listeners or callbacks. Avoid capturing large scopes or large data structures (like the entire `filteredLogs` array if only a few properties are needed) within closures that persist longer than necessary. Pass specific needed values instead.
+    *   Profile memory usage regularly during development and testing using browser developer tools, specifically looking for detached DOM nodes and heap snapshots showing unexpected object retention.
