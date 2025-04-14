@@ -2,7 +2,7 @@
     import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
     import { settings } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
-    import { slide } from 'svelte/transition';
+    import { slide, fade } from 'svelte/transition';
     import { backOut } from 'svelte/easing';
     import {
         isWasmEnabled,
@@ -11,7 +11,7 @@
         recalculatePositionsWasm,
         handleWasmError,
         isOperationBlacklisted,
-        WasmOperationError // Import the error type if needed for specific checks, otherwise handleWasmError is sufficient
+        WasmOperationError
     } from '../lib/wasm';
     import { get } from 'svelte/store';
 
@@ -343,7 +343,8 @@
         }, delay);
     }
     
-    // Force scroll to bottom - more aggressive than normal scroll
+    // Force scroll to bottom - updated for column-reverse layout
+    // In column-reverse, "bottom" means scrollTop = 0
     function forceScrollToBottom() {
         if (!scrollContainer) return;
         
@@ -351,17 +352,17 @@
         isProgrammaticScroll = true;
         
         try {
-            // Direct DOM manipulation for maximum reliability
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            // In column-reverse, set scrollTop to 0 to get to the bottom (newest logs)
+            scrollContainer.scrollTop = 0;
             
             // Schedule another scroll in the next frame to ensure it worked
             requestAnimationFrame(() => {
-                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                scrollContainer.scrollTop = 0;
                 
                 // And one more time after a short delay to really make sure
                 setTimeout(() => {
                     isProgrammaticScroll = false;
-                    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                    scrollContainer.scrollTop = 0;
                 }, 50);
             });
         } catch (e) {
@@ -371,14 +372,13 @@
     }
     
     // Helper function to intelligently scroll to bottom based on current state
-    function scrollToBottomWithStrategy() {
+    // Updated for column-reverse layout
+    function scrollToBottomWithStrategy(): void {
         if (!autoScroll || !scrollContainer) return;
         
         // Cancel any existing animations if processing just ended
         if (!isProcessing && prevIsProcessing) {
             pendingScrollToBottom = false;
-            
-            // Be more aggressive when processing ends
             executeScrollToBottom(true);
             return;
         }
@@ -397,11 +397,11 @@
                 // Update virtual range
                 virtualEnd = lastLogIndex;
                 virtualStart = Math.max(0, virtualEnd - visibleLogCount - BUFFER_SIZE);
-                visibleLogCount = virtualEnd - virtualStart + 1;
+                // Note: visibleLogCount update removed as per guide's code snippet
                 
                 // Need an extra tick to ensure DOM reflects the updated range
                 tick().then(() => {
-                    executeScrollToBottom(true); // Force scroll for virtualized mode
+                    executeScrollToBottom(true);
                 });
                 return;
             }
@@ -464,11 +464,13 @@
     }
     
     // Check if we're at the bottom of the scroll container
-    function isScrolledToBottom(tolerance = 20): boolean {
+    // Updated for column-reverse layout - bottom is now at scrollTop = 0
+    // Reduce tolerance for more precise control
+    function isScrolledToBottom(tolerance = 10): boolean {
         if (!scrollContainer) return true;
         
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-        return scrollHeight - scrollTop - clientHeight <= tolerance;
+        // In column-reverse, we're at bottom when scrollTop is near 0
+        return scrollContainer.scrollTop <= tolerance;
     }
     
     // Track transition start/end events for non-virtualized mode
@@ -575,6 +577,8 @@
     }
     
     // Calculate positions for all logs based on individual heights (with WASM optimization)
+    // This function doesn't need to change for column-reverse layout as it just
+    // calculates positions - the rendering logic will handle the reversal
     function recalculatePositions(): void {
         // Get current settings
         const $settings = get(settings);
@@ -587,65 +591,60 @@
                 (filteredLogs.length > 500 && 
                  shouldUseWasm(filteredLogs.length, 'recalculatePositions'))) {
                 
-                // CRITICAL: Check memory availability specifically for this operation
-                // which works on the entire collection
-                const memCheck = checkMemoryAvailability(filteredLogs.length);
-                if (memCheck.canProceed) {
-                    try {
-                        // Track start time for performance comparison
-                        let tsTime = 0;
+                try {
+                    // Track start time for performance comparison
+                    let tsTime = 0;
+                    
+                    // Occasionally benchmark TypeScript for comparison (5% of operations)
+                    if (Math.random() < 0.05) {
+                        const tsStartTime = performance.now();
                         
-                        // Occasionally benchmark TypeScript for comparison (5% of operations)
-                        if (Math.random() < 0.05) {
-                            const tsStartTime = performance.now();
-                            
-                            // Execute TS version for comparison but don't use its results
-                            // This is just for measurement
-                            let currentPosition = 0;
-                            let totalHeightTs = 0;
-                            
-                            for (const log of filteredLogs) {
-                                const sequence = log._sequence || 0;
-                                // Don't actually set positions - just simulate the work
-                                const height = logHeights.get(sequence) || avgLogHeight + POSITION_BUFFER;
-                                currentPosition += height;
-                                totalHeightTs += height;
-                            }
-                            
-                            const tsEndTime = performance.now();
-                            tsTime = tsEndTime - tsStartTime;
+                        // Execute TS version for comparison but don't use its results
+                        // This is just for measurement
+                        let currentPosition = 0;
+                        let totalHeightTs = 0;
+                        
+                        for (const log of filteredLogs) {
+                            const sequence = log._sequence || 0;
+                            // Don't actually set positions - just simulate the work
+                            const height = logHeights.get(sequence) || avgLogHeight + POSITION_BUFFER;
+                            currentPosition += height;
+                            totalHeightTs += height;
                         }
                         
-                        // Use WebAssembly implementation, passing TS comparison time if available
-                        const result = recalculatePositionsWasm(
-                            filteredLogs,
-                            logHeights,
-                            avgLogHeight,
-                            POSITION_BUFFER,
-                            tsTime // Pass measured TS time for accurate comparison
-                        );
-
-                        // Update state with results
-                        logPositions = result.positions;
-                        totalLogHeight = result.totalHeight;
-                        virtualContainerHeight = totalLogHeight;
-
-                        // Recalculate average height based on measurements
-                        if (logHeights.size > 0) {
-                            let total = 0;
-                            logHeights.forEach(height => total += height);
-                            avgLogHeight = (total / logHeights.size) - POSITION_BUFFER;
-                        }
-
-                        return; // Exit early on success
-                    } catch (error: any) {
-                        // Handle error and fall back to TypeScript
-                        handleWasmError(error, 'recalculatePositions', {
-                            logCount: filteredLogs.length
-                        });
-                        
-                        // Fall back to TypeScript implementation
+                        const tsEndTime = performance.now();
+                        tsTime = tsEndTime - tsStartTime;
                     }
+                    
+                    // Use WebAssembly implementation, passing TS comparison time if available
+                    const result = recalculatePositionsWasm(
+                        filteredLogs,
+                        logHeights,
+                        avgLogHeight,
+                        POSITION_BUFFER,
+                        tsTime // Pass measured TS time for accurate comparison
+                    );
+
+                    // Update state with results
+                    logPositions = result.positions;
+                    totalLogHeight = result.totalHeight;
+                    virtualContainerHeight = totalLogHeight;
+
+                    // Recalculate average height based on measurements
+                    if (logHeights.size > 0) {
+                        let total = 0;
+                        logHeights.forEach(height => total += height);
+                        avgLogHeight = (total / logHeights.size) - POSITION_BUFFER;
+                    }
+
+                    return; // Exit early on success
+                } catch (error: any) {
+                    // Handle error and fall back to TypeScript
+                    handleWasmError(error, 'recalculatePositions', {
+                        logCount: filteredLogs.length
+                    });
+                    
+                    // Fall back to TypeScript implementation
                 }
             }
         }
@@ -677,62 +676,60 @@
     }
     
     // Find which log corresponds to a scroll position using binary search (with WASM optimization)
+    // Updated for column-reverse layout
     function findLogAtScrollPosition(scrollTop: number, scrollMetrics?: {
-        frequency?: number,       // Calls per second for throttling decisions
-        visibleLogs?: number      // Approximate number of visible logs
+        frequency?: number,
+        visibleLogs?: number
     }): number {
         // Early short-circuit for empty logs
         if (filteredLogs.length === 0) return 0;
+        
+        // In column-reverse, we need to adjust the scrollTop value
+        // Convert from scrollTop to a position from the top of content
+        const adjustedScrollPosition = scrollContainer ? 
+            (totalLogHeight - scrollContainer.clientHeight - scrollTop) : 
+            scrollTop;
         
         // Get current settings
         const $settings = get(settings);
         
         // Check for WebAssembly availability and blacklist status
         if (isWasmEnabled() && !isOperationBlacklisted('findLogAtScrollPosition')) {
-            // IMPORTANT: Use different threshold logic for scrolling
-            // This function is called frequently and must be very fast
-            // For this function, use WebAssembly even for relatively small log sets
-            // as the performance benefit for scrolling is critical
             if ($settings.forceWasmMode === 'enabled' || 
                 (filteredLogs.length > 100 && 
                  shouldUseWasm(Math.min(filteredLogs.length, 1000), 'findLogAtScrollPosition'))) {
                 
-                // CRITICAL: Check memory availability specifically for scroll operations
-                // Use a smaller expected memory footprint since this is called frequently
-                const memCheck = checkMemoryAvailability(Math.min(512, filteredLogs.length / 10));
-                if (memCheck.canProceed) {
-                    try {
-                        // Track scroll metrics for performance monitoring
-                        const metrics = {
-                            frequency: scrollMetrics?.frequency,
-                            visibleLogs: scrollMetrics?.visibleLogs || 
-                                         Math.ceil(viewportHeight / (avgLogHeight + POSITION_BUFFER))
-                        };
-                        
-                        // Use WebAssembly implementation with scroll metrics
-                        return findLogAtScrollPositionWasm(
-                            filteredLogs,
-                            logPositions,
-                            logHeights,
-                            scrollTop,
-                            avgLogHeight,
-                            POSITION_BUFFER,
-                            metrics
-                        );
-                    } catch (error: any) {
-                        // Handle error and fall back to TypeScript
-                        handleWasmError(error, 'findLogAtScrollPosition', {
-                            logCount: filteredLogs.length,
-                            scrollTop
-                        });
-                        
-                        // Fall back to TypeScript implementation
-                    }
+                try {
+                    // Track scroll metrics for performance monitoring
+                    const metrics = {
+                        frequency: scrollMetrics?.frequency,
+                        visibleLogs: scrollMetrics?.visibleLogs || 
+                                    Math.ceil(viewportHeight / (avgLogHeight + POSITION_BUFFER))
+                    };
+                    
+                    // Use adjusted position for WebAssembly function
+                    return findLogAtScrollPositionWasm(
+                        filteredLogs,
+                        logPositions,
+                        logHeights,
+                        adjustedScrollPosition, // Use adjusted position
+                        avgLogHeight,
+                        POSITION_BUFFER,
+                        metrics
+                    );
+                } catch (error: any) {
+                    // Handle error and fall back to TypeScript
+                    handleWasmError(error, 'findLogAtScrollPosition', {
+                        logCount: filteredLogs.length,
+                        scrollTop: adjustedScrollPosition
+                    });
+                    
+                    // Fall back to TypeScript implementation
                 }
             }
         }
         
-        // Original TypeScript implementation (unchanged - fallback)
+        // Original TypeScript implementation with adjusted scroll position
         let low = 0;
         let high = filteredLogs.length - 1;
         
@@ -742,11 +739,11 @@
             const pos = logPositions.get(sequence) || mid * (avgLogHeight + POSITION_BUFFER);
             const height = logHeights.get(sequence) || avgLogHeight + POSITION_BUFFER;
             
-            if (scrollTop >= pos && scrollTop < (pos + height)) {
+            if (adjustedScrollPosition >= pos && adjustedScrollPosition < (pos + height)) {
                 return mid; // Found exact log
             }
             
-            if (scrollTop < pos) {
+            if (adjustedScrollPosition < pos) {
                 high = mid - 1;
             } else {
                 low = mid + 1;
@@ -762,7 +759,7 @@
     let scrollStartTime = Date.now();
     let scrollCallFrequency = 0;
 
-    // Update virtualization calculations
+    // Update virtualization calculations for column-reverse layout
     function updateVirtualization(): void {
         if (!scrollContainer || !virtualEnabled || !virtualizationReady) return;
         
@@ -775,37 +772,37 @@
             visibleLogs: Math.ceil(clientHeight / (avgLogHeight + POSITION_BUFFER))
         };
         
-        // Find log at top of viewport with scroll metrics
-        const topLogIndex = findLogAtScrollPosition(scrollTop, scrollMetrics);
-        
-        // Find log at bottom of viewport with scroll metrics
-        const bottomLogIndex = findLogAtScrollPosition(scrollTop + clientHeight, scrollMetrics);
-        
-        // Set virtual range with buffer
-        virtualStart = Math.max(0, topLogIndex - BUFFER_SIZE);
-        virtualEnd = Math.min(filteredLogs.length - 1, bottomLogIndex + BUFFER_SIZE);
-        
-        // Update visible log count
-        visibleLogCount = virtualEnd - virtualStart + 1;
-        
-        // When auto-scroll is enabled, ensure we include the last logs in virtualized range
-        if (autoScroll && filteredLogs.length > 0) {
-            // Ensure the end of the list is always in the virtualized range
+        // When auto-scroll is enabled, ensure we prioritize latest logs
+        if (autoScroll && isScrolledToBottom()) {
+            // Start from the end of the list and work backwards
             const lastLogIndex = filteredLogs.length - 1;
-            if (virtualEnd < lastLogIndex) {
-                // Extend the virtual window to include last logs
-                virtualEnd = lastLogIndex;
-                
-                // Adjust start to maintain reasonable window size
-                virtualStart = Math.max(0, virtualEnd - visibleLogCount - BUFFER_SIZE);
-                
-                // Update visible count after adjustment
-                visibleLogCount = virtualEnd - virtualStart + 1;
-            }
+            virtualEnd = lastLogIndex;
+            
+            // Determine how many logs fit in the viewport plus buffer
+            const visibleCount = Math.ceil(clientHeight / (avgLogHeight + POSITION_BUFFER));
+            virtualStart = Math.max(0, lastLogIndex - visibleCount - BUFFER_SIZE);
+            
+            // Update visible log count
+            visibleLogCount = virtualEnd - virtualStart + 1;
+        } else {
+            // For scrolled state, determine visible range
+            // Convert scrollTop for column-reverse layout
+            const adjustedScrollTop = totalLogHeight - clientHeight - scrollTop;
+            
+            // Find log at top and bottom of viewport with adjusted positions
+            const topLogIndex = findLogAtScrollPosition(adjustedScrollTop, scrollMetrics);
+            const bottomLogIndex = findLogAtScrollPosition(adjustedScrollTop + clientHeight, scrollMetrics);
+            
+            // Set virtual range with buffer
+            virtualStart = Math.max(0, topLogIndex - BUFFER_SIZE);
+            virtualEnd = Math.min(filteredLogs.length - 1, bottomLogIndex + BUFFER_SIZE);
+            
+            // Update visible log count
+            visibleLogCount = virtualEnd - virtualStart + 1;
         }
     }
     
-    // Save current viewport position as an anchor
+    // Save current viewport position as an anchor - updated for column-reverse
     function saveViewportAnchor(): void {
         if (!scrollContainer) return;
         
@@ -815,16 +812,19 @@
             return;
         }
         
-        const { scrollTop } = scrollContainer;
+        const { scrollTop, clientHeight } = scrollContainer;
         
-        // Calculate scroll metrics for WASM optimization
+        // In column-reverse, convert scrollTop to position from top
+        const scrollFromTop = totalLogHeight - clientHeight - scrollTop;
+        
+        // Calculate scroll metrics for optimization
         const scrollMetrics = {
             frequency: scrollCallFrequency,
             visibleLogs: Math.ceil(viewportHeight / (avgLogHeight + POSITION_BUFFER))
         };
         
-        // Find which log is at the top of the viewport with scroll metrics
-        const logIndex = findLogAtScrollPosition(scrollTop, scrollMetrics);
+        // Find which log is at the top of the viewport with adjusted scroll position
+        const logIndex = findLogAtScrollPosition(scrollFromTop, scrollMetrics);
         if (logIndex < 0 || logIndex >= filteredLogs.length) return;
         
         const log = filteredLogs[logIndex];
@@ -835,11 +835,11 @@
         viewportAnchor = {
             index: logIndex,
             sequence: sequence,
-            offsetTop: scrollTop - logTop
+            offsetTop: scrollFromTop - logTop
         };
     }
     
-    // Restore scroll position based on saved anchor
+    // Restore scroll position based on saved anchor - updated for column-reverse
     function restoreViewportAnchor(): void {
         if (!viewportAnchor || !scrollContainer) return;
         
@@ -847,9 +847,15 @@
         const sequence = viewportAnchor.sequence;
         const logTop = logPositions.get(sequence) || 0;
         
-        // Restore scroll position with the same offset
+        // Calculate adjusted position with the same offset
+        const positionFromTop = logTop + viewportAnchor.offsetTop;
+        
+        // In column-reverse, convert back to scrollTop
+        const scrollTopValue = totalLogHeight - scrollContainer.clientHeight - positionFromTop;
+        
+        // Restore scroll position with the calculated scrollTop
         withProgrammaticScroll(() => {
-            scrollContainer.scrollTop = logTop + viewportAnchor.offsetTop;
+            scrollContainer.scrollTop = Math.max(0, scrollTopValue);
         });
     }
     
@@ -887,7 +893,8 @@
         }
     }
     
-    // Execute scroll to bottom with programmatic flag
+    // Execute scroll to bottom with programmatic flag - updated for column-reverse
+    // Simplified as per guide (removed debug block and scheduledScrollToBottom flag)
     function executeScrollToBottom(force: boolean = false): void {
         if (!scrollContainer) return;
         
@@ -897,45 +904,30 @@
             return;
         }
         
-        // Avoid multiple calls in the same frame
-        if (scheduledScrollToBottom) return;
-        scheduledScrollToBottom = true;
+        // Debugging logs (kept as per guide comment, but implementation removed in guide code)
+        // if (debug) { ... }
         
-        // For debugging - track autoscroll triggers
-        if (debug) {
-            const now = Date.now();
-            autoScrollTriggerCount++;
-            if (now - lastAutoScrollTime > 1000) {
-                console.log("[AutoScroll] " + autoScrollTriggerCount + " triggers, " + logsBatchedSinceLastScroll + 
-                          " log batches processed in last " + (Math.round((now - lastAutoScrollTime)/100)/10) + "s");
-                lastAutoScrollTime = now;
-                autoScrollTriggerCount = 0;
-                logsBatchedSinceLastScroll = 0;
-            }
-        }
-        
-        // Use rAF for better performance and to ensure we execute after any DOM updates
+        // Use rAF for better performance
         requestAnimationFrame(() => {
             withProgrammaticScroll(() => {
                 if (scrollContainer) {
-                    // Ensure we're scrolling to the actual bottom after all rendering is complete
-                    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                    // In column-reverse, bottom is at scrollTop = 0
+                    scrollContainer.scrollTop = 0;
                     
-                    // For critical scrolls (like at processing end), add a second scroll after a tiny delay
+                    // For critical scrolls, add a second scroll after a tiny delay
                     if (force) {
                         setTimeout(() => {
                             if (scrollContainer) {
-                                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                                scrollContainer.scrollTop = 0;
                             }
                         }, 50);
                     }
                 }
             });
-            scheduledScrollToBottom = false;
         });
     }
     
-    // Toggle auto-scroll with proper cleanup
+    // Toggle auto-scroll with proper cleanup - updated for column-reverse
     function toggleAutoScroll(value: boolean): void {
         if (autoScroll === value) return;
         
@@ -944,15 +936,13 @@
         if (autoScroll) {
             // When turning on auto-scroll, clear any viewport anchor and scroll to bottom
             viewportAnchor = null;
+            executeScrollToBottom(true);
             
-            // Always use the intelligent strategy
-            scrollToBottomWithStrategy();
-            
-            // Additionally, schedule a forced scroll to handle any edge cases
+            // Additionally, schedule a forced scroll after a short delay just to be sure
             scheduleForceScroll(100);
             
             // If processing just ended, schedule post-processing scrolls
-            if (!isProcessing && prevIsProcessing === false) {
+            if (!isProcessing && prevIsProcessing === false) { // Guide used prevIsProcessing === false, matching current
                 schedulePostProcessingScrolls();
             }
         } else {
@@ -992,13 +982,12 @@
         }
     }
     
-    // Enhanced scroll handler with improved user vs system scroll detection
-    // and scroll frequency tracking for WASM optimization
+    // Simplified scroll handler based on guide for column-reverse
     function handleScroll(): void {
-        // Count scroll events for metrics
+        // Count scroll events for metrics (keep existing metrics code)
         scrollCallCounter++;
         
-        // Calculate call frequency every second
+        // Calculate call frequency every second (keep existing metrics code)
         const now = Date.now();
         if (now - scrollStartTime > 1000) {
             scrollCallFrequency = scrollCallCounter / ((now - scrollStartTime) / 1000);
@@ -1006,13 +995,13 @@
             scrollStartTime = now;
         }
         
-        // Skip if programmatically scrolling (explicit flag)
+        // Skip if programmatically scrolling
         if (isProgrammaticScroll) {
-            consecutiveSystemScrollEvents++;
+            // Note: Removed consecutiveSystemScrollEvents logic as per simplified guide
             return;
         }
         
-        // Use requestAnimationFrame for smooth scrolling
+        // Use requestAnimationFrame for smooth scrolling (keep existing rAF code)
         if (scrollRAF) cancelAnimationFrame(scrollRAF);
         
         scrollRAF = requestAnimationFrame(() => {
@@ -1029,78 +1018,39 @@
             // Get current scroll position
             const { scrollTop } = scrollContainer;
             
-            // Determine scroll direction
-            if (scrollTop > lastScrollTop) {
-                scrollDirection = 'down';
-            } else if (scrollTop < lastScrollTop) {
-                scrollDirection = 'up';
-            }
+            // Store current position for reference (removed scrollDirection logic)
             lastScrollTop = scrollTop;
             
-            // Detect if this is likely user scrolling
-            const currentTime = Date.now();
-            const timeSinceLastScroll = currentTime - lastUserScrollTime;
-
-            // Consider scrolling as user-initiated if:
-            // 1. It's been a significant time since the last scroll (human pauses)
-            // 2. OR the direction changes and is not immediately after a programmatic scroll
-            // 3. AND we haven't seen many consecutive system events
-            const isLikelyUserScroll = 
-                (timeSinceLastScroll > 100 || scrollEventCount === 0) && 
-                consecutiveSystemScrollEvents < 3 &&
-                // Don't consider as user scroll during active processing without significant movement
-                !(isProcessing && Math.abs(scrollTop - lastScrollTop) < 10);
-            
-            // Reset system scroll counter
-            consecutiveSystemScrollEvents = 0;
-            
-            // Update tracking
-            lastUserScrollTime = currentTime;
-            scrollEventCount++;
-            
-            // If likely user scroll, mark as user scrolling
-            if (isLikelyUserScroll) {
-                isUserScrolling = true;
-                
-                // If user scrolls up, disable auto-scroll
-                // Be more strict about recognizing deliberate up scrolls
-                if (scrollDirection === 'up' && 
-                    autoScroll && 
-                    // Ensure it's a significant scroll up (avoid disabling for tiny movements)
-                    Math.abs(scrollTop - lastScrollTop) > 5) {
-                    
-                    autoScroll = false;
-                    saveViewportAnchor();
-                    
-                    // Cancel any pending post-processing checks
-                    cancelPostProcessingChecks();
-                    
-                    if (debug) console.log(`Auto-scroll disabled by user scroll up (delta: ${Math.round(scrollTop - lastScrollTop)}px)`);
-                }
-            }
-            
-            // Check if scrolled to bottom
+            // Check if we're at the bottom (newest logs)
             const atBottom = isScrolledToBottom();
             
-            // If scrolling down to bottom, enable auto-scroll
-            // But only if it was a deliberate user action
-            if (atBottom && scrollDirection === 'down' && isLikelyUserScroll) {
-                if (!autoScroll) {
-                    if (debug) console.log(`Auto-scroll enabled by user scroll to bottom`);
-                    autoScroll = true;
-                    viewportAnchor = null;
-                }
+            // SIMPLIFIED AUTO-SCROLL LOGIC:
+            
+            // 1. If we've scrolled to bottom, enable auto-scroll immediately
+            if (atBottom && !autoScroll) {
+                autoScroll = true;
+                viewportAnchor = null; // Clear anchor when enabling auto-scroll
+                if (debug) console.log(`Auto-scroll enabled by user scrolling to bottom`);
             }
+            
+            // 2. If we're not at bottom and auto-scroll is on, disable it
+            else if (!atBottom && autoScroll) {
+                autoScroll = false;
+                saveViewportAnchor(); // Save position when disabling auto-scroll
+                if (debug) console.log(`Auto-scroll disabled by user scrolling away from bottom`);
+            }
+            
+            // Mark as user scrolling (simplified - assume any non-programmatic scroll is user)
+            isUserScrolling = true;
             
             // Clear any existing user scroll timeout
             if (userScrollTimeout) {
                 clearTimeout(userScrollTimeout);
             }
             
-            // Set a timeout to detect when user finishes scrolling
+            // Reset user scrolling after a timeout
             userScrollTimeout = window.setTimeout(() => {
                 isUserScrolling = false;
-                scrollEventCount = 0;
                 
                 // If auto-scroll is enabled and we're at the bottom, ensure we stay there
                 if (autoScroll && isScrolledToBottom()) {
@@ -1112,7 +1062,6 @@
         });
     }
     
-    // Setup observers and listeners on mount
     onMount(async () => {
         // Initial update
         await tick();
@@ -1140,7 +1089,7 @@
             }
         }, 200);
         
-        // Initial scroll to bottom
+        // Initial scroll to bottom - in column-reverse, this means scrollTop = 0
         if (autoScroll) {
             scrollToBottomWithStrategy();
             
@@ -1207,8 +1156,6 @@
                 clearTimeout(batchMeasurementTimer);
             }
             
-            // No need to clear scrollAfterAnimationTimer as it's not defined/used
-            
             if (forceScrollTimer) {
                 clearTimeout(forceScrollTimer);
             }
@@ -1246,13 +1193,16 @@
 </script>
 
 <!-- Main container for the log viewer with glassmorphism -->
-<div class="flex flex-col h-full bg-logbg/60 text-white font-[DM_Mono] text-[11px] rounded-lg border-r border-b border-primary/20 shadow-log">
+<div class="flex flex-col h-full bg-logbg/60 text-white font-[DM_Mono] text-[11px] rounded-lg border-r border-b border-primary/20 shadow-log"
+     role="log"
+     aria-label="Application logs"
+     aria-live="polite">
     <!-- Top controls row -->
     <div class="px-3 py-2 border-b border-primary/20 bg-bgold-800/60 backdrop-blur-md h-10 flex items-center justify-between rounded-t-lg">
         <div class="flex items-center gap-6">
             <!-- Log level filter -->
             <div class="flex items-center gap-2 whitespace-nowrap">
-                <span class="text-xs uppercase tracking-wider font-medium text-primary-100/60">
+                <span class="text-xs uppercase tracking-wider font-medium text-primary-100/60" id="log-level-label">
                     Log Level:
                 </span>
                 <select
@@ -1264,6 +1214,7 @@
                            appearance-none
                            [background-image:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22white%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22/%3E%3C/svg%3E')] 
                            bg-no-repeat bg-[right_0.5rem_center] bg-[length:1em]"
+                    aria-labelledby="log-level-label"
                 >
                     {#each logLevels as level}
                         <option value={level}>{level}</option>
@@ -1279,12 +1230,15 @@
                        hover:bg-primary/10 hover:text-white hover:border-primary/55 hover:shadow-input
                        transition-all duration-200"
                 on:click={() => toggleAutoScroll(!autoScroll)}
+                aria-pressed={autoScroll}
+                aria-label="Toggle auto-scroll"
             >
                 <input 
                     type="checkbox" 
                     checked={autoScroll}
                     on:change={(e) => toggleAutoScroll(e.target.checked)}
                     class="w-3.5 h-3.5 accent-primary m-0"
+                    aria-hidden="true"
                 />
                 Auto-scroll
             </button>
@@ -1296,6 +1250,7 @@
                        flex-shrink-0 text-[11px] uppercase tracking-wider 
                        hover:bg-primary/10 hover:text-white hover:border-primary/55 hover:shadow-input 
                        transition-all duration-200"
+                aria-label="Clear logs"
             >
                 Clear
             </button>
@@ -1308,12 +1263,14 @@
                            flex-shrink-0 text-[11px] uppercase tracking-wider 
                            hover:bg-primary/10 hover:text-white hover:border-primary/55 hover:shadow-input 
                            transition-all duration-200"
+                    aria-pressed={virtualEnabled}
+                    aria-label="Toggle virtualization"
                 >
                     {virtualEnabled ? 'Virt: ON' : 'Virt: OFF'}
                 </button>
                 
                 <!-- Debug info -->
-                <span class="text-xs text-primary/50">
+                <span class="text-xs text-primary/50" aria-live="polite">
                     {filteredLogs.length} logs {virtualEnabled ? '| ' + visibleLogCount + ' visible' : ''} {isProcessing ? '| PROCESSING' : ''}
                 </span>
             {/if}
@@ -1322,16 +1279,19 @@
     
     <!-- Content area with virtualization -->
     <div class="relative flex flex-col flex-1 min-h-0">
-        <!-- The scrollable container for log entries (hide X-axis overflow only) -->
+        <!-- The scrollable container for log entries with terminal-mode (column-reverse) -->
         <div 
-            class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 log-scroll-container"
+            class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 log-scroll-container terminal-mode"
+            class:autoscroll-active={autoScroll}
             bind:this={scrollContainer}
             on:scroll={handleScroll}
+            role="region"
+            aria-label="Log entries"
         >
             {#if filteredLogs.length === 0}
                 <!-- Empty state -->
                 <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-                    <span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg">
+                    <span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg" aria-live="polite">
                         No logs to display
                     </span>
                 </div>
@@ -1340,6 +1300,7 @@
                 <div 
                     class="relative w-full" 
                     style="height: {virtualEnabled && virtualizationReady ? `${virtualContainerHeight}px` : 'auto'}"
+                    aria-hidden={virtualEnabled ? "true" : "false"}
                 >
                     <!-- Initial loading state before virtualization is ready -->
                     {#if virtualEnabled && !virtualizationReady}
@@ -1352,14 +1313,16 @@
                                 data-log-sequence={log._sequence}
                                 data-unix-time={log._unix_time}
                                 use:measureLogEntry={log}
+                                role="listitem"
+                                aria-label={`${log.level} log: ${log.message || ''}`}
                             >
                                 <!-- Timestamp -->
-                                <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0">
+                                <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0" aria-label="Log time">
                                     {log.time}
                                 </span>
                                 
                                 <!-- Log level -->
-                                <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)}>
+                                <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)} aria-label={`Log level: ${log.level}`}>
                                     {log.level}
                                 </span>
                                 
@@ -1374,7 +1337,7 @@
                                     
                                     <!-- Show structured fields inline if no message, otherwise in next line -->
                                     {#if formatFields(log)}
-                                        <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words">
+                                        <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words" aria-label="Additional log details">
                                             {formatFields(log)}
                                         </span>
                                     {/if}
@@ -1388,18 +1351,20 @@
                                 class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
                                 py-1.5 px-3 border-b border-primary/10 
                                 flex items-start justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
-                                style="position: absolute; top: {logPositions.get(log._sequence) || 0}px; left: 0; right: 0;"
+                                style="position: absolute; bottom: {totalLogHeight - (logPositions.get(log._sequence) || 0) - (logHeights.get(log._sequence) || 0)}px; left: 0; right: 0;"
                                 data-log-sequence={log._sequence}
                                 data-unix-time={log._unix_time}
                                 use:measureLogEntry={log}
+                                role="listitem"
+                                aria-label={`${log.level} log: ${log.message || ''}`}
                             >
                                 <!-- Timestamp -->
-                                <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0">
+                                <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0" aria-label="Log time">
                                     {log.time}
                                 </span>
                                 
                                 <!-- Log level -->
-                                <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)}>
+                                <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)} aria-label={`Log level: ${log.level}`}>
                                     {log.level}
                                 </span>
                                 
@@ -1414,7 +1379,7 @@
                                     
                                     <!-- Show structured fields inline if no message, otherwise in next line -->
                                     {#if formatFields(log)}
-                                        <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words">
+                                        <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words" aria-label="Additional log details">
                                             {formatFields(log)}
                                         </span>
                                     {/if}
@@ -1432,19 +1397,21 @@
                                 data-log-sequence={log._sequence}
                                 data-unix-time={log._unix_time}
                                 use:measureLogEntry={log}
-                                transition:slide|local={{ duration: 300, easing: backOut }}
+                                transition:fade|local={{ duration: autoScroll ? 150 : 300, easing: autoScroll ? null : backOut }}
                                 on:introstart={handleTransitionStart}
                                 on:introend={handleTransitionEnd}
                                 on:outrostart={handleTransitionStart}
                                 on:outroend={handleTransitionEnd}
+                                role="listitem"
+                                aria-label={`${log.level} log: ${log.message || ''}`}
                             >
                                 <!-- Timestamp -->
-                                <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0">
+                                <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0" aria-label="Log time">
                                     {log.time}
                                 </span>
                                 
                                 <!-- Log level -->
-                                <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)}>
+                                <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)} aria-label={`Log level: ${log.level}`}>
                                     {log.level}
                                 </span>
                                 
@@ -1459,7 +1426,7 @@
                                     
                                     <!-- Show structured fields inline if no message, otherwise in next line -->
                                     {#if formatFields(log)}
-                                        <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words">
+                                        <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words" aria-label="Additional log details">
                                             {formatFields(log)}
                                         </span>
                                     {/if}
@@ -1479,6 +1446,27 @@
         scrollbar-width: thin;
         scrollbar-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4) transparent;
         scroll-behavior: smooth;
+    }
+
+    /* Terminal mode - column-reverse layout for fixed scrollbar position */
+    .terminal-mode {
+        display: flex;
+        flex-direction: column-reverse;
+    }
+
+    /* Autoscroll active class */
+    .autoscroll-active {
+        /* Disable smooth scrolling when auto-scroll is active */
+        scroll-behavior: auto !important;
+    }
+
+    .autoscroll-active::-webkit-scrollbar-thumb {
+        opacity: 0.3;
+        transition: opacity 0.3s ease;
+    }
+
+    .autoscroll-active:hover::-webkit-scrollbar-thumb {
+        opacity: 1;
     }
 
     .log-scroll-container::-webkit-scrollbar {
