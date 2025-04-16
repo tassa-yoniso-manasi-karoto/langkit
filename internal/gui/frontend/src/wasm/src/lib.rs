@@ -939,22 +939,21 @@ pub fn find_log_at_scroll_position(
     scroll_top: f64,
     avg_log_height: f64,
     position_buffer: f64,
-    start_offset: Option<u32> // Add optional start_offset parameter
+    start_offset: Option<u32> // Optional start_offset parameter
 ) -> Result<JsValue, JsValue> {
     // Track memory for this operation more precisely
     let tracker = get_allocation_tracker();
     tracker.track_allocation(std::mem::size_of::<f64>() * 4); // Basic allocation tracking
     
     // Early return if WebAssembly memory is under pressure
-    let _memory = wasm_bindgen::memory(); // Prefix with _
-    let memory_info = get_memory_usage_internal(); // Get memory without creating a new object
+    let _memory = wasm_bindgen::memory();
+    let memory_info = get_memory_usage_internal();
     if memory_info.utilization > 0.9 {
         // Memory pressure is too high, signal to use TypeScript instead
         return Err(Error::new("Memory pressure too high for scrolling operation").into());
     }
     
-    // Convert JS logs array to Rust Vec - use an optimized approach for faster initial conversion
-    // For scrolling optimization, we process a subset of logs from a given offset
+    // Convert JS logs array to Rust Vec
     let logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value::<Vec<LogMessage>>(logs_array) {
         Ok(l) => {
             // Track allocation more precisely
@@ -970,7 +969,7 @@ pub fn find_log_at_scroll_position(
         return Ok(JsValue::from(0));
     }
 
-    // Convert JS Maps to Rust HashMaps with optimized deserialization
+    // Convert JS Maps to Rust HashMaps
     let positions: HashMap<u32, f64> = match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(log_positions_map) {
         Ok(p) => {
             // Track allocation
@@ -998,11 +997,18 @@ pub fn find_log_at_scroll_position(
         return Ok(JsValue::from(0));
     }
 
+    // COLUMN-REVERSE LAYOUT ADJUSTMENT:
+    // In column-reverse, scrollTop=0 means bottom of content (newest logs)
+    // Negative scrollTop values mean scrolling up (towards older logs)
+    // We use absolute value to handle both positive and negative scrollTop
+    
+    // First normalize scrollTop to always be non-negative for calculations
+    let normalized_scroll_top = scroll_top.abs();
+    
     // Use SIMD operations for range checking if available
     #[cfg(target_feature = "simd128")]
     {
         // SIMD optimization could be implemented here if needed
-        // For now, we'll use the standard binary search
     }
 
     // Standard binary search, but optimized for quick returns
@@ -1013,18 +1019,17 @@ pub fn find_log_at_scroll_position(
         // Get position with optimal hash lookup
         let pos = positions
             .get(&sequence)
-            .copied() // Use copied() instead of dereference for better optimization
+            .copied()
             .unwrap_or_else(|| mid as f64 * (avg_log_height + position_buffer));
 
         // Get height with optimal hash lookup
         let height = heights
             .get(&sequence)
-            .copied() // Use copied() for better optimization
+            .copied()
             .unwrap_or_else(|| avg_log_height + position_buffer);
 
-        // Check if scroll position is within this log's area
-        // This critical code path is executed frequently during scrolling
-        if scroll_top >= pos && scroll_top < (pos + height) {
+        // Check if normalized scroll position is within this log's area
+        if normalized_scroll_top >= pos && normalized_scroll_top < (pos + height) {
             // If given a start_offset, adjust the result
             let final_index = if let Some(offset) = start_offset {
                 mid as u32 + offset
@@ -1034,7 +1039,7 @@ pub fn find_log_at_scroll_position(
             return Ok(JsValue::from(final_index as i32));
         }
 
-        if scroll_top < pos {
+        if normalized_scroll_top < pos {
             if mid == 0 {
                 break; // Prevent underflow
             }
@@ -1121,6 +1126,12 @@ pub fn recalculate_positions(
     let mut current_position = 0.0;
     let mut total_height = 0.0;
 
+    // COLUMN-REVERSE LAYOUT CONSIDERATION:
+    // In a column-reverse layout, positions are calculated from the top down
+    // This matches the index order (0 = oldest log at top, N = newest log at bottom)
+    // No special adjustment needed for position calculation itself since we're computing
+    // positions in document order, and the browser handles the visual reordering
+    
     // Calculate positions for each log
     for log in &logs {
         let sequence = log.sequence.unwrap_or(0);
@@ -1128,15 +1139,28 @@ pub fn recalculate_positions(
         // Store position for this log
         positions.insert(sequence, current_position);
 
-        // Get height, defaulting to average if not in map
-        let height = match heights.get(&sequence) {
-            Some(h) => *h,
-            None => avg_log_height + position_buffer
-        };
+        // Get height, with several fallback mechanisms
+        let height = heights
+            .get(&sequence)
+            .copied()
+            .unwrap_or_else(|| {
+                // Cap height to reasonable values (20px minimum, 100px maximum) 
+                // to prevent extreme results with malformed data
+                let default_height = avg_log_height + position_buffer;
+                default_height.max(20.0).min(100.0)
+            });
 
-        // Update running totals
-        current_position += height;
-        total_height += height;
+        // Update running totals with safety guards for negative or NaN values
+        if height.is_finite() && height > 0.0 {
+            current_position += height;
+            total_height += height;
+        } else {
+            // Use fallback for corrupted height values
+            let fallback = avg_log_height.max(20.0);
+            current_position += fallback;
+            total_height += fallback;
+            // Could log a warning here if we had a logging system in Rust
+        }
     }
 
     // Create result object with positions and total height
@@ -1150,8 +1174,15 @@ pub fn recalculate_positions(
         Err(e) => return Err(Error::new(&format!("Failed to serialize positions: {:?}", e)).into()),
     }
 
-    // Set total height
-    js_sys::Reflect::set(&result, &"totalHeight".into(), &JsValue::from(total_height))?;
+    // Set total height with safety check
+    let safe_total_height = if total_height.is_finite() && total_height >= 0.0 {
+        total_height
+    } else {
+        // Fallback if height calculation went wrong
+        logs.len() as f64 * avg_log_height
+    };
+    
+    js_sys::Reflect::set(&result, &"totalHeight".into(), &JsValue::from(safe_total_height))?;
 
     Ok(result.into())
 }
