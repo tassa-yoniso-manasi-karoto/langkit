@@ -224,9 +224,40 @@
             }
             
             // When processing ends, schedule final scroll checks
-            if (!isProcessing && prevIsProcessing && autoScroll) {
-                if (debug) console.log("Processing ended - scheduling final scroll checks");
-                schedulePostProcessingScrolls();
+            if (!isProcessing && prevIsProcessing) {
+                if (debug) console.log("Processing ended - scheduling post-processing actions");
+                
+                // For auto-scroll, we want to keep scrolled to bottom
+                if (autoScroll) {
+                    schedulePostProcessingScrolls();
+                }
+                
+                // CRITICAL FIX: If virtualization is enabled, force full recalculation
+                // This ensures we update the view properly when scrolling after processing ends
+                if (virtualEnabled && virtualizationReady) {
+                    // Schedule a series of virtualization updates after processing
+                    // This helps ensure the view is correct even if scroll events are missed
+                    const postProcessingChecks = [50, 200, 500, 1000, 2000, 3000];
+                    
+                    postProcessingChecks.forEach(delay => {
+                        setTimeout(() => {
+                            if (debug) console.log(`Post-processing virtualization check at t+${delay}ms`);
+                            
+                            // Force update virtualization
+                            if (virtualEnabled && virtualizationReady) {
+                                // Recalculate positions first
+                                recalculatePositions();
+                                
+                                // Then update virtualization based on current scroll position
+                                updateVirtualization();
+                                
+                                // Force reactive updates by reassigning
+                                virtualStart = virtualStart;
+                                virtualEnd = virtualEnd;
+                            }
+                        }, delay);
+                    });
+                }
             }
             
             prevIsProcessing = isProcessing;
@@ -891,13 +922,20 @@
     
     // --- Scroll Event Handling ---
     function handleScroll(): void {
-        // CRITICAL DEBUGGING - Add this console log to verify scroll events are detected
-        if (debug) console.log("⚡ SCROLL EVENT DETECTED");
-        
         // Always ignore programmatic scrolling
         if (isProgrammaticScroll) {
             if (debug) console.log("Ignoring programmatic scroll event");
             return;
+        }
+        
+        // Log scroll event for debugging
+        if (debug) console.log(`⚡ SCROLL EVENT - scrollTop=${scrollContainer.scrollTop}`);
+        
+        // SIMPLIFIED VIRTUALIZATION UPDATE
+        // For virtualization, update the visible window immediately
+        if (virtualEnabled && virtualizationReady) {
+            // Update the visible window based on current scroll position
+            updateVirtualization();
         }
         
         // Mark as user scrolling - SET THIS FLAG IMMEDIATELY
@@ -920,18 +958,14 @@
             manualScrollLockTimer = null;
         }, 3000);
         
-        // CRITICAL FIX: Handle virtualization update immediately in a separate animation frame
-        // This is critical to ensure the virtualization is updated properly during scrolling
+        // Schedule another virtualization update in the next frame
+        // This gives the best responsiveness for virtual view
         if (virtualEnabled && virtualizationReady) {
             requestAnimationFrame(() => {
-                // Skip if no longer scrolling (e.g., if event was cancellation)
-                if (!isUserScrolling) return;
-                
-                // Update the virtualization window
+                // Update the virtualization window again
                 updateVirtualization();
                 
-                // Schedule another update after a short delay
-                // This ensures smoother scrolling with multiple updates
+                // And schedule one more update for good measure
                 setTimeout(() => {
                     if (virtualEnabled && virtualizationReady) {
                         updateVirtualization();
@@ -1279,8 +1313,8 @@
         
         const { scrollTop, clientHeight, scrollHeight } = scrollContainer;
         
-        // DIAGNOSTIC LOG - Add only when debugging scroll issues
-        if (debug) console.log(`VIRTUALIZATION UPDATE - scrollTop=${scrollTop}, clientHeight=${clientHeight}, scrollHeight=${scrollHeight}`);
+        // CRITICAL DEBUGGING - Always log scroll position in debug mode
+        if (debug) console.log(`⚠️ VIRTUALIZATION UPDATE - scrollTop=${scrollTop}, clientHeight=${clientHeight}, scrollHeight=${scrollHeight}`);
         
         viewportHeight = clientHeight;
         
@@ -1292,99 +1326,90 @@
             return;
         }
         
-        // CRITICAL SAFETY CHECK - Ensure we're always showing at least SOME logs
-        // If filteredLogs has content but we're not showing anything, this is a critical error
-        if (filteredLogs.length > 0 && (virtualStart > virtualEnd || virtualEnd < 0 || virtualStart >= filteredLogs.length)) {
-            if (debug) console.error(`CRITICAL: Invalid virtualization window detected - resetting to show newest logs`);
-            
-            // Force to show the latest logs as a fallback
-            const totalLogs = filteredLogs.length;
-            virtualEnd = totalLogs - 1;
-            virtualStart = Math.max(0, virtualEnd - 60); // Show at least 60 latest logs
-            visibleLogCount = virtualEnd - virtualStart + 1;
-            
-            // Force a recalculation of positions
-            recalculatePositions();
-            return;
-        }
+        // Store old values for comparison
+        const oldStart = virtualStart;
+        const oldEnd = virtualEnd;
+        const totalLogs = filteredLogs.length;
         
-        // When auto-scroll is enabled, ensure we prioritize latest logs (newest, at the bottom in column-reverse)
+        // COMPLETELY REDESIGNED APPROACH: Use a much simpler and more reliable algorithm
+        // that correctly handles column-reverse layout with both positive and negative scrollTop values
+        
+        // Special handling for the auto-scroll case (show newest logs)
         if (autoScroll && isScrolledToBottom()) {
-            // Start from the newest logs (end of the array for filteredLogs which are in timestamp order)
-            const lastLogIndex = filteredLogs.length - 1;
-            virtualEnd = lastLogIndex;
-            
-            // Determine how many logs fit in the viewport plus buffer
-            const safeAvgHeight = Math.max(25, avgLogHeight); // Use a reasonable minimum
-            const visibleCount = Math.max(60, Math.ceil(clientHeight / safeAvgHeight)); // Show at least 60 logs
-            virtualStart = Math.max(0, lastLogIndex - visibleCount);
-            
-            // Update visible log count
-            visibleLogCount = virtualEnd - virtualStart + 1;
-            
-            if (debug) console.log(`Auto-scroll virtualization: showing ${virtualStart}-${virtualEnd} (${visibleLogCount} logs)`);
-        } else {
-            // For regular scrolling, we need to determine which logs are visible
-            // SIMPLIFIED APPROACH: Use a simple ratio calculation that's more reliable
-            
-            const totalLogs = filteredLogs.length;
-            
-            // Calculate available scroll space and normalized scroll position
-            const maxScrollPosition = Math.max(1, scrollHeight - clientHeight); // Ensure non-zero
-            
-            // Handle extreme cases (very small/large scrollTop)
-            if (scrollTop <= 0) {
-                // At the bottom (newest logs) in column-reverse
-                virtualEnd = totalLogs - 1;
-                virtualStart = Math.max(0, virtualEnd - 60);
-            } else if (scrollTop >= maxScrollPosition) {
-                // At the top (oldest logs) in column-reverse
-                virtualStart = 0;
-                virtualEnd = Math.min(totalLogs - 1, 60);
-            } else {
-                // Somewhere in the middle - calculate based on scroll percentage
-                // For column-reverse: 0% = at bottom (newest), 100% = at top (oldest)
-                const scrollPercentage = scrollTop / maxScrollPosition;
-                
-                // Map the percentage to an index in the logs array
-                // If scrollPercentage = 0, we want the newest logs (end of array)
-                // If scrollPercentage = 1, we want the oldest logs (start of array)
-                const centerIndex = Math.floor((1 - scrollPercentage) * totalLogs);
-                
-                // Calculate a window around this center point
-                const halfWindow = 30; // Half the number of logs we want to show
-                virtualStart = Math.max(0, centerIndex - halfWindow);
-                virtualEnd = Math.min(totalLogs - 1, centerIndex + halfWindow);
-            }
-            
-            // SAFETY: Ensure window is at least 60 logs if possible
-            if (virtualEnd - virtualStart < 60 && totalLogs > 60) {
-                if (virtualStart === 0) {
-                    virtualEnd = Math.min(totalLogs - 1, 60);
-                } else if (virtualEnd === totalLogs - 1) {
-                    virtualStart = Math.max(0, totalLogs - 61);
-                }
-            }
-            
-            // Update visible log count
-            visibleLogCount = virtualEnd - virtualStart + 1;
-            
-            if (debug) {
-                console.log(`Simple scroll virtualization: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}`);
-                console.log(`Showing logs ${virtualStart}-${virtualEnd} (${visibleLogCount} logs)`);
-            }
-        }
-        
-        // FINAL SAFETY CHECK - Make absolutely sure we're showing something
-        if (virtualStart > virtualEnd || virtualEnd < 0 || virtualStart >= filteredLogs.length) {
-            if (debug) console.error("CRITICAL: Invalid virtualization window after calculation - showing latest logs");
-            
-            // Force to show the latest logs as a last resort
-            const totalLogs = filteredLogs.length;
             virtualEnd = totalLogs - 1;
             virtualStart = Math.max(0, virtualEnd - 60);
-            visibleLogCount = virtualEnd - virtualStart + 1;
+        } else {
+            // NOT auto-scrolling - calculate window based on scroll position
+            
+            // CRITICAL: In column-reverse layout, handle both signs of scrollTop consistently
+            // scrollTop=0 means we're at the bottom (newest logs)
+            // negative scrollTop means we've scrolled up from the bottom
+            
+            // First normalize scrollTop to always be non-negative for our calculations
+            const normalizedScrollTop = Math.abs(scrollTop);
+            
+            // Calculate our position as a fraction of the scrollable area
+            // For the scrollHeight calculation, subtract client height to get actual scrollable area
+            const scrollableHeight = Math.max(1, scrollHeight - clientHeight);
+            
+            // Calculate scroll ratio (0 = bottom/newest, 1 = top/oldest)
+            const scrollRatio = Math.min(1, Math.max(0, normalizedScrollTop / scrollableHeight));
+            
+            // Use the scroll ratio to determine which logs to show
+            // We invert because in our data structure, oldest logs are at index 0
+            // But in the UI with column-reverse, oldest logs are at the top (scroll=1)
+            const targetIndex = Math.floor((1 - scrollRatio) * totalLogs);
+            
+            // Create a stable window size based on viewport
+            // Use viewport height to calculate approximately how many logs would fit
+            const visibleLines = Math.max(20, Math.ceil(clientHeight / Math.max(20, avgLogHeight)));
+            
+            // Add substantial buffer for smooth scrolling (3x visible area)
+            const bufferSize = Math.ceil(visibleLines * 1.5);
+            
+            // Calculate stable window with buffer (avoid frequent size changes)
+            const windowSize = Math.max(60, bufferSize * 2); // At least 60 logs total
+            const halfWindow = Math.floor(windowSize / 2);
+            
+            // Create window centered on target with sufficient buffer
+            virtualStart = Math.max(0, targetIndex - halfWindow);
+            virtualEnd = Math.min(totalLogs - 1, targetIndex + halfWindow);
+            
+            // Ensure window size is consistent by extending one end if we hit a boundary
+            if (virtualStart === 0 && totalLogs > windowSize) {
+                // We hit the top boundary (oldest logs) - extend window downward
+                virtualEnd = Math.min(totalLogs - 1, windowSize - 1);
+            } else if (virtualEnd === totalLogs - 1 && totalLogs > windowSize) {
+                // We hit the bottom boundary (newest logs) - extend window upward
+                virtualStart = Math.max(0, totalLogs - windowSize);
+            }
+            
+            // Debug logging
+            if (debug) {
+                console.log(`Scroll ratio: ${scrollRatio.toFixed(4)}, target idx: ${targetIndex}, window: ${virtualStart}-${virtualEnd}`);
+            }
         }
+        
+        // Ensure our window doesn't exceed log count (safety check)
+        virtualStart = Math.max(0, Math.min(virtualStart, totalLogs - 1));
+        virtualEnd = Math.max(virtualStart, Math.min(virtualEnd, totalLogs - 1));
+        
+        // Update visible log count
+        visibleLogCount = virtualEnd - virtualStart + 1;
+        
+        // Log changes for debugging
+        if (oldStart !== virtualStart || oldEnd !== virtualEnd) {
+            if (debug) console.log(`📊 Window updated: ${oldStart}-${oldEnd} → ${virtualStart}-${virtualEnd}`);
+        } else if (scrollTop !== 0 && scrollTop !== lastScrollTop && debug) {
+            console.warn(`⚠️ Scroll changed (${lastScrollTop} → ${scrollTop}) but window unchanged: ${virtualStart}-${virtualEnd}`);
+        }
+        
+        // Update last scroll position for comparison
+        lastScrollTop = scrollTop;
+        
+        // Force a reactive update by reassigning variables
+        virtualStart = Math.floor(virtualStart);
+        virtualEnd = Math.floor(virtualEnd);
     }
     
     // Save current viewport position as an anchor - updated for column-reverse
@@ -1724,16 +1749,67 @@
                 // If virtualization is enabled, update it directly
                 if (virtualEnabled && virtualizationReady) {
                     updateVirtualization();
+                    
+                    // Schedule another update a little later for smoother updates
+                    setTimeout(() => {
+                        if (virtualEnabled && virtualizationReady) {
+                            updateVirtualization();
+                        }
+                    }, 16);
+                }
+            } else {
+                // Even if scrollTop hasn't changed, still periodically update virtualization
+                // This is critical for post-processing scrolling to work correctly
+                if (virtualEnabled && virtualizationReady && !autoScroll) {
+                    // This ensures virtualization updates even if scroll events aren't detected
+                    // Only do this every 5th interval (500ms) to avoid too much updating
+                    const now = Date.now();
+                    if (now % 500 < 100) { // Roughly every 500ms
+                        updateVirtualization();
+                    }
                 }
             }
         }, 100); // Check every 100ms
         
+        // EXTREME MEASURE: Add global wheel and touchmove event listeners
+        // This is necessary because some browsers might not properly trigger scroll events in certain conditions
+        console.log("Adding global wheel and touchmove event listeners for scroll detection");
+        
+        // SIMPLIFIED DOCUMENT WHEEL HANDLER
+        // We don't need this anymore - the scroll event is sufficient
+        // Let the native scroll events do their work instead
+        
+        // We don't need touchmove special handling either
+        // The regular scroll event will capture this too
+        
+        // Also add keydown for arrow keys
+        document.addEventListener('keydown', (e) => {
+            // Only process arrow keys
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') {
+                // Only process if we have a scroll container and virtualization is enabled
+                if (scrollContainer && virtualEnabled && virtualizationReady) {
+                    console.log(`KEY EVENT DETECTED (${e.key}) - Forcing virtualization update`);
+                    
+                    // Force recalculation and update
+                    recalculatePositions();
+                    updateVirtualization();
+                    
+                    // Force reactive updates
+                    virtualStart = virtualStart;
+                    virtualEnd = virtualEnd;
+                }
+            }
+        });
+        
         // Add scroll event listener ASAP
         if (scrollContainer) {
-            if (debug) console.log("Adding scroll event listener");
+            if (debug) console.log("Adding scroll event listener to container");
             scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
             // Store initial scrollTop
             lastKnownScrollTop = scrollContainer.scrollTop;
+            
+            // We don't need special wheel handling - the scroll event is reliable enough
+            // Rely on the scroll event to update virtualization
         } else {
             if (debug) console.warn("No scroll container yet - will retry scroll listener setup");
             // Retry after a short delay if container isn't available yet
@@ -1845,14 +1921,66 @@
             }, 300);
         }, 200);
         
-        // onMount cleanup function
+        // Define wheel and touch event handlers for later removal
+        const wheelHandler = (e) => {
+            if (scrollContainer && virtualEnabled && virtualizationReady) {
+                console.log("WHEEL EVENT DETECTED - Forcing virtualization update");
+                recalculatePositions();
+                updateVirtualization();
+                virtualStart = virtualStart;
+                virtualEnd = virtualEnd;
+            }
+        };
+        
+        const touchHandler = (e) => {
+            if (scrollContainer && virtualEnabled && virtualizationReady) {
+                console.log("TOUCH MOVE EVENT DETECTED - Forcing virtualization update");
+                recalculatePositions();
+                updateVirtualization();
+                virtualStart = virtualStart;
+                virtualEnd = virtualEnd;
+            }
+        };
+        
+        const keyHandler = (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') {
+                if (scrollContainer && virtualEnabled && virtualizationReady) {
+                    console.log(`KEY EVENT DETECTED (${e.key}) - Forcing virtualization update`);
+                    recalculatePositions();
+                    updateVirtualization();
+                    virtualStart = virtualStart;
+                    virtualEnd = virtualEnd;
+                }
+            } else if (e.key === 'd' && e.ctrlKey) {
+                toggleDebugOverlay();
+            }
+        };
+        
+        // Register our handlers
+        document.addEventListener('wheel', wheelHandler, { passive: true });
+        document.addEventListener('touchmove', touchHandler, { passive: true });
+        document.addEventListener('keydown', keyHandler);
+        
+        // onMount cleanup function - remove ALL event listeners
         return () => {
             if (debug) console.log("LogViewer component unmounting - cleaning up resources");
             
             // Clear all timers and listeners
             if (velocityDecayTimer) clearInterval(velocityDecayTimer);
             if (scrollMonitorInterval) clearInterval(scrollMonitorInterval);
-            if (scrollContainer) scrollContainer.removeEventListener('scroll', handleScroll);
+            
+            // Remove all scroll-related event listeners
+            if (scrollContainer) {
+                scrollContainer.removeEventListener('scroll', handleScroll);
+                scrollContainer.removeEventListener('wheel', wheelHandler);
+            }
+            
+            // Remove document event listeners
+            document.removeEventListener('wheel', wheelHandler);
+            document.removeEventListener('touchmove', touchHandler);
+            document.removeEventListener('keydown', keyHandler);
+            
+            // Clear all timers
             if (userScrollTimeout) clearTimeout(userScrollTimeout);
             if (scrollRAF) cancelAnimationFrame(scrollRAF);
             if (batchMeasurementTimer) clearTimeout(batchMeasurementTimer);
@@ -1864,8 +1992,7 @@
             // Disconnect observers
             resizeObserver.disconnect();
             
-            // Remove key listeners
-            document.removeEventListener('keydown', toggleDebugOverlay);
+            console.log("All LogViewer resources cleaned up");
         };
     });
 </script>
@@ -1946,6 +2073,34 @@
                 >
                     {virtualEnabled ? 'Virt: ON' : 'Virt: OFF'}
                 </button>
+                
+                <!-- Force Check Button (for testing) -->
+                {#if virtualEnabled}
+                    <button 
+                        on:click={() => {
+                            console.log("MANUAL VIRTUALIZATION CHECK");
+                            recalculatePositions();
+                            updateVirtualization();
+                            
+                            // Schedule additional checks
+                            [50, 200, 500].forEach(delay => {
+                                setTimeout(() => {
+                                    if (virtualEnabled && virtualizationReady) {
+                                        console.log(`Check at t+${delay}ms`);
+                                        updateVirtualization();
+                                        virtualStart = virtualStart;
+                                        virtualEnd = virtualEnd;
+                                    }
+                                }, delay);
+                            });
+                        }}
+                        class="px-3 py-1 h-7 bg-red-600/50 text-white rounded whitespace-nowrap 
+                               flex-shrink-0 text-[11px] uppercase tracking-wider font-bold
+                               hover:bg-red-600/70 hover:text-white transition-all duration-200"
+                    >
+                        CHECK VIRT
+                    </button>
+                {/if}
                 
                 <!-- Debug info -->
                 <span class="text-xs text-primary/50" aria-live="polite">
@@ -2049,67 +2204,79 @@
                         {/each}
                     <!-- Virtualized rendering once measurements are ready -->
                     {:else if virtualEnabled && virtualizationReady}
-                        <!-- CRITICAL FIX: Use a fixed-positioned dummy spacer at top and bottom 
-                             instead of absolute positioning each element -->
-                        <div 
-                            class="w-full"
-                            style="height: {virtualStart * Math.max(10, avgLogHeight)}px;"
-                        ></div>
-                        
-                        <!-- Show virtualized logs in simple, scrollable list -->
-                        {#each filteredLogs.slice(virtualStart, virtualEnd + 1) as log, index (log._sequence + '-' + index)}
+                        <!-- SIMPLIFIED VIRTUALIZATION: More stable with reliable spacers -->
+                        <div>
+                            <!-- Top spacer to maintain scroll position for logs above virtual window -->
                             <div 
-                                class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
-                                py-1.5 px-3 border-b border-primary/10 
-                                flex items-start justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
-                                data-log-sequence={log._sequence}
-                                data-unix-time={log._unix_time ?? 0}
-                                data-virtual-index={virtualStart + index}
-                                use:measureLogEntry={log}
-                                role="listitem"
-                                aria-label={`${log.level} log: ${log.message || ''}`}
-                            >
-                                <!-- Debug Index in dev mode -->
-                                {#if version === 'dev'}
-                                <span class="text-primary-400 mr-1 text-xs font-mono opacity-40" title="Virtual index">
-                                    {virtualStart + index}
-                                </span>
-                                {/if}
-                                
-                                <!-- Timestamp -->
-                                <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0" aria-label="Log time">
-                                    {log.time}
-                                </span>
-                                
-                                <!-- Log level -->
-                                <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)} aria-label={`Log level: ${log.level}`}>
-                                    {log.level}
-                                </span>
-                                
-                                <!-- Content column for message and/or fields -->
-                                <div class="flex-grow">
-                                    <!-- Message (if present) -->
-                                    {#if log.message}
-                                        <span class="text-sm text-left leading-relaxed whitespace-pre-wrap break-words">
-                                            {log.message}
+                                class="w-full top-spacer"
+                                style="height: {virtualStart * Math.max(20, avgLogHeight)}px;"
+                                data-virtual-top-spacer="true"
+                            ></div>
+                            
+                            <!-- Status indicator for debugging -->
+                            {#if version === 'dev'}
+                                <div class="sticky top-0 z-50 bg-black/80 text-white text-xs p-1 border-b border-primary/30">
+                                    Showing logs {virtualStart} → {virtualEnd} of {filteredLogs.length}
+                                    <span class="text-primary">| Scroll: {scrollContainer?.scrollTop || 0}</span>
+                                </div>
+                            {/if}
+                            
+                            <!-- Virtual window of logs -->
+                            {#each filteredLogs.slice(virtualStart, virtualEnd + 1) as log, index (`${log._sequence || 0}-${virtualStart + index}`)}
+                                <div 
+                                    class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
+                                    py-1.5 px-3 border-b border-primary/10 
+                                    flex items-start justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
+                                    data-log-sequence={log._sequence}
+                                    data-unix-time={log._unix_time ?? 0}
+                                    data-virtual-index={virtualStart + index}
+                                    use:measureLogEntry={log}
+                                    role="listitem"
+                                    aria-label={`${log.level} log: ${log.message || ''}`}
+                                >
+                                    <!-- Debug Index in dev mode -->
+                                    {#if version === 'dev'}
+                                        <span class="text-primary-400 mr-1 text-xs font-mono opacity-40" title="Virtual index">
+                                            {virtualStart + index}
                                         </span>
                                     {/if}
                                     
-                                    <!-- Show structured fields inline if no message, otherwise in next line -->
-                                    {#if formatFields(log)}
-                                        <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words" aria-label="Additional log details">
-                                            {formatFields(log)}
-                                        </span>
-                                    {/if}
+                                    <!-- Timestamp -->
+                                    <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0" aria-label="Log time">
+                                        {log.time}
+                                    </span>
+                                    
+                                    <!-- Log level -->
+                                    <span class={"font-bold mt-0.5 text-sm mr-2 flex-shrink-0 min-w-[40px] " + getLevelClass(log.level)} aria-label={`Log level: ${log.level}`}>
+                                        {log.level}
+                                    </span>
+                                    
+                                    <!-- Content column for message and/or fields -->
+                                    <div class="flex-grow">
+                                        <!-- Message (if present) -->
+                                        {#if log.message}
+                                            <span class="text-sm text-left leading-relaxed whitespace-pre-wrap break-words">
+                                                {log.message}
+                                            </span>
+                                        {/if}
+                                        
+                                        <!-- Show structured fields inline if no message, otherwise in next line -->
+                                        {#if formatFields(log)}
+                                            <span class="{log.message ? 'block mt-0.5 ' : ''}text-primary/50 text-[11px] leading-relaxed whitespace-pre-wrap break-words" aria-label="Additional log details">
+                                                {formatFields(log)}
+                                            </span>
+                                        {/if}
+                                    </div>
                                 </div>
-                            </div>
-                        {/each}
-                        
-                        <!-- Bottom spacer -->
-                        <div 
-                            class="w-full"
-                            style="height: {(filteredLogs.length - virtualEnd - 1) * Math.max(10, avgLogHeight)}px;"
-                        ></div>
+                            {/each}
+                            
+                            <!-- Bottom spacer to maintain scroll position for logs below virtual window -->
+                            <div 
+                                class="w-full bottom-spacer"
+                                style="height: {(filteredLogs.length - virtualEnd - 1) * Math.max(20, avgLogHeight)}px;"
+                                data-virtual-bottom-spacer="true"
+                            ></div>
+                        </div>
                     {:else}
                         <!-- Non-virtualized rendering (all logs) with animations -->
                         {#each filteredLogs as log, index (log._sequence + '-' + index)}
