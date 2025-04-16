@@ -202,6 +202,27 @@
         if (isProcessing !== prevIsProcessing) {
             if (debug) console.log(`Processing state changed: ${prevIsProcessing} -> ${isProcessing}`);
             
+            // CRITICAL FIX: Ensure we're at the bottom when processing starts (if auto-scroll is enabled)
+            if (isProcessing && !prevIsProcessing && autoScroll && scrollContainer) {
+                if (debug) console.log("Processing started - forcing scroll to bottom");
+                
+                // Force to bottom immediately
+                scrollContainer.scrollTop = 0;
+                
+                // Also schedule some follow-up checks during processing
+                const processingChecks = [100, 500, 1000];
+                processingChecks.forEach(delay => {
+                    setTimeout(() => {
+                        if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                            if (scrollContainer.scrollTop !== 0) {
+                                if (debug) console.log(`Mid-processing scroll check (${delay}ms): fixing scrollTop=${scrollContainer.scrollTop}`);
+                                scrollContainer.scrollTop = 0;
+                            }
+                        }
+                    }, delay);
+                });
+            }
+            
             // When processing ends, schedule final scroll checks
             if (!isProcessing && prevIsProcessing && autoScroll) {
                 if (debug) console.log("Processing ended - scheduling final scroll checks");
@@ -384,7 +405,7 @@
         
         // IMPORTANT: If trying to enable auto-scroll but manual lock is active, refuse
         if (newValue && manualScrollLock && source !== 'userPreference') {
-            if (debug) console.warn(`Auto-scroll enable BLOCKED due to active manual scroll lock`);
+            if (debug) console.warn(`Auto-scroll enable BLOCKED due to active manual lock`);
             return; // Early return - don't enable against user's wishes
         }
         
@@ -396,24 +417,51 @@
             // When enabling auto-scroll:
             viewportAnchor = null; // Clear any saved position
             
-            // SCROLL ONLY IF the user toggled it on or it came from certain sources
-            // that are expected to scroll
-            if (source === 'userPreference' || source === 'scrolledToBottom' || source === 'stableAtBottom') {
-                trackScrollTrigger(`setAutoScroll:scroll:${source}`);
+            // CRITICAL ENHANCEMENT: ALWAYS scroll to bottom when enabling auto-scroll
+            // This ensures we move to the latest content immediately
+            if (scrollContainer && !isUserScrolling) {
+                // Track this scroll 
+                trackScrollTrigger(`setAutoScroll:forcedScroll:${source}`);
                 
-                // Force scroll to bottom with direct DOM manipulation
-                if (scrollContainer && !isUserScrolling && !manualScrollLock) {
-                    // Direct scrolling once - column-reverse layout needs scrollTop = 0 for bottom
+                // First direct scrolling attempt
+                withProgrammaticScroll(() => {
                     scrollContainer.scrollTop = 0;
+                });
+                
+                // Attempt with scrollTo API for better browser compatibility
+                try {
+                    scrollContainer.scrollTo({
+                        top: 0,
+                        behavior: 'auto' // Instant, not smooth
+                    });
+                } catch (e) {
+                    // Fallback if scrollTo isn't supported
+                    scrollContainer.scrollTop = 0;
+                }
+                
+                // For virtualized mode, also update the virtualization window
+                if (virtualEnabled && virtualizationReady) {
+                    // Update to show newest logs
+                    const lastLogIndex = filteredLogs.length - 1;
+                    virtualEnd = lastLogIndex; 
+                    virtualStart = Math.max(0, lastLogIndex - 60);
                     
-                    // One retry is sufficient
+                    // Force update
+                    updateVirtualization();
+                }
+                
+                // Multiple retries for reliability - critical for processing state
+                const retryDelays = [50, 100, 300, 500];
+                retryDelays.forEach(delay => {
                     setTimeout(() => {
                         if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
-                            trackScrollTrigger(`setAutoScroll:retry:${source}`);
-                            scrollContainer.scrollTop = 0;
+                            if (scrollContainer.scrollTop !== 0) {
+                                if (debug) console.log(`setAutoScroll retry (${delay}ms): forcing scrollTop=0`);
+                                scrollContainer.scrollTop = 0;
+                            }
                         }
-                    }, 50);
-                }
+                    }, delay);
+                });
             }
         } else {
             // When disabling auto-scroll, save position for restoration
@@ -615,8 +663,38 @@
     function scrollToBottom() {
         withProgrammaticScroll(() => {
             if (scrollContainer) {
-                // In column-reverse, scrollTop = 0 is the bottom
+                // CRITICAL FIX: In column-reverse, scrollTop = 0 is the visual bottom
+                // But in some browsers, with certain DOM structures, we need to set it repeatedly
+                // to ensure it actually reaches the bottom.
                 scrollContainer.scrollTop = 0;
+                
+                // Use setTimeout to double-check that we're really at bottom
+                setTimeout(() => {
+                    if (scrollContainer && scrollContainer.scrollTop !== 0 && !isUserScrolling) {
+                        if (debug) console.log(`Direct force to bottom in scrollToBottom (was ${scrollContainer.scrollTop})`);
+                        
+                        // Try with scrollTo API for more consistent behavior
+                        try {
+                            scrollContainer.scrollTo({
+                                top: 0,
+                                behavior: 'auto' // Use 'auto' not 'smooth' to ensure immediate effect
+                            });
+                        } catch (e) {
+                            // Fallback if scrollTo API fails
+                            scrollContainer.scrollTop = 0;
+                        }
+                    }
+                }, 10);
+                
+                // Set a final check with a longer timeout, as sometimes scrolling takes time
+                setTimeout(() => {
+                    if (scrollContainer && scrollContainer.scrollTop !== 0 && !isUserScrolling) {
+                        if (debug) console.log(`Final force to bottom in scrollToBottom (was still ${scrollContainer.scrollTop})`);
+                        
+                        // Try one more time
+                        scrollContainer.scrollTop = 0;
+                    }
+                }, 100);
             }
         });
     }
@@ -626,16 +704,42 @@
         // Cancel any existing timers
         cancelPostProcessingChecks();
         
-        // Use staggered timing to catch all rendering phases
-        const checkTimes = [100, 300, 600, 1000, 1500];
+        // CRITICAL FIX: Use staggered timing to catch all rendering phases
+        // Include more checks and longer times to ensure we catch all updates
+        const checkTimes = [100, 300, 600, 1000, 1500, 2000, 2500];
         
         checkTimes.forEach((delay, index) => {
             const timerId = window.setTimeout(() => {
                 // Only auto-scroll if it's enabled and user isn't manually scrolling
                 // This prevents forcing auto-scroll when it was disabled by user action
-                if (autoScroll && !isUserScrolling) {
+                if (autoScroll && !isUserScrolling && !manualScrollLock) {
                     if (debug) console.log(`Post-processing scroll check #${index + 1} at t+${delay}ms`);
-                    executeScrollToBottom(index === checkTimes.length - 1); // Force on last check
+                    
+                    // Check if we're not already at the bottom
+                    if (scrollContainer && scrollContainer.scrollTop !== 0) {
+                        if (debug) console.log(`Fixing scroll position in post-processing: ${scrollContainer.scrollTop} -> 0`);
+                    }
+                    
+                    // Use most direct method - force scrolling on last few checks
+                    if (index >= checkTimes.length - 3) {
+                        // For the last few checks, use direct DOM scrolling for maximum reliability
+                        withProgrammaticScroll(() => {
+                            if (scrollContainer) {
+                                scrollContainer.scrollTop = 0;
+                                
+                                // Force an additional check right after
+                                setTimeout(() => {
+                                    if (scrollContainer && scrollContainer.scrollTop !== 0 && autoScroll && !isUserScrolling) {
+                                        if (debug) console.log("Double-checking post-processing scroll");
+                                        scrollContainer.scrollTop = 0;
+                                    }
+                                }, 10);
+                            }
+                        });
+                    } else {
+                        // For earlier checks, use the regular method
+                        executeScrollToBottom(index === checkTimes.length - 1);
+                    }
                 }
             }, delay);
             
@@ -1874,6 +1978,7 @@
             bind:this={scrollContainer}
             role="region"
             aria-label="Log entries"
+            style="overscroll-behavior: contain; will-change: scroll-position;"
         >
             {#if filteredLogs.length === 0}
                 <!-- Empty state -->
