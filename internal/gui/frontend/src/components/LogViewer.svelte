@@ -86,6 +86,9 @@
     
     // Timer management
     let postProcessingTimers: number[] = [];
+    let scrollMonitorInterval: number | null = null; // For polling scrollTop changes
+    let lastKnownScrollTop = 0; // Track last known scrollTop for monitoring
+    let scheduleForceScrollTimer: number | null = null; // Timer for scheduleForceScroll
     
     // DEBUG: Tracking which parts of the code trigger scrolls
     let scrollTriggerHistory: {id: string, timestamp: number}[] = [];
@@ -236,8 +239,16 @@
         // Check auto-scroll state and scroll position
         const exactlyAtBottom = scrollContainer.scrollTop === 0;
         
+        // CRITICAL FIX: Always ensure we're at bottom if auto-scroll is enabled
+        if (autoScroll && !isUserScrolling && !manualScrollLock) {
+            // Force to bottom immediately - this is essential for both virtualized and non-virtualized modes
+            if (scrollContainer.scrollTop !== 0) {
+                if (debug) console.log(`Force scrollTop=0 for auto-scroll (current=${scrollContainer.scrollTop})`);
+                scrollContainer.scrollTop = 0;
+            }
+        }
         // If auto-scroll is on but we're not at the bottom, this is inconsistent
-        if (autoScroll && !exactlyAtBottom && !isUserScrolling) {
+        else if (autoScroll && !exactlyAtBottom && !isUserScrolling) {
             if (debug) console.log(`Detected inconsistency: auto-scroll ON but scrollTop=${scrollContainer.scrollTop}px`);
             // Turn off auto-scroll
             setAutoScroll(false, 'reactiveInconsistency');
@@ -272,9 +283,15 @@
                 if (pendingScrollToBottom && autoScroll) {
                     pendingScrollToBottom = false;
                     // Verify we're still at bottom and auto-scroll is on before scrolling
-                    if (scrollContainer && scrollContainer.scrollTop === 0 && autoScroll) {
+                    if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
                         scrollContainer.scrollTop = 0; // Direct DOM manipulation is most reliable
                     }
+                }
+                
+                // CRITICAL: For non-virtualized mode + auto-scroll, ensure we're at bottom after animation
+                if (!virtualEnabled && autoScroll && !isUserScrolling && !manualScrollLock) {
+                    if (debug) console.log("Force to bottom after animation in non-virtualized mode");
+                    scrollContainer.scrollTop = 0;
                 }
             }, 350); // Slightly longer than transition duration to ensure completion
         }
@@ -305,8 +322,9 @@
                 const stillAtBottom = scrollContainer && scrollContainer.scrollTop === 0;
                 
                 // Restore scroll position using the appropriate strategy
-                if (stillAtBottom && autoScroll && !isUserScrolling && !manualScrollLock) {
-                    // If at bottom, maintain position at bottom with tracked scrolling
+                if (autoScroll && !isUserScrolling && !manualScrollLock) {
+                    // IMPORTANT: Force to bottom if auto-scroll is enabled - regardless of current position
+                    // This ensures auto-scroll always works even in complex DOM update scenarios
                     scrollContainer.scrollTop = 0;
                 } else if (!autoScroll && viewportAnchor) {
                     // Otherwise restore anchor position
@@ -321,6 +339,18 @@
                 
                 // Update return to bottom button visibility
                 updateReturnToBottomButtonVisibility();
+                
+                // FINAL SAFETY: One last scroll check for auto-scroll enabled
+                if (autoScroll && !isUserScrolling && !manualScrollLock) {
+                    setTimeout(() => {
+                        if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                            if (scrollContainer.scrollTop !== 0) {
+                                if (debug) console.log("Final safety scroll to bottom");
+                                scrollContainer.scrollTop = 0;
+                            }
+                        }
+                    }, 50);
+                }
             }, 10); // Small delay to batch updates
         }
     }
@@ -515,25 +545,19 @@
         // Track this scroll trigger
         trackScrollTrigger('scrollToBottomWithStrategy:main');
         
-        // Direct DOM access but with tracking
+        // First, handle the immediate scroll action
         withProgrammaticScroll(() => {
             scrollContainer.scrollTop = 0;
         });
         
-        // Special cases
-        if (!virtualEnabled && animationInProgress) {
-            // For animations, queue for later
-            pendingScrollToBottom = true;
-            return;
-        }
-        
-        // For virtualized mode, ensure range includes newest logs
+        // Special treatment for virtualization mode
         if (virtualEnabled && virtualizationReady) {
+            // For virtualized mode, first ensure range includes newest logs
             const lastLogIndex = filteredLogs.length - 1;
             if (virtualEnd < lastLogIndex) {
                 // Update range to include newest logs
                 virtualEnd = lastLogIndex;
-                virtualStart = Math.max(0, virtualEnd - visibleLogCount - BUFFER_SIZE);
+                virtualStart = Math.max(0, lastLogIndex - 60); // Show at least 60 latest logs
                 
                 // Force scroll after range update
                 tick().then(() => {
@@ -544,6 +568,46 @@
                     }
                 });
             }
+            
+            // Add another safety check after a brief delay
+            setTimeout(() => {
+                if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                    scrollContainer.scrollTop = 0;
+                    // Also update virtualization window again
+                    updateVirtualization();
+                }
+            }, 50);
+        }
+        // Special treatment for non-virtualized mode with animations 
+        else if (!virtualEnabled && animationInProgress) {
+            // For animations, queue for later and also execute right away
+            pendingScrollToBottom = true;
+            
+            // Try to scroll right away anyway
+            withProgrammaticScroll(() => {
+                scrollContainer.scrollTop = 0;
+            });
+            
+            // Also set another safety check after animation should be done
+            setTimeout(() => {
+                if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                    withProgrammaticScroll(() => {
+                        if (debug) console.log("Post-animation scroll safety check");
+                        scrollContainer.scrollTop = 0;
+                    });
+                }
+            }, 400); // Just after animation should be complete
+        }
+        // For all other cases
+        else {
+            // Add another safety check after a brief delay - this is critical for all cases
+            setTimeout(() => {
+                if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
+                    withProgrammaticScroll(() => {
+                        scrollContainer.scrollTop = 0;
+                    });
+                }
+            }, 50);
         }
     }
     
@@ -590,18 +654,19 @@
     // Force scroll after a delay - use this for high volume scenarios
     function scheduleForceScroll(delay = 300) {
         // Cancel any existing timer
-        if (forceScrollTimer) {
-            clearTimeout(forceScrollTimer);
+        if (scheduleForceScrollTimer) {
+            clearTimeout(scheduleForceScrollTimer);
         }
         
         // Set a new timer for force scroll
-        const forceScrollTimer = window.setTimeout(() => {
+        scheduleForceScrollTimer = window.setTimeout(() => {
             // Use the reactive autoScroll boolean here
             if (autoScroll) {
                 // Force scroll regardless of other state
                 if (debug) console.log("Executing force scroll after high volume");
                 forceScrollToBottom();
             }
+            scheduleForceScrollTimer = null;
         }, delay);
     }
     
@@ -695,12 +760,21 @@
         // 1. Auto-scroll is disabled
         // 2. User is not at the bottom
         // 3. There are logs to view
-        const notAtBottom = scrollContainer ? scrollContainer.scrollTop > 0 : false;
         
-        showReturnToBottomButton = 
-            !autoScroll && 
-            notAtBottom &&
-            filteredLogs.length > 0;
+        if (!scrollContainer || !filteredLogs.length) {
+            showReturnToBottomButton = false;
+            return;
+        }
+        
+        // In column-reverse layout, bottom is at scrollTop = 0
+        // Use a small tolerance (1px) to account for rounding errors
+        const notAtBottom = scrollContainer.scrollTop > 1;
+        
+        showReturnToBottomButton = !autoScroll && notAtBottom;
+        
+        if (debug && showReturnToBottomButton) {
+            console.log(`Return to bottom button visible (scrollTop=${scrollContainer.scrollTop})`);
+        }
     }
     
     // Handler for the return to bottom button
@@ -713,8 +787,14 @@
     
     // --- Scroll Event Handling ---
     function handleScroll(): void {
+        // CRITICAL DEBUGGING - Add this console log to verify scroll events are detected
+        if (debug) console.log("⚡ SCROLL EVENT DETECTED");
+        
         // Always ignore programmatic scrolling
-        if (isProgrammaticScroll) return;
+        if (isProgrammaticScroll) {
+            if (debug) console.log("Ignoring programmatic scroll event");
+            return;
+        }
         
         // Mark as user scrolling - SET THIS FLAG IMMEDIATELY
         isUserScrolling = true;
@@ -736,17 +816,37 @@
             manualScrollLockTimer = null;
         }, 3000);
         
-        // Use RAFrame for precise timing
+        // CRITICAL FIX: Handle virtualization update immediately in a separate animation frame
+        // This is critical to ensure the virtualization is updated properly during scrolling
+        if (virtualEnabled && virtualizationReady) {
+            requestAnimationFrame(() => {
+                // Skip if no longer scrolling (e.g., if event was cancellation)
+                if (!isUserScrolling) return;
+                
+                // Update the virtualization window
+                updateVirtualization();
+                
+                // Schedule another update after a short delay
+                // This ensures smoother scrolling with multiple updates
+                setTimeout(() => {
+                    if (virtualEnabled && virtualizationReady) {
+                        updateVirtualization();
+                    }
+                }, 16); // ~1 frame at 60fps
+            });
+        }
+        
+        // Use RAFrame for precise timing of auto-scroll and metrics updates
         scrollRAF = requestAnimationFrame(() => {
             if (!scrollContainer) {
                 scrollRAF = null;
                 return;
             }
             
-            // CRITICAL FIX: Get absolute value of scrollTop
-            // In column-reverse layout, scrollTop is negative when scrolled up
-            // We use absolute value for easier handling
-            const scrollTop = Math.abs(scrollContainer.scrollTop);
+            // Get scrollTop directly
+            const scrollTop = scrollContainer.scrollTop;
+            
+            if (debug) console.log(`Handling scroll: scrollTop=${scrollTop}px, height=${scrollContainer.scrollHeight}px, client=${scrollContainer.clientHeight}px`);
             
             // IMPORTANT: If user has scrolled away from bottom and auto-scroll is on,
             // immediately disable auto-scroll before doing anything else
@@ -761,13 +861,8 @@
                 showAutoScrollToastMessage("Auto-scroll disabled - scroll to bottom to re-enable");
             }
             
-            // Update scroll metrics with corrected scrollTop value
+            // Update scroll metrics
             updateScrollMetrics(scrollTop);
-            
-            // Virtualization update if needed
-            if (virtualizationReady && virtualEnabled) {
-                updateVirtualization();
-            }
             
             // Update return to bottom button visibility
             updateReturnToBottomButtonVisibility();
@@ -778,15 +873,19 @@
                 // Only clear the flag if we're not in a locked state
                 // This prevents clearing too early when user is actively reading
                 if (!manualScrollLock) {
+                    if (debug) console.log("User scrolling flag cleared after timeout");
                     isUserScrolling = false;
                     
-                    if (debug) console.log("User scrolling flag cleared - manual scroll lock: " + manualScrollLock);
+                    // Do one final virtualization update when scrolling ends
+                    if (virtualizationReady && virtualEnabled) {
+                        updateVirtualization();
+                    }
                 } else {
-                    if (debug) console.log("Keeping user scrolling flag due to active manual scroll lock");
+                    if (debug) console.log("Keeping user scrolling flag due to active manual lock");
                 }
                 
-                // Get final scroll position - absolute value for easier comparison
-                const finalScrollTop = Math.abs(scrollContainer?.scrollTop || 0);
+                // Get final scroll position
+                const finalScrollTop = scrollContainer?.scrollTop || 0;
                 
                 // Check if we're exactly at the bottom (scrollTop = 0 in column-reverse)
                 if (scrollContainer && finalScrollTop === 0) {
@@ -900,56 +999,134 @@
     
     // Reset virtualization settings
     function resetVirtualization(): void {
+        // Reset view range
         virtualStart = 0;
-        virtualEnd = 0;
+        virtualEnd = Math.min(100, filteredLogs.length - 1); // Start with a reasonable number of logs
         viewportAnchor = null;
         
+        if (debug) console.log("Resetting virtualization");
+        
+        // Use setTimeout with tick() to ensure DOM is updated
         setTimeout(async () => {
-            await tick(); // Ensure DOM update
+            await tick(); // Ensure DOM update first
+            
+            // Re-measure everything
             recalculatePositions();
             
-            if (virtualEnabled && virtualizationReady) {
-                updateVirtualization();
+            if (virtualEnabled) {
+                if (virtualizationReady) {
+                    // Real virtualization update
+                    updateVirtualization();
+                    
+                    // Log the state if in debug mode
+                    if (debug) console.log(`Virtualization reset complete: ${virtualStart}-${virtualEnd}`);
+                } else {
+                    // Mark virtualization as ready after this initial setup
+                    virtualizationReady = true;
+                    updateVirtualization();
+                    
+                    if (debug) console.log("Virtualization marked as ready during reset");
+                }
             }
             
-            // If auto scroll enabled, scroll to bottom
-            if (autoScroll) {
+            // If auto-scroll is enabled, ensure we're at the bottom
+            if (autoScroll && scrollContainer) {
+                if (debug) console.log("Scrolling to bottom after virtualization reset");
                 scrollToBottomWithStrategy();
             }
-        }, 50);
+        }, 100); // Slightly longer timeout to ensure complete DOM updates
     }
     
     // Toggle virtualization manually (dev mode)
     function toggleVirtualization(): void {
         manualVirtualToggle = true;
         virtualEnabled = !virtualEnabled;
-        resetVirtualization();
+        
+        if (debug) console.log(`Toggling virtualization: ${virtualEnabled ? 'ON' : 'OFF'}`);
+        
+        // Reset all virtualization state completely
+        virtualStart = 0;
+        virtualEnd = virtualEnabled ? Math.min(100, filteredLogs.length - 1) : 0;
+        
+        // When toggling OFF, ensure we clean up any absolute positioning
+        if (!virtualEnabled) {
+            if (debug) console.log("Disabling virtualization - cleaning up positioning");
+            
+            // Force immediate re-render with clean slate
+            setTimeout(async () => {
+                await tick();
+                recalculatePositions();
+                
+                // If auto-scroll was on, ensure we're at the bottom
+                if (autoScroll && scrollContainer) {
+                    scrollContainer.scrollTop = 0;
+                }
+            }, 10);
+        } else {
+            // When enabling, do a complete initialization
+            if (debug) console.log("Enabling virtualization - initializing view");
+            virtualizationReady = true; // Mark ready immediately
+            resetVirtualization();
+        }
     }
     
     // Calculate positions for all logs based on individual heights
     function recalculatePositions(): void {
-        let currentPosition = 0;
-        totalLogHeight = 0;
-
-        // Calculate positions for filteredLogs
+        // CRITICAL FIX: Simplify position calculation logic for more reliability
+        
+        // Safety check for empty logs
+        if (filteredLogs.length === 0) {
+            virtualContainerHeight = 0;
+            totalLogHeight = 0;
+            return;
+        }
+        
+        // Calculate statistics only
+        let heightsTotal = 0;
+        let heightCount = 0;
+        let minHeight = Infinity;
+        let maxHeight = 0;
+        
+        // Scan measured logs to get average height
         for (const log of filteredLogs) {
             const sequence = log._sequence || 0;
-            logPositions.set(sequence, currentPosition);
-
-            // Use actual height if measured, otherwise use average
-            const height = logHeights.get(sequence) || avgLogHeight + POSITION_BUFFER;
-            currentPosition += height;
-            totalLogHeight += height;
+            if (sequence === null || sequence === undefined) continue;
+            
+            const height = logHeights.get(sequence);
+            if (height) {
+                // Only include actual measured heights in statistics
+                const cappedHeight = Math.min(height, 100); // Cap at 100px
+                heightsTotal += cappedHeight;
+                heightCount++;
+                minHeight = Math.min(minHeight, cappedHeight);
+                maxHeight = Math.max(maxHeight, cappedHeight);
+            }
         }
-
-        // Update container height
+        
+        // Calculate new average height if we have enough samples
+        if (heightCount > 10) {
+            // Use a safe average that prevents unreasonable values
+            const newAvg = heightsTotal / heightCount;
+            
+            // Only update if reasonable (not too small, not too large)
+            if (newAvg >= 20 && newAvg <= 100) {
+                avgLogHeight = newAvg;
+            } else if (debug) {
+                console.warn(`Skipping unreasonable average height update: ${newAvg}px`);
+            }
+        }
+        
+        // Simplified approach: Use average height × count for total height
+        // This is much more reliable than summing individual heights
+        const safeAvgHeight = Math.max(20, avgLogHeight);
+        totalLogHeight = filteredLogs.length * safeAvgHeight;
+        
+        // Set virtual container height
         virtualContainerHeight = totalLogHeight;
-
-        // Recalculate average height
-        if (logHeights.size > 0) {
-            let total = 0;
-            logHeights.forEach(height => total += height);
-            avgLogHeight = (total / logHeights.size) - POSITION_BUFFER;
+        
+        // Log statistics in debug mode, but only occasionally
+        if (debug && heightCount > 0 && filteredLogs.length % 100 === 0) {
+            console.log(`Height stats: logs=${filteredLogs.length}, samples=${heightCount}, avg=${safeAvgHeight.toFixed(1)}px, min=${minHeight}px, max=${maxHeight}px`);
         }
     }
     
@@ -991,37 +1168,117 @@
     
     // Update virtualization calculations for column-reverse layout
     function updateVirtualization(): void {
-        if (!scrollContainer || !virtualEnabled || !virtualizationReady) return;
+        if (!scrollContainer || !virtualEnabled || !virtualizationReady) {
+            if (debug) console.log("Skipping virtualization update - not ready or enabled");
+            return; 
+        }
         
-        const { scrollTop, clientHeight } = scrollContainer;
+        const { scrollTop, clientHeight, scrollHeight } = scrollContainer;
+        
+        // DIAGNOSTIC LOG - Add only when debugging scroll issues
+        if (debug) console.log(`VIRTUALIZATION UPDATE - scrollTop=${scrollTop}, clientHeight=${clientHeight}, scrollHeight=${scrollHeight}`);
+        
         viewportHeight = clientHeight;
         
-        // When auto-scroll is enabled, ensure we prioritize latest logs
+        // Special case for empty logs
+        if (filteredLogs.length === 0) {
+            virtualStart = 0;
+            virtualEnd = 0;
+            visibleLogCount = 0;
+            return;
+        }
+        
+        // CRITICAL SAFETY CHECK - Ensure we're always showing at least SOME logs
+        // If filteredLogs has content but we're not showing anything, this is a critical error
+        if (filteredLogs.length > 0 && (virtualStart > virtualEnd || virtualEnd < 0 || virtualStart >= filteredLogs.length)) {
+            if (debug) console.error(`CRITICAL: Invalid virtualization window detected - resetting to show newest logs`);
+            
+            // Force to show the latest logs as a fallback
+            const totalLogs = filteredLogs.length;
+            virtualEnd = totalLogs - 1;
+            virtualStart = Math.max(0, virtualEnd - 60); // Show at least 60 latest logs
+            visibleLogCount = virtualEnd - virtualStart + 1;
+            
+            // Force a recalculation of positions
+            recalculatePositions();
+            return;
+        }
+        
+        // When auto-scroll is enabled, ensure we prioritize latest logs (newest, at the bottom in column-reverse)
         if (autoScroll && isScrolledToBottom()) {
-            // Start from the end of the list and work backwards
+            // Start from the newest logs (end of the array for filteredLogs which are in timestamp order)
             const lastLogIndex = filteredLogs.length - 1;
             virtualEnd = lastLogIndex;
             
             // Determine how many logs fit in the viewport plus buffer
-            const visibleCount = Math.ceil(clientHeight / (avgLogHeight + POSITION_BUFFER));
-            virtualStart = Math.max(0, lastLogIndex - visibleCount - BUFFER_SIZE);
+            const safeAvgHeight = Math.max(25, avgLogHeight); // Use a reasonable minimum
+            const visibleCount = Math.max(60, Math.ceil(clientHeight / safeAvgHeight)); // Show at least 60 logs
+            virtualStart = Math.max(0, lastLogIndex - visibleCount);
             
             // Update visible log count
             visibleLogCount = virtualEnd - virtualStart + 1;
+            
+            if (debug) console.log(`Auto-scroll virtualization: showing ${virtualStart}-${virtualEnd} (${visibleLogCount} logs)`);
         } else {
-            // For scrolled state, determine visible range
-            // Convert scrollTop for column-reverse layout
-            const adjustedScrollTop = totalLogHeight - clientHeight - scrollTop;
+            // For regular scrolling, we need to determine which logs are visible
+            // SIMPLIFIED APPROACH: Use a simple ratio calculation that's more reliable
             
-            // Find log at top and bottom of viewport with adjusted positions
-            const topLogIndex = findLogAtScrollPosition(adjustedScrollTop);
-            const bottomLogIndex = findLogAtScrollPosition(adjustedScrollTop + clientHeight);
+            const totalLogs = filteredLogs.length;
             
-            // Set virtual range with buffer
-            virtualStart = Math.max(0, topLogIndex - BUFFER_SIZE);
-            virtualEnd = Math.min(filteredLogs.length - 1, bottomLogIndex + BUFFER_SIZE);
+            // Calculate available scroll space and normalized scroll position
+            const maxScrollPosition = Math.max(1, scrollHeight - clientHeight); // Ensure non-zero
+            
+            // Handle extreme cases (very small/large scrollTop)
+            if (scrollTop <= 0) {
+                // At the bottom (newest logs) in column-reverse
+                virtualEnd = totalLogs - 1;
+                virtualStart = Math.max(0, virtualEnd - 60);
+            } else if (scrollTop >= maxScrollPosition) {
+                // At the top (oldest logs) in column-reverse
+                virtualStart = 0;
+                virtualEnd = Math.min(totalLogs - 1, 60);
+            } else {
+                // Somewhere in the middle - calculate based on scroll percentage
+                // For column-reverse: 0% = at bottom (newest), 100% = at top (oldest)
+                const scrollPercentage = scrollTop / maxScrollPosition;
+                
+                // Map the percentage to an index in the logs array
+                // If scrollPercentage = 0, we want the newest logs (end of array)
+                // If scrollPercentage = 1, we want the oldest logs (start of array)
+                const centerIndex = Math.floor((1 - scrollPercentage) * totalLogs);
+                
+                // Calculate a window around this center point
+                const halfWindow = 30; // Half the number of logs we want to show
+                virtualStart = Math.max(0, centerIndex - halfWindow);
+                virtualEnd = Math.min(totalLogs - 1, centerIndex + halfWindow);
+            }
+            
+            // SAFETY: Ensure window is at least 60 logs if possible
+            if (virtualEnd - virtualStart < 60 && totalLogs > 60) {
+                if (virtualStart === 0) {
+                    virtualEnd = Math.min(totalLogs - 1, 60);
+                } else if (virtualEnd === totalLogs - 1) {
+                    virtualStart = Math.max(0, totalLogs - 61);
+                }
+            }
             
             // Update visible log count
+            visibleLogCount = virtualEnd - virtualStart + 1;
+            
+            if (debug) {
+                console.log(`Simple scroll virtualization: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}`);
+                console.log(`Showing logs ${virtualStart}-${virtualEnd} (${visibleLogCount} logs)`);
+            }
+        }
+        
+        // FINAL SAFETY CHECK - Make absolutely sure we're showing something
+        if (virtualStart > virtualEnd || virtualEnd < 0 || virtualStart >= filteredLogs.length) {
+            if (debug) console.error("CRITICAL: Invalid virtualization window after calculation - showing latest logs");
+            
+            // Force to show the latest logs as a last resort
+            const totalLogs = filteredLogs.length;
+            virtualEnd = totalLogs - 1;
+            virtualStart = Math.max(0, virtualEnd - 60);
             visibleLogCount = virtualEnd - virtualStart + 1;
         }
     }
@@ -1134,14 +1391,38 @@
     function measureLogEntry(node: HTMLElement, log: LogMessage) {
         const sequence = log._sequence || 0;
         
+        // IMPORTANT: Skip for logs without a valid sequence
+        if (sequence === undefined || sequence === null) {
+            if (debug) console.warn("Skipping measurement for log with invalid sequence");
+            return {};
+        }
+        
+        // Only create one observer per unique sequence
+        if (node.hasAttribute('data-observed')) {
+            return {};
+        }
+        
+        // Mark node as being observed
+        node.setAttribute('data-observed', 'true');
+        
         // Create ResizeObserver to measure the actual height
         const resizeObserver = new ResizeObserver(entries => {
             // Use getBoundingClientRect for complete height including padding/borders
             const rect = node.getBoundingClientRect();
-            const height = Math.max(Math.ceil(rect.height), 20) + POSITION_BUFFER;
             
-            // Only update if height changed significantly (>1px)
-            if (Math.abs((logHeights.get(sequence) || 0) - height) > 1) {
+            // CRITICAL FIX: Use a reasonable maximum height (100px) to prevent excessive growth
+            // This prevents the ever-growing height issue
+            const measuredHeight = Math.ceil(rect.height);
+            const height = Math.min(Math.max(measuredHeight, 20), 100) + POSITION_BUFFER;
+            
+            // Only update if height changed significantly (>1px) and is reasonable
+            const currentHeight = logHeights.get(sequence) || 0;
+            if (Math.abs(currentHeight - height) > 1) {
+                if (debug && currentHeight > 0 && height > currentHeight * 1.5) {
+                    console.warn(`Height increase detected for log ${sequence}: ${currentHeight}px -> ${height}px`);
+                }
+                
+                // Update height map
                 logHeights.set(sequence, height);
                 
                 // Mark measurements as having started
@@ -1207,6 +1488,9 @@
         return {
             destroy() {
                 resizeObserver.disconnect();
+                if (node.hasAttribute('data-observed')) {
+                    node.removeAttribute('data-observed');
+                }
             }
         };
     }
@@ -1288,6 +1572,8 @@
     }
 
     onMount(async () => {
+        if (debug) console.log("LogViewer component mounting");
+        
         // CRITICAL FIX: Set up a velocity decay timer that aggressively decays velocity
         // This ensures velocity goes to zero quickly when scrolling stops
         velocityDecayTimer = window.setInterval(() => {
@@ -1311,6 +1597,54 @@
             }
         });
         
+        // IMPORTANT: Set up a log position debug overlay in debug mode
+        if (debug) {
+            console.log("Debug mode active - enabling verbose logging");
+        }
+        
+        // CRITICAL: Set up scroll monitor interval to guarantee scroll events are always caught
+        // This helps when normal scroll events might be missed due to browser performance issues
+        scrollMonitorInterval = window.setInterval(() => {
+            if (!scrollContainer) return;
+            
+            // Store current scrollTop
+            const currentScrollTop = scrollContainer.scrollTop;
+            
+            // Check if scrollTop has changed since last check
+            if (lastKnownScrollTop !== currentScrollTop) {
+                if (debug) console.log(`Scroll monitor detected change: ${lastKnownScrollTop} -> ${currentScrollTop}`);
+                
+                // Update last known value
+                lastKnownScrollTop = currentScrollTop;
+                
+                // If virtualization is enabled, update it directly
+                if (virtualEnabled && virtualizationReady) {
+                    updateVirtualization();
+                }
+            }
+        }, 100); // Check every 100ms
+        
+        // Add scroll event listener ASAP
+        if (scrollContainer) {
+            if (debug) console.log("Adding scroll event listener");
+            scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+            // Store initial scrollTop
+            lastKnownScrollTop = scrollContainer.scrollTop;
+        } else {
+            if (debug) console.warn("No scroll container yet - will retry scroll listener setup");
+            // Retry after a short delay if container isn't available yet
+            setTimeout(() => {
+                if (scrollContainer) {
+                    if (debug) console.log("Adding scroll event listener (retry)");
+                    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+                    // Store initial scrollTop
+                    lastKnownScrollTop = scrollContainer.scrollTop;
+                } else {
+                    console.error("CRITICAL: Failed to set up scroll listener - no container");
+                }
+            }, 100);
+        }
+        
         // Initial update
         await tick();
         recalculatePositions();
@@ -1325,30 +1659,10 @@
             scrollContainer.scrollTop = 0;
         }
         
-        // Set a timeout to enable virtualization after initial rendering
-        setTimeout(async () => {
-            // By this point, some logs should have been measured
-            await tick();
-            
-            initialMeasurementsComplete = true;
-            virtualizationReady = true;
-            
-            recalculatePositions();
-            
-            if (virtualEnabled) {
-                updateVirtualization();
-            }
-            
-            // Double-check auto-scroll state - but be careful to check for user interaction
-            if (autoScroll && scrollContainer && !isUserScrolling && !manualScrollLock) {
-                // Only do this initial setup scroll if we're supposed to auto-scroll
-                trackScrollTrigger('onMount:setupComplete');
-                scrollContainer.scrollTop = 0;
-            }
-        }, 200);
-        
-        // Set up ResizeObserver to detect size changes
+        // Set up ResizeObserver to detect size changes for the container and window
         const resizeObserver = new ResizeObserver(() => {
+            if (debug) console.log("Resize detected");
+            
             // Save scroll position
             const wasAtBottom = isScrolledToBottom(0); // Use strict check (exactly at bottom)
             
@@ -1356,9 +1670,10 @@
                 saveViewportAnchor();
             }
             
-            // Update layout
+            // Update layout measurements
             recalculatePositions();
             
+            // Update virtual window if needed
             if (virtualEnabled && virtualizationReady) {
                 updateVirtualization();
             }
@@ -1380,25 +1695,72 @@
             updateReturnToBottomButtonVisibility();
         });
         
+        // Observe both the scroll container and document
         if (scrollContainer) {
             resizeObserver.observe(scrollContainer);
             resizeObserver.observe(document.documentElement);
-            
-            // Add scroll event listener
-            scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+        } else {
+            if (debug) console.warn("No scroll container for ResizeObserver - will observe document only");
+            resizeObserver.observe(document.documentElement);
         }
+        
+        // Set a timeout to enable virtualization after initial rendering
+        setTimeout(async () => {
+            if (debug) console.log("Enabling virtualization after initial render");
+            
+            // By this point, some logs should have been measured
+            await tick();
+            
+            // Start the virtualization system
+            initialMeasurementsComplete = true;
+            virtualizationReady = true;
+            
+            // Recalculate positions and update virtualization
+            recalculatePositions();
+            
+            if (virtualEnabled) {
+                if (debug) console.log("Initializing virtual display");
+                updateVirtualization();
+            }
+            
+            // Double-check auto-scroll state - but be careful to check for user interaction
+            if (autoScroll && scrollContainer && !isUserScrolling && !manualScrollLock) {
+                // Only do this initial setup scroll if we're supposed to auto-scroll
+                trackScrollTrigger('onMount:setupComplete');
+                scrollContainer.scrollTop = 0;
+            }
+            
+            // One final update after a bit more delay to catch any missed positions
+            setTimeout(() => {
+                if (virtualEnabled && virtualizationReady) {
+                    recalculatePositions();
+                    updateVirtualization();
+                    
+                    if (debug) console.log(`Final virtualization setup: displaying logs ${virtualStart}-${virtualEnd}`);
+                }
+            }, 300);
+        }, 200);
         
         // onMount cleanup function
         return () => {
+            if (debug) console.log("LogViewer component unmounting - cleaning up resources");
+            
+            // Clear all timers and listeners
             if (velocityDecayTimer) clearInterval(velocityDecayTimer);
+            if (scrollMonitorInterval) clearInterval(scrollMonitorInterval);
             if (scrollContainer) scrollContainer.removeEventListener('scroll', handleScroll);
             if (userScrollTimeout) clearTimeout(userScrollTimeout);
             if (scrollRAF) cancelAnimationFrame(scrollRAF);
             if (batchMeasurementTimer) clearTimeout(batchMeasurementTimer);
             if (manualScrollLockTimer) clearTimeout(manualScrollLockTimer);
             if (autoScrollToastTimer) clearTimeout(autoScrollToastTimer);
+            if (scheduleForceScrollTimer) clearTimeout(scheduleForceScrollTimer);
             cancelPostProcessingChecks();
+            
+            // Disconnect observers
             resizeObserver.disconnect();
+            
+            // Remove key listeners
             document.removeEventListener('keydown', toggleDebugOverlay);
         };
     });
@@ -1526,11 +1888,22 @@
                     class="relative w-full" 
                     style="height: {virtualEnabled && virtualizationReady ? `${virtualContainerHeight}px` : 'auto'}"
                     aria-hidden={virtualEnabled ? "true" : "false"}
+                    data-virtual-container="true"
                 >
+                    <!-- Visual indicators for virtualization mode -->
+                    {#if virtualEnabled}
+                        <!-- Show virtual range indicator for easier debugging -->
+                        <div 
+                            class="fixed top-2 right-2 z-50 bg-black/80 text-primary text-xs px-2 py-1 rounded pointer-events-none flex items-center gap-2"
+                        >
+                            <span class="text-green-400 font-bold">VIRTUAL MODE</span>
+                            <span>Showing {visibleLogCount} of {filteredLogs.length} logs ({virtualStart}-{virtualEnd})</span>
+                        </div>
+                    {/if}
                     <!-- Initial loading state before virtualization is ready -->
                     {#if virtualEnabled && !virtualizationReady}
                         <!-- Show the first 50 logs in non-virtualized mode until virtualization is ready -->
-                        {#each filteredLogs.slice(0, 50) as log (log._sequence)}
+                        {#each filteredLogs.slice(0, 50 + 1) as log, index (log._sequence + '-' + index)}
                             <div 
                                 class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
                                 py-1.5 px-3 border-b border-primary/10 
@@ -1571,18 +1944,33 @@
                         {/each}
                     <!-- Virtualized rendering once measurements are ready -->
                     {:else if virtualEnabled && virtualizationReady}
-                        {#each filteredLogs.slice(virtualStart, virtualEnd + 1) as log (log._sequence)}
+                        <!-- CRITICAL FIX: Use a fixed-positioned dummy spacer at top and bottom 
+                             instead of absolute positioning each element -->
+                        <div 
+                            class="w-full"
+                            style="height: {virtualStart * Math.max(10, avgLogHeight)}px;"
+                        ></div>
+                        
+                        <!-- Show virtualized logs in simple, scrollable list -->
+                        {#each filteredLogs.slice(virtualStart, virtualEnd + 1) as log, index (log._sequence + '-' + index)}
                             <div 
                                 class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
                                 py-1.5 px-3 border-b border-primary/10 
                                 flex items-start justify-start text-left w-full hover:bg-white/5 transition-colors duration-200"
-                                style="position: absolute; bottom: {totalLogHeight - (logPositions.get(log._sequence) || 0) - (logHeights.get(log._sequence) || 0)}px; left: 0; right: 0;"
                                 data-log-sequence={log._sequence}
                                 data-unix-time={log._unix_time ?? 0}
+                                data-virtual-index={virtualStart + index}
                                 use:measureLogEntry={log}
                                 role="listitem"
                                 aria-label={`${log.level} log: ${log.message || ''}`}
                             >
+                                <!-- Debug Index in dev mode -->
+                                {#if version === 'dev'}
+                                <span class="text-primary-400 mr-1 text-xs font-mono opacity-40" title="Virtual index">
+                                    {virtualStart + index}
+                                </span>
+                                {/if}
+                                
                                 <!-- Timestamp -->
                                 <span class="text-primary/60 mr-2 mt-0.5 text-xs flex-shrink-0" aria-label="Log time">
                                     {log.time}
@@ -1611,9 +1999,15 @@
                                 </div>
                             </div>
                         {/each}
+                        
+                        <!-- Bottom spacer -->
+                        <div 
+                            class="w-full"
+                            style="height: {(filteredLogs.length - virtualEnd - 1) * Math.max(10, avgLogHeight)}px;"
+                        ></div>
                     {:else}
                         <!-- Non-virtualized rendering (all logs) with animations -->
-                        {#each filteredLogs as log (log._sequence)}
+                        {#each filteredLogs as log, index (log._sequence + '-' + index)}
                             <div 
                                 class="log-entry {log.behavior ? behaviorColors[log.behavior] : 'text-white/90'}
                                 py-1.5 px-3 border-b border-primary/10 
@@ -1696,23 +2090,42 @@
 
     <!-- Debug Auto-Scroll Overlay -->
     {#if version === 'dev' && debugAutoScroll && scrollContainer}
-        <!-- Debug overlay for auto-scroll investigation -->
-        <div class="fixed bottom-4 left-4 bg-black/80 p-3 text-white text-xs rounded shadow-lg z-50 pointer-events-none border-2 border-red-500">
-            <div class="text-sm font-bold mb-1 text-red-400">AUTO-SCROLL DEBUGGER</div>
+        <!-- Debug overlay for auto-scroll and virtualization investigation -->
+        <div class="fixed bottom-4 left-4 bg-black/80 p-3 text-white text-xs rounded shadow-lg z-50 pointer-events-none border-2 border-red-500 overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div class="text-sm font-bold mb-1 text-red-400 flex justify-between items-center">
+                <span>LOG VIEWER DEBUGGER</span>
+                <span class="text-xs opacity-60">{filteredLogs.length} logs total</span>
+            </div>
+            
             <div class="flex flex-col space-y-0.5">
+                <!-- Auto-scroll section -->
+                <div class="text-green-400 font-bold border-b border-gray-600 pb-1">AUTO-SCROLL STATE</div>
                 <div>Auto-Scroll: {autoScroll ? 'ON' : 'OFF'}</div>
                 <div>UI Checkbox: {document.getElementById('auto-scroll-checkbox')?.checked ? 'ON' : 'OFF'}</div>
+                
+                <!-- Scroll metrics -->
                 <div class="border-t border-gray-600 my-1 pt-1"></div>
                 <div>ScrollTop: {Math.abs(scrollContainer?.scrollTop || 0).toFixed(1)}px</div>
-                <div>At Bottom: {Math.abs(scrollContainer?.scrollTop || 0) === 0 ? 'YES' : 'NO'}</div>
+                <div>ScrollHeight: {scrollContainer?.scrollHeight || 0}px</div>
+                <div>ClientHeight: {scrollContainer?.clientHeight || 0}px</div>
+                <div>At Bottom: {Math.abs(scrollContainer?.scrollTop || 0) <= 1 ? 'YES' : 'NO'}</div>
                 <div>Direction: {scrollDirectionToBottom ? '⬇️ TO BOTTOM' : '⬆️ TO TOP'}</div>
                 <div>Velocity: {scrollVelocity.toFixed(2)}</div>
                 <div class="font-bold {isUserScrolling ? 'text-green-400' : 'text-red-400'}">User Scrolling: {isUserScrolling ? 'YES' : 'NO'}</div>
                 <div class="font-bold {manualScrollLock ? 'text-green-400' : ''}">Manual Lock: {manualScrollLock ? 'YES' : 'NO'}</div>
                 
+                <!-- Virtualization metrics -->
+                <div class="text-blue-400 font-bold border-t border-b border-gray-600 my-1 py-1">VIRTUALIZATION STATE</div>
+                <div>Virtualization: {virtualEnabled ? 'ON' : 'OFF'}</div>
+                <div>Virtualization Ready: {virtualizationReady ? 'YES' : 'NO'}</div>
+                <div>Range: {virtualStart} → {virtualEnd} ({visibleLogCount} logs)</div>
+                <div>Avg Height: {avgLogHeight.toFixed(1)}px</div>
+                <div>Container Height: {virtualContainerHeight}px</div>
+                <div>Manual Toggle: {manualVirtualToggle ? 'YES' : 'NO'}</div>
+                <div>Initial Measurements: {initialMeasurementsComplete ? 'COMPLETE' : 'INCOMPLETE'}</div>
+                
                 <!-- SCROLL TRIGGER TRACERS -->
-                <div class="border-t border-gray-600 my-1 pt-1"></div>
-                <div class="text-red-400 font-bold">Last Scroll Triggers:</div>
+                <div class="text-yellow-400 font-bold border-t border-b border-gray-600 my-1 py-1">SCROLL TRIGGERS</div>
                 {#each scrollTriggerHistory as trace, i}
                     <div class="text-xs">
                         {i+1}. {trace.id} ({(Date.now() - trace.timestamp < 1000) ? 
@@ -1723,6 +2136,12 @@
                 {#if scrollTriggerHistory.length === 0}
                     <div class="text-gray-400 text-xs">No scroll triggers yet</div>
                 {/if}
+                
+                <!-- Return to bottom button status -->
+                <div class="text-purple-400 font-bold border-t border-gray-600 mt-1 pt-1">UI STATE</div>
+                <div>Return to Bottom Button: {showReturnToBottomButton ? 'VISIBLE' : 'HIDDEN'}</div>
+                <div>Toast Visible: {showAutoScrollToast ? 'YES' : 'NO'}</div>
+                <div>Toast Message: {autoScrollToastMessage || 'None'}</div>
             </div>
         </div>
     {/if}
