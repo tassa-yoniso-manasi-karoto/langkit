@@ -1,24 +1,17 @@
 
-replace wasm-logger by a general purpose logger bc webkit console has abyssimal perf
-
-- go-rod
-  - correct reverted Hovertip for Browser Access URL + GIT BLAME
-  - ⭐ make currenlty running browser download known in the GUI
+- remove useless test files
 
 - progress bar
-  - subline total not reset on resume
+  - ETA calculation itself: use processedCount for ETA calculation
   - 🤯 make consistent progress bars between GUI and CLI
-  - correct sub line count, even accross resume
-  - processedCount for ETA calculation
-  - ⭐ ETA calculation itself
   
-
-- non-virtualized logger has autoscroll broken
-- wasm no memory estimate
+- go-rod
+  - single Browser Access URL declaration
+  - make currenlty running browser download known in the GUI
+  
+- wasm no memory estimates
  
 - appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
-
-- merge option checkbox locked in GUI?
 
 - GUI options:
   - condensed audio toggle
@@ -31,7 +24,8 @@ replace wasm-logger by a general purpose logger bc webkit console has abyssimal 
 - manual GUI tests
 - manual CLI tests
 - try offline to see if icon / fonts are missing
-- clean run in VirtualBox
+
+- try a clean install
 
 
 - fix newlines in builtin documentation

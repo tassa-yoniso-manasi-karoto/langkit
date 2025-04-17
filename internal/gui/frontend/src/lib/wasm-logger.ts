@@ -1,4 +1,7 @@
-// src/lib/wasm-logger.ts - Simplified version
+/*
+    ⚠️ DEPRECATED, USE logger.ts INSTEAD ⚠️
+
+*/
 export enum WasmLogLevel {
   TRACE = -1,  // Add TRACE level below DEBUG
   DEBUG = 0,

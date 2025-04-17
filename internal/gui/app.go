@@ -149,6 +149,98 @@ func (a *App) GetEventThrottlingStatus() map[string]interface{} {
 	return a.throttler.GetStatus()
 }
 
+
+// BackendLoggerBatch handles batched log entries from the frontend
+func (a *App) BackendLoggerBatch(component string, logsJson string) {
+    // Validate input size
+    if len(logsJson) > 1024*1024 { // 1MB max batch size
+        a.logger.Error().
+            Str("component", component).
+            Int("size", len(logsJson)).
+            Msg("Rejected oversized log batch")
+        return
+    }
+    
+    var logEntries []map[string]interface{}
+    
+    if err := json.Unmarshal([]byte(logsJson), &logEntries); err != nil {
+        a.logger.Error().
+            Err(err).
+            Str("component", component).
+            Msg("Failed to parse frontend log batch")
+        return
+    }
+    
+    a.logger.Debug().
+        Str("component", component).
+        Int("count", len(logEntries)).
+        Msg("Processing frontend log batch")
+    
+    // Process each log entry
+    for _, logEntry := range logEntries {
+        // Map frontend log levels to zerolog levels
+        level := zerolog.InfoLevel
+        if levelVal, ok := logEntry["level"].(float64); ok {
+            switch int(levelVal) {
+            case -1: // TRACE
+                level = zerolog.TraceLevel
+            case 0: // DEBUG
+                level = zerolog.DebugLevel
+            case 1: // INFO
+                level = zerolog.InfoLevel
+            case 2: // WARN
+                level = zerolog.WarnLevel
+            case 3, 4: // ERROR, CRITICAL
+                level = zerolog.ErrorLevel
+            }
+        }
+        
+        // Extract fields for structured logging
+        fields := map[string]interface{}{
+            "frontend": true,
+            "component": component,
+        }
+        
+        // Extract context information
+        if context, ok := logEntry["context"].(map[string]interface{}); ok {
+            for k, v := range context {
+                fields["fe_"+k] = v
+            }
+        }
+        
+        // Add operation if present
+        if operation, ok := logEntry["operation"].(string); ok {
+            fields["operation"] = operation
+        }
+        
+        // Add session ID if present
+        if sessionId, ok := logEntry["sessionId"].(string); ok {
+            fields["sessionId"] = sessionId
+        }
+        
+        // Get message
+        message := "Frontend log"
+        if msg, ok := logEntry["message"].(string); ok {
+            message = msg
+        }
+        
+        // Log through the handler or directly to zerolog
+        event := a.logger.WithLevel(level)
+        
+        // Add fields
+        event = event.Fields(fields)
+        
+        // Log the message
+        event.Msg(message)
+        
+        // Also save to crash reporter for diagnostic purposes
+        if crash.Reporter != nil && level >= zerolog.WarnLevel {
+            entryJson, _ := json.Marshal(logEntry)
+            crash.Reporter.SaveFrontendLog(component, string(entryJson))
+        }
+    }
+}
+
 // RecordWasmLog receives and processes WebAssembly log entries from the frontend
 func (a *App) RecordWasmLog(logJson string) {
 	var logEntry map[string]interface{}
@@ -177,7 +269,7 @@ func (a *App) RecordWasmLog(logJson string) {
 	
 	// Extract fields for structured logging
 	fields := map[string]interface{}{
-		"source": "wasm",
+		"origin": "gui",
 	}
 	
 	if component, ok := logEntry["component"].(string); ok {
@@ -197,7 +289,7 @@ func (a *App) RecordWasmLog(logJson string) {
 	}
 	
 	// Use the handler to log the message with fields
-	// FIXME USING ZEROLOG DIRECTLY IS LIKELY THE BEST WAY, NOT SURE YET.
+	// FIXME USING ZEROLOG DIRECTLY IS LIKELY THE BEST WAY, NOT SURE.
 	handler.LogFields(int8(level), "wasm", message, fields)
 }
 
