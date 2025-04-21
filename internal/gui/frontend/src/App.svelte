@@ -961,7 +961,7 @@
                 <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
                     <!-- Progress Manager with minimal spacing -->
                     <div class="mb-2">
-                        <ProgressManager {isProcessing} />
+                        <ProgressManager {isProcessing} {isWindowMinimized} />
                     </div>
                     
                     <!-- Process Button Row with hardware acceleration -->

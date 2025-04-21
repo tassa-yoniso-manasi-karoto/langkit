@@ -1,8 +1,8 @@
 
 SVG animations:
 1. ~~restore static cancel appearance~~
-2. add micro-palette for each state and tweak gradients to use it + test visuals against original implementation
-3. add ***fancyMode*** and regular mode for limited computing + ***isWindowMinimized distinction*** that reverts to static gradients
+2. ~~add micro-palette for each state and tweak gradients to use it + test visuals against original implementation~~
+3. ~~add ***fancyMode*** and regular mode for limited computing + ***isWindowMinimized distinction*** that reverts to static gradients~~
 4. rework state transitions
 
 - remove useless test files

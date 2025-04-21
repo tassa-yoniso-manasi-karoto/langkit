@@ -22,16 +22,24 @@
     
     // Application processing state
     export let isProcessing = false;
+    // Window state prop to disable animations when minimized
+    export let isWindowMinimized = false;
     
-    // Only reset counters and status when all progress bars are removed, not when processing stops
+    // Function to reset state counters after a delay
+    function resetStateCounters() {
+        abortedTasksCount = 0;
+        isGlobalAbort = false;
+        taskErrors.clear();
+    }
+
+    // Trigger state reset when all progress bars are removed, after a delay
     // This ensures error messages remain visible until bars are cleared
     $: if ($progressBars.length === 0) {
-        setTimeout(() => {
-            abortedTasksCount = 0;
-            isGlobalAbort = false;
-            taskErrors.clear();
-            statusText = isProcessing ? "In progress..." : "Processing Status";
-        }, 3000); // Delay reset to ensure user sees the error message
+        // Only schedule reset if not already scheduled or if processing isn't active
+        // (prevents resetting state if new processing starts immediately after bars clear)
+        if (!isProcessing) {
+            setTimeout(resetStateCounters, 3000);
+        }
     }
 
     // Track last processing state to prevent immediate clearing of error states
@@ -51,6 +59,7 @@
         // But don't clear visual state immediately - let user see the error
         lastProcessingState = false;
         
+        // Update status text based on the final state
         if (userCancelled) {
             statusText = "Processing canceled by user";
         } else if (isGlobalAbort) {
@@ -58,10 +67,12 @@
         } else if (abortedTasksCount > 0) {
             statusText = `Partially completed (${abortedTasksCount} media processing ${abortedTasksCount === 1 ? 'task' : 'tasks'} aborted)`;
         } else {
-            statusText = "Processing complete";
+             // If we reach here, it means !userCancelled, !isGlobalAbort, and abortedTasksCount === 0.
+             // This signifies successful completion.
+             statusText = "Processing completed";
         }
     }
-    
+
     // Monitor user cancellation globally across all bars
     $: userCancelled = $progressBars.some(bar => bar.errorState === 'user_cancel');
 
@@ -69,7 +80,7 @@
     $: statusHasWaves = (!isGlobalAbort && abortedTasksCount > 0 && !userCancelled) || (isGlobalAbort && !userCancelled);
 
     // Determine state class for status text container
-     $: statusStateClass = statusHasWaves
+    $: statusStateClass = statusHasWaves
         ? isGlobalAbort ? 'state-error-hard' : 'state-error-soft'
         : userCancelled ? 'state-user-cancel' // Apply cancel state for static gradient
         : 'state-normal'; // Default or normal state
@@ -351,8 +362,8 @@
         <div class="flex items-center justify-between">
             <!-- Status Text Container -->
             
-            <div class="status-text-container {statusStateClass}">
-                {#if statusHasWaves}
+            <div class="{statusStateClass}">
+                {#if statusHasWaves && !isWindowMinimized}
                      <!-- SVG containing waves clipped by text -->
                      <svg class="status-svg"
                           viewBox="0 0 175 20"
@@ -389,10 +400,17 @@
                          </g>
                      </svg>
                 {:else}
-                     <!-- Fallback simple span for normal/cancel states -->
-                     <span class="font-bold text-base {userCancelled ? 'gradient-text-cancel' : ''}">
-                         {statusText}
-                     </span>
+                    <!-- Fallback simple span for normal/cancel/completion states OR while minimized to save CPU -->
+                    {@const isCompleteAndSuccessful = !isProcessing && !userCancelled && !isGlobalAbort && abortedTasksCount === 0}
+                    <span class="font-bold text-xl status-text"
+                          class:gradient-text-completion={isCompleteAndSuccessful}
+                          class:text-gray-300={!isCompleteAndSuccessful && !isGlobalAbort && abortedTasksCount === 0 && !userCancelled}
+                          class:gradient-text-task={!isCompleteAndSuccessful && !isGlobalAbort && abortedTasksCount > 0 && !userCancelled}
+                          class:gradient-text-all={!isCompleteAndSuccessful && isGlobalAbort && !userCancelled}
+                          class:gradient-text-cancel={!isCompleteAndSuccessful && userCancelled}
+                          class:animate-fade-in={isCompleteAndSuccessful}>
+                        {statusText}
+                    </span>
                 {/if}
             </div>
 
@@ -466,14 +484,8 @@
                                 class="progress-bar-fill absolute inset-0 rounded-full transition-all duration-300 {stateClass}"
                                 style="width: {bar.progress}%;"
                             >
-                                {#if showWaves}
-                                    <!-- Sweep animation -->
-                                    {#if isProcessing}
-                                        <div id="gradient-{bar.id}" 
-                                            class="animate-sweep-gradient absolute inset-0 w-full h-full" 
-                                            style="opacity: var(--sweep-opacity, 0.5);">
-                                        </div>
-                                    {/if}
+                                <!-- apply svg animation to main bar only, and only if window is not minimized -->
+                                {#if showWaves && bar.size == 'h-5' && !isWindowMinimized}
                                     <!-- Layered animated waves SVG -->
                                     <div class="waves-container" style="filter: blur(1.7px);">
                                         <svg class="waves-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -490,13 +502,41 @@
                                             </g>
                                         </svg>
                                     </div>
-                                {:else if bar.errorState === 'user_cancel'}
-                                    <div class="absolute inset-0 layer-user-cancel animate-fade-in"></div>
+                                {:else}
+                                    <!-- Normal progress gradient - only shown in normal state -->
+                                    {#if !bar.errorState}
+                                        <div class="absolute inset-0 progress-gradient"></div>
+                                    <!-- Error task gradient - orange/yellow -->
+                                    {:else if bar.errorState === 'error_task'}
+                                        <div class="absolute inset-0 layer-error-task animate-fade-in"></div>
+                                    <!-- Error all gradient - red -->
+                                    {:else if bar.errorState === 'error_all'}
+                                        <div class="absolute inset-0 layer-error-all animate-fade-in"></div>
+                                    <!-- User cancel gradient - gray/blue -->
+                                    {:else if bar.errorState === 'user_cancel'}
+                                        <div class="absolute inset-0 layer-user-cancel animate-fade-in"></div>
+                                    {/if}
                                 {/if}
-                                <!-- Edge glow (optional, might interfere visually) -->
-                                {#if bar.progress > 5 && !hasError}
-                                    <div class="absolute top-0 bottom-0 w-[1px] shadow-progress-edge" 
-                                         style="right: 0">
+
+                                <!-- Animated sweeping gradient effect (only for normal state and when window is not minimized) -->
+                                {#if bar.progress < 100 && !bar.errorState && bar.progress > 0 && !isWindowMinimized}
+                                    <div class="absolute h-full w-full overflow-hidden will-change-transform">
+                                        <!-- Main progress fill clipping container -->
+                                        <div class="absolute inset-0 overflow-hidden" style="width: 100%;">
+                                            <!-- Gradient container -->
+                                            <div class="absolute inset-0" style="width: calc(max(500px, 150%));">
+                                                <div id="gradient-{bar.id}" 
+                                                    class="animate-sweep-gradient absolute inset-0 w-full h-full" 
+                                                    style="opacity: var(--sweep-opacity, 0.5);">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- Edge glow -->
+                                        {#if bar.progress > 5}
+                                            <div class="absolute top-0 bottom-0 w-[1px] shadow-progress-edge" 
+                                                style="right: 0">
+                                            </div>
+                                        {/if}
                                     </div>
                                 {/if}
                             </div>
@@ -510,14 +550,10 @@
 
 
 <style>
-    .status-text-container {
-        /* Ensure container has some height and allows SVG to align */
-        min-height: 1.5em; /* Match approx text line height */
-        display: inline-block; /* Allow SVG to size correctly */
-        line-height: 1; /* Prevent extra space below SVG */
-        /* Inherits state variables from statusStateClass */
-        /* Ensure it aligns left in the flex container */
-        margin-right: auto;
+    .status-text {
+        /* Match the vertical position of the SVG text */
+        display: inline-block;
+        transform: translateY(10px);
     }
     .status-svg {
         width: auto; /* Let SVG size based on text content */
@@ -535,22 +571,6 @@
         /* Add stroke for potentially crisper edges (suggestion 7) */
         stroke: rgba(0,0,0,0.01); /* Almost transparent stroke */
         stroke-width: 0.1;
-    }
-    
-    .gradient-text-cancel {
-        position: relative;
-        color: transparent;
-        background: var(--user-cancel-gradient, linear-gradient(to right, hsl(220, 15%, 40%), hsl(210, 20%, 50%)));
-        -webkit-background-clip: text;
-        background-clip: text;
-        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
-                    color var(--error-transition-duration, 1.5s) ease-in-out;
-
-        /* Fallback for browsers that don't support background-clip: text */
-        @supports not (background-clip: text) {
-            color: theme('colors.user-cancel');
-            transition: color var(--error-transition-duration, 1.5s) ease-in-out;
-        }
     }
 
     .progress-bar-fill {
@@ -638,15 +658,108 @@
         --status-wave-3-fill: var(--wave-3-fill);
         --status-wave-4-fill: var(--wave-4-fill);
     }
+    
+    
+    
+    /* STATIC GRADIENTS */
+    
+    /* Base gradient text styles with transitions */
+    .gradient-text-base {
+        position: relative;
+        transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+    }
+
+    /* Gradient text with transitions */
+    .gradient-text-task {
+        position: relative;
+        color: transparent;
+        background: var(--error-task-gradient, linear-gradient(to right, hsl(45, 100%, 60%), hsl(30, 100%, 50%)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
+                    color var(--error-transition-duration, 1.5s) ease-in-out;
+
+        @supports not (background-clip: text) {
+            color: theme('colors.error-soft');
+            transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+        }
+    }
+
+    .gradient-text-error-hard {
+        position: relative;
+        color: transparent;
+        background: var(--error-hard-gradient, linear-gradient(to right, hsl(320, 70%, 25%), hsl(335, 85%, 40%)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
+                    color var(--error-transition-duration, 1.5s) ease-in-out;
+
+        @supports not (background-clip: text) {
+            color: theme('colors.error-hard');
+            transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+        }
+    }
+
+    .gradient-text-cancel {
+        position: relative;
+        color: transparent;
+        background: var(--user-cancel-gradient, linear-gradient(to right, hsl(220, 15%, 40%), hsl(210, 20%, 50%)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
+                    color var(--error-transition-duration, 1.5s) ease-in-out;
+
+        @supports not (background-clip: text) {
+            color: theme('colors.user-cancel');
+            transition: color var(--error-transition-duration, 1.5s) ease-in-out;
+        }
+    }
+    
+    .gradient-text-completion {
+        position: relative;
+        color: transparent;
+        background: var(--completion-gradient, linear-gradient(to right, hsl(130, 80%, 58%), hsl(130, 75%, 38%)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        transition: background var(--error-transition-duration, 1.5s) ease-in-out,
+                    color var(--error-transition-duration, 1.5s) ease-in-out;
+
+        @supports not (background-clip: text) {
+            color: theme('colors.completion', hsl(var(--completion-hue), var(--completion-saturation), var(--completion-lightness)));
+            background: none;
+            transition: color var(--error-transition-duration, 1.5s) ease-in-out; 
+        }
+    }
+    
+    /* Progress gradient (normal state) */
+    .progress-gradient {
+        background: linear-gradient(to right, 
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 1), 
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 1));
+        background-size: 200% 100%;
+        background-position: calc(100% - var(--gradient-position, 0%)) 0;
+        box-shadow: 0 0 8px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6);
+    }
+    
+    /* Error state gradients */
+    .layer-error-task {
+        background: var(--error-task-gradient, linear-gradient(to right, hsl(45, 100%, 60%), hsl(30, 100%, 50%)));
+        box-shadow: 0 0 10px hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.7);
+    }
+    
+    .layer-error-all {
+        background: var(--error-all-gradient, linear-gradient(to right, hsl(0, 100%, 45%), hsl(350, 100%, 60%)));
+        box-shadow: 0 0 10px hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.7);
+    }
+    
     .layer-user-cancel {
-        /* No wave variables wanted, just a static gradient */
         background: var(--user-cancel-gradient, linear-gradient(to right, hsl(220, 15%, 40%), hsl(210, 20%, 50%)));
     }
     
+    /* Animation utility class */
     .animate-fade-in {
         animation: fadeIn var(--error-transition-duration, 1.5s) ease-in-out forwards;
     }
-
     /* Wave Animation */
     .parallax-progress > use {
       animation: move-forever 25s cubic-bezier(.55,.5,.45,.5) infinite;
