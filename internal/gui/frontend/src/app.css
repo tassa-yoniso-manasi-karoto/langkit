@@ -36,6 +36,11 @@
     --user-cancel-saturation: 10%;
     --user-cancel-lightness: 45%;
     
+    /* Completion state colors (Green) */
+    --completion-hue: 130;
+    --completion-saturation: 75%;
+    --completion-lightness: 48%;
+    
     /* CSS Variables set to match the Tailwind theme colors */
     --primary-color: theme('colors.primary.DEFAULT');
     --secondary-color: theme('colors.secondary.DEFAULT');
@@ -52,7 +57,17 @@
     
     --error-transition-duration: 2s;
     
-    /* Error gradient definitions */
+    /* Gradient Definitions using HSL Variables */
+    --normal-gradient: linear-gradient(to right,
+        hsl(var(--primary-hue), var(--primary-saturation), var(--primary-lightness)),
+        hsl(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness))
+    );
+    
+    --completion-gradient: linear-gradient(to right,
+        hsl(var(--completion-hue), var(--completion-saturation), calc(var(--completion-lightness) - 8%)), /* Slightly darker start */
+        hsl(calc(var(--completion-hue) + 20), var(--completion-saturation), calc(var(--completion-lightness) + 8%)) /* Lighter end */
+    );
+    
     --error-task-gradient: linear-gradient(to right, 
         hsl(45, 100%, 60%), /* Bright yellow/orange */
         hsl(30, 100%, 50%)  /* Deep orange */
@@ -64,7 +79,7 @@
         hsl(345, 90%, 45%)    /* Crimson-red */
     );
 
-    /* OPTION 2: Deep Pink to Red (Secondary Color Based) */
+    /* OPTION 2: Deep Pink to Red (CURRENTLY SELECTED) */
     --error-all-gradient: linear-gradient(to right, 
         hsl(323, 85%, 30%),   /* Deep pink (matching secondary hue exactly) */
         hsl(355, 90%, 45%)    /* Vibrant crimson */

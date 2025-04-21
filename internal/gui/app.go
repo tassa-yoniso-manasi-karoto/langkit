@@ -232,12 +232,6 @@ func (a *App) BackendLoggerBatch(component string, logsJson string) {
         
         // Log the message
         event.Msg(message)
-        
-        // Also save to crash reporter for diagnostic purposes
-        if crash.Reporter != nil && level >= zerolog.WarnLevel {
-            entryJson, _ := json.Marshal(logEntry)
-            crash.Reporter.SaveFrontendLog(component, string(entryJson))
-        }
     }
 }
 
