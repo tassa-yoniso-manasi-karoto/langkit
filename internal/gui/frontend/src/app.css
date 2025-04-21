@@ -14,6 +14,21 @@
     
     color-scheme: dark;
     
+    /* CSS Variables set to match the Tailwind theme colors */
+    /* TODO centralize all color declaration in app.css and use Tailwind's plugin API
+    addBase to sync tailwind.config.ts colors based on app.css variables at build time */
+    --primary-color: theme('colors.primary.DEFAULT');
+    --secondary-color: theme('colors.secondary.DEFAULT');
+    --pink-color: theme('colors.pink');
+    --bg-color: theme('colors.bgold.DEFAULT');
+    
+    --error-soft-color: theme('colors.error-soft');
+    --error-hard-color: theme('colors.error-hard');
+    --user-cancel-color: theme('colors.user-cancel');
+    
+    --group-subtitle-color: theme('colors.group-subtitle');
+    --group-merge-color: theme('colors.group-merge');
+    
     /* Color system variables - core values from tailwind.config.js */
     --primary-hue: 261;
     --primary-saturation: 90%;
@@ -24,9 +39,15 @@
     --secondary-lightness: 72%;
     
     /* Error state colors */
+    --error-transition-duration: 2s;
+    
     --error-soft-hue: 50;
     --error-soft-saturation: 90%;
     --error-soft-lightness: 75%;
+    /* ----- */
+    --error-soft-bright: hsl(45, 100%, 60%); /* Bright yellow/orange */
+    --error-soft-deep: hsl(30, 100%, 50%);  /* Deep orange */
+    --error-soft-accent: hsl(35, 95%, 55%); /* Strong complementary orange */
     
     --error-hard-hue: 0;
     --error-hard-saturation: 85%;
@@ -36,26 +57,17 @@
     --user-cancel-saturation: 10%;
     --user-cancel-lightness: 45%;
     
-    /* Completion state colors (Green) */
     --completion-hue: 130;
     --completion-saturation: 75%;
     --completion-lightness: 48%;
     
-    /* CSS Variables set to match the Tailwind theme colors */
-    --primary-color: theme('colors.primary.DEFAULT');
-    --secondary-color: theme('colors.secondary.DEFAULT');
-    --pink-color: theme('colors.pink');
-    --bg-color: theme('colors.bgold.DEFAULT');
+    /* Input field styling */
+    --input-bg-hue: 240;
+    --input-bg-saturation: 9%;
+    --input-bg-lightness: 17%;
+    --input-bg-hover-lightness: 19%;
+    --input-bg-focus-lightness: 21%;
     
-    --error-soft-color: theme('colors.error-soft');
-    --error-hard-color: theme('colors.error-hard');
-    --user-cancel-color: theme('colors.user-cancel');
-    
-    
-    --group-subtitle-color: theme('colors.group-subtitle');
-    --group-merge-color: theme('colors.group-merge');
-    
-    --error-transition-duration: 2s;
     
     /* Gradient Definitions using HSL Variables */
     --normal-gradient: linear-gradient(to right,
@@ -69,8 +81,8 @@
     );
     
     --error-soft-gradient: linear-gradient(to right, 
-        hsl(45, 100%, 60%), /* Bright yellow/orange */
-        hsl(30, 100%, 50%)  /* Deep orange */
+        var(--error-soft-bright),
+        var(--error-soft-deep)
     );
 
     /* OPTION 1: Magenta to Crimson */
@@ -122,7 +134,7 @@
         transparent 100%
     );
   
-  /* Unused but look neat*/
+  /* Unused but looks neat*/
   /* DOUBLE MARKER - Two distinct points for better movement tracking */
   --sweep-gradient-double: linear-gradient(
     90deg, 
@@ -154,15 +166,6 @@
   /* Primary-colored transparent dropdown using HSL variables */
   --dropdown-primary-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1); 
   --dropdown-secondary-color: hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.1);
-
-  /* Input field styling using HSL variables */
-  --input-bg-hue: 240;
-  --input-bg-saturation: 9%;
-  --input-bg-lightness: 17%;
-
-  --input-bg-hover-lightness: 19%;
-
-  --input-bg-focus-lightness: 21%;
 
   /* Composed variables for components */
   --input-bg: var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-lightness);
@@ -279,19 +282,6 @@ button {
 }
 button:hover {
     border-color: #646cff;
-}
-
-@media (prefers-color-scheme: light) {
-    :root {
-        color: #213547;
-        background-color: #ffffff;
-    }
-    a:hover {
-        color: #747bff;
-    }
-    button {
-        background-color: #f9f9f9;
-    }
 }
 
 

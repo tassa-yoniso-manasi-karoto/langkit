@@ -28,6 +28,10 @@ const userCancelHue = 220; // Blue-gray hue for cancellations
 const userCancelSaturation = '10%';
 const userCancelLightness = '45%';
 
+const completionHue = 130; // Green
+const completionSaturation = '75%';
+const completionLightness = '48%';
+
 // UI Element Background colors
 const uiElementHue = 0; // Neutral gray hue
 const uiElementSaturation = '0%';
@@ -40,6 +44,7 @@ const red = `hsl(${errorAllHue}, ${errorAllSaturation}, ${errorAllLightness})`;
 const green = '#68e796';
 const yellow = `hsl(${errorTaskHue}, ${errorTaskSaturation}, ${errorTaskLightness})`;
 const userCancelGray = `hsl(${userCancelHue}, ${userCancelSaturation}, ${userCancelLightness})`;
+const completionGreen = `hsl(${completionHue}, ${completionSaturation}, ${completionLightness})`;
 const uiElementBg = `hsla(${uiElementHue}, ${uiElementSaturation}, ${uiElementLightness}, ${uiElementAlpha})`;
 const uiElementHoverBg = `hsla(${uiElementHue}, ${uiElementSaturation}, ${uiElementLightness}, ${uiElementHoverAlpha})`;
 
@@ -144,6 +149,8 @@ export default {
         'user-cancel-hue': userCancelHue,
         'user-cancel-saturation': userCancelSaturation,
         'user-cancel-lightness': userCancelLightness,
+        
+        'completion': completionGreen,
         
         // Feature group colors
         'group-subtitle': 'hsla(210, 90%, 60%, 0.35)',  // Blue for subtitle group
