@@ -130,15 +130,15 @@ export default {
         'log-error': red,
         
         // Error states with HSL definitions
-        'error-task': yellow,     // Yellow for task errors
-        'error-task-hue': errorTaskHue,
-        'error-task-saturation': errorTaskSaturation,
-        'error-task-lightness': errorTaskLightness,
+        'error-soft': yellow,     // Yellow for task errors
+        'error-soft-hue': errorTaskHue,
+        'error-soft-saturation': errorTaskSaturation,
+        'error-soft-lightness': errorTaskLightness,
         
-        'error-all': red,         // Red for critical errors
-        'error-all-hue': errorAllHue,
-        'error-all-saturation': errorAllSaturation,
-        'error-all-lightness': errorAllLightness,
+        'error-hard': red,         // Red for critical errors
+        'error-hard-hue': errorAllHue,
+        'error-hard-saturation': errorAllSaturation,
+        'error-hard-lightness': errorAllLightness,
         
         'user-cancel': userCancelGray, // Gray for user cancellations
         'user-cancel-hue': userCancelHue,

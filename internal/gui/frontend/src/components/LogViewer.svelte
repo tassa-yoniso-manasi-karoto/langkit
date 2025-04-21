@@ -38,8 +38,8 @@
 
     // Match certain behaviors to text colors using the centralized colors
     const behaviorColors: Record<string, string> = {
-        'abort_task': 'text-error-task log-behavior-abort-task',
-        'abort_all': 'text-error-all log-behavior-abort-all',
+        'abort_task': 'text-error-soft log-behavior-abort-task',
+        'abort_all': 'text-error-hard log-behavior-abort-all',
         'user_cancel': 'text-user-cancel log-behavior-cancel',
         'probe': 'text-log-warn log-behavior-probe'
     };
@@ -2538,19 +2538,19 @@
     .log-behavior-abort-task {
         background: linear-gradient(
             to right,
-            hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.08) 0%,
+            hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.08) 0%,
             rgba(0, 0, 0, 0) 70%
         );
-        border-left: 2px solid hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.6);
+        border-left: 2px solid hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.6);
     }
     
     .log-behavior-abort-all {
         background: linear-gradient(
             to right,
-            hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.1) 0%,
+            hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.1) 0%,
             rgba(0, 0, 0, 0) 70%
         );
-        border-left: 2px solid hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.6);
+        border-left: 2px solid hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.6);
     }
     
     .log-behavior-cancel {
@@ -2565,10 +2565,10 @@
     .log-behavior-probe {
         background: linear-gradient(
             to right,
-            hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.08) 0%,
+            hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.08) 0%,
             rgba(0, 0, 0, 0) 70%
         );
-        border-left: 2px solid hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.4);
+        border-left: 2px solid hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.4);
     }
     
     /* ====== MICRO-INTERACTIONS ====== */

@@ -717,7 +717,7 @@
                             </div>
                         {:else if standardTag !== 'jpn' && showNonJpnMessage}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-error-task mt-0.5 group-hover:animate-subtlePulse">
+                                <span class="material-icons text-[14px] text-error-soft mt-0.5 group-hover:animate-subtlePulse">
                                     warning
                                 </span>
                                 <div class="flex-1 text-xs text-white/90">
@@ -748,7 +748,7 @@
                         
                         {#if showNotAvailableMessage}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-error-task mt-0.5 group-hover:animate-subtlePulse">
+                                <span class="material-icons text-[14px] text-error-soft mt-0.5 group-hover:animate-subtlePulse">
                                     warning
                                 </span>
                                 <div class="flex-1 text-xs text-white/90">

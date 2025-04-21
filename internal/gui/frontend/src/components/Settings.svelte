@@ -714,8 +714,8 @@
                                             </div>
                                         </div>
                                     {:else if wasmState?.initStatus === WasmInitStatus.FAILED}
-                                        <div class="p-4 bg-error-all/10 border border-error-all/30 rounded-lg mt-4">
-                                            <div class="text-error-all text-sm mb-2">WebAssembly initialization failed</div>
+                                        <div class="p-4 bg-error-hard/10 border border-error-hard/30 rounded-lg mt-4">
+                                            <div class="text-error-hard text-sm mb-2">WebAssembly initialization failed</div>
                                             <div class="text-xs text-gray-300">{wasmState.lastError?.message || 'Unknown error'}</div>
                                         </div>
                                     {/if}
@@ -907,7 +907,7 @@
 
     :global(.settings-modal .cancel-button:hover) {
       color: white !important;
-      border-color: hsl(var(--error-all-hue), calc(var(--error-all-saturation) * 2), calc(var(--error-all-lightness) / 2.5)) !important;
+      border-color: hsl(var(--error-hard-hue), calc(var(--error-hard-saturation) * 2), calc(var(--error-hard-lightness) / 2.5)) !important;
     }
 
     :global(.settings-modal .cancel-button:hover::before) {

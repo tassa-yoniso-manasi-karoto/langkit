@@ -141,30 +141,30 @@
         >
             <!-- Dynamic background and border based on error type -->
             <div class="backdrop-blur-md 
-                       {errorType === 'error_all' ? 'bg-error-all/10' : 
-                         errorType === 'error_task' ? 'bg-error-task/10' : 
+                       {errorType === 'error_all' ? 'bg-error-hard/10' : 
+                         errorType === 'error_task' ? 'bg-error-soft/10' : 
                          'bg-primary/20'} 
                        bg-gradient-to-br 
                        {errorType === 'error_all' 
-                         ? 'from-hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.15) to-secondary/10' 
+                         ? 'from-hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.15) to-secondary/10' 
                          : errorType === 'error_task'
-                           ? 'from-hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.15) to-secondary/10'
+                           ? 'from-hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.15) to-secondary/10'
                            : 'from-primary/30 to-secondary/20'
                        } 
                        text-white border 
                        {errorType === 'error_all' 
-                         ? 'border-error-all/20' 
+                         ? 'border-error-hard/20' 
                          : errorType === 'error_task'
-                           ? 'border-error-task/20'
+                           ? 'border-error-soft/20'
                            : 'border-primary/30'
                        } 
                        rounded-lg p-4 min-w-[280px] max-w-[400px] 
                        transition-all duration-200 font-sans 
                        shadow-lg 
                        {errorType === 'error_all' 
-                         ? 'shadow-error-all/15' 
+                         ? 'shadow-error-hard/15' 
                          : errorType === 'error_task'
-                           ? 'shadow-error-task/15'
+                           ? 'shadow-error-soft/15'
                            : 'shadow-primary/20'
                        } 
                        cursor-pointer notification-container"
@@ -173,9 +173,9 @@
                 <div class="text-sm font-medium mb-3 text-gray-300 flex items-center gap-2">
                     <span class="material-icons text-xl 
                           {errorType === 'error_all' 
-                            ? 'text-error-all/70' 
+                            ? 'text-error-hard/70' 
                             : errorType === 'error_task'
-                              ? 'text-error-task/70'
+                              ? 'text-error-soft/70'
                               : 'text-primary'}">
                         {mode === 'processing' ? 'info' : 'warning'}
                     </span>
@@ -195,9 +195,9 @@
                 <div class="bg-black/20 backdrop-blur-sm 
                             border 
                             {errorType === 'error_all' 
-                              ? 'border-error-all/20' 
+                              ? 'border-error-hard/20' 
                               : errorType === 'error_task'
-                                ? 'border-error-task/20'
+                                ? 'border-error-soft/20'
                                 : 'border-primary/30'
                             } 
                             rounded-md p-3 transition-all duration-200 
@@ -206,9 +206,9 @@
                     <div class="flex items-center gap-2">
                         <span class="material-icons text-[18px] 
                               {errorType === 'error_all' 
-                                ? 'text-error-all/80' 
+                                ? 'text-error-hard/80' 
                                 : errorType === 'error_task'
-                                  ? 'text-error-task/80'
+                                  ? 'text-error-soft/80'
                                   : 'text-primary'}">
                             {mode === 'processing' ? 'info' : 'error'}
                         </span>
@@ -234,9 +234,9 @@
                     <div class="mt-2 text-xs flex items-center gap-1 text-gray-400 font-medium">
                         <span class="text-[10px] material-icons 
                               {errorType === 'error_all' 
-                                ? 'text-error-all/60' 
+                                ? 'text-error-hard/60' 
                                 : errorType === 'error_task'
-                                  ? 'text-error-task/60'
+                                  ? 'text-error-soft/60'
                                   : 'text-secondary/80'}">
                             touch_app
                         </span>
@@ -246,16 +246,16 @@
                 
                 <div class="absolute left-1/2 bottom-[-6px] transform -translate-x-1/2 rotate-45 w-3 h-3 
                            {errorType === 'error_all' 
-                             ? 'bg-error-all/10' 
+                             ? 'bg-error-hard/10' 
                              : errorType === 'error_task'
-                               ? 'bg-error-task/10'
+                               ? 'bg-error-soft/10'
                                : 'bg-primary/20'
                            } 
                            backdrop-blur-md 
                            {errorType === 'error_all' 
-                             ? 'border-l-error-all/20 border-b-error-all/20' 
+                             ? 'border-l-error-hard/20 border-b-error-hard/20' 
                              : errorType === 'error_task'
-                               ? 'border-l-error-task/20 border-b-error-task/20'
+                               ? 'border-l-error-soft/20 border-b-error-soft/20'
                                : 'border-l-primary/30 border-b-primary/30'
                            } 
                            border-l border-b"></div>
@@ -278,16 +278,16 @@
         100% { box-shadow: 0 0 5px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4); }
     }
     
-    @keyframes glow-error-task {
-        0% { box-shadow: 0 0 5px 0 hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.2); }
-        50% { box-shadow: 0 0 15px 5px hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.3); }
-        100% { box-shadow: 0 0 5px 0 hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.2); }
+    @keyframes glow-error-soft {
+        0% { box-shadow: 0 0 5px 0 hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.2); }
+        50% { box-shadow: 0 0 15px 5px hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.3); }
+        100% { box-shadow: 0 0 5px 0 hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.2); }
     }
     
-    @keyframes glow-error-all {
-        0% { box-shadow: 0 0 5px 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.2); }
-        50% { box-shadow: 0 0 15px 5px hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.3); }
-        100% { box-shadow: 0 0 5px 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.2); }
+    @keyframes glow-error-hard {
+        0% { box-shadow: 0 0 5px 0 hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.2); }
+        50% { box-shadow: 0 0 15px 5px hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.3); }
+        100% { box-shadow: 0 0 5px 0 hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.2); }
     }
     
     /* Basic notification container pulsating */
@@ -301,12 +301,12 @@
         animation: pulsate 3s ease-in-out infinite, glow-processing 4s infinite;
     }
     
-    :global(.bg-error-task\/10.notification-container) {
-        animation: pulsate 2.5s ease-in-out infinite, glow-error-task 3.5s infinite;
+    :global(.bg-error-soft\/10.notification-container) {
+        animation: pulsate 2.5s ease-in-out infinite, glow-error-soft 3.5s infinite;
     }
     
-    :global(.bg-error-all\/10.notification-container) {
-        animation: pulsate 2s ease-in-out infinite, glow-error-all 3s infinite;
+    :global(.bg-error-hard\/10.notification-container) {
+        animation: pulsate 2s ease-in-out infinite, glow-error-hard 3s infinite;
     }
     
     /* Base gradient text styles with transitions */
@@ -319,7 +319,7 @@
     .gradient-text-task {
         position: relative;
         color: transparent;
-        background: var(--error-task-gradient, linear-gradient(to right, hsl(45, 100%, 60%), hsl(30, 100%, 50%)));
+        background: var(--error-soft-gradient, linear-gradient(to right, hsl(45, 100%, 60%), hsl(30, 100%, 50%)));
         -webkit-background-clip: text;
         background-clip: text;
         transition: background var(--error-transition-duration, 1.5s) ease-in-out,
@@ -327,7 +327,7 @@
 
         /* Fallback for browsers that don't support background-clip: text */
         @supports not (background-clip: text) {
-            color: theme('colors.error-task');
+            color: theme('colors.error-soft');
             transition: color var(--error-transition-duration, 1.5s) ease-in-out;
         }
     }
@@ -335,7 +335,7 @@
     .gradient-text-all {
         position: relative;
         color: transparent;
-        background: var(--error-all-gradient, linear-gradient(to right, hsl(320, 70%, 25%), hsl(335, 85%, 40%)));
+        background: var(--error-hard-gradient, linear-gradient(to right, hsl(320, 70%, 25%), hsl(335, 85%, 40%)));
         -webkit-background-clip: text;
         background-clip: text;
         transition: background var(--error-transition-duration, 1.5s) ease-in-out,
@@ -343,7 +343,7 @@
 
         /* Fallback for browsers that don't support background-clip: text */
         @supports not (background-clip: text) {
-            color: theme('colors.error-all');
+            color: theme('colors.error-hard');
             transition: color var(--error-transition-duration, 1.5s) ease-in-out;
         }
     }

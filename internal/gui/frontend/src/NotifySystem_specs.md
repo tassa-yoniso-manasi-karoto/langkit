@@ -149,13 +149,13 @@ The system uses HSL color variables defined in multiple layers:
      --primary-lightness: 70%;
      
      /* Error state colors */
-     --error-task-hue: 50;
-     --error-task-saturation: 90%;
-     --error-task-lightness: 75%;
+     --error-soft-hue: 50;
+     --error-soft-saturation: 90%;
+     --error-soft-lightness: 75%;
      
-     --error-all-hue: 0;
-     --error-all-saturation: 85%;
-     --error-all-lightness: 60%;
+     --error-hard-hue: 0;
+     --error-hard-saturation: 85%;
+     --error-hard-lightness: 60%;
      
      --user-cancel-hue: 220;
      --user-cancel-saturation: 10%;
@@ -167,12 +167,12 @@ The system uses HSL color variables defined in multiple layers:
    ```css
    :root {
      /* Error gradient definitions */
-     --error-task-gradient: linear-gradient(to right, 
+     --error-soft-gradient: linear-gradient(to right, 
          hsl(45, 100%, 60%), /* Bright yellow/orange */
          hsl(30, 100%, 50%)  /* Deep orange */
      );
 
-     --error-all-gradient: linear-gradient(to right, 
+     --error-hard-gradient: linear-gradient(to right, 
          hsl(323, 85%, 30%),   /* Deep pink */
          hsl(355, 90%, 45%)    /* Vibrant crimson */
      );
@@ -188,10 +188,10 @@ The system uses HSL color variables defined in multiple layers:
 
 | Behavior    | Color         | Variable Base        | Usage                            |
 |-------------|---------------|----------------------|----------------------------------|
-| abort_task  | Yellow        | --error-task-*       | Task-specific failures           |
-| abort_all   | Red           | --error-all-*        | Critical/global failures         |
+| abort_task  | Yellow        | --error-soft-*       | Task-specific failures           |
+| abort_all   | Red           | --error-hard-*        | Critical/global failures         |
 | user_cancel | Gray-blue     | --user-cancel-*      | User-initiated cancellations     |
-| probe       | Yellow        | --error-task-*       | Non-critical warnings            |
+| probe       | Yellow        | --error-soft-*       | Non-critical warnings            |
 
 ## 4. LogViewer Component Details
 
@@ -328,10 +328,10 @@ The LogViewer implements an adaptive virtualization system that:
 .log-behavior-abort-task {
     background: linear-gradient(
         to right,
-        hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.08) 0%,
+        hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.08) 0%,
         rgba(0, 0, 0, 0) 70%
     );
-    border-left: 2px solid hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.6);
+    border-left: 2px solid hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.6);
 }
 
 /* Animation for new logs */
@@ -378,10 +378,10 @@ The ProgressManager visualizes ongoing processes with:
 2. **Error State Visualization:**
    ```html
    <!-- Error task gradient - orange/yellow -->
-   <div class="absolute inset-0 layer-error-task animate-fade-in"></div>
+   <div class="absolute inset-0 layer-error-soft animate-fade-in"></div>
    
    <!-- Error all gradient - red -->
-   <div class="absolute inset-0 layer-error-all animate-fade-in"></div>
+   <div class="absolute inset-0 layer-error-hard animate-fade-in"></div>
    
    <!-- User cancel gradient - gray/blue -->
    <div class="absolute inset-0 layer-user-cancel animate-fade-in"></div>
@@ -392,7 +392,7 @@ The ProgressManager visualizes ongoing processes with:
    .gradient-text-task {
        position: relative;
        color: transparent;
-       background: var(--error-task-gradient);
+       background: var(--error-soft-gradient);
        -webkit-background-clip: text;
        background-clip: text;
        transition: background var(--error-transition-duration) ease-in-out,

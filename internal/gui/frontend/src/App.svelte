@@ -961,7 +961,7 @@
                 <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
                     <!-- Progress Manager with minimal spacing -->
                     <div class="mb-2">
-                        <ProgressManager {isProcessing}/>
+                        <ProgressManager {isProcessing} />
                     </div>
                     
                     <!-- Process Button Row with hardware acceleration -->
@@ -1015,7 +1015,7 @@
                                 
                                 <!-- Error indicator badge -->
                                 {#if !showLogViewer && hasErrorLogs()}
-                                    <span class="absolute -top-1 -right-1 h-4 w-4 bg-error-all rounded-full border border-white flex items-center justify-center text-[10px] text-white font-bold animate-pulse">
+                                    <span class="absolute -top-1 -right-1 h-4 w-4 bg-error-hard rounded-full border border-white flex items-center justify-center text-[10px] text-white font-bold animate-pulse">
                                         !
                                     </span>
                                 {/if}
@@ -1177,9 +1177,9 @@
     }
     
     @keyframes log-button-error-pulse {
-        0% { box-shadow: 0 0 0 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.4); }
-        70% { box-shadow: 0 0 0 10px hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0); }
-        100% { box-shadow: 0 0 0 0 hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0); }
+        0% { box-shadow: 0 0 0 0 hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.4); }
+        70% { box-shadow: 0 0 0 10px hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0); }
+        100% { box-shadow: 0 0 0 0 hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0); }
     }
     
     .log-button-pulse {
@@ -1188,7 +1188,7 @@
     
     .log-button-error-pulse {
         animation: log-button-error-pulse 1.5s infinite;
-        border: 1px solid hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.5);
+        border: 1px solid hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.5);
     }
     
     /* Ensure drop zone click handler works */

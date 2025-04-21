@@ -24,13 +24,13 @@
     --secondary-lightness: 72%;
     
     /* Error state colors */
-    --error-task-hue: 50;
-    --error-task-saturation: 90%;
-    --error-task-lightness: 75%;
+    --error-soft-hue: 50;
+    --error-soft-saturation: 90%;
+    --error-soft-lightness: 75%;
     
-    --error-all-hue: 0;
-    --error-all-saturation: 85%;
-    --error-all-lightness: 60%;
+    --error-hard-hue: 0;
+    --error-hard-saturation: 85%;
+    --error-hard-lightness: 60%;
     
     --user-cancel-hue: 220;
     --user-cancel-saturation: 10%;
@@ -47,8 +47,8 @@
     --pink-color: theme('colors.pink');
     --bg-color: theme('colors.bgold.DEFAULT');
     
-    --error-task-color: theme('colors.error-task');
-    --error-all-color: theme('colors.error-all');
+    --error-soft-color: theme('colors.error-soft');
+    --error-hard-color: theme('colors.error-hard');
     --user-cancel-color: theme('colors.user-cancel');
     
     
@@ -68,31 +68,31 @@
         hsl(calc(var(--completion-hue) + 20), var(--completion-saturation), calc(var(--completion-lightness) + 8%)) /* Lighter end */
     );
     
-    --error-task-gradient: linear-gradient(to right, 
+    --error-soft-gradient: linear-gradient(to right, 
         hsl(45, 100%, 60%), /* Bright yellow/orange */
         hsl(30, 100%, 50%)  /* Deep orange */
     );
 
     /* OPTION 1: Magenta to Crimson */
-    --error-all-gradient1: linear-gradient(to right, 
+    --error-hard-gradient1: linear-gradient(to right, 
         hsl(315, 85%, 35%),   /* Magenta (bridges primary purple and secondary pink) */
         hsl(345, 90%, 45%)    /* Crimson-red */
     );
 
     /* OPTION 2: Deep Pink to Red (CURRENTLY SELECTED) */
-    --error-all-gradient: linear-gradient(to right, 
+    --error-hard-gradient: linear-gradient(to right, 
         hsl(323, 85%, 30%),   /* Deep pink (matching secondary hue exactly) */
         hsl(355, 90%, 45%)    /* Vibrant crimson */
     );
 
     /* OPTION 3: Purple-Red Fusion */
-    --error-all-gradient3: linear-gradient(to right, 
+    --error-hard-gradient3: linear-gradient(to right, 
         hsl(330, 80%, 30%),   /* Purple-red */
         hsl(350, 90%, 45%)    /* Red with a hint of pink */
     );
 
     /* OPTION 4: Dark Fuchsia to Ruby (Most harmonious with theme) */
-    --error-all-gradient4: linear-gradient(to right, 
+    --error-hard-gradient4: linear-gradient(to right, 
         hsl(320, 70%, 25%),   /* Dark fuchsia (near secondary) */
         hsl(335, 85%, 40%)    /* Ruby red */
     );
@@ -224,12 +224,12 @@ h1 {
 /* Progress bar animations */
 @keyframes transitionToError {
   0% { background-color: var(--primary-color); }
-  100% { background-color: var(--error-task-color); }
+  100% { background-color: var(--error-soft-color); }
 }
 
 @keyframes transitionToCritical {
   0% { background-color: var(--primary-color); }
-  100% { background-color: var(--error-all-color); }
+  100% { background-color: var(--error-hard-color); }
 }
 
 @keyframes transitionToCancel {

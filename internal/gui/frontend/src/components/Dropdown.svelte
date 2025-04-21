@@ -149,7 +149,7 @@
         <button 
             type="button" 
             bind:this={buttonRef}
-            class="dropdown-button w-full flex justify-between items-center rounded-md h-[42px] px-3 py-2 font-medium {error ? 'border-error-all/70' : ''} {disabled ? 'opacity-50 cursor-not-allowed' : 'focus:ring-offset-[3px] focus:ring-2 focus:ring-primary/30'} transition-all duration-200 relative"
+            class="dropdown-button w-full flex justify-between items-center rounded-md h-[42px] px-3 py-2 font-medium {error ? 'border-error-hard/70' : ''} {disabled ? 'opacity-50 cursor-not-allowed' : 'focus:ring-offset-[3px] focus:ring-2 focus:ring-primary/30'} transition-all duration-200 relative"
             aria-haspopup="listbox" 
             aria-expanded={isOpen} 
             aria-labelledby={label ? `${label}-label` : undefined} 
@@ -205,7 +205,7 @@
     {/if}
 
     {#if error}
-        <p class="mt-1 text-xs text-error-all">{error}</p>
+        <p class="mt-1 text-xs text-error-hard">{error}</p>
     {/if}
 </div>
 

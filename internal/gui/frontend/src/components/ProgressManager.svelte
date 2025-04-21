@@ -70,7 +70,7 @@
 
     // Determine state class for status text container
      $: statusStateClass = statusHasWaves
-        ? isGlobalAbort ? 'state-error-all' : 'state-error-task'
+        ? isGlobalAbort ? 'state-error-hard' : 'state-error-soft'
         : userCancelled ? 'state-user-cancel' // Apply cancel state for static gradient
         : 'state-normal'; // Default or normal state
 
@@ -440,8 +440,8 @@
                     {@const hasError = !!bar.errorState}
                     {@const isComplete = bar.progress >= 100 && !hasError}
                     {@const stateClass = hasError 
-                        ? bar.errorState === 'error_task' ? 'state-error-task' 
-                        : bar.errorState === 'error_all' ? 'state-error-all' 
+                        ? bar.errorState === 'error_task' ? 'state-error-soft' 
+                        : bar.errorState === 'error_all' ? 'state-error-hard' 
                         : bar.errorState === 'user_cancel' ? '' 
                         : 'state-normal' 
                         : isComplete ? 'state-complete' : 'state-normal'}
@@ -616,23 +616,23 @@
         --status-wave-3-fill: var(--wave-3-fill);
         --status-wave-4-fill: var(--wave-4-fill);
     }
-    .state-error-task {
-        --progress-bg-color: hsl(var(--error-task-hue), var(--error-task-saturation), calc(var(--error-task-lightness) - 35%));
-        --wave-1-fill: hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.5);
-        --wave-2-fill: hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.7);
-        --wave-3-fill: hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.8);
-        --wave-4-fill: hsla(var(--error-task-hue), var(--error-task-saturation), var(--error-task-lightness), 0.9);
+    .state-error-soft {
+        --progress-bg-color: hsl(var(--error-soft-hue), var(--error-soft-saturation), calc(var(--error-soft-lightness) - 35%));
+        --wave-1-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.5);
+        --wave-2-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.7);
+        --wave-3-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.8);
+        --wave-4-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.9);
         --status-wave-1-fill: var(--wave-1-fill);
         --status-wave-2-fill: var(--wave-2-fill);
         --status-wave-3-fill: var(--wave-3-fill);
         --status-wave-4-fill: var(--wave-4-fill);
     }
-    .state-error-all {
-        --progress-bg-color: hsl(var(--error-all-hue), var(--error-all-saturation), calc(var(--error-all-lightness) - 25%));
-        --wave-1-fill: hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.5);
-        --wave-2-fill: hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.7);
-        --wave-3-fill: hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.8);
-        --wave-4-fill: hsla(var(--error-all-hue), var(--error-all-saturation), var(--error-all-lightness), 0.9);
+    .state-error-hard {
+        --progress-bg-color: hsl(var(--error-hard-hue), var(--error-hard-saturation), calc(var(--error-hard-lightness) - 25%));
+        --wave-1-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.5);
+        --wave-2-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.7);
+        --wave-3-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.8);
+        --wave-4-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.9);
         --status-wave-1-fill: var(--wave-1-fill);
         --status-wave-2-fill: var(--wave-2-fill);
         --status-wave-3-fill: var(--wave-3-fill);
