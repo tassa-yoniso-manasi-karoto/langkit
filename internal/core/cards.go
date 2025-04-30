@@ -60,10 +60,12 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		reporter.SaveSnapshot("Requirements validation failed", tsk.DebugVals()) // necessity: high
 		return procErr
 	}
-
-	// Handle subtitle detection and language determination
-	if procErr := tsk.setupSubtitles(ctx, reporter); procErr != nil {
-		return procErr
+	
+	if tsk.Mode != Enhance {
+		// Handle subtitle detection and language determination
+		if procErr := tsk.setupSubtitles(ctx, reporter); procErr != nil {
+			return procErr
+		}
 	}
 	
 	// Register original subtitle files for merging if merging is enabled AND this is a merge-group feature
@@ -86,9 +88,9 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 			return procErr
 		}
 		
-		tsk.processClosedCaptions()
-		
 		if tsk.WantTranslit {
+			tsk.processClosedCaptions()
+			
 			if err := tsk.processTransliteration(ctx); err != nil {
 				return err
 			}
@@ -118,7 +120,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		return procErr
 	}
 
-	// Launch main app logic: supervisor
+	// Launch bulk of app logic: supervisor
 	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
 		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
 			reporter.SaveSnapshot("Supervisor failed", tsk.DebugVals()) // necessity: critical
@@ -209,7 +211,7 @@ func (tsk *Task) Autosub() *ProcessingError {
 	tsk.Handler.ZeroLog().Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
 	tsk.NativeSubFile  = Base2Absolute(tsk.NativeSubFile, path.Dir(tsk.MediaSourceFile))
 	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
-	if tsk.Mode != Enhance && tsk.TargSubFile == "" {
+	if tsk.TargSubFile == "" {
 		return tsk.Handler.LogErrFields(fmt.Errorf("no subtitle file in %s was found", tsk.Targ.Name), AbortTask,
 			"autosubs failed", map[string]interface{}{"video": path.Base(tsk.MediaSourceFile)})
 	}
@@ -349,7 +351,10 @@ func (tsk *Task) validateBasicRequirements() *ProcessingError {
 				"Apostrophe in the names of the files themselves are supported using a workaround.")
 	}
 	
-	// FIXME Probably return on mode.Enhance here
+	if tsk.Mode == Enhance  {
+		return nil
+	}
+	
 	// Ensure either languages or subtitle files are specified
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		return tsk.Handler.Log(Error, AbortAllTasks,
@@ -494,10 +499,6 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 
 // processClosedCaptions handles closed caption detection and processing
 func (tsk *Task) processClosedCaptions() {
-	if tsk.Mode == Enhance {
-		return
-	}
-
 	// Check if subtitles are closed captions and process accordingly
 	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
 		tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
@@ -595,7 +596,8 @@ func (tsk *Task) processAudioEnhancement(ctx context.Context) *ProcessingError {
 			return err
 		}
 	} else if tsk.Mode == Enhance {
-		tsk.Handler.ZeroLog().Error().Msg("No separation API to isolate the voice's audio was specified.")
+		return tsk.Handler.LogErr(fmt.Errorf("tsk.SeparationLib is empty"),
+			AbortAllTasks, "No separation API to isolate the voice's audio was specified.")
 	}
 	return nil
 }

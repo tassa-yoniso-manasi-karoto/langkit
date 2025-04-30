@@ -177,7 +177,11 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		OriginalBoost: -9,
 		Limiter:  0.9,
 		MaxAPIRetries: 10,
-		// the actual control over STT activation remains in STT string being != "",
+		// 2100s = 35 minutes: @150 KB/s → max 315MB uploaded before timeout,
+		// should be way enough for any movie/serie audio on any network since we encode it in OPUS
+		TimeoutSep: 2100,  
+		TimeoutSTT: 90,   // 90 seconds for each subtitle audio segment
+		// the actual control over STT activation remains STT string being != "",
 		// by default assume a subtitle file is wanted and therefore
 		// let that value be overwritten as needed (currently only by CLI).
 		WantDubs: true,

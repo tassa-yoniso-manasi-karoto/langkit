@@ -151,7 +151,6 @@ func initCommandsWithSettings() {
 	addSharedSTTflags(subs2dubsCmd)
 
 	addSharedTranslitFlags(subs2cardsCmd, true)
-	addSharedTranslitFlags(enhanceCmd, true)
 	addSharedTranslitFlags(translitCmd, false)
 	
 	RootCmd.AddCommand(enhanceCmd)

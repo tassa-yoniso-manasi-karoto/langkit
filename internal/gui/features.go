@@ -30,8 +30,9 @@ func (a *App) SendProcessingRequest(req ProcessRequest) {
 	
 	a.translateReq2Tsk(req, tsk)
 	
-	// FIXME will be problematic if enhance include as sub-task related to subs like translit
-	if tsk.Mode != core.Enhance {
+	// except if task consist only of enhancing audiotrack at manually specified
+	// audiotrack index in which case it must be fully language-agnostic
+	if !(tsk.Mode == core.Enhance && req.AudioTrackIndex > 0) {
 		settings, err := config.LoadSettings()
 		if err != nil {
 			tsk.Handler.LogErr(err, core.AbortAllTasks, "failed to load settings")
@@ -88,37 +89,27 @@ type FeatureOptions struct {
 }
 
 
-
-func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
-	// Configure based on selected features starting from the most specific,
-	// restricted processing mode to the most general, multipurpose in order to
-	// have the correct tsk.Mode at the end to pass on downstream.
-	
+// see DEV.md for 'translation' mappings
+func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 	// internally tsk.UseAudiotrack refers to first track as the track whose index is 0
-	request.AudioTrackIndex -= 1
+	req.AudioTrackIndex -= 1
 	
 	// Set audio track if specified
-	if request.AudioTrackIndex >= 0 {
-		tsk.UseAudiotrack = request.AudioTrackIndex
+	if req.AudioTrackIndex >= 0 {
+		tsk.UseAudiotrack = req.AudioTrackIndex
 		tsk.Handler.ZeroLog().Debug().
 			Int("UseAudiotrack", tsk.UseAudiotrack).
 			Msg("Set audio track index")
 	}
 	
-	// Initialize feature groups mapping to track which features belong to which groups
-	// featureGroups := map[string][]string{
-	// 	"merge": {"dubtitles", "voiceEnhancing", "subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
-	// 	"subtitle": {"subtitleRomanization", "selectiveTransliteration", "subtitleTokenization"},
-	// }
-	
 	// Check all enabled features for mergeOutputFiles=true
 	tsk.MergeOutputFiles = false
-	for feature, enabled := range request.SelectedFeatures {
+	for feature, enabled := range req.SelectedFeatures {
 		if !enabled {
 			continue
 		}
 		
-		featureOpts, ok := request.Options.Options[feature]
+		featureOpts, ok := req.Options.Options[feature]
 		if !ok {
 			continue
 		}
@@ -145,16 +136,58 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 		}
 	}
 	
-	// Initialize subtitle processing options
+	// Initialize subtitle processing options:
+	// Configure based on selected features starting from the most specific,
+	// restricted processing mode to the most general, multipurpose in order to
+	// have the correct tsk.Mode at the end to pass on downstream.
+	
+	if req.SelectedFeatures["voiceEnhancing"] {
+		featureOpts, ok := req.Options.Options["voiceEnhancing"]
+		if !ok {
+			tsk.Handler.Log(core.Error, core.AbortTask, "voiceEnhancing options not found")
+			return
+		}
+		
+		tsk.Mode = core.Enhance
+		
+		if sepLib, ok := featureOpts["sepLib"]; ok {
+			if sepLibStr, ok := sepLib.(string); ok {
+				tsk.SeparationLib = sepLibStr
+			}
+		}
+		
+		if voiceBoost, ok := featureOpts["voiceBoost"]; ok {
+			if boost, ok := voiceBoost.(float64); ok {
+				tsk.VoiceBoost = boost
+			}
+		}
+		
+		if originalBoost, ok := featureOpts["originalBoost"]; ok {
+			if boost, ok := originalBoost.(float64); ok {
+				tsk.OriginalBoost = boost
+			}
+		}
+		
+		if limiter, ok := featureOpts["limiter"]; ok {
+			if limit, ok := limiter.(float64); ok {
+				tsk.Limiter = limit
+			}
+		}
+
+		tsk.Handler.ZeroLog().Debug().
+			Interface("voice_enhancing_options", featureOpts).
+			Msg("Configured Voice Enhancing")
+	}
+	
 	// We'll capture all transliteration-related features first
 	var subtitleFeatures []string
-	if request.SelectedFeatures["subtitleRomanization"] {
+	if req.SelectedFeatures["subtitleRomanization"] {
 		subtitleFeatures = append(subtitleFeatures, "subtitleRomanization")
 	}
-	if request.SelectedFeatures["selectiveTransliteration"] {
+	if req.SelectedFeatures["selectiveTransliteration"] {
 		subtitleFeatures = append(subtitleFeatures, "selectiveTransliteration")
 	}
-	if request.SelectedFeatures["subtitleTokenization"] {
+	if req.SelectedFeatures["subtitleTokenization"] {
 		subtitleFeatures = append(subtitleFeatures, "subtitleTokenization")
 	}
 	
@@ -169,16 +202,16 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 		// Process common provider settings from subtitleRomanization
 		// (or from other features if romanization isn't selected)
 		var providerFeature string
-		if request.SelectedFeatures["subtitleRomanization"] {
+		if req.SelectedFeatures["subtitleRomanization"] {
 			providerFeature = "subtitleRomanization"
-		} else if request.SelectedFeatures["subtitleTokenization"] {
+		} else if req.SelectedFeatures["subtitleTokenization"] {
 			providerFeature = "subtitleTokenization"
-		} else if request.SelectedFeatures["selectiveTransliteration"] {
+		} else if req.SelectedFeatures["selectiveTransliteration"] {
 			providerFeature = "selectiveTransliteration"
 		}
 		
 		if providerFeature != "" {
-			featureOpts, ok := request.Options.Options[providerFeature]
+			featureOpts, ok := req.Options.Options[providerFeature]
 			if !ok {
 				tsk.Handler.Log(core.Error, core.AbortTask, providerFeature + " options not found")
 				return
@@ -217,11 +250,11 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 		}
 		
 		// Selective Transliteration
-		if request.SelectedFeatures["selectiveTransliteration"] {
+		if req.SelectedFeatures["selectiveTransliteration"] {
 			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Selective)
 
 			// Get selective transliteration specific options
-			featureOpts, ok := request.Options.Options["selectiveTransliteration"]
+			featureOpts, ok := req.Options.Options["selectiveTransliteration"]
 			if ok {
 				if tokenizeOutput, ok := featureOpts["tokenizeOutput"]; ok {
 					if tokenize, ok := tokenizeOutput.(bool); ok {
@@ -259,59 +292,21 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 		}
 		
 		// Subtitle Romanization
-		if request.SelectedFeatures["subtitleRomanization"] {
+		if req.SelectedFeatures["subtitleRomanization"] {
 			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Romanize)
 			tsk.Handler.ZeroLog().Debug().Msg("Subtitle Romanization enabled")
 		}
 		
 		// Subtitle Tokenization
-		if request.SelectedFeatures["subtitleTokenization"] {
+		if req.SelectedFeatures["subtitleTokenization"] {
 			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Tokenize)
 			tsk.Handler.ZeroLog().Debug().Msg("Subtitle Tokenization enabled")
 		}
 	}
 
-	if request.SelectedFeatures["voiceEnhancing"] {
-		featureOpts, ok := request.Options.Options["voiceEnhancing"]
-		if !ok {
-			tsk.Handler.Log(core.Error, core.AbortTask, "voiceEnhancing options not found")
-			return
-		}
-		
-		tsk.Mode = core.Enhance
-		
-		if sepLib, ok := featureOpts["sepLib"]; ok {
-			if sepLibStr, ok := sepLib.(string); ok {
-				tsk.SeparationLib = sepLibStr
-			}
-		}
-		
-		if voiceBoost, ok := featureOpts["voiceBoost"]; ok {
-			if boost, ok := voiceBoost.(float64); ok {
-				tsk.VoiceBoost = boost
-			}
-		}
-		
-		if originalBoost, ok := featureOpts["originalBoost"]; ok {
-			if boost, ok := originalBoost.(float64); ok {
-				tsk.OriginalBoost = boost
-			}
-		}
-		
-		if limiter, ok := featureOpts["limiter"]; ok {
-			if limit, ok := limiter.(float64); ok {
-				tsk.Limiter = limit
-			}
-		}
 
-		tsk.Handler.ZeroLog().Debug().
-			Interface("voice_enhancing_options", featureOpts).
-			Msg("Configured Voice Enhancing")
-	}
-	
-
-	if request.SelectedFeatures["dubtitles"] {
-		featureOpts, ok := request.Options.Options["dubtitles"]
+	if req.SelectedFeatures["dubtitles"] {
+		featureOpts, ok := req.Options.Options["dubtitles"]
 		if !ok {
 			tsk.Handler.Log(core.Error, core.AbortTask, "dubtitles options not found")
 			return
@@ -349,8 +344,8 @@ func (a *App) translateReq2Tsk(request ProcessRequest, tsk *core.Task) {
 	}
 	
 
-	if request.SelectedFeatures["subs2cards"] {
-		featureOpts, ok := request.Options.Options["subs2cards"]
+	if req.SelectedFeatures["subs2cards"] {
+		featureOpts, ok := req.Options.Options["subs2cards"]
 		if !ok {
 			tsk.Handler.Log(core.Error, core.AbortTask, "subs2cards options not found")
 			return

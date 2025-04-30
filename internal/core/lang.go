@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 	"unicode"
+	"time"
 
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
@@ -34,8 +35,8 @@ var refmatch = map[string]int{
 }
 
 type Lang struct {
-	*iso.Language
-	Subtag string // Typically a ISO 3166-1 region but can also be a ISO 15924 script
+	*iso.Language `json:"language"`
+	Subtag string `json:"subtag"` // Typically a ISO 3166-1 region but can also be a ISO 15924 script
 }
 
 func (l *Lang) String() string {
@@ -115,6 +116,15 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 
 func (tsk *Task) SetPreferred(langs []Lang, l, atm Lang, filename string, out *string, Native *Lang) bool {
 	logger := tsk.Handler.ZeroLog()
+	for idx, lang := range langs {
+		if lang.Language == nil {
+			err := fmt.Errorf("lang at index %d is nil", idx)
+			msg := "BUG: SetPreferred received nil pointer among []Lang."
+			tsk.Handler.LogErrWithLevel(Error, err, AbortAllTasks, msg)
+			time.Sleep(1 * time.Second) // make sure throttler has time to flush
+			logger.Fatal().Err(err).Interface("languages", langs).Msg(msg)
+		}
+	}
 	
 	isPreferredLang := setPreferredLang(langs, l, atm, logger)
 	isPreferredSubtype := isPreferredSubtypeOver(*out, filename, logger)
