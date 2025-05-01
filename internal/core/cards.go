@@ -79,15 +79,15 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 			tsk.RegisterOutputFile(tsk.NativeSubFile, OutputSubtitle, tsk.Native, "original", 50)
 		}
 	} else {
-		tsk.Handler.ZeroLog().Debug().Msg("Skipping output merge registration - not a merge group feature")
+		tsk.Handler.ZeroLog().Trace().Msg("Skipping output merge registration (no merging requested)")
 	}
-
+	
+	if procErr := tsk.processMediaInfo(); procErr != nil {
+		return procErr
+	}
+	
 	// case where no dubtitle/STT is involved
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
-		if procErr := tsk.processMediaInfo(); procErr != nil { // FIXME DRY
-			return procErr
-		}
-		
 		if tsk.WantTranslit {
 			tsk.processClosedCaptions()
 			
@@ -105,11 +105,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	if outStream, procErr = tsk.prepareOutputDirectory(); procErr != nil {
 		return procErr
 	}
-
-	if procErr := tsk.processMediaInfo(); procErr != nil {
-		return procErr
-	}
-	reporter.SaveSnapshot("After media info processing", tsk.DebugVals()) // necessity: high
+	reporter.SaveSnapshot("after output directory prep", tsk.DebugVals()) // necessity: high
 	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 		es.MediaInfoDump = fmt.Sprintf("%+v", tsk.Meta.MediaInfo) // necessity: high
 	})
@@ -475,14 +471,13 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 
 // processMediaInfo handles media info extraction and audio track selection
 func (tsk *Task) processMediaInfo() *ProcessingError {
-	// Extract media info
 	tsk.Meta.MediaInfo = Mediainfo(tsk.MediaSourceFile)
-
-	// Skip audio track selection for Translit mode
-	if tsk.Mode == Translit {
-		return nil
+	
+	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
+		return tsk.Handler.LogErr(fmt.Errorf("no audiotracks exists in file"),
+			AbortTask, fmt.Sprint("ignoring file '%s'", path.Base(tsk.MediaSourceFile)))
 	}
-
+	
 	// Select appropriate audio track using selection helpers
 	for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
 		if err := tsk.ChooseAudio(fn); err != nil {

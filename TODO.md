@@ -1,6 +1,6 @@
 SVG animations: rework state transitions
 
-- Voice enhancing timeout input field missing in GUI (hack workaround ahP6lee4)
+- Voice enhancing timeout input field missing in GUI
 
 - remove useless test files
 

@@ -197,6 +197,9 @@ func Mediainfo(path string) (media MediaInfo) {
 				continue
 			}
 			audioTrack.Language = iso.FromAnyCode(audioTrack.LangRaw)
+			if audioTrack.Language == nil {
+				audioTrack.Language = iso.FromPart3Code("und")
+			}
 			media.AudioTracks = append(media.AudioTracks, audioTrack)
 		default:
 			fmt.Println("Unknown track type:", trackType["@type"])

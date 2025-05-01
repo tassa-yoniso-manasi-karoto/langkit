@@ -8,7 +8,6 @@ import (
 	"errors"
 	"sort"
 	
-	iso "github.com/barbashov/iso639-3"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
@@ -85,39 +84,7 @@ func (tsk *Task) GetOutputFileByFeature(feature string) (MediaOutputFile, bool) 
 	return MediaOutputFile{}, false
 }
 
-// GetMergedOutputPath returns the path to the final merged output file
 func (tsk *Task) GetMergedOutputPath() string {
-	// MediaInfo is a struct, not a pointer, so we can't check if it's nil directly
-	
-	// Check if there are audio tracks
-	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
-		// Use a fallback path if no audio tracks
-		basePrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase())
-		ext := tsk.MergingFormat
-		if ext == "" {
-			ext = "mp4" // Default format
-		}
-		return basePrefix + ".MERGED." + ext
-	}
-	
-	// Check if UseAudiotrack is valid
-	if tsk.UseAudiotrack < 0 || tsk.UseAudiotrack >= len(tsk.Meta.MediaInfo.AudioTracks) {
-		// Use a fallback path if UseAudiotrack is invalid
-		basePrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase())
-		ext := tsk.MergingFormat
-		if ext == "" {
-			ext = "mp4" // Default format
-		}
-		return basePrefix + ".MERGED." + ext
-	}
-	
-	// Ensure Language is not nil
-	if tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language == nil {
-		// Set a default language
-		tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language = iso.FromPart3Code("und")
-	}
-	
-	// Now we can safely get the language code
 	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
 	basePrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
 	ext := tsk.MergingFormat
@@ -206,37 +173,23 @@ func (tsk *Task) prepareFilesForMerging() (map[MediaOutputType][]MediaOutputFile
 
 	// Organize files by type
 	filesByType := make(map[MediaOutputType][]MediaOutputFile)
+	// lang is set by Mediainfo() no matter what, even if just "und"
+	lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
 	
 	// Always include original video as the base
-	// First ensure we have a valid UseAudiotrack (MediaInfo is a struct, not a pointer)
-	var langPtr *iso.Language
-	if len(tsk.Meta.MediaInfo.AudioTracks) > 0 && 
-		tsk.UseAudiotrack >= 0 && 
-		tsk.UseAudiotrack < len(tsk.Meta.MediaInfo.AudioTracks) {
-		
-		// Get language, defaulting to "und" if nil
-		langPtr = tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
-		if langPtr == nil {
-			langPtr = iso.FromPart3Code("und")
-		}
-	} else {
-		// Default to undefined language if we don't have valid track info
-		langPtr = iso.FromPart3Code("und")
-	}
-	
 	videoFile := MediaOutputFile{
 		Path:        tsk.MediaSourceFile,
 		Type:        OutputVideo,
-		Lang:        Lang{langPtr, ""},
+		Lang:        Lang{lang, ""},
 		IsGenerated: false,
 		Feature:     "original",
 		Priority:    0,
 	}
+	
 	filesByType[OutputVideo] = []MediaOutputFile{videoFile}
 	
 	// Add all registered files to their appropriate type groups
 	for _, file := range tsk.OutputFiles {
-		// Skip non-existent files
 		if _, err := os.Stat(file.Path); os.IsNotExist(err) {
 			tsk.Handler.ZeroLog().Warn().
 				Str("path", file.Path).
