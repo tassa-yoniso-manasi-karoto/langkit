@@ -142,7 +142,9 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		reporter.SaveSnapshot("Audio enhancement failed", tsk.DebugVals()) // necessity: high
 		return procErr
 	}
-	
+
+
+goodEnd:
 	// Only merge outputs when MergeOutputFiles is true (set by the frontend for merge group features)
 	if tsk.MergeOutputFiles && len(tsk.OutputFiles) > 0 {
 		tsk.Handler.ZeroLog().Debug().
@@ -169,7 +171,6 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 			Msg("Skipping merge outputs - not part of merge group or no files to merge")
 	}
 
-goodEnd:
 	tsk.Handler.ZeroLog().Info().Msg("Processing completed")
 	return nil
 }
