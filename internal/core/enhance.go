@@ -58,11 +58,11 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
 	audioPrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
 	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.ogg")
-	VoiceFile := audioPrefix + "." +  strings.ToUpper(tsk.SeparationLib) + "." + extPerProvider[tsk.SeparationLib]
+	VoiceFile := audioPrefix + langkitMadeVocalsOnlyMarker(tsk.SeparationLib) + extPerProvider[tsk.SeparationLib]
 	
 	tsk.Handler.ZeroLog().Debug().
 		Str("originalAudio", OriginalAudio).
-		Str("voiceFile", VoiceFile).
+		Str("vocalsFile", VoiceFile).
 		Msg("Audio files for enhancement")
 		
 	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
@@ -73,7 +73,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	
 	stat, errOriginal := os.Stat(OriginalAudio)
 	_, errVoice := os.Stat(VoiceFile)
-	// 				no need to demux if isolate voicefile exists already
+	// 				no need to demux if isolate vocalfile exists already
 	if errors.Is(errOriginal, os.ErrNotExist) && errors.Is(errVoice, os.ErrNotExist) {
 		tsk.Handler.ZeroLog().Info().Msg("Demuxing the audiotrack...")
 		err := media.FFmpeg(
@@ -92,7 +92,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	}
 	
 	if errors.Is(errVoice, os.ErrNotExist) {
-		tsk.Handler.ZeroLog().Info().Msg("Separating voice from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
+		tsk.Handler.ZeroLog().Info().Msg("Separating vocals from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
 		
 		// Get the appropriate provider for audio separation
 		provider, err := voice.GetAudioSeparationProvider(tsk.SeparationLib)
@@ -106,7 +106,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		}
 		
 		// Process the audio using the provider
-		tsk.Handler.ZeroLog().Debug().Str("provider", provider.GetName()).Msg("Using voice separation provider")
+		tsk.Handler.ZeroLog().Debug().Str("provider", provider.GetName()).Msg("Using vocals separation provider")
 		audio, err := provider.SeparateVoice(ctx, OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.MaxAPIRetries, tsk.TimeoutSep)
 		
 		if err != nil {
@@ -122,23 +122,23 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 			}
 			return tsk.Handler.LogErr(err, AbortTask, "Voice SeparationLib processing error.\n\n" +
 				"LANGKIT DEVELOPER NOTE: These voice separation libraries are originally meant" +
-				"for songs (ie. tracks a few minutes long) and the GPUs allocated by Replicate" +
-				"to these models are not the best. You may face OOM (out of memory) GPU errors" +
-				"when trying to process audio tracks of movies.\n" +
+				"for vocals of songs (ie. tracks a few minutes long) and the GPUs allocated by" +
+				" Replicate to these models are not the best. You may face out of memory (OOM) " +
+				"GPU errors when trying to process audio tracks of movies.\n" +
 				"As far as my testing goes, trying a few hours later solves the problem.\n")
 		}
 		
 		// Must write to disk so that it can be reused if ft error
 		if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {
-			tsk.Handler.ZeroLog().Error().Err(err).Msg("File of separated voice couldn't be written.")
+			tsk.Handler.ZeroLog().Error().Err(err).Msg("File of separated vocals couldn't be written.")
 		}
 	} else {
-		tsk.Handler.ZeroLog().Info().Msg("Previously separated voice audio was found and will be reused.")
+		tsk.Handler.ZeroLog().Info().Msg("Previously separated vocals audio was found and will be reused.")
 	}
 	// MERGE THE ORIGINAL AUDIOTRACK WITH THE VOICE AUDIO FILE
 	// Using a lossless audio file in the video could induce A-V desync will playing
 	// because these format aren't designed to be audio tracks of videos, unlike opus.
-	MergedFile := audioPrefix + ".ENHANCED.ogg"
+	MergedFile := audioPrefix + langkitMadeEnhancedMarker() + ".ogg"
 	_, err := os.Stat(MergedFile)
 	if strings.ToLower(tsk.SeparationLib) == "elevenlabs" {
 		tsk.Handler.ZeroLog().Info().Msg("No automatic merging possible with Elevenlabs. " +
@@ -146,7 +146,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		return
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		tsk.Handler.ZeroLog().Debug().Msg("Merging original and separated voice track into an enhanced voice track...")
+		tsk.Handler.ZeroLog().Debug().Msg("Merging original and separated vocals track into an enhanced voice track...")
 		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
@@ -160,7 +160,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		}...)
 		if err != nil {
 			reporter.SaveSnapshot("Audio merging failed", tsk.DebugVals()) // necessity: high
-			return tsk.Handler.LogErr(err, AbortTask, "Failed to merge original with separated voice track.")
+			return tsk.Handler.LogErr(err, AbortTask, "Failed to merge original with separated vocals track.")
 		}
 		tsk.Handler.ZeroLog().Trace().Msg("Audio merging success.")
 	} else {
