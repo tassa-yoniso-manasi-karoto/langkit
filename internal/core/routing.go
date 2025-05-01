@@ -112,7 +112,8 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				return filepath.SkipDir
 			}
 			filename := filepath.Base(path)
-			if !strings.HasSuffix(path, ".mp4") && !strings.HasSuffix(filename, ".mkv")  {
+			if !strings.HasSuffix(path, ".mp4") && !strings.HasSuffix(filename, ".mkv") ||
+				isLangkitMadeMergedOutput(filename) {
 				return nil
 			}
 			
@@ -123,17 +124,20 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				return nil
 			}
 			
-			if procErr := tsk.Autosub(); procErr != nil {
-				return nil // don't return err, other files may be processable
+			if tsk.Mode != Enhance {
+				if procErr := tsk.Autosub(); procErr != nil {
+					return nil // don't return err, other files may be processable
+				}
+				foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
+				if err != nil {
+					tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
+				}
+				if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L501
+					foreignSubs.TrimCC2Dubs()
+				}
+				totalItems += len(foreignSubs.Items)
 			}
-			foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
-			if err != nil {
-				tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
-			}
-			if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L457
-				foreignSubs.TrimCC2Dubs()
-			}
-			totalItems += len(foreignSubs.Items)
+			
 			tasks = append(tasks, *tsk)
 			return nil
 		})

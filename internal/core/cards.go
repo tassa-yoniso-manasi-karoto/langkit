@@ -555,6 +555,10 @@ func langkitMadeDubtitlesMarker(STTModel string) string {
 	return "." + strings.ToUpper(STTModel)
 }
 
+func langkitMadeMergedMarker() string {
+	return ".MERGED"
+}
+
 // allows rejecting those files during subfile screening (see lang.go)
 func isLangkitMadeDubtitles(s string) bool {
 	for _, model := range voice.GetAllSTTModels() {
@@ -573,6 +577,10 @@ func isLangkitMadeTranslit(s string) bool {
 		}
 	}
 	return false
+}
+
+func isLangkitMadeMergedOutput(s string) bool {
+	return strings.Contains(s, langkitMadeMergedMarker())
 }
 
 // processTransliteration handles transliteration of subtitles
