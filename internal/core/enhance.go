@@ -116,7 +116,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 				es.LastErrorProvider = provider.GetName()
 			}) // necessity: high
 		        if errors.Is(err, context.Canceled) {
-				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "enhance: STT: operation canceled by user")
+				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "enhance: operation canceled by user")
 		        } else if errors.Is(err, context.DeadlineExceeded) {
 				return tsk.Handler.LogErr(err, AbortTask, "enhance: Operation timed out.")
 			}

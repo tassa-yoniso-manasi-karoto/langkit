@@ -2,28 +2,31 @@ package voice
 
 import (
 	"context"
-	"os"
-	"time"
-	"strings"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"sync"
-	"errors"
 	"mime/multipart"
+	"net/http"
+	"os"
 	"path/filepath"
-	"encoding/json"
-	
-	"github.com/schollz/progressbar/v3"
-	"github.com/k0kubun/pp"
-	"github.com/gookit/color"
-	replicate "github.com/replicate/replicate-go"
-	aai "github.com/AssemblyAI/assemblyai-go-sdk"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/retrypolicy"
+	"github.com/schollz/progressbar/v3"
+	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
+	
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
+	
+	replicate "github.com/replicate/replicate-go"
+	
+	aai "github.com/AssemblyAI/assemblyai-go-sdk"
 )
 
 var (
@@ -36,7 +39,6 @@ func init() {
 	APIKeys.Store("replicate", "")
 	APIKeys.Store("openai", "")
 }
-
 
 // ElevenLabsSTTProvider implements SpeechToTextProvider using ElevenLabs Scribe API
 type ElevenLabsSTTProvider struct{}
@@ -158,10 +160,10 @@ func (p *ElevenLabsSTTProvider) TranscribeAudio(ctx context.Context, audioFile, 
 
 		// Parse the response
 		var result struct {
-			Text          string  `json:"text"`
-			LanguageCode  string  `json:"language_code"`
-			LanguageProb  float64 `json:"language_probability"`
-			Words         []any   `json:"words"` // We only need the text, so don't parse the full structure
+			Text         string  `json:"text"`
+			LanguageCode string  `json:"language_code"`
+			LanguageProb float64 `json:"language_probability"`
+			Words        []any   `json:"words"` // We only need the text, so don't parse the full structure
 		}
 
 		err = json.NewDecoder(resp.Body).Decode(&result)
@@ -178,7 +180,6 @@ func (p *ElevenLabsSTTProvider) TranscribeAudio(ctx context.Context, audioFile, 
 
 	return transcription, nil
 }
-
 
 // AssemblyAIProvider implements SpeechToTextProvider using the AssemblyAI API
 type AssemblyAIProvider struct{}
@@ -324,7 +325,6 @@ func (p *WhisperProvider) TranscribeAudio(ctx context.Context, audioFile, langua
 	return r8RunWithAudioFile(params)
 }
 
-
 // FastWhisperProvider implements SpeechToTextProvider using Incredibly Fast Whisper via Replicate
 type FastWhisperProvider struct {
 	ReplicateProvider
@@ -359,7 +359,6 @@ func (p *FastWhisperProvider) TranscribeAudio(ctx context.Context, audioFile, la
 	return r8RunWithAudioFile(params)
 }
 
-
 // r8RunParams holds parameters controlling how to run the model and parse results.
 type r8RunParams struct {
 	Ctx      context.Context
@@ -372,14 +371,13 @@ type r8RunParams struct {
 	Parser   parserT
 }
 
-
 // r8RunWithAudioFile runs a Replicate model with file input and returns the parsed result.
 //
-// 1) Uploads the file with repeated attempts if needed, ignoring all errors except context.Canceled
-//    until maxTry is reached.
+//  1. Uploads the file with repeated attempts if needed, ignoring all errors except context.Canceled
+//     until maxTry is reached.
 //
-// 2) Calls r8.Run with repeated attempts if needed, ignoring all errors except context.Canceled
-//    until maxTry is reached.
+//  2. Calls r8.Run with repeated attempts if needed, ignoring all errors except context.Canceled
+//     until maxTry is reached.
 //
 // 3) Processes the final result.
 func r8RunWithAudioFile(params r8RunParams) (string, error) {
@@ -411,10 +409,10 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 		// Create a separate context for model retrieval
 		modelCtx, modelCancel := context.WithTimeout(parentCtx, time.Duration(params.Timeout)*time.Second)
 		defer modelCancel()
-		
+
 		return r8.GetModel(modelCtx, params.Owner, params.Name)
 	}, modelPolicy)
-	
+
 	if err != nil {
 		return "", fmt.Errorf("failed retrieving %s's information: %w", params.Name, err)
 	}
@@ -429,10 +427,10 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 		// Create a fresh context for this upload attempt
 		uploadCtx, uploadCancel := context.WithTimeout(parentCtx, time.Duration(params.Timeout)*time.Second)
 		defer uploadCancel()
-		
+
 		return r8.CreateFileFromPath(uploadCtx, params.Filepath, nil)
 	}, uploadPolicy)
-	
+
 	if err != nil {
 		return "", fmt.Errorf("CreateFileFromPath failed for \"%s\": %w", params.Filepath, err)
 	}
@@ -447,7 +445,7 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 		// Create a fresh context for this prediction attempt
 		predictionCtx, predictionCancel := context.WithTimeout(parentCtx, time.Duration(params.Timeout)*time.Second)
 		defer predictionCancel()
-		
+
 		// Build the input with the successfully uploaded file.
 		input := replicate.PredictionInput{
 			"audio": uploadResult,
@@ -455,7 +453,7 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 		input = params.InitRun(input)
 		return r8.Run(predictionCtx, params.Owner+"/"+params.Name+":"+model.LatestVersion.ID, input, nil)
 	}, predictionPolicy)
-	
+
 	if err != nil {
 		// If it's a replicate.ModelError, print logs and modify the error message.
 		if me, ok := err.(*replicate.ModelError); ok {
@@ -483,28 +481,60 @@ func r8RunWithAudioFile(params r8RunParams) (string, error) {
 	return resultStr, nil
 }
 
-// makeRequestWithRetry performs an HTTP GET using failsafe-go with the same style of retrypolicy.
-func makeRequestWithRetry(url string, ctx context.Context, timeout, maxTry int) (*http.Response, error) {
-	// Use the same generic policy creation function, specialized for *http.Response.
-	policy := buildRetryPolicy[*http.Response](maxTry)
-	
-	return failsafe.Get(func() (*http.Response, error) {
-		// Create a fresh context for each request attempt
+// makeRequestWithRetry performs an HTTP GET using failsafe-go, reads the body, and returns it.
+func makeRequestWithRetry(url string, ctx context.Context, timeout, maxTry int) ([]byte, error) {
+	// Use the same generic policy creation function, specialized for []byte.
+	policy := buildRetryPolicy[[]byte](maxTry)
+
+	return failsafe.Get(func() ([]byte, error) {
 		reqCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
-		
+
 		// Create a request with context
 		req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
-		
-		return http.DefaultClient.Do(req)
+
+		// Execute request
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err // Let failsafe handle retry based on this error
+		}
+		defer resp.Body.Close()
+
+		// Check for non-2xx status code before reading body
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			// Read a small part of the body for error context, avoid reading huge bodies on error
+			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+			return nil, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, string(bodyBytes))
+		}
+
+		// Read the entire body, optionally with progress bar
+		var reader io.Reader
+		if false { // Keep progress bar logic disabled by default
+			// Use ContentLength if available, otherwise -1 for indeterminate progress
+			contentLength := resp.ContentLength
+			bar := progressbar.DefaultBytes(contentLength, "downloading")
+			reader = io.TeeReader(resp.Body, bar)
+		} else {
+			reader = resp.Body
+		}
+
+		body, readErr := io.ReadAll(reader)
+		if readErr != nil {
+			// Check if the read error is due to context cancellation/deadline
+			if errors.Is(readErr, context.Canceled) || errors.Is(readErr, context.DeadlineExceeded) {
+				fmt.Fprintf(os.Stderr, "DEBUG: Body read failed with context error: %v\n", readErr)
+			}
+			return nil, fmt.Errorf("error reading response body: %w", readErr)
+		}
+		return body, nil
 	}, policy)
 }
 
 // r8RunWithAudioFileAndGET runs the model prediction with repeated attempts, then
-// downloads the resulting URL with repeated attempts. We adopt retrypolicy for the GET as well.
+// downloads the resulting URL with repeated attempts.
 func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
 	// 1. Run the model to get a URL.
 	URL, err := r8RunWithAudioFile(params)
@@ -512,26 +542,15 @@ func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
 		return nil, err
 	}
 
-	// 2. Download the result with repeated attempts.
-	resp, err := makeRequestWithRetry(URL, params.Ctx, params.Timeout, params.MaxTry)
+	// 2. Download the result (including body read) with repeated attempts.
+	body, err := makeRequestWithRetry(URL, params.Ctx, params.Timeout, params.MaxTry)
 	if err != nil {
-		return nil, fmt.Errorf("Failed request on prediction output after %d attempts: %w", params.MaxTry, err)
-	}
-	defer resp.Body.Close()
-
-	// 3. Read (and track) the downloaded content.
-	bar := progressbar.DefaultBytes(-1, "downloading")
-	reader := io.TeeReader(resp.Body, bar)
-
-	body, err := io.ReadAll(reader)
-	if err != nil {
+		color.Redln("couldn't download/read body from " + URL)
 		pp.Println(err)
-		return nil, fmt.Errorf("Error reading body of the response: %w", err)
+		return nil, fmt.Errorf("failed request or body read for prediction output after %d attempts: %w", params.MaxTry, err)
 	}
-	fmt.Print("\n")
 	return body, nil
 }
-
 
 // OpenAIProvider implements SpeechToTextProvider using OpenAI API
 type OpenAIProvider struct {
@@ -609,8 +628,8 @@ func (p *OpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, languag
 
 		// Setup transcription params
 		params := openai.AudioTranscriptionNewParams{
-			Model: model,
-			File:  f,
+			Model:          model,
+			File:           f,
 			ResponseFormat: openai.AudioResponseFormatJSON,
 		}
 
@@ -635,7 +654,6 @@ func (p *OpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, languag
 	return transcription.Text, nil
 }
 
-
 // buildRetryPolicy is a single function that builds a generic retry policy for any type R.
 //
 // Make retries ignore all errors unless we have hit the max attempts, in which case
@@ -656,7 +674,7 @@ func buildRetryPolicy[R any](maxTry int) failsafe.Policy[R] {
 		WithBackoffFactor(500*time.Millisecond, 5*time.Second, 2.0).
 		// Log each failed attempt with more detailed error information.
 		OnRetry(func(evt failsafe.ExecutionEvent[R]) {
-			fmt.Fprintf(os.Stderr, "WARN: Attempt %d failed with error: %v; retrying...\n", 
+			fmt.Fprintf(os.Stderr, "WARN: Attempt %d failed with error: %v; retrying...\n",
 				evt.Attempts(), evt.LastError())
 		}).
 		Build()

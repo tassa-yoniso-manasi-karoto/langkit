@@ -93,8 +93,6 @@ func Run() {
 		},
 	})
 	
-	//err = fmt.Errorf("TEST ERROR")
-	
 	// handler != nil is to support Wails' double start that wails dev performs
 	if err != nil && handler != nil {
 		exitOnError(err)
