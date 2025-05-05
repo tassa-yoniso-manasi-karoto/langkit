@@ -9,7 +9,7 @@
 
 ### Status: prerelease
 
-Langkit is an all-in-one tool designed to **facilitate language learning from native media content** using a collection of diverse features to transform movies, TV shows, etc., into **easily ‘digestible’ material**. It supports automatic subtitle detection, multiple native (reference) language fallback and bulk/recursive directory processing.
+Langkit is an all-in-one tool designed to **facilitate language learning from native media content** using a collection of diverse features to transform movies, TV shows, etc., into **easily ‘digestible’ material**. It was made with scalability, fault-tolerance in mind and supports automatic subtitle detection, bulk/recursive directory processing, seamless resumption of previously interrupted processing runs and multiple native (reference) language fallback.
 
 ### Features
 
@@ -70,6 +70,7 @@ Subs2cards converts your favorite TV shows and movies directly into Anki flashca
 - **Default encoding to OPUS / AVIF**: Use modern codecs to save storage.
 - **Parallelization / multi-threading by default**: By default all CPU cores available are used. You can reduce CPU usage by passing a lower ```--workers``` value than the default.
 - **Bulk / recursive directory processing**: if you pass a directory instead of a mp4. The target and native language must be set using ```-l```, see tldr section.
+- **Seamless resumption of previously interrupted runs**
 
 </details>
 
