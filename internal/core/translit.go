@@ -148,21 +148,73 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		TranslitOutputType{TokenizedSelective, "", subsFilepathTokenizedSelective, OutputTranslit, 76, "tokenized_selective_transliteration"},
 	}
 	
-	// Check if transliteration already exists // FIXME right now the romanization is used a sole source of truth for alreadyDone
-	if alreadyDone, err := fileExistsAndNotEmpty(subsFilepathTranslit); err != nil {
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: error checking destination file %s", subsFilepathTranslit))
-	} else if alreadyDone {
+	// Check if all requested transliteration types already exist
+	allRequiredOutputsExist := true
+	missingOutputs := []string{}
+	existingOutputs := []string{}
+	
+	// Check each requested transliteration type
+	for _, output := range outputTypes {
+		if !slices.Contains(tsk.TranslitTypes, output.ttype) {
+			// Skip if this type is not requested
+			continue
+		}
+		
+		// Skip selective transliteration checks if not applicable
+		if (output.ttype == Selective || output.ttype == TokenizedSelective) && 
+		   (langCode != "jpn" || tsk.KanjiThreshold <= -1) {
+			continue
+		}
+		
+		// Skip tokenized selective if not requested
+		if output.ttype == TokenizedSelective && !tsk.TokenizeSelectiveTranslit {
+			continue
+		}
+		
+		// Skip selective if tokenized selective is requested instead
+		if output.ttype == Selective && tsk.TokenizeSelectiveTranslit {
+			continue
+		}
+		
+		// Check if this output file exists and is not empty
+		exists, err := fileExistsAndNotEmpty(output.path)
+		if err != nil {
+			return tsk.Handler.LogErr(err, AbortAllTasks,
+				fmt.Sprintf("translit: error checking destination file %s", output.path))
+		}
+		
+		if exists {
+			existingOutputs = append(existingOutputs, output.ttype.String())
+		} else {
+			missingOutputs = append(missingOutputs, output.ttype.String())
+			allRequiredOutputsExist = false
+		}
+	}
+	
+	// If all requested output types exist, we can skip processing
+	if allRequiredOutputsExist && len(existingOutputs) > 0 {
 		tsk.Handler.ZeroLog().Info().
-			Bool("file_exists_and_not_empty", alreadyDone).
-			Msg("Subtitle were already transliterated previously, continuing...")
-
-		for _, output := range outputTypes {
-			if slices.Contains(tsk.TranslitTypes, output.ttype) && tsk.MergeOutputFiles {
-				tsk.RegisterOutputFile(output.path, output.outputType, tsk.Targ, output.feature, output.priority)
+			Strs("existing_outputs", existingOutputs).
+			Msg("All requested transliteration outputs already exist, continuing...")
+			
+		// Register all existing output files for merging
+		if tsk.MergeOutputFiles {
+			for _, output := range outputTypes {
+				if slices.Contains(tsk.TranslitTypes, output.ttype) {
+					// We already checked that these files exist above
+					tsk.RegisterOutputFile(output.path, output.outputType, tsk.Targ, output.feature, output.priority)
+				}
 			}
 		}
 		return nil
+	}
+	
+	// Some or all outputs are missing, log which ones
+	if len(existingOutputs) > 0 {
+		tsk.Handler.ZeroLog().Info().
+			Strs("existing_outputs", existingOutputs).
+			Strs("missing_outputs", missingOutputs).
+			Msg("Some transliteration outputs exist but others need to be generated")
 	}
 
 	// Get the appropriate transliteration provider based on language
@@ -617,6 +669,7 @@ func calculateChunkSize(runeCount int) (int, int) {
 }
 
 
+// fileExistsAndNotEmpty checks if a file exists and has content
 func fileExistsAndNotEmpty(filepath string) (bool, error) {
         fileInfo, err := os.Stat(filepath)
         if os.IsNotExist(err) {

@@ -37,7 +37,7 @@ func isLangkitMadeDubtitles(s string) bool {
 }
 // allows rejecting those files during subfile screening (see lang.go)
 func isLangkitMadeTranslit(s string) bool {
-	for _, t := range []TranslitType{Tokenize, Romanize, Selective} {
+	for _, t := range []TranslitType{Tokenize, Romanize, Selective, TokenizedSelective} {
 		if strings.Contains(s, t.ToSuffix()) {
 			return true
 		}
