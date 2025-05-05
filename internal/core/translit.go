@@ -62,6 +62,14 @@ type StringResult struct {
 	TokenizedSelective string // Complete tokenized selective transliteration
 }
 
+type TranslitOutputType struct {
+	ttype      TranslitType
+	text       string
+	path       string
+	outputType MediaOutputType
+	priority   int
+	feature    string
+}
 
 // TranslitProvider defines an interface for transliteration providers
 type TranslitProvider interface {
@@ -133,7 +141,14 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	subsFilepathSelective := base + Selective.ToSuffix()
 	subsFilepathTokenizedSelective := base + TokenizedSelective.ToSuffix()
 	
-	// Check if transliteration already exists
+	outputTypes := []TranslitOutputType{
+		TranslitOutputType{Tokenize, "", subsFilepathTokenized, OutputTokenized, 70, "tokenization"},
+		TranslitOutputType{Romanize, "", subsFilepathTranslit, OutputRomanized, 80, "romanization"},
+		TranslitOutputType{Selective, "", subsFilepathSelective, OutputTranslit, 75, "selective_transliteration"},
+		TranslitOutputType{TokenizedSelective, "", subsFilepathTokenizedSelective, OutputTranslit, 76, "tokenized_selective_transliteration"},
+	}
+	
+	// Check if transliteration already exists // FIXME right now the romanization is used a sole source of truth for alreadyDone
 	if alreadyDone, err := fileExistsAndNotEmpty(subsFilepathTranslit); err != nil {
 		return tsk.Handler.LogErr(err, AbortAllTasks,
 			fmt.Sprintf("translit: error checking destination file %s", subsFilepathTranslit))
@@ -141,6 +156,12 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		tsk.Handler.ZeroLog().Info().
 			Bool("file_exists_and_not_empty", alreadyDone).
 			Msg("Subtitle were already transliterated previously, continuing...")
+
+		for _, output := range outputTypes {
+			if slices.Contains(tsk.TranslitTypes, output.ttype) && tsk.MergeOutputFiles {
+				tsk.RegisterOutputFile(output.path, output.outputType, tsk.Targ, output.feature, output.priority)
+			}
+		}
 		return nil
 	}
 
@@ -181,6 +202,10 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	
 	tsk.Handler.ZeroLog().Warn().Msgf("processing text with %s, please wait...", provider.ProviderName())
 	result, err := provider.ProcessText(ctx, subtitleText, tsk.Handler)
+	outputTypes[0].text = result.Tokenized
+	outputTypes[1].text = result.Romanized
+	outputTypes[2].text = result.Selective
+	outputTypes[3].text = result.TokenizedSelective
 	processEndTime := time.Now()
 	processDuration := processEndTime.Sub(processStartTime)
 	if err != nil {
@@ -198,21 +223,6 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	
 	// Write output files - measure performance
 	writeStartTime := time.Now()
-
-
-	outputTypes := []struct {
-		ttype      TranslitType
-		text       string
-		path       string
-		outputType MediaOutputType
-		priority   int
-		feature    string
-	}{
-		{Tokenize, result.Tokenized, subsFilepathTokenized, OutputTokenized, 70, "tokenization"},
-		{Romanize, result.Romanized, subsFilepathTranslit, OutputRomanized, 80, "romanization"},
-		{Selective, result.Selective, subsFilepathSelective, OutputTranslit, 75, "selective_transliteration"},
-		{TokenizedSelective, result.TokenizedSelective, subsFilepathTokenizedSelective, OutputTranslit, 76, "tokenized_selective_transliteration"},
-	}
 	
 	for _, output := range outputTypes {
 		// Skip if not requested

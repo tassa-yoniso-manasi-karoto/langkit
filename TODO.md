@@ -4,6 +4,8 @@ SVG animations: rework state transitions
 
 - remove useless test files
 
+- translit: romanization is used a sole source of truth for alreadyDone
+
 - progress bar
   - ETA calculation itself: use processedCount for ETA calculation
   - 🤯 make consistent progress bars between GUI and CLI
