@@ -61,6 +61,10 @@ func exitOnError(tsk *core.Task, mainErr error) {
 		
 		color.Yellowf("Error: %v\n", mainErr)
 		return
+	} else {
+		tsk.Handler.ZeroLog().Debug().
+			Err(mainErr).
+			Msg("Operation failed with a NON-ORDINARY error")
 	}
 
 	// Handle critical errors with crash reports
@@ -201,7 +205,8 @@ func addSharedTranslitFlags(cmd *cobra.Command, notTranslitSubcommand bool) {
 // isOrdinaryError checks if an error is a common non-critical error that doesn't warrant a crash report
 func isOrdinaryError(err error) bool {
 	// File not found errors
-	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) ||
+		strings.Contains(err.Error(), "no such file or directory") {
 		return true
 	}
 
