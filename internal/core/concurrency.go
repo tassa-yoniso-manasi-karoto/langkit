@@ -199,6 +199,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 					Msg("writer: item is already in waitingRoom")
 				write(outStream, &item)
 				updateBar(1)
+				processedCount++
 				delete(waitingRoom, nextIndex)
 				nextIndex++
 				continue
@@ -224,7 +225,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 								Msg("writer: no more items to come: flushing waitingRoom in order")
 							write(outStream, &nextItem)
 							updateBar(1)
-							processedCount++  // Increment the processed count for calculating ETA
+							processedCount++
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
@@ -238,7 +239,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 						Msg("writer: just received the correct next item")
 					write(outStream, &item)
 					updateBar(1)
-					processedCount++  // Increment the processed count for calculating ETA
+					processedCount++
 					nextIndex++
 					for {
 						// Again, skip any that were marked as already processed.
@@ -254,7 +255,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 								Msg("writer: SUBSEQUENT item is already in waitingRoom")
 							write(outStream, &nextItem)
 							updateBar(1)
-							processedCount++  // Increment the processed count for calculating ETA
+							processedCount++
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
@@ -277,7 +278,6 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		itembar.Clear()
 	}
 	
-	// Log the actual count of processed items (useful for ETA calculations in future runs)
 	tsk.Handler.ZeroLog().Info().
 		Int("processedCount", processedCount).
 		Int("skippedCount", skipped).

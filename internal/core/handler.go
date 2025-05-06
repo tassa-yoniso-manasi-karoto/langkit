@@ -8,6 +8,7 @@ import (
 	"context"
 	"bytes"
 	"encoding/json"
+	"math"
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -41,6 +42,7 @@ type MessageHandler interface {
 	GetLogBuffer() bytes.Buffer
 	HandleStatus(status string) //TODO
 	
+	// Progress tracking methods
 	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
 	ResetProgress()
 	RemoveProgressBar(taskID string)
@@ -65,12 +67,14 @@ type CLIHandler struct {
 	buffer bytes.Buffer
 	
 	progressBars map[string]*progressbar.ProgressBar
+	etaCalculators map[string]*ETACalculator
 }
 
 func NewCLIHandler(ctx context.Context) *CLIHandler {
 	h := &CLIHandler{ 
 		ctx: ctx,
 		progressBars: make(map[string]*progressbar.ProgressBar),
+		etaCalculators: make(map[string]*ETACalculator),
 	}
 	crash.InitReporter(ctx)
 	
@@ -120,7 +124,6 @@ func (h *CLIHandler) LogErrFields(err error, behavior string, msg string, fields
 
 
 
-
 func (h *CLIHandler) ZeroLog() *zerolog.Logger {
 	return h.logger
 }
@@ -132,11 +135,18 @@ func (h *CLIHandler) HandleStatus(status string) {
 
 
 func (h *CLIHandler) ResetProgress() {
+	// Clear progress bars
+	for id, bar := range h.progressBars {
+		bar.Clear()
+		delete(h.progressBars, id)
+	}
+	
+	// Reset ETA calculators
+	h.etaCalculators = make(map[string]*ETACalculator)
 }
 
 
 // RemoveProgressBar explicitly removes a specific progress bar by ID
-// TODO
 func (h *CLIHandler) RemoveProgressBar(taskID string) {
 	if h.progressBars == nil {
 		return
@@ -151,6 +161,11 @@ func (h *CLIHandler) RemoveProgressBar(taskID string) {
 			Str("taskID", taskID).
 			Msg("Removed progress bar")
 	}
+	
+	// Also remove any ETA calculator for this task
+	if h.etaCalculators != nil {
+		delete(h.etaCalculators, taskID)
+	}
 }
 
 
@@ -158,17 +173,32 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	if h.progressBars == nil {
 		h.progressBars = make(map[string]*progressbar.ProgressBar)
 	}
+	
+	if h.etaCalculators == nil {
+		h.etaCalculators = make(map[string]*ETACalculator)
+	}
+	
+	// Only create or update ETA for media-bar and item-bar
+	isEtaEnabled := taskID == "media-bar" || taskID == "item-bar"
+	
+	// Get or create ETA calculator for this task
+	var eta *ETACalculator
+	if isEtaEnabled {
+		eta, _ = h.etaCalculators[taskID]
+		if eta == nil && total > 0 {
+			eta = NewETACalculator(int64(total))
+			h.etaCalculators[taskID] = eta
+		}
+	}
 
 	bar, exists := h.progressBars[taskID]
 	if !exists {
 		// Create a new progress bar for this ID
-		bar = progressbar.NewOptions(
-			total,
+		options := []progressbar.Option{
 			progressbar.OptionSetDescription(desc),
 			progressbar.OptionShowCount(),
 			progressbar.OptionSetWidth(31),
 			progressbar.OptionClearOnFinish(),
-			progressbar.OptionSetPredictTime(true),
 			progressbar.OptionSetWriter(os.Stdout),
 			progressbar.OptionSetTheme(progressbar.Theme{
 				Saucer:        "#",
@@ -176,15 +206,43 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 				BarStart:      "[",
 				BarEnd:        "]",
 			}),
-		)
+		}
+		
+		// Only enable built-in ETA prediction if we're not using our custom ETA
+		if !isEtaEnabled {
+			options = append(options, progressbar.OptionSetPredictTime(true))
+		}
+		
+		bar = progressbar.NewOptions(total, options...)
 		h.progressBars[taskID] = bar
 		fmt.Printf("\n%s\n", operation) // Show an extra line with the name of the operation if you like
 	}
 	
-	// If the total changed, adjust the bar's max
+	// If the total changed, adjust the bar's max and reset ETA calculator
 	if bar.GetMax() != total {
 		bar.ChangeMax(total)
 		bar.Describe(desc) // update text if you want
+		
+		if isEtaEnabled && total > 0 {
+			eta = NewETACalculator(int64(total))
+			h.etaCalculators[taskID] = eta
+		}
+	}
+	
+	// Update ETA calculator with the newly completed tasks
+	if isEtaEnabled && eta != nil {
+		// Get current progress
+		currentProgress := int64(bar.State().CurrentNum) + int64(increment)
+		eta.TaskCompleted(currentProgress)
+		
+		// Calculate the ETA and update the description with it
+		etaDuration := eta.CalculateETA()
+		if etaDuration >= 0 {
+			etaStr := formatETA(etaDuration)
+			
+			// Update the progress bar description with the ETA
+			bar.Describe(fmt.Sprintf("%s [%s]", desc, etaStr))
+		}
 	}
 	
 	// Increment by the specified amount
@@ -194,6 +252,7 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	if bar.State().CurrentPercent >= 1.0 {
 		bar.Clear()
 		delete(h.progressBars, taskID)
+		delete(h.etaCalculators, taskID)
 	}
 }
 
@@ -222,6 +281,7 @@ type GUIHandler struct {
 	buffer       bytes.Buffer
 	progressMap  map[string]int
 	throttler    *batch.AdaptiveEventThrottler
+	etaCalculators map[string]*ETACalculator
 }
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
@@ -263,6 +323,7 @@ func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler)
 		ctx:         ctx,
 		progressMap: make(map[string]int),
 		throttler:   throttler,
+		etaCalculators: make(map[string]*ETACalculator),
 	}
 	crash.InitReporter(ctx)
 	
@@ -326,6 +387,30 @@ func (h *GUIHandler) LogErrFields(err error, behavior string, msg string, fields
 	return log(h, Error, err, behavior, msg, fields)
 }
 
+// formatETA converts a time.Duration to a human-readable ETA string
+func formatETA(etaDuration time.Duration) string {
+	if etaDuration < 0 {
+		return ""
+	}
+	
+	if etaDuration == 0 {
+		return "Done"
+	}
+	
+	// Format the ETA nicely
+	if etaDuration.Hours() >= 1 {
+		return fmt.Sprintf("ETA: %.0fh %.0fm", 
+			math.Floor(etaDuration.Hours()), 
+			math.Floor(math.Mod(etaDuration.Minutes(), 60)))
+	} else if etaDuration.Minutes() >= 1 {
+		return fmt.Sprintf("ETA: %.0fm %.0fs", 
+			math.Floor(etaDuration.Minutes()), 
+			math.Floor(math.Mod(etaDuration.Seconds(), 60)))
+	} else {
+		return fmt.Sprintf("ETA: %.0fs", math.Floor(etaDuration.Seconds()))
+	}
+}
+
 func log(h MessageHandler, level int8, err error, behavior string, msg string, fields map[string]interface{}) *ProcessingError {
 	event := h.ZeroLog().WithLevel(zerolog.Level(level))
 	if err != nil {
@@ -355,6 +440,9 @@ func (h *GUIHandler) ResetProgress() {
 	// Clear the progress map
 	h.progressMap = make(map[string]int)
 	
+	// Reset ETA calculators
+	h.etaCalculators = make(map[string]*ETACalculator)
+	
 	// Emit event to frontend to reset all progress bars
 	runtime.EventsEmit(h.ctx, "progress-reset", true)
 }
@@ -363,6 +451,11 @@ func (h *GUIHandler) ResetProgress() {
 // RemoveProgressBar explicitly removes a specific progress bar by ID
 func (h *GUIHandler) RemoveProgressBar(taskID string) {
 	delete(h.progressMap, taskID)
+	
+	// Also remove any ETA calculator for this task
+	if h.etaCalculators != nil {
+		delete(h.etaCalculators, taskID)
+	}
 
 	runtime.EventsEmit(h.ctx, "progress-remove", taskID)
 
@@ -376,9 +469,43 @@ func (h *GUIHandler) IncrementProgress(
 	increment, total, priority int, 
 	operation, descr, size string,
 ) {
+	// Make sure we have the ETA calculator map initialized
+	if h.etaCalculators == nil {
+		h.etaCalculators = make(map[string]*ETACalculator)
+	}
+	
+	// Only create or update ETA for media-bar and item-bar
+	isEtaEnabled := taskID == "media-bar" || taskID == "item-bar"
+	
 	// Update local progress tracking
 	h.progressMap[taskID] += increment
 	current := h.progressMap[taskID]
+
+	// Get or create ETA calculator
+	var etaStr string
+	if isEtaEnabled {
+		eta, exists := h.etaCalculators[taskID]
+		if !exists && total > 0 {
+			// Create new ETA calculator
+			eta = NewETACalculator(int64(total))
+			h.etaCalculators[taskID] = eta
+		} else if exists && eta.GetTotalTasks() != int64(total) && total > 0 {
+			// Reset ETA calculator if total has changed
+			eta = NewETACalculator(int64(total))
+			h.etaCalculators[taskID] = eta
+		}
+		
+		// Update ETA calculation
+		if eta != nil {
+			eta.TaskCompleted(int64(current))
+			
+			// Get formatted ETA if available
+			etaDuration := eta.CalculateETA()
+			if etaDuration >= 0 {
+				etaStr = formatETA(etaDuration)
+			}
+		}
+	}
 
 	percent := 0.0
 	if total > 0 {
@@ -386,6 +513,11 @@ func (h *GUIHandler) IncrementProgress(
 	} else {
 		// fallback if total=0
 		percent = float64(current)
+	}
+
+	// If we have ETA, include it in the description
+	if isEtaEnabled && etaStr != "" {
+		descr = fmt.Sprintf("%s [%s]", descr, etaStr)
 	}
 
 	// Create payload for event
@@ -414,16 +546,55 @@ func (h *GUIHandler) IncrementProgress(
 	// Cleanup if complete
 	if total > 0 && current >= total {
 		delete(h.progressMap, taskID)
+		delete(h.etaCalculators, taskID)
 	}
 }
 
 // BulkUpdateProgress handles multiple progress updates efficiently
 // Useful for task resumption with thousands of updates
 func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{}) {
-	// Track current progress states
+	// Make sure we have the ETA calculator map initialized
+	if h.etaCalculators == nil {
+		h.etaCalculators = make(map[string]*ETACalculator)
+	}
+	
+	// First pass: update our progress map and ETAs
 	for id, data := range updates {
 		if current, ok := data["current"].(int); ok {
 			h.progressMap[id] = current
+			
+			// Only create or update ETA for media-bar and item-bar
+			isEtaEnabled := id == "media-bar" || id == "item-bar"
+			
+			if isEtaEnabled {
+				if total, ok := data["total"].(int); ok && total > 0 {
+					// Get or create the ETA calculator
+					eta, exists := h.etaCalculators[id]
+					if !exists {
+						eta = NewETACalculator(int64(total))
+						h.etaCalculators[id] = eta
+					} else if eta.GetTotalTasks() != int64(total) {
+						// Reset if total changed
+						eta = NewETACalculator(int64(total))
+						h.etaCalculators[id] = eta
+					}
+					
+					// Update ETA with current progress
+					eta.TaskCompleted(int64(current))
+					
+					// Calculate and format ETA string
+					etaDuration := eta.CalculateETA()
+					var etaStr string
+					if etaDuration >= 0 {
+						etaStr = formatETA(etaDuration)
+						
+						// Update description with ETA info
+						if desc, ok := data["description"].(string); ok && etaStr != "" {
+							data["description"] = fmt.Sprintf("%s [%s]", desc, etaStr)
+						}
+					}
+				}
+			}
 		}
 	}
 	
@@ -443,6 +614,7 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 		total, hasT := data["total"].(int)
 		if hasC && hasT && total > 0 && current >= total {
 			delete(h.progressMap, id)
+			delete(h.etaCalculators, id)
 		}
 	}
 }
