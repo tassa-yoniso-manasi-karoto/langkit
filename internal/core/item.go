@@ -78,7 +78,6 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 		// computing intensive part of each item's processing
 		if errors.Is(err, fs.ErrExist) {
 			item.AlreadyDone = true
-			totalItems -= 1
 		} else {
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract image")
 		}

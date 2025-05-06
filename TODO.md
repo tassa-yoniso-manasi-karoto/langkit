@@ -1,8 +1,6 @@
 SVG animations: rework state transitions
 
-- progress bar
-  - ETA calculation itself: use processedCount for ETA calculation
-  - 🤯 make consistent progress bars between GUI and CLI
+- 🤯 make consistent progress bars between GUI and CLI
   
 - go-rod
   - single Browser Access URL declaration

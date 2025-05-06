@@ -128,7 +128,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 				indexesToSkip[i] = true
 				// Decrease the total count as this item doesn't need processing
 				totalItems--
-				updateBar(1)
+				updateBar(0)
 				continue
 			}
 			
@@ -197,9 +197,22 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 				tsk.Handler.ZeroLog().Debug().
 					Int("idx", item.Index).
 					Msg("writer: item is already in waitingRoom")
+				
+				// Write the item to the output file
 				write(outStream, &item)
-				updateBar(1)
-				processedCount++
+				
+				// Only increment progress bar if the item wasn't already done
+				if !item.AlreadyDone {
+					updateBar(1)
+					processedCount++
+				} else {
+					// If it was already done, decrement totalItems instead
+					totalItems--
+					tsk.Handler.ZeroLog().Trace().
+						Int("idx", item.Index).
+						Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
+				}
+				
 				delete(waitingRoom, nextIndex)
 				nextIndex++
 				continue
@@ -224,8 +237,19 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 								Int("idx", nextItem.Index).
 								Msg("writer: no more items to come: flushing waitingRoom in order")
 							write(outStream, &nextItem)
-							updateBar(1)
-							processedCount++
+							
+							// Only increment progress bar if the item wasn't already done
+							if !nextItem.AlreadyDone {
+								updateBar(1)
+								processedCount++
+							} else {
+								// If it was already done, decrement totalItems instead
+								totalItems--
+								tsk.Handler.ZeroLog().Trace().
+									Int("idx", nextItem.Index).
+									Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
+							}
+							
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
@@ -238,8 +262,19 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 						Int("idx", nextIndex).
 						Msg("writer: just received the correct next item")
 					write(outStream, &item)
-					updateBar(1)
-					processedCount++
+					
+					// Only increment progress bar if the item wasn't already done
+					if !item.AlreadyDone {
+						updateBar(1)
+						processedCount++
+					} else {
+						// If it was already done, decrement totalItems instead
+						totalItems--
+						tsk.Handler.ZeroLog().Trace().
+							Int("idx", item.Index).
+							Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
+					}
+					
 					nextIndex++
 					for {
 						// Again, skip any that were marked as already processed.
@@ -254,8 +289,19 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 								Int("idx", nextItem.Index).
 								Msg("writer: SUBSEQUENT item is already in waitingRoom")
 							write(outStream, &nextItem)
-							updateBar(1)
-							processedCount++
+							
+							// Only increment progress bar if the item wasn't already done
+							if !nextItem.AlreadyDone {
+								updateBar(1)
+								processedCount++
+							} else {
+								// If it was already done, decrement totalItems instead
+								totalItems--
+								tsk.Handler.ZeroLog().Trace().
+									Int("idx", nextItem.Index).
+									Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
+							}
+							
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
