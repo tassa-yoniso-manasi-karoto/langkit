@@ -182,74 +182,71 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		waitingRoom := make(map[int]ProcessedItem)
 		nextIndex := 0
 		
-		for {
-			// Skip any consecutive indexes that were already processed (skipped).
+		// Helper function to process an item and update tracking metrics
+		// This centralizes the logic for handling both normal and already-done items
+		processItem := func(item *ProcessedItem, logMessage string) {
+			// Write the item to the output file
+			write(outStream, item)
+			
+			// Handle progress tracking based on item status
+			if !item.AlreadyDone {
+				// Normal item: increment progress
+				updateBar(1)
+				processedCount++
+			} else {
+				// Already done item: adjust totalItems count
+				totalItems--
+				tsk.Handler.ZeroLog().Trace().
+					Int("idx", item.Index).
+					Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
+			}
+			
+			// If a log message was provided, log it with the item index
+			if logMessage != "" {
+				tsk.Handler.ZeroLog().Trace().
+					Int("idx", item.Index).
+					Msg(logMessage)
+			}
+		}
+		
+		// Helper to skip already processed indexes
+		skipProcessedIndexes := func() {
 			for indexesToSkip[nextIndex] {
 				tsk.Handler.ZeroLog().Trace().
 					Int("idx", nextIndex).
 					Msg("writer: item exist in file already, skipping...")
-				// We don't need to update the progress bar here anymore,
-				// since it's now updated in the producer goroutine
 				nextIndex++
 			}
+		}
+		
+		for {
+			// Skip any consecutive indexes that were already processed
+			skipProcessedIndexes()
 			
+			// Check if the next item is in the waiting room
 			if item, exists := waitingRoom[nextIndex]; exists {
 				tsk.Handler.ZeroLog().Debug().
 					Int("idx", item.Index).
 					Msg("writer: item is already in waitingRoom")
 				
-				// Write the item to the output file
-				write(outStream, &item)
-				
-				// Only increment progress bar if the item wasn't already done
-				if !item.AlreadyDone {
-					updateBar(1)
-					processedCount++
-				} else {
-					// If it was already done, decrement totalItems instead
-					totalItems--
-					tsk.Handler.ZeroLog().Trace().
-						Int("idx", item.Index).
-						Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
-				}
-				
+				processItem(&item, "")
 				delete(waitingRoom, nextIndex)
 				nextIndex++
 				continue
 			}
-			// Otherwise, read a new processed item.
+			
+			// Otherwise, read a new processed item
 			select {
 			case <-supCtx.Done():
 				return
 			case item, ok := <-itemChan:
 				if !ok {
+					// Channel closed, flush remaining items in waiting room
 					for {
-						// Skip any future indexes that we know were processed
-						for indexesToSkip[nextIndex] {
-							tsk.Handler.ZeroLog().Trace().
-								Int("idx", nextIndex).
-								Msg("writer: item exist in file already, skipping...")
-							nextIndex++
-						}
+						skipProcessedIndexes()
 						
 						if nextItem, exists := waitingRoom[nextIndex]; exists {
-							tsk.Handler.ZeroLog().Trace().
-								Int("idx", nextItem.Index).
-								Msg("writer: no more items to come: flushing waitingRoom in order")
-							write(outStream, &nextItem)
-							
-							// Only increment progress bar if the item wasn't already done
-							if !nextItem.AlreadyDone {
-								updateBar(1)
-								processedCount++
-							} else {
-								// If it was already done, decrement totalItems instead
-								totalItems--
-								tsk.Handler.ZeroLog().Trace().
-									Int("idx", nextItem.Index).
-									Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
-							}
-							
+							processItem(&nextItem, "writer: no more items to come: flushing waitingRoom in order")
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
@@ -257,51 +254,18 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 						}
 					}
 				}
+				
+				// Handle item in the correct sequence
 				if item.Index == nextIndex {
-					tsk.Handler.ZeroLog().Trace().
-						Int("idx", nextIndex).
-						Msg("writer: just received the correct next item")
-					write(outStream, &item)
-					
-					// Only increment progress bar if the item wasn't already done
-					if !item.AlreadyDone {
-						updateBar(1)
-						processedCount++
-					} else {
-						// If it was already done, decrement totalItems instead
-						totalItems--
-						tsk.Handler.ZeroLog().Trace().
-							Int("idx", item.Index).
-							Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
-					}
-					
+					processItem(&item, "writer: just received the correct next item")
 					nextIndex++
+					
+					// Process any subsequent items that are ready in the waiting room
 					for {
-						// Again, skip any that were marked as already processed.
-						for indexesToSkip[nextIndex] {
-							tsk.Handler.ZeroLog().Trace().
-								Int("idx", nextIndex).
-								Msg("writer: item exist in file already, skipping...")
-							nextIndex++
-						}
+						skipProcessedIndexes()
+						
 						if nextItem, exists := waitingRoom[nextIndex]; exists {
-							tsk.Handler.ZeroLog().Trace().
-								Int("idx", nextItem.Index).
-								Msg("writer: SUBSEQUENT item is already in waitingRoom")
-							write(outStream, &nextItem)
-							
-							// Only increment progress bar if the item wasn't already done
-							if !nextItem.AlreadyDone {
-								updateBar(1)
-								processedCount++
-							} else {
-								// If it was already done, decrement totalItems instead
-								totalItems--
-								tsk.Handler.ZeroLog().Trace().
-									Int("idx", nextItem.Index).
-									Msg("Writer: item marked AlreadyDone (AVIF exists), adjusting totalItems")
-							}
-							
+							processItem(&nextItem, "writer: SUBSEQUENT item is already in waitingRoom")
 							delete(waitingRoom, nextIndex)
 							nextIndex++
 						} else {
@@ -309,6 +273,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 						}
 					}
 				} else {
+					// Store out-of-order item for later processing
 					tsk.Handler.ZeroLog().Trace().
 						Int("idx", item.Index).
 						Msg("writer: STORING in waitingRoom out-of-order item")
