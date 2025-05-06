@@ -73,14 +73,14 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	
 	stat, errOriginal := os.Stat(OriginalAudio)
 	_, errVoice := os.Stat(VoiceFile)
-	// 				no need to demux if isolate vocalfile exists already
+	// 			no need to demux if isolate vocalfile exists already
 	if errors.Is(errOriginal, os.ErrNotExist) && errors.Is(errVoice, os.ErrNotExist) {
 		tsk.Handler.ZeroLog().Info().Msg("Demuxing the audiotrack...")
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
 					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn",
 						"-acodec", "libopus", "-b:a", "128k", OriginalAudio,
-		}...)
+			}...)
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to demux the desired audiotrack.")
 		}
@@ -107,7 +107,11 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		
 		// Process the audio using the provider
 		tsk.Handler.ZeroLog().Debug().Str("provider", provider.GetName()).Msg("Using vocals separation provider")
-		audio, err := provider.SeparateVoice(ctx, OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.MaxAPIRetries, tsk.TimeoutSep)
+		
+		// Create a new context with TimeoutDL value for download operations
+		ctxWithTimeoutDL := context.WithValue(ctx, "TimeoutDL", tsk.TimeoutDL)
+		
+		audio, err := provider.SeparateVoice(ctxWithTimeoutDL, OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.MaxAPIRetries, tsk.TimeoutSep)
 		
 		if err != nil {
 			reporter.SaveSnapshot("Voice separation failed", tsk.DebugVals()) // necessity: high
@@ -157,7 +161,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 					"-map", "[final]", "-metadata:s:a:0", "language=" + tsk.Targ.String(),
 					"-acodec", "libopus", "-b:a", "128k",
 					MergedFile,
-		}...)
+			}...)
 		if err != nil {
 			reporter.SaveSnapshot("Audio merging failed", tsk.DebugVals()) // necessity: high
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to merge original with separated vocals track.")
@@ -191,14 +195,14 @@ func (tsk *Task) buildVideoMergingCmd(MergedFile, MergedVideo, ext string) []str
 	// Collect input files and their corresponding maps
 	inputs := []string{tsk.MediaSourceFile, MergedFile}
 	maps := []string{
-		"-map", "0:v",	// video from first input
-		"-map", "1:a",	// audio from second input
-		"-map", "0:a?",   // optional audio from first input
+			"-map", "0:v",	// video from first input
+			"-map", "1:a",	// audio from second input
+			"-map", "0:a?",   // optional audio from first input
 	}
 
 	// Add metadata for the merged audio track (assuming it's the first audio track)
 	metadata := []string{
-		"-metadata:s:a:0", "language=" + tsk.Targ.String(),
+			"-metadata:s:a:0", "language=" + tsk.Targ.String(),
 	}
 
 	// Add subtitle files if they exist
@@ -236,11 +240,11 @@ func (tsk *Task) buildVideoMergingCmd(MergedFile, MergedVideo, ext string) []str
 
 	// Add the rest of the parameters
 	c = append(c, []string{
-		"-c:v", "copy",
-		"-c:a", "copy",
-		"-c:s", subfmt,
-		"-disposition:a:0", "default",
-		"-disposition:a:1", "none",
+			"-c:v", "copy",
+			"-c:a", "copy",
+			"-c:s", subfmt,
+			"-disposition:a:0", "default",
+			"-disposition:a:1", "none",
 		MergedVideo + ext,
 	}...)
 	tsk.Handler.ZeroLog().Trace().Strs("mergeVideoCmd", c).Msg("")

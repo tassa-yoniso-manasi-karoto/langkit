@@ -542,8 +542,22 @@ func r8RunWithAudioFileAndGET(params r8RunParams) ([]byte, error) {
 		return nil, err
 	}
 
+	// For download operations, we should use a dedicated download timeout if available
+	// Check for TimeoutDL in the context
+	var dlTimeout int
+	if timeoutVal := params.Ctx.Value("TimeoutDL"); timeoutVal != nil {
+		if timeout, ok := timeoutVal.(int); ok && timeout > 0 {
+			dlTimeout = timeout
+		}
+	}
+	
+	// If no dedicated download timeout was found, fall back to the regular timeout
+	if dlTimeout == 0 {
+		dlTimeout = params.Timeout
+	}
+	
 	// 2. Download the result (including body read) with repeated attempts.
-	body, err := makeRequestWithRetry(URL, params.Ctx, params.Timeout, params.MaxTry)
+	body, err := makeRequestWithRetry(URL, params.Ctx, dlTimeout, params.MaxTry)
 	if err != nil {
 		color.Redln("couldn't download/read body from " + URL)
 		pp.Println(err)

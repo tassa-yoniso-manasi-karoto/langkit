@@ -14,6 +14,10 @@ type Settings = {
     maxLogEntries: number;
     maxAPIRetries: number;
     maxWorkers: number;
+    // Timeout settings
+    timeoutSep: number;  // Voice separation timeout (seconds)
+    timeoutSTT: number;  // Speech-to-text timeout (seconds)
+    timeoutDL: number;   // Download operations timeout (seconds)
     // WebAssembly settings
     useWasm: boolean;
     wasmSizeThreshold: number;
@@ -44,6 +48,10 @@ const initSettings: Settings = {
     maxLogEntries: 10000,
     maxAPIRetries: 10,
     maxWorkers: 1,
+    // Default values for timeout settings
+    timeoutSep: 2100,  // 35 minutes for voice separation
+    timeoutSTT: 90,    // 90 seconds for STT operations
+    timeoutDL: 600,    // 10 minutes for downloads
     // Default values for WebAssembly settings
     useWasm: true,
     wasmSizeThreshold: 500, // Default from spec

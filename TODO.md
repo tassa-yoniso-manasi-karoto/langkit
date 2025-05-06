@@ -1,9 +1,5 @@
 SVG animations: rework state transitions
 
-- Voice enhancing timeout input field missing in GUI
-
-- remove useless test files
-
 - progress bar
   - ETA calculation itself: use processedCount for ETA calculation
   - 🤯 make consistent progress bars between GUI and CLI
@@ -23,6 +19,8 @@ SVG animations: rework state transitions
 - coffee icon
 
 - support Condensed Audio summaries
+
+- remove useless test files
 
 - manual GUI tests
 - manual CLI tests

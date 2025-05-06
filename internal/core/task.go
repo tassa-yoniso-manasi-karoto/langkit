@@ -134,6 +134,7 @@ type Task struct {
 	// STT options
 	STT                  string
 	TimeoutSTT           int
+	TimeoutDL            int  // timeout for download operations
 	WantDubs             bool // controls whether dubtitle file should be made too when using STT for subs2cards
 	InitialPrompt        string
 	
@@ -181,6 +182,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		// should be way enough for any movie/serie audio on any network since we encode it in OPUS
 		TimeoutSep: 2100,  
 		TimeoutSTT: 90,   // 90 seconds for each subtitle audio segment
+		TimeoutDL: 600,   // 10 minutes for downloading files
 		// the actual control over STT activation remains STT string being != "",
 		// by default assume a subtitle file is wanted and therefore
 		// let that value be overwritten as needed (currently only by CLI).
@@ -250,6 +252,19 @@ func (tsk *Task) ApplyConfig(settings config.Settings) {
 	
 	if settings.MaxWorkers > 0 {
 		tsk.Meta.WorkersMax = settings.MaxWorkers
+	}
+	
+	// Apply timeout settings
+	if settings.TimeoutSep > 0 {
+		tsk.TimeoutSep = settings.TimeoutSep
+	}
+	
+	if settings.TimeoutSTT > 0 {
+		tsk.TimeoutSTT = settings.TimeoutSTT
+	}
+	
+	if settings.TimeoutDL > 0 {
+		tsk.TimeoutDL = settings.TimeoutDL
 	}
 	
 	// FIXME CLI wasn't designed with a default language in config in mind → unknown behavior down the line
@@ -324,6 +339,7 @@ func (tsk *Task) applyCLIFlags(cmd *cobra.Command) {
 		"workers": &tsk.Meta.WorkersMax,
 		"sep-to":  &tsk.TimeoutSep,
 		"stt-to":  &tsk.TimeoutSTT,
+		"dl-to":   &tsk.TimeoutDL,
 		"w":       &media.MaxWidth,
 		"h":       &media.MaxHeight,
 	}

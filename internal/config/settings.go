@@ -27,6 +27,11 @@ type Settings struct {
 	MaxAPIRetries          int    `json:"maxAPIRetries" mapstructure:"max_api_retries"`
 	MaxWorkers             int    `json:"maxWorkers" mapstructure:"max_workers"`
 
+	// Timeout settings
+	TimeoutSep int `json:"timeoutSep" mapstructure:"timeout_sep"` // seconds
+	TimeoutSTT int `json:"timeoutSTT" mapstructure:"timeout_stt"` // seconds
+	TimeoutDL  int `json:"timeoutDL" mapstructure:"timeout_dl"`   // seconds
+
 	// NEW: LogViewer settings
 	LogViewerVirtualizationThreshold int `json:"logViewerVirtualizationThreshold" mapstructure:"log_viewer_virtualization_threshold"`
 
@@ -80,6 +85,11 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("max_log_entries", 10000)
 	viper.SetDefault("max_api_retries", 10)
 	viper.SetDefault("max_workers", runtime.NumCPU()-2)
+
+	// Set default timeout values
+	viper.SetDefault("timeout_sep", 2100) // 35 minutes for voice separation (Demucs, etc.)
+	viper.SetDefault("timeout_stt", 90)   // 90 seconds for each subtitle segment transcription 
+	viper.SetDefault("timeout_dl", 600)   // 10 minutes for downloading files
 
 	viper.SetDefault("log_viewer_virtualization_threshold", 2000)
 

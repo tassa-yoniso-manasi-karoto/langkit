@@ -446,7 +446,7 @@
                             </div>
                         </section>
 
-                        <!-- API Settings with improved input styling -->
+                        <!-- API and Timeout Settings with improved input styling -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
                                 <span class="material-icons text-primary">vpn_key</span>
@@ -514,20 +514,73 @@
                                      </span>
                                  </div>
                             </div>
-                            <div class="flex items-center gap-4">
-                                <label class="text-sm text-gray-200 whitespace-nowrap">
+                        </section>
+                            
+                        <!-- API TIMEOUTS SECTION -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">timer</span>
+                                Timeouts & Retries
+                            </h3>
+                            <div class="grid grid-cols-[180px,auto,auto] items-center gap-y-3 gap-x-2">
+                                <label class="text-sm text-gray-200" title="Number of retry attempts for failed API calls">
                                     Maximum API retries:
                                 </label>
                                 <NumericInput
                                     bind:value={currentSettings.maxAPIRetries}
                                     min={1}
                                     step={1}
-                                    className="w-32 px-3 py-2 pl-4 hover:border-primary/55
-                                               hover:shadow-input focus:shadow-input-focus
-                                               focus:border-primary focus:ring-1
-                                               focus:ring-primary/50 transition-all
-                                               duration-200 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    className="w-24 px-2 py-1 hover:border-primary/55
+                                              hover:shadow-input focus:shadow-input-focus
+                                              focus:border-primary focus:ring-1
+                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
                                 />
+                                <span class="text-xs text-gray-400"></span>
+                                
+                                <label class="text-sm text-gray-200" title="Timeout for voice separation operations (Demucs, Spleeter, etc.)">
+                                    Voice separation timeout:
+                                </label>
+                                <NumericInput
+                                    bind:value={currentSettings.timeoutSep}
+                                    min={60}
+                                    max={7200}
+                                    step={60}
+                                    className="w-24 px-2 py-1 hover:border-primary/55
+                                              hover:shadow-input focus:shadow-input-focus
+                                              focus:border-primary focus:ring-1
+                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                />
+                                <span class="text-xs text-gray-400">seconds (default: 2100)</span>
+                                
+                                <label class="text-sm text-gray-200" title="Timeout for speech-to-text operations per audio segment">
+                                    Speech-to-text timeout:
+                                </label>
+                                <NumericInput
+                                    bind:value={currentSettings.timeoutSTT}
+                                    min={10}
+                                    max={600}
+                                    step={10}
+                                    className="w-24 px-2 py-1 hover:border-primary/55
+                                              hover:shadow-input focus:shadow-input-focus
+                                              focus:border-primary focus:ring-1
+                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                />
+                                <span class="text-xs text-gray-400">seconds (default: 90)</span>
+                                
+                                <label class="text-sm text-gray-200" title="Timeout for download operations">
+                                    Download timeout:
+                                </label>
+                                <NumericInput
+                                    bind:value={currentSettings.timeoutDL}
+                                    min={30}
+                                    max={3600}
+                                    step={30}
+                                    className="w-24 px-2 py-1 hover:border-primary/55
+                                              hover:shadow-input focus:shadow-input-focus
+                                              focus:border-primary focus:ring-1
+                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                />
+                                <span class="text-xs text-gray-400">seconds (default: 600)</span>
                             </div>
                         </section>
 
