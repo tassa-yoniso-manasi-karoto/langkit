@@ -231,9 +231,11 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	
 	// Update ETA calculator with the newly completed tasks
 	if isEtaEnabled && eta != nil {
-		// Get current progress
-		currentProgress := int64(bar.State().CurrentNum) + int64(increment)
-		eta.TaskCompleted(currentProgress)
+		// Only send the increment to the ETA calculator, not the absolute progress
+		// This ensures we're only measuring work done in the current run
+		if increment > 0 {
+			eta.TaskCompleted(eta.GetCompletedTasks() + int64(increment))
+		}
 		
 		// Calculate the ETA and update the description with it
 		etaDuration := eta.CalculateETA()
@@ -580,7 +582,10 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 					}
 					
 					// Update ETA with current progress
-					eta.TaskCompleted(int64(current))
+					// Only track progressive changes since the previous update
+					if eta.GetCompletedTasks() < int64(current) {
+						eta.TaskCompleted(int64(current))
+					}
 					
 					// Calculate and format ETA string
 					etaDuration := eta.CalculateETA()
