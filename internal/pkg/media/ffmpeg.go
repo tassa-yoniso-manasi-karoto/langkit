@@ -122,6 +122,7 @@ func RunFFmpegConvert(inputWav, outputOgg string) error {
 
 func FFmpeg(arg ...string) error {
 	arg = append(arg, "-hide_banner")
+	arg = append(arg, "-n")
 	cmd := exec.Command(FFmpegPath, arg...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
