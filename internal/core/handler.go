@@ -68,14 +68,14 @@ type CLIHandler struct {
 	buffer bytes.Buffer
 	
 	progressBars map[string]*progressbar.ProgressBar
-	etaCalculators map[string]*ETACalculator
+	etaCalculators map[string]ETAProvider
 }
 
 func NewCLIHandler(ctx context.Context) *CLIHandler {
 	h := &CLIHandler{ 
 		ctx: ctx,
 		progressBars: make(map[string]*progressbar.ProgressBar),
-		etaCalculators: make(map[string]*ETACalculator),
+		etaCalculators: make(map[string]ETAProvider),
 	}
 	crash.InitReporter(ctx)
 	
@@ -143,7 +143,7 @@ func (h *CLIHandler) ResetProgress() {
 	}
 	
 	// Reset ETA calculators
-	h.etaCalculators = make(map[string]*ETACalculator)
+	h.etaCalculators = make(map[string]ETAProvider)
 }
 
 
@@ -176,18 +176,23 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	}
 	
 	if h.etaCalculators == nil {
-		h.etaCalculators = make(map[string]*ETACalculator)
+		h.etaCalculators = make(map[string]ETAProvider)
 	}
 	
 	// Only create or update ETA for media-bar and item-bar
 	isEtaEnabled := taskID == "media-bar" || taskID == "item-bar"
 	
 	// Get or create ETA calculator for this task
-	var eta *ETACalculator
+	var eta ETAProvider
 	if isEtaEnabled {
-		eta, _ = h.etaCalculators[taskID]
+		eta = h.etaCalculators[taskID]
 		if eta == nil && total > 0 {
-			eta = NewETACalculator(int64(total))
+			// Use complex ETA calculator only for item-bar
+			if taskID == "item-bar" {
+				eta = NewETACalculator(int64(total))
+			} else {
+				eta = NewSimpleETACalculator(int64(total))
+			}
 			h.etaCalculators[taskID] = eta
 		}
 	}
@@ -230,7 +235,11 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 				eta.UpdateTotalTasks(int64(total))
 			} else {
 				// If no calculator exists yet, create a new one
-				eta = NewETACalculator(int64(total))
+				if taskID == "item-bar" {
+					eta = NewETACalculator(int64(total))
+				} else {
+					eta = NewSimpleETACalculator(int64(total)) 
+				}
 				h.etaCalculators[taskID] = eta
 			}
 		}
@@ -291,7 +300,7 @@ type GUIHandler struct {
 	buffer       bytes.Buffer
 	progressMap  map[string]int
 	throttler    *batch.AdaptiveEventThrottler
-	etaCalculators map[string]*ETACalculator
+	etaCalculators map[string]ETAProvider
 }
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
@@ -333,7 +342,7 @@ func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler)
 		ctx:         ctx,
 		progressMap: make(map[string]int),
 		throttler:   throttler,
-		etaCalculators: make(map[string]*ETACalculator),
+		etaCalculators: make(map[string]ETAProvider),
 	}
 	crash.InitReporter(ctx)
 	
@@ -588,7 +597,7 @@ func (h *GUIHandler) ResetProgress() {
 	h.progressMap = make(map[string]int)
 	
 	// Reset ETA calculators
-	h.etaCalculators = make(map[string]*ETACalculator)
+	h.etaCalculators = make(map[string]ETAProvider)
 	
 	// Emit event to frontend to reset all progress bars
 	runtime.EventsEmit(h.ctx, "progress-reset", true)
@@ -618,7 +627,7 @@ func (h *GUIHandler) IncrementProgress(
 ) {
 	// Make sure we have the ETA calculator map initialized
 	if h.etaCalculators == nil {
-		h.etaCalculators = make(map[string]*ETACalculator)
+		h.etaCalculators = make(map[string]ETAProvider)
 	}
 	
 	// Only create or update ETA for media-bar and item-bar
@@ -631,12 +640,16 @@ func (h *GUIHandler) IncrementProgress(
 	// Get or create ETA calculator
 	var etaStr string
 	if isEtaEnabled {
-		eta, exists := h.etaCalculators[taskID]
-		if !exists && total > 0 {
-			// Create new ETA calculator
-			eta = NewETACalculator(int64(total))
+		eta := h.etaCalculators[taskID]
+		if eta == nil && total > 0 {
+			// Create new ETA calculator - use complex one only for item-bar
+			if taskID == "item-bar" {
+				eta = NewETACalculator(int64(total))
+			} else {
+				eta = NewSimpleETACalculator(int64(total))
+			}
 			h.etaCalculators[taskID] = eta
-		} else if exists && eta.GetTotalTasks() != int64(total) && total > 0 {
+		} else if eta != nil && eta.GetTotalTasks() != int64(total) && total > 0 {
 			// Update existing calculator when total changes (preserves rate history)
 			eta.UpdateTotalTasks(int64(total))
 		}
@@ -701,7 +714,7 @@ func (h *GUIHandler) IncrementProgress(
 func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{}) {
 	// Make sure we have the ETA calculator map initialized
 	if h.etaCalculators == nil {
-		h.etaCalculators = make(map[string]*ETACalculator)
+		h.etaCalculators = make(map[string]ETAProvider)
 	}
 	
 	// First pass: update our progress map and ETAs
@@ -715,9 +728,14 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 			if isEtaEnabled {
 				if total, ok := data["total"].(int); ok && total > 0 {
 					// Get or create the ETA calculator
-					eta, exists := h.etaCalculators[id]
-					if !exists {
-						eta = NewETACalculator(int64(total))
+					eta := h.etaCalculators[id]
+					if eta == nil {
+						// Use complex ETA calculator only for item-bar
+						if id == "item-bar" {
+							eta = NewETACalculator(int64(total))
+						} else {
+							eta = NewSimpleETACalculator(int64(total))
+						}
 						h.etaCalculators[id] = eta
 					} else if eta.GetTotalTasks() != int64(total) {
 						// Update total without resetting (preserves rate history)

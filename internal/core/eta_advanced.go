@@ -26,6 +26,7 @@ type ETAResult struct {
 }
 
 // ETACalculator provides a more accurate ETA for CPU-bound concurrent tasks
+// It implements the ETAProvider interface with advanced statistical tracking
 type ETACalculator struct {
 	startTime          time.Time
 	totalTasks         int64
