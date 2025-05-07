@@ -6,18 +6,18 @@ import (
 	"time"
 )
 
-// ETAResult represents an ETA calculation with confidence interval
+// ETAResult represents an ETA calculation with estimate ranges
 type ETAResult struct {
-	Estimate       time.Duration // Point estimate (median)
-	LowerBound     time.Duration // Lower confidence bound
-	UpperBound     time.Duration // Upper confidence bound
-	Confidence     float64       // Reliability indicator (0.0-1.0)
-	SampleCount    int           // Number of samples used
-	PercentDone    float64       // Percentage of tasks completed (0.0-1.0)
-	RatesPerSec    []float64     // Debug: Recent processing rates (items/second)
-	AvgRate        float64       // Debug: Average processing rate (items/second)
-	CumulativeRate float64       // Debug: Cumulative rate (total items / total time)
-	Variability    float64       // Debug: Measure of processing rate variability
+	Estimate         time.Duration // Point estimate (median)
+	LowerBound       time.Duration // Lower estimate bound
+	UpperBound       time.Duration // Upper estimate bound
+	ReliabilityScore float64       // Reliability indicator (0.0-1.0)
+	SampleCount      int           // Number of samples used
+	PercentDone      float64       // Percentage of tasks completed (0.0-1.0)
+	RatesPerSec      []float64     // Debug: Recent processing rates (items/second)
+	AvgRate          float64       // Debug: Average processing rate (items/second)
+	CumulativeRate   float64       // Debug: Cumulative rate (total items / total time)
+	Variability      float64       // Debug: Measure of processing rate variability
 
 	// New fields for cross-multiplication ETA
 	CrossMultETA    time.Duration // ETA based on cross-multiplication
@@ -349,26 +349,26 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 
 	// Create a placeholder result with basic info
 	result := ETAResult{
-		Estimate:    -1,
-		LowerBound:  -1,
-		UpperBound:  -1,
-		Confidence:  0,
-		SampleCount: len(e.samples),
-		PercentDone: percentDone,
-		Variability: e.rateVariability,
+		Estimate:         -1,
+		LowerBound:       -1,
+		UpperBound:       -1,
+		ReliabilityScore: 0,
+		SampleCount:      len(e.samples),
+		PercentDone:      percentDone,
+		Variability:      e.rateVariability,
 	}
 
 	// If task is already complete, return zero ETA
 	if e.completedTasks >= e.totalTasks {
 		return ETAResult{
-			Estimate:       0,
-			LowerBound:     0,
-			UpperBound:     0,
-			Confidence:     1.0,
-			SampleCount:    len(e.samples),
-			PercentDone:    1.0,
-			CumulativeRate: 0,
-			Variability:    0,
+			Estimate:         0,
+			LowerBound:       0,
+			UpperBound:       0,
+			ReliabilityScore: 1.0,
+			SampleCount:      len(e.samples),
+			PercentDone:      1.0,
+			CumulativeRate:   0,
+			Variability:      0,
 		}
 	}
 
@@ -506,49 +506,49 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 	result.AvgRate = weightedAvgRate
 	result.CumulativeRate = cumulativeRate
 
-	// Determine confidence level and scaling based on sample count, progress, and variability
-	var confidence float64
+	// Determine reliability level and scaling based on sample count, progress, and variability
+	var reliabilityScore float64
 	var pessimismFactor float64
 	var rangeMultiplier float64
 
 	// We previously calculated elapsed percentage of total estimated time here,
 	// but it's not currently used in decision making. Removed to avoid unused variable warnings.
 
-	// Adaptive confidence level based on samples, progress, and variability
+	// Adaptive reliability level based on samples, progress, and variability
 	if len(rates) >= 100 || percentDone > 0.25 {
 		// Very substantial data - highly reliable cross-multiplication phase
 		// Evidence shows ~5% accuracy with cross-multiplication after 100 samples
-		confidence = 0.98
+		reliabilityScore = 0.98
 		pessimismFactor = 1.02 // 2% padding
 		rangeMultiplier = 1.03 // 3% range width - extremely tight for point estimate display
 	} else if len(rates) >= 50 || percentDone > 0.15 {
 		// Substantial data with good cross-multiplication support
-		confidence = 0.95
+		reliabilityScore = 0.95
 		pessimismFactor = 1.03 // 3% padding
 		rangeMultiplier = 1.05 // 5% range width - very tight with good sample size
 	} else if len(rates) >= 30 || percentDone > 0.08 {
 		// Good amount of data - starting to trust cross-multiplication
-		confidence = 0.9
+		reliabilityScore = 0.9
 		pessimismFactor = 1.05 // 5% padding
 		rangeMultiplier = 1.1  // 10% range width - much tighter
 	} else if len(rates) >= 15 || percentDone > 0.05 {
 		// Moderate data - beginning confidence
-		confidence = 0.85
+		reliabilityScore = 0.85
 		pessimismFactor = 1.08 // 8% padding
 		rangeMultiplier = 1.2  // 20% range width - tighter
 	} else if len(rates) >= 5 {
 		// Some data - early estimates
-		confidence = 0.8
+		reliabilityScore = 0.8
 		pessimismFactor = 1.15 // 15% padding
 		rangeMultiplier = 1.35 // 35% range width
 	} else {
 		// Limited data - very early estimates
-		confidence = 0.7
+		reliabilityScore = 0.7
 		pessimismFactor = 1.3  // 30% padding
 		rangeMultiplier = 1.6  // 60% range width
 	}
 
-	// Progressive confidence acceleration for jobs with good sample count
+	// Progressive reliability acceleration for jobs with good sample count
 	// Dynamically adjust range multipliers and force point estimate for large datasets
 	if len(rates) >= 100 || (e.totalTasks > 300 && percentDone > 0.15) {
 		// With 100+ samples or 15%+ completion on large jobs, we have excellent
@@ -556,12 +556,12 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 		// Force the multiplier to be extremely tight to show point estimates
 		rangeMultiplier = 1.01  // Practically a point estimate
 		pessimismFactor = 1.01  // Minimal pessimism with proven cross-mult accuracy
-		confidence = 0.98       // Highest confidence level
+		reliabilityScore = 0.98 // Highest reliability level
 	} else if (len(rates) >= 50 && percentDone > 0.1) || e.completedTasks > 200 {
 		// More aggressive compression of range for jobs with good sample size
 		rangeMultiplier = math.Max(1.03, rangeMultiplier * 0.7)  // At least 70% tighter
 		pessimismFactor = math.Max(1.02, pessimismFactor * 0.9)  // Reduce pessimism by 10% 
-		confidence = math.Min(confidence + 0.02, 0.97)           // Boost confidence
+		reliabilityScore = math.Min(reliabilityScore + 0.02, 0.97) // Boost reliability
 	} else if percentDone > 0.05 {
 		// Apply progress-based range reduction for any job with 5%+ completion
 		reductionFactor := math.Min(percentDone*3, 0.4)  // Up to 40% reduction
@@ -745,19 +745,19 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 
 	// Format the final result with all ETA information
 	result = ETAResult{
-		Estimate:        estimate,
-		LowerBound:      lowerBound,
-		UpperBound:      upperBound,
-		Confidence:      confidence,
-		SampleCount:     len(rates),
-		PercentDone:     percentDone,
-		RatesPerSec:     rates,
-		AvgRate:         weightedAvgRate,
-		CumulativeRate:  cumulativeRate,
-		Variability:     e.rateVariability,
-		CrossMultETA:    crossMultETA,
-		CrossMultWeight: crossMultWeight,  // Using the weight calculated earlier
-		IsLargeJob:      e.totalTasks > 200,  // Consider more jobs as "large" for ETA display
+		Estimate:         estimate,
+		LowerBound:       lowerBound,
+		UpperBound:       upperBound,
+		ReliabilityScore: reliabilityScore,
+		SampleCount:      len(rates),
+		PercentDone:      percentDone,
+		RatesPerSec:      rates,
+		AvgRate:          weightedAvgRate,
+		CumulativeRate:   cumulativeRate,
+		Variability:      e.rateVariability,
+		CrossMultETA:     crossMultETA,
+		CrossMultWeight:  crossMultWeight,  // Using the weight calculated earlier
+		IsLargeJob:       e.totalTasks > 200,  // Consider more jobs as "large" for ETA display
 	}
 
 	// Save this result for next time

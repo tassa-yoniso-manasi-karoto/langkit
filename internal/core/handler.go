@@ -19,6 +19,7 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 )
 
@@ -435,7 +436,7 @@ func formatDuration(d time.Duration) string {
 	}
 }
 
-// formatETAWithConfidence formats an ETAResult with confidence intervals into a human-readable string
+// formatETAWithConfidence formats an ETAResult with reliability information into a human-readable string
 func formatETAWithConfidence(eta ETAResult) string {
 	if eta.Estimate < 0 {
 		return ""
@@ -450,8 +451,11 @@ func formatETAWithConfidence(eta ETAResult) string {
 	upperStr := formatDuration(eta.UpperBound)
 	estimateStr := formatDuration(eta.Estimate)
 	
-	// Format confidence level as percentage
-	confidenceStr := fmt.Sprintf("%.0f%%", eta.Confidence*100)
+	// Format reliability level as percentage
+	reliabilityStr := fmt.Sprintf("%.0f%%", eta.ReliabilityScore*100)
+	
+	// Determine whether to show reliability indicator (only in dev mode)
+	showReliability := version.Version == "dev"
 	
 	// Calculate whether range is narrow enough to show as point estimate
 	etaSeconds := eta.Estimate.Seconds()
@@ -465,7 +469,10 @@ func formatETAWithConfidence(eta ETAResult) string {
 	if eta.SampleCount >= 100 || eta.PercentDone > 0.25 {
 		// Always show point estimate with high sample count
 		// Empirical testing confirms cross-multiplication is reliable here
-		return fmt.Sprintf("ETA: %s (%s)", estimateStr, confidenceStr)
+		if showReliability {
+			return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
+		}
+		return fmt.Sprintf("ETA: %s", estimateStr)
 	}
 	
 	// With cross-multiplication, we can be more confident at lower thresholds
@@ -474,7 +481,10 @@ func formatETAWithConfidence(eta ETAResult) string {
 		// Cross-multiplication is weighted 70%+ for this estimate
 		if eta.SampleCount >= 50 || eta.PercentDone > 0.15 {
 			// Show point estimate with high cross-mult weight and good sample count
-			return fmt.Sprintf("ETA: %s (%s)", estimateStr, confidenceStr)
+			if showReliability {
+				return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
+			}
+			return fmt.Sprintf("ETA: %s", estimateStr)
 		}
 	}
 	
@@ -491,21 +501,30 @@ func formatETAWithConfidence(eta ETAResult) string {
 			
 			// If strings are the same after formatting, use point estimate
 			if tighterLowerStr == tighterUpperStr {
-				return fmt.Sprintf("ETA: %s (%s)", estimateStr, confidenceStr)
+				if showReliability {
+					return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
+				}
+				return fmt.Sprintf("ETA: %s", estimateStr)
 			}
 			
-			return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, confidenceStr)
+			if showReliability {
+				return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, reliabilityStr)
+			}
+			return fmt.Sprintf("ETA: %s-%s", tighterLowerStr, tighterUpperStr)
 		}
 	}
 	
-	// Standard display formats based on sample count, confidence, and variability
+	// Standard display formats based on sample count, reliability, and variability
 	switch {
 	case (eta.SampleCount >= 30 || eta.PercentDone > 0.7) && isRangeNarrow && eta.Variability < 0.25:
-		// Very high confidence, low variability, many samples, narrow range: Show point estimate
-		return fmt.Sprintf("ETA: %s (%s)", estimateStr, confidenceStr)
+		// Very high reliability, low variability, many samples, narrow range: Show point estimate
+		if showReliability {
+			return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
+		}
+		return fmt.Sprintf("ETA: %s", estimateStr)
 		
 	case eta.SampleCount >= 15 && eta.Variability < 0.4:
-		// High confidence, low-moderate variability: Show narrower range with confidence
+		// High reliability, low-moderate variability: Show narrower range with reliability
 		// Use average of estimate and bounds to create a narrower display
 		tighterLower := time.Duration((float64(eta.LowerBound) * 0.3) + (float64(eta.Estimate) * 0.7))
 		tighterUpper := time.Duration((float64(eta.UpperBound) * 0.3) + (float64(eta.Estimate) * 0.7))
@@ -515,17 +534,26 @@ func formatETAWithConfidence(eta ETAResult) string {
 		
 		// If the strings ended up the same after formatting, use the point estimate
 		if tighterLowerStr == tighterUpperStr {
-			return fmt.Sprintf("ETA: %s (%s)", estimateStr, confidenceStr)
+			if showReliability {
+				return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
+			}
+			return fmt.Sprintf("ETA: %s", estimateStr)
 		}
 		
-		return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, confidenceStr)
+		if showReliability {
+			return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, reliabilityStr)
+		}
+		return fmt.Sprintf("ETA: %s-%s", tighterLowerStr, tighterUpperStr)
 		
 	case eta.SampleCount >= 5:
-		// Moderate samples, show range with confidence
-		return fmt.Sprintf("ETA: %s-%s (%s)", lowerStr, upperStr, confidenceStr)
+		// Moderate samples, show range with reliability
+		if showReliability {
+			return fmt.Sprintf("ETA: %s-%s (%s)", lowerStr, upperStr, reliabilityStr)
+		}
+		return fmt.Sprintf("ETA: %s-%s", lowerStr, upperStr)
 		
 	default:
-		// Limited data, show range without confidence
+		// Limited data, show range without reliability
 		return fmt.Sprintf("ETA: %s-%s", lowerStr, upperStr)
 	}
 }
