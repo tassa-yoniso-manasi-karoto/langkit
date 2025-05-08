@@ -14,18 +14,19 @@ type ETAResult struct {
 	ReliabilityScore float64       // Reliability indicator (0.0-1.0)
 	SampleCount      int           // Number of samples used
 	PercentDone      float64       // Percentage of tasks completed (0.0-1.0)
+	
+	// Advanced fields - may be empty/zero for SimpleETACalculator
 	RatesPerSec      []float64     // Debug: Recent processing rates (items/second)
 	AvgRate          float64       // Debug: Average processing rate (items/second)
 	CumulativeRate   float64       // Debug: Cumulative rate (total items / total time)
 	Variability      float64       // Debug: Measure of processing rate variability
-
-	// New fields for cross-multiplication ETA
-	CrossMultETA    time.Duration // ETA based on cross-multiplication
-	CrossMultWeight float64       // Weight given to cross-multiplication ETA
-	IsLargeJob      bool          // Whether this is considered a large job
+	CrossMultETA     time.Duration // ETA based on cross-multiplication 
+	CrossMultWeight  float64       // Weight given to cross-multiplication ETA
+	IsLargeJob       bool          // Whether this is considered a large job
 }
 
 // ETACalculator provides a more accurate ETA for CPU-bound concurrent tasks
+// It implements the ETAProvider interface with advanced statistical tracking
 type ETACalculator struct {
 	startTime          time.Time
 	totalTasks         int64
