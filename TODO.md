@@ -1,19 +1,22 @@
 SVG animations: rework state transitions
 
+- fix logger.ts
+- fix Rust version of findLogAtScrollPosition  & recalculatePositions which seem dysfunctional
+- create dev panel and mv WAS Dashboard + WASM Test button there
+
+
 - 🤯 make consistent progress bars between GUI and CLI
   
 - go-rod
   - single Browser Access URL declaration
   - make currenlty running browser download known in the GUI
-  
-- wasm no memory estimates
  
 - appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
 
 - GUI options:
   - condensed audio toggle
   - dubs allow user to request cached sep voice file deletion → in Settings
-  
+
 - coffee icon
 
 - support Condensed Audio summaries

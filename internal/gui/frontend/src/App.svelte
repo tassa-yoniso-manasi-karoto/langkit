@@ -26,6 +26,7 @@
     import UpdateNotification from './components/UpdateNotification.svelte';
     import ProgressManager from './components/ProgressManager.svelte';
     import LogViewerNotification from './components/LogViewerNotification.svelte';
+    import MemoryTestButton from './components/MemoryTestButton.svelte';
     
     import { 
         SendProcessingRequest, 
@@ -243,7 +244,7 @@
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
 
-        processingStartTime = await GetCurrentTimestamp();
+        processingStartTime = await GetCurrentTimestamp(); // FIXME it seems that Date.now() is UNIX epoch and can provide unix timestamp : Math.floor(Date.now() / 1000)
         console.log(`Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
         isProcessing = true;
         progress = 0;
@@ -902,6 +903,7 @@
     <!-- Settings button container -->
     <div class="absolute top-4 right-4 z-20 flex items-center gap-4">
         <!-- WASM Status Indicator -->
+        <!-- WASM Status Indicator (only shown when enabled) -->
         {#if isWasmEnabled()}
           <div class="wasm-status-indicator flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary text-xs"
                class:active={$wasmActive}
@@ -910,7 +912,10 @@
             <span>WASM</span>
           </div>
         {/if}
-        
+
+        <!-- Memory Test Button (smaller icon-only version) -->
+        <MemoryTestButton size="small" variant="secondary" />
+
         <button
             class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
                    transition-all duration-200 hover:bg-white/15 hover:text-white
@@ -923,9 +928,11 @@
         </button>
     </div>
 
+    <!-- Removed central button -->
+
     <div class="flex h-full p-8 gap-8 relative z-10">
         <!-- Main content area with width optimization to prevent layout thrashing -->
-        <div class="flex-1 relative will-change-transform" 
+        <div class="flex-1 relative will-change-transform"
              style="width: {showLogViewer ? '55%' : '100%'}; transition: width 300ms ease-out;">
             <div class="h-full flex flex-col">
                 <!-- Scrollable content with optimizations -->
@@ -1012,13 +1019,15 @@
                                 <span class="material-icons">
                                     {showLogViewer ? "chevron_right" : "chevron_left"}
                                 </span>
-                                
+
                                 <!-- Error indicator badge -->
                                 {#if !showLogViewer && hasErrorLogs()}
                                     <span class="absolute -top-1 -right-1 h-4 w-4 bg-error-hard rounded-full border border-white flex items-center justify-center text-[10px] text-white font-bold animate-pulse">
                                         !
                                     </span>
                                 {/if}
+
+                                <!-- Removed duplicate button -->
                             </button>
                             
                             <!-- Log Viewer Notification -->

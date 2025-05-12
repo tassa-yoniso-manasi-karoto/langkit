@@ -1,5 +1,6 @@
 /*
     ⚠️ DEPRECATED, USE logger.ts INSTEAD ⚠️
+    see Logger_APIs.md for a concise documentation of logger.ts' logging API
 
 */
 export enum WasmLogLevel {
@@ -108,19 +109,32 @@ class WasmLogger {
   }
 
   private emitLog(level: WasmLogLevel, component: string, message: string, metrics?: Record<string, any>, operation?: string) {
+    // Get current timestamp in milliseconds
+    const timestamp = Date.now();
+
+    // Create formatted HH:MM:SS time string
+    const date = new Date(timestamp);
+    const timeString = date.toTimeString().split(' ')[0]; // "HH:MM:SS" format
+
     const entry: WasmLogEntry = {
       level,
       component,
       message,
-      timestamp: Date.now(),
+      timestamp,  // Keep original millisecond timestamp
       metrics,
-      operation
+      operation,
+      // Add fields to match expected log structure for WebAssembly processing
+      _unix_time: Math.floor(timestamp / 1000),  // Unix timestamp in seconds
+      time: timeString  // Formatted time string for display
     };
 
     // Add to internal buffer with size limit
-    this.logs.push(entry);
-    if (this.logs.length > this.bufferSize) {
-      this.logs.shift(); // Remove oldest entry
+    // ONLY store non-TRACE logs to prevent TRACE logs from burdening the UI/log store
+    if (level > WasmLogLevel.TRACE) {
+      this.logs.push(entry);
+      if (this.logs.length > this.bufferSize) {
+        this.logs.shift(); // Remove oldest entry
+      }
     }
 
     // Local console output with appropriate level

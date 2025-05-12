@@ -174,13 +174,13 @@ function createLogStore() {
 
     /**
      * WebAssembly-Enhanced Log Processing
-     * 
+     *
      * This module integrates WebAssembly optimization for performance-critical
      * log processing operations, particularly the `mergeInsertLogs` function
      * which handles the chronological ordering and merging of log entries.
-     * 
+     *
      * Integration Architecture:
-     * 
+     *
      * 1. The original TypeScript implementation remains as `mergeInsertLogsTS`
      * 2. A wrapper function `mergeInsertLogs` decides whether to use WebAssembly:
      *    - Based on log volume (small datasets use TypeScript)
@@ -188,10 +188,98 @@ function createLogStore() {
      *    - Based on performance metrics (adaptive thresholds)
      * 3. Performance metrics are collected to optimize future decisions
      * 4. Error handling ensures graceful fallback to TypeScript
-     * 
+     *
      * This approach maintains 100% compatibility while providing significant
      * performance improvements for large log volumes.
      */
+
+    /**
+     * Helper function to ensure objects are serializable for WebAssembly
+     * Converts JavaScript Maps to plain objects/arrays
+     * This is needed because serde_wasm_bindgen can't deserialize JS Map objects directly
+     */
+    function ensureSerializable<T>(data: T[]): any[] {
+      if (!data) return [];
+      if (!Array.isArray(data)) {
+        wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Non-array passed to ensureSerializable');
+        return [];
+      }
+
+      wasmLogger.log(WasmLogLevel.TRACE, 'ser', 'Serializing for WASM', {
+        count: data.length,
+        sampleType: data.length > 0 ? typeof data[0] : 'none'
+      });
+
+      const convertMapToObject = (map: any) => {
+        const obj: Record<string, any> = {};
+        try {
+          // Convert Map to plain object
+          if (map instanceof Map) {
+            map.forEach((value, key) => {
+              obj[key] = value;
+            });
+          } else if (typeof map.forEach === 'function') {
+            // Fallback for Map-like objects
+            map.forEach((value: any, key: string) => {
+              obj[key] = value;
+            });
+          } else {
+            // Last resort: try to access entries method
+            try {
+              const entries = Array.from((map as any).entries());
+              for (const [key, value] of entries) {
+                obj[key] = value;
+              }
+            } catch (entriesErr) {
+              wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Failed to convert Map using entries()', { error: String(entriesErr) });
+              // Just return the object as-is - let the WASM error show us what's happening
+              return obj;
+            }
+          }
+
+          return obj;
+        } catch (err) {
+          wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Error converting Map', { error: String(err) });
+          return {}; // Return empty object as fallback
+        }
+      };
+
+      const deepCleanObject = (obj: any): any => {
+        if (obj === null || obj === undefined) return obj;
+
+        // Check if it's a primitive (not an object)
+        if (typeof obj !== 'object') return obj;
+
+        // Check if it's a Map
+        if (Object.prototype.toString.call(obj) === '[object Map]') {
+          return convertMapToObject(obj);
+        }
+
+        // Handle arrays recursively
+        if (Array.isArray(obj)) {
+          return obj.map(item => deepCleanObject(item));
+        }
+
+        // Handle regular objects by recursively cleaning all properties
+        const result: Record<string, any> = {};
+        Object.keys(obj).forEach(key => {
+          const value = obj[key];
+          if (value !== null && typeof value === 'object') {
+            if (Object.prototype.toString.call(value) === '[object Map]') {
+              result[key] = convertMapToObject(value);
+            } else {
+              result[key] = deepCleanObject(value);
+            }
+          } else {
+            result[key] = value;
+          }
+        });
+
+        return result;
+      };
+
+      return data.map(item => deepCleanObject(item));
+    }
     // Updated mergeInsertLogs from Phase 1.2 and Phase 2.2
     function mergeInsertLogs(existingLogs: LogMessage[], newLogs: LogMessage[]): LogMessage[] {
       // Track operation in WASM state
@@ -221,13 +309,34 @@ function createLogStore() {
           if (!wasmModule) {
             throw new Error("WebAssembly module not available");
           }
-          
-          // Use WebAssembly implementation
+
+          // Use WebAssembly implementation with the serializable helper
           const serialized = serializeLogsForWasm([...existingLogs, ...newLogs]);
+
+          // We need to use our local ensureSerializable function to prevent Maps
+          const serializedExisting = ensureSerializable(serialized.data.slice(0, existingLogs.length));
+          const serializedNew = ensureSerializable(serialized.data.slice(existingLogs.length));
+
+          // Log what we're sending for debugging
+          wasmLogger.log(
+            WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
+            'wasm-data',
+            'Forced WASM mode - sending data to merge_insert_logs',
+            {
+              existingType: Object.prototype.toString.call(serializedExisting),
+              newType: Object.prototype.toString.call(serializedNew),
+              hasMap: serializedExisting.some(item =>
+                item && Object.prototype.toString.call(item) === '[object Map]'
+              ) || serializedNew.some(item =>
+                item && Object.prototype.toString.call(item) === '[object Map]'
+              )
+            }
+          );
+
           const wasmStartTime = performance.now();
           const result = wasmModule.merge_insert_logs(
-            serialized.data.slice(0, existingLogs.length),
-            serialized.data.slice(existingLogs.length)
+            serializedExisting,
+            serializedNew
           );
           const wasmEndTime = performance.now();
           const deserialized = deserializeLogsFromWasm(result);
@@ -301,13 +410,40 @@ function createLogStore() {
               const sortedExisting = [...existingLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
               const sortedNew = [...newLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
 
-              // Now merge the pre-sorted arrays in WASM
-              result = wasmModule.merge_insert_logs(sortedExisting, sortedNew);
+              // Now merge the pre-sorted arrays in WASM - ensure they're serializable
+              const serializedExisting = ensureSerializable(sortedExisting);
+              const serializedNew = ensureSerializable(sortedNew);
+              result = wasmModule.merge_insert_logs(serializedExisting, serializedNew);
+
+              // Log what we're sending to debug the Map issue
+              wasmLogger.log(
+                WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
+                'wasm-data',
+                'Sending data to WASM merge function',
+                {
+                  existingType: Object.prototype.toString.call(serializedExisting),
+                  newType: Object.prototype.toString.call(serializedNew)
+                }
+              );
             }
             // For normal sized log sets, use standard WASM approach
             else {
-              // Pass the original arrays (or the potentially slimmed data from serializeLogsForWasm)
-              result = wasmModule.merge_insert_logs(serialized.data.slice(0, existingLogs.length), serialized.data.slice(existingLogs.length));
+              // Pass the original arrays but ensure they're serializable
+              const serializedExisting = ensureSerializable(serialized.data.slice(0, existingLogs.length));
+              const serializedNew = ensureSerializable(serialized.data.slice(existingLogs.length));
+
+              // Log what we're sending to debug the Map issue
+              wasmLogger.log(
+                WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
+                'wasm-data',
+                'Sending data to WASM merge function',
+                {
+                  existingType: Object.prototype.toString.call(serializedExisting),
+                  newType: Object.prototype.toString.call(serializedNew)
+                }
+              );
+
+              result = wasmModule.merge_insert_logs(serializedExisting, serializedNew);
             }
 
             const wasmEndTime = performance.now();
@@ -316,6 +452,25 @@ function createLogStore() {
             // Optimized deserialization (Phase 2.2)
             // Measures JS-side processing time after receiving data from WASM.
             const deserialized = deserializeLogsFromWasm(result);
+
+            // Add diagnostic logging to examine the deserialized result
+            wasmLogger.log(
+              WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
+              'wasm-result',
+              'WASM merge result analysis',
+              {
+                resultLength: deserialized.logs.length,
+                hasItems: deserialized.logs.length > 0,
+                firstItem: deserialized.logs.length > 0 ? JSON.stringify(deserialized.logs[0]).slice(0, 100) + '...' : 'none',
+                // If we have items, check their structure
+                hasExpectedFields: deserialized.logs.length > 0 ?
+                  deserialized.logs[0].hasOwnProperty('level') &&
+                  deserialized.logs[0].hasOwnProperty('message') &&
+                  deserialized.logs[0].hasOwnProperty('time') : false,
+                // Sample of fields if available
+                fields: deserialized.logs.length > 0 ? Object.keys(deserialized.logs[0]).join(', ') : 'none'
+              }
+            );
 
             // Record successful operation (Phase 1.2)
             clearOperationErrorCount('mergeInsertLogs');

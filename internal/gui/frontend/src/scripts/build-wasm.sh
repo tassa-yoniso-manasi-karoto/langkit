@@ -41,10 +41,12 @@ FRONTEND_ROOT="$( cd "$SCRIPT_DIR/../../" && pwd )"
 # Create directories if they don't exist
 WASM_SRC_DIR="$FRONTEND_ROOT/src/wasm"
 WASM_OUT_DIR="$FRONTEND_ROOT/public/wasm"
+WASM_GENERATED_DIR="$FRONTEND_ROOT/src/wasm-generated"
 
 echo "Frontend root: $FRONTEND_ROOT"
 echo "WASM source directory: $WASM_SRC_DIR"
 echo "WASM output directory: $WASM_OUT_DIR"
+echo "WASM generated JS directory: $WASM_GENERATED_DIR"
 
 if [ ! -d "$WASM_SRC_DIR" ]; then
     echo -e "${RED}Error: Source directory $WASM_SRC_DIR does not exist.${RESET}"
@@ -52,6 +54,7 @@ if [ ! -d "$WASM_SRC_DIR" ]; then
 fi
 
 mkdir -p "$WASM_OUT_DIR"
+mkdir -p "$WASM_GENERATED_DIR"
 
 # Move to the source directory
 echo -e "${CYAN}Building WebAssembly module from $WASM_SRC_DIR...${RESET}"
@@ -92,21 +95,70 @@ fi
 # Create build info file for cache busting and versioning
 BUILD_TIMESTAMP=$(date +%s)
 BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# Ensure we get a valid numeric value for WASM size
+WASM_SIZE_BYTES=$(du -b pkg/log_engine_bg.wasm 2>/dev/null | awk '{print $1}' || stat -f%z pkg/log_engine_bg.wasm)
+# Sanitize to ensure it's just a number
+WASM_SIZE_BYTES=$(echo "$WASM_SIZE_BYTES" | grep -o '[0-9]*' | head -1)
+# Default to 0 if we couldn't get a valid number
+WASM_SIZE_BYTES=${WASM_SIZE_BYTES:-0}
 
-echo "Creating build info file..."
+echo "Creating build info file with WASM size metrics..."
 cat > pkg/build-info.json << EOF
 {
   "version": "$VERSION",
   "timestamp": $BUILD_TIMESTAMP,
-  "buildDate": "$BUILD_DATE"
+  "buildDate": "$BUILD_DATE",
+  "wasmSizeBytes": $WASM_SIZE_BYTES
 }
 EOF
 
-# Copy the built files to the right location
-echo "Copying WebAssembly files to $WASM_OUT_DIR..."
+# Verify JSON is valid
+if ! jq . pkg/build-info.json >/dev/null 2>&1; then
+    echo -e "${YELLOW}Warning: build-info.json is not valid JSON. Using simplified version.${RESET}"
+    # Create a simplified version with quoted values
+    cat > pkg/build-info.json << EOF
+{
+  "version": "$VERSION",
+  "timestamp": $BUILD_TIMESTAMP,
+  "buildDate": "$BUILD_DATE",
+  "wasmSizeBytes": $WASM_SIZE_BYTES
+}
+EOF
+fi
+
+# Copy built files to the public directory for static serving
+echo "Copying WebAssembly files to output directory: $WASM_OUT_DIR"
+mkdir -p "$WASM_OUT_DIR"
 cp pkg/log_engine_bg.wasm "$WASM_OUT_DIR"/
 cp pkg/log_engine.js "$WASM_OUT_DIR"/
 cp pkg/build-info.json "$WASM_OUT_DIR"/
+
+# Run the inlining script to fix WASM loading
+NODE_INLINE_SCRIPT="$SCRIPT_DIR/create-inlined-glue.js"
+if [ -f "$NODE_INLINE_SCRIPT" ]; then
+    echo -e "${CYAN}Running Node.js WebAssembly inlining script...${RESET}"
+
+    # Create wasm-generated/pkg directory if it doesn't exist
+    mkdir -p "$WASM_GENERATED_DIR/pkg"
+
+    # Copy original JS to public for reference
+    cp pkg/log_engine.js "$WASM_OUT_DIR"/
+
+    # Inline the WebAssembly binary into JavaScript in the src/wasm-generated/pkg directory
+    echo -e "${CYAN}Inlining WebAssembly binary into JavaScript...${RESET}"
+    node "$NODE_INLINE_SCRIPT" "$WASM_OUT_DIR/log_engine_bg.wasm" "$WASM_OUT_DIR/log_engine.js" "$WASM_GENERATED_DIR/pkg/log_engine.js"
+
+    echo -e "${GREEN}WebAssembly binary successfully inlined into JS files${RESET}"
+    echo -e "${YELLOW}Note: The original WASM file is still kept for debugging purposes${RESET}"
+else
+    echo -e "${RED}Warning: Node.js inlining script not found at $NODE_INLINE_SCRIPT${RESET}"
+    echo -e "${YELLOW}WASM loading issues may persist without inlining${RESET}"
+
+    # No fallback needed anymore - simply report error
+    echo -e "${RED}Error: Node.js inlining script is required but not found.${RESET}"
+    echo -e "${RED}Please ensure the create-inlined-glue.js script exists at: $NODE_INLINE_SCRIPT${RESET}"
+    echo -e "${RED}WebAssembly initialization will likely fail without proper inlining.${RESET}"
+fi
 
 # Return to original directory
 cd - > /dev/null

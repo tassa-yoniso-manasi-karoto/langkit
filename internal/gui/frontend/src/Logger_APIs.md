@@ -1,5 +1,8 @@
 # Logger API Documentation
 
+IMPORTANT: make sure to specify a component whenever you use the logger.
+component inform from which part of the frontend was a given log emitted from.
+
 ## Core API
 
 ```typescript

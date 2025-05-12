@@ -153,8 +153,11 @@ export function standardizeMemoryInfo(memInfo: any): any {
   }
   
   // CRITICAL FIX: Handle Map objects (which is what we're receiving from WebAssembly)
-  const isMap = memInfo instanceof Map;
-  
+  // Check both instanceof Map and toString representation for maximum compatibility
+  const isMap =
+    memInfo instanceof Map ||
+    Object.prototype.toString.call(memInfo) === '[object Map]';
+
   // Helper function to safely get values from either Map or regular object
   const getValue = (key: string) => {
     if (isMap) {
@@ -163,6 +166,19 @@ export function standardizeMemoryInfo(memInfo: any): any {
       return (memInfo as any)[key];
     }
   };
+
+  // Log detailed info for debugging if needed in development mode
+  if (typeof (window as any).__LANGKIT_VERSION === 'string' &&
+      (window as any).__LANGKIT_VERSION === 'dev') {
+    console.debug('[MemInfo] Standardizing memory info:', {
+      infoType: typeof memInfo,
+      isMap,
+      toStringResult: Object.prototype.toString.call(memInfo),
+      keys: isMap
+        ? Array.from((memInfo as Map<string, any>).keys())
+        : (memInfo ? Object.keys(memInfo) : [])
+    });
+  }
   
   // Check if the data is pre-validated
   const isPreValidated = getValue('is_valid') === true;
@@ -516,13 +532,72 @@ function extractChanges(prevState: WasmState, newState: WasmState): any {
 
 
 export function getWasmState(): WasmState {
-  // Return a deep copy to prevent external mutation issues, especially with nested objects
-  // Using JSON parse/stringify for a simple deep copy
+  // Create a deep copy with proper handling of Error objects
   try {
-      return JSON.parse(JSON.stringify(wasmState));
+      // Create a new state object for the deep copy
+      const stateCopy = { ...wasmState };
+      
+      // Special handling for lastError (Error objects don't serialize properly with JSON)
+      if (wasmState.lastError instanceof Error) {
+          // Convert Error object to serializable form
+          stateCopy.lastError = {
+              name: wasmState.lastError.name,
+              message: wasmState.lastError.message,
+              stack: wasmState.lastError.stack,
+              // For custom error types with additional properties
+              ...(wasmState.lastError as any).context,
+              ...(wasmState.lastError as any).memoryInfo,
+              ...(wasmState.lastError as any).details
+          };
+      } else if (wasmState.lastError) {
+          // If it's not an Error object but still exists, make a simple copy
+          stateCopy.lastError = { ...wasmState.lastError };
+      }
+      
+      // Handle other nested objects that need deep copying
+      if (wasmState.memoryUsage) {
+          stateCopy.memoryUsage = { ...wasmState.memoryUsage };
+      }
+      
+      if (wasmState.performanceMetrics) {
+          stateCopy.performanceMetrics = { 
+              ...wasmState.performanceMetrics,
+              // Deep copy for nested objects within performanceMetrics
+              logSizeDistribution: wasmState.performanceMetrics.logSizeDistribution 
+                  ? { ...wasmState.performanceMetrics.logSizeDistribution }
+                  : undefined,
+              operationTimings: wasmState.performanceMetrics.operationTimings
+                  ? { ...wasmState.performanceMetrics.operationTimings }
+                  : {}
+          };
+      }
+      
+      // Deep copy arrays
+      if (wasmState.memoryGrowthEvents) {
+          stateCopy.memoryGrowthEvents = [...wasmState.memoryGrowthEvents];
+      }
+      
+      if (wasmState.memoryChecks) {
+          stateCopy.memoryChecks = [...wasmState.memoryChecks];
+      }
+      
+      if (wasmState.memoryTrend) {
+          stateCopy.memoryTrend = [...wasmState.memoryTrend];
+      }
+      
+      if (wasmState.thresholdAdjustments) {
+          stateCopy.thresholdAdjustments = [...wasmState.thresholdAdjustments];
+      }
+      
+      if (wasmState.blacklistedOperations) {
+          stateCopy.blacklistedOperations = [...wasmState.blacklistedOperations];
+      }
+      
+      return stateCopy;
   } catch (e) {
-      wasmLogger.log(WasmLogLevel.ERROR, 'state', `Failed to deep copy wasmState: ${e}`); // KEEP AS ERROR
-      return { ...wasmState }; // Fallback to shallow copy on error
+      wasmLogger.log(WasmLogLevel.ERROR, 'state', `Failed to create deep copy of wasmState: ${e instanceof Error ? e.message : String(e)}`);
+      // Fallback to simple shallow copy
+      return { ...wasmState };
   }
 }
 
