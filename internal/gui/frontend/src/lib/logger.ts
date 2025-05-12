@@ -1,1209 +1,779 @@
 /* IMPORTANT: make sure to specify a component whenever you use the logger
 component inform from which part of the frontend was a given log emitted from
 */
-
-
-export enum LogLevel {
-  TRACE = -1,
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  CRITICAL = 4
+export enum Lvl {
+    TRACE = -1,
+    DEBUG = 0,
+    INFO = 1,
+    WARN = 2,
+    ERROR = 3,
+    CRITICAL = 4
 }
 
-export interface LogEntry {
-  level: LogLevel;
-  component: string;
-  message: string;
-  timestamp: number;
-  context?: Record<string, any>;
-  operation?: string;
-  sessionId?: string;
-  tags?: string[];
-  stackTrace?: string;
+export interface LEntry {
+    lvl: Lvl;
+    comp: string;
+    msg: string;
+    ts: number;
+    ctx?: Record<string, any>;
+    op?: string;
+    sid?: string;
+    tags?: string[];
+    stack?: string;
+    _unix_time?: number;  // Unix timestamp in seconds
+    time?: string;        // Formatted time string (HH:MM:SS)
 }
 
-export interface ThrottleConfig {
-  enabled: boolean;
-  interval: number;
-  maxSimilarLogs: number;
-  byComponent: Record<string, { interval: number; maxLogs: number }>;
-  sampleInterval: number;
+export interface ThrConf {
+    en: boolean;
+    int: number;
+    maxSimL: number;
+    byComp: Record<string, { int: number; maxL: number }>;
+    sampInt: number;
 }
 
-export interface BatchConfig {
-  enabled: boolean;
-  maxSize: number;
-  maxWaitMs: number;
-  retryCount: number;
-  retryDelayMs: number;
+export interface BatConf {
+    en: boolean;
+    maxSz: number;
+    maxWait: number;
+    retries: number;
+    retryDelay: number;
 }
 
-export interface LoggerConfig {
-  minLevel: LogLevel;
-  bufferSize: number;
-  throttling: ThrottleConfig;
-  batching: BatchConfig;
-  consoleOutput: boolean;
-  captureStack: boolean;
-  autoLogErrors: boolean;
-  developerMode: boolean;
-  highVolumeCategories: Set<string>;
-  sampleRate: number;
-  criticalPatterns: RegExp[];
-  operationTimeout: number;
+export interface LogConf {
+    minLvl: Lvl;
+    bufSz: number;
+    thrConf: ThrConf;
+    batConf: BatConf;
+    conOut: boolean;
+    capStack: boolean;
+    autoErr: boolean;
+    devMode: boolean;
+    hiVolCats: Set<string>;
+    sampRate: number;
+    critPats: RegExp[];
+    opTimeout: number;
 }
 
-/**
- * Circular buffer implementation for efficient log storage
- */
-class CircularBuffer<T> {
-  private buffer: Array<T | null>;
-  private head = 0;
-  private tail = 0;
-  private count = 0;
-  
-  constructor(private capacity: number) {
-    this.buffer = new Array(capacity).fill(null);
-  }
-  
-  push(item: T): void {
-    this.buffer[this.tail] = item;
-    this.tail = (this.tail + 1) % this.capacity;
-    
-    if (this.count === this.capacity) {
-      // Buffer is full, move head
-      this.head = (this.head + 1) % this.capacity;
-    } else {
-      this.count++;
+class CircBuf<T> {
+    private buf: Array<T | null>;
+    private head = 0;
+    private tail = 0;
+    private cnt = 0;
+
+    constructor(private cap: number) {
+        this.buf = new Array(cap).fill(null);
     }
-  }
-  
-  getAll(): T[] {
-    const result: T[] = [];
-    if (this.count === 0) return result;
-    
-    let current = this.head;
-    for (let i = 0; i < this.count; i++) {
-      const item = this.buffer[current];
-      if (item !== null) result.push(item);
-      current = (current + 1) % this.capacity;
+
+    add(item: T): void {
+        this.buf[this.tail] = item;
+        this.tail = (this.tail + 1) % this.cap;
+        if (this.cnt === this.cap) {
+            this.head = (this.head + 1) % this.cap;
+        } else {
+            this.cnt++;
+        }
     }
-    
-    return result;
-  }
-  
-  clear(): void {
-    this.buffer.fill(null);
-    this.head = 0;
-    this.tail = 0;
-    this.count = 0;
-  }
-  
-  get size(): number {
-    return this.count;
-  }
+
+    getAll(): T[] {
+        const res: T[] = [];
+        if (this.cnt === 0) return res;
+        let curr = this.head;
+        for (let i = 0; i < this.cnt; i++) {
+            const itm = this.buf[curr];
+            if (itm !== null) res.push(itm);
+            curr = (curr + 1) % this.cap;
+        }
+        return res;
+    }
+
+    clear(): void {
+        this.buf.fill(null);
+        this.head = 0;
+        this.tail = 0;
+        this.cnt = 0;
+    }
+
+    get size(): number {
+        return this.cnt;
+    }
 }
 
 export class Logger {
-  private logBuffer: CircularBuffer<LogEntry>;
-  private throttleMap: Map<string, {
-    count: number;
-    lastTime: number;
-    samples: string[];
-  }> = new Map();
-  
-  private globalContext: Record<string, any> = {};
-  private operationContexts: Map<string, {
-    context: Record<string, any>;
-    startTime: number;
-    timeoutId?: number;
-  }> = new Map();
-  
-  private activeOperation?: string;
-  private sessionId: string;
-  private batchMode = false;
-  private batchedLogs: LogEntry[] = [];
-  private batchTimer?: number;
-  private timers: Map<string, number> = new Map();
-  private retryQueue: Array<{entry: LogEntry, retries: number}> = [];
-  private isProcessingRetryQueue = false;
-  private eventListeners: Array<() => void> = [];
-  
-  private config: LoggerConfig = {
-    minLevel: LogLevel.INFO,
-    bufferSize: 500, // Reduced from 1000
-    throttling: {
-      enabled: true,
-      interval: 60000,
-      maxSimilarLogs: 5,
-      byComponent: {
-        ui: { interval: 30000, maxLogs: 10 },
-        api: { interval: 10000, maxLogs: 3 },
-        media: { interval: 60000, maxLogs: 3 }
-      },
-      sampleInterval: 10 // Sample every 10th message for throttle summary
-    },
-    batching: {
-      enabled: true,
-      maxSize: 20,
-      maxWaitMs: 2000,
-      retryCount: 3,
-      retryDelayMs: 1000
-    },
-    consoleOutput: true,
-    captureStack: true,
-    autoLogErrors: true,
-    developerMode: false, // Will be detected automatically
-    highVolumeCategories: new Set([
-      'ui', 'api', 'media', 'network', 'performance'
-    ]),
-    sampleRate: 0.01, // 1% sample rate for high volume logs in production
-    criticalPatterns: [
-      /error/i, /fail/i, /exception/i, /crash/i
-    ],
-    operationTimeout: 5 * 60 * 1000 // 5 minute default timeout for operations
-  };
-  
-  /**
-   * Creates a new Logger instance
-   */
-  constructor(config?: Partial<LoggerConfig>) {
-    // Apply custom config
-    if (config) {
-      this.config = this.mergeConfig(this.config, config);
-    }
-    
-    // Auto-detect developer mode if not explicitly set
-    if (config?.developerMode === undefined) {
-      this.config.developerMode = this.detectDeveloperMode();
-    }
-    
-    // Initialize circular buffer
-    this.logBuffer = new CircularBuffer<LogEntry>(this.config.bufferSize);
-    
-    // Generate session ID
-    this.sessionId = this.generateSessionId();
-    
-    // Capture environment info for global context
-    this.globalContext = {
-      userAgent: navigator.userAgent,
-      viewport: `${window.innerWidth}x${window.innerHeight}`,
-      timestamp: Date.now(),
-      sessionId: this.sessionId
+    private _buf: CircBuf<LEntry>;
+    private _thrMap: Map<string, { count: number; lastTime: number; samples: string[] }> = new Map();
+    private _gCtx: Record<string, any> = {};
+    private _opCtxs: Map<string, { context: Record<string, any>; startTime: number; timeoutId?: number }> = new Map();
+    private _actOp?: string;
+    private _sid: string;
+    private _batchMode = false;
+    private _batLogs: LEntry[] = [];
+    private _batTimer?: number;
+    private _timers: Map<string, number> = new Map();
+    private _retryQ: Array<{ entry: LEntry; retries: number }> = [];
+    private _isProcRetryQ = false;
+    private _evtListeners: Array<() => void> = [];
+
+    private _cfg: LogConf = {
+        minLvl: Lvl.INFO,
+        bufSz: 500,
+        thrConf: {
+            en: true,
+            int: 60000,
+            maxSimL: 5,
+            byComp: {
+                ui: { int: 30000, maxL: 10 },
+                api: { int: 10000, maxL: 3 },
+                media: { int: 60000, maxL: 3 }
+            },
+            sampInt: 10
+        },
+        batConf: {
+            en: true,
+            maxSz: 20,
+            maxWait: 2000,
+            retries: 3,
+            retryDelay: 1000
+        },
+        conOut: true,
+        capStack: true,
+        autoErr: true,
+        devMode: false,
+        hiVolCats: new Set(['ui', 'api', 'media', 'network', 'performance']),
+        sampRate: 0.01,
+        critPats: [/error/i, /fail/i, /exception/i, /crash/i],
+        opTimeout: 5 * 60 * 1000
     };
-    
-    // Add version if available
-    try {
-      const version = this.getAppVersion();
-      if (version) {
-        this.globalContext.appVersion = version;
-      }
-    } catch (e) {
-      // Silently ignore if version detection fails
-    }
-    
-    // Set up error listener if configured
-    if (this.config.autoLogErrors) {
-      this.setupErrorListener();
-    }
-    
-    // Set up retry processing
-    this.startRetryProcessing();
-    
-    // Set up beforeunload to flush batched logs and save pending logs
-    const unloadHandler = this.handleBeforeUnload.bind(this);
-    window.addEventListener('beforeunload', unloadHandler);
-    this.eventListeners.push(() => {
-      window.removeEventListener('beforeunload', unloadHandler);
-    });
-    
-    this.info('logger', 'Logger initialized', { 
-      developerMode: this.config.developerMode,
-      minLevel: LogLevel.INFO
-    });
-  }
-  
-  /**
-   * Main log method with component and level
-   */
-  log(level: LogLevel, component: string, message: string, context?: Record<string, any>, operation?: string): void {
-    // Skip logs below minimum level
-    if (level < this.config.minLevel) return;
-    
-    // Apply sampling for high-volume categories in production mode
-    if (level <= LogLevel.DEBUG && 
-        this.config.highVolumeCategories.has(component) &&
-        !this.config.developerMode) {
-      if (Math.random() > this.config.sampleRate) return;
-    }
-    
-    // Create throttle key with improved signature generation
-    const throttleKey = this.generateThrottleKey(level, component, message);
-    
-    // Check for throttling
-    if (this.shouldThrottle(level, component, throttleKey, message)) {
-      return;
-    }
-    
-    // Prepare the log entry
-    const entry: LogEntry = {
-      level,
-      component,
-      message,
-      timestamp: Date.now(),
-      context: this.buildContext(context),
-      operation: operation || this.activeOperation,
-      sessionId: this.sessionId,
-      tags: this.deriveTags(level, component, message)
-    };
-    
-    // Add stack trace for errors if configured
-    if (this.config.captureStack && level >= LogLevel.ERROR) {
-      entry.stackTrace = this.captureStack();
-    }
-    
-    // Handle the log entry
-    if (this.batchMode && this.config.batching.enabled) {
-      this.batchedLogs.push(entry);
-      
-      // Set up batch timer if not already running
-      if (!this.batchTimer && this.config.batching.maxWaitMs > 0) {
-        this.batchTimer = window.setTimeout(() => {
-          this.flushBatch();
-          this.batchTimer = undefined;
-        }, this.config.batching.maxWaitMs);
-      }
-      
-      // Flush if we've reached the batch size
-      if (this.batchedLogs.length >= this.config.batching.maxSize) {
-        this.flushBatch();
-      }
-    } else {
-      this.processLogEntry(entry);
-    }
-  }
-  
-  /**
-   * Convenience methods for different log levels
-   */
-  trace(component: string, message: string, context?: Record<string, any>, operation?: string): void {
-    this.log(LogLevel.TRACE, component, message, context, operation);
-  }
-  
-  debug(component: string, message: string, context?: Record<string, any>, operation?: string): void {
-    this.log(LogLevel.DEBUG, component, message, context, operation);
-  }
-  
-  info(component: string, message: string, context?: Record<string, any>, operation?: string): void {
-    this.log(LogLevel.INFO, component, message, context, operation);
-  }
-  
-  warn(component: string, message: string, context?: Record<string, any>, operation?: string): void {
-    this.log(LogLevel.WARN, component, message, context, operation);
-  }
-  
-  error(component: string, message: string, context?: Record<string, any>, operation?: string): void {
-    this.log(LogLevel.ERROR, component, message, context, operation);
-  }
-  
-  critical(component: string, message: string, context?: Record<string, any>, operation?: string): void {
-    this.log(LogLevel.CRITICAL, component, message, context, operation);
-  }
-  
-  /**
-   * Log an Error object with stack trace
-   */
-  logError(err: Error, component: string, message?: string, context?: Record<string, any>): void {
-    const msg = message || `Error: ${err.message}`;
-    const ctx = { 
-      ...context,
-      errorType: err.name,
-      errorMessage: err.message,
-      stack: err.stack
-    };
-    
-    this.log(LogLevel.ERROR, component, msg, ctx);
-  }
-  
-  /**
-   * Set global context that will be included with all logs
-   */
-  setGlobalContext(context: Record<string, any>): void {
-    this.globalContext = { ...this.globalContext, ...context };
-  }
-  
-  /**
-   * Start a new operation context
-   */
-  startOperation(name: string, context?: Record<string, any>, timeout?: number): void {
-    // End any existing operation first
-    if (this.activeOperation) {
-      this.endOperation({ status: 'interrupted', reason: 'New operation started' });
-    }
-    
-    this.activeOperation = name;
-    
-    // Clear any existing operation timeout
-    const existing = this.operationContexts.get(name);
-    if (existing?.timeoutId) {
-      window.clearTimeout(existing.timeoutId);
-    }
-    
-    // Set timeout for operation (if enabled)
-    const actualTimeout = timeout ?? this.config.operationTimeout;
-    let timeoutId: number | undefined;
-    
-    if (actualTimeout > 0) {
-      timeoutId = window.setTimeout(() => {
-        if (this.activeOperation === name) {
-          this.warn('operations', `Operation timed out: ${name}`, { 
-            timeoutMs: actualTimeout 
-          });
-          this.endOperation({ status: 'timeout', timeoutMs: actualTimeout });
-        } else {
-          // Just remove from tracking if no longer active
-          this.operationContexts.delete(name);
+
+    constructor(customConfig?: Partial<LogConf>) {
+        if (customConfig) {
+            this._cfg = this._mergeCfg(this._cfg, customConfig);
         }
-      }, actualTimeout);
-    }
-    
-    // Store operation context
-    this.operationContexts.set(name, {
-      context: context || {},
-      startTime: Date.now(),
-      timeoutId
-    });
-    
-    this.info('operations', `Operation started: ${name}`, context);
-  }
-  
-  /**
-   * End the current operation
-   */
-  endOperation(result?: string | Record<string, any>): void {
-    if (!this.activeOperation) return;
-    
-    const name = this.activeOperation;
-    const operationData = this.operationContexts.get(name);
-    
-    // Clear timeout if exists
-    if (operationData?.timeoutId) {
-      window.clearTimeout(operationData.timeoutId);
-    }
-    
-    // Calculate duration
-    const duration = operationData 
-      ? Date.now() - operationData.startTime 
-      : undefined;
-    
-    const context = typeof result === 'string' 
-      ? { result, durationMs: duration } 
-      : { ...(result || {}), durationMs: duration };
-      
-    this.info('operations', `Operation completed: ${name}`, context);
-    
-    // Clean up
-    this.operationContexts.delete(name);
-    this.activeOperation = undefined;
-  }
-  
-  /**
-   * Start timer for performance measurement
-   */
-  startTimer(name: string, component?: string): void {
-    const start = performance.now();
-    this.timers.set(name, start);
-    
-    if (component) {
-      this.trace(component, `Timer started: ${name}`);
-    }
-  }
-  
-  /**
-   * End timer and return duration
-   */
-  endTimer(name: string, component?: string, logLevel: LogLevel = LogLevel.DEBUG): number {
-    const start = this.timers.get(name);
-    if (start === undefined) {
-      this.warn('performance', `Timer "${name}" was never started`);
-      return 0;
-    }
-    
-    const end = performance.now();
-    const duration = end - start;
-    this.timers.delete(name);
-    
-    if (component) {
-      this.log(logLevel, component, `Timer ${name}: ${duration.toFixed(2)}ms`, { 
-        duration,
-        timerName: name 
-      });
-    }
-    
-    return duration;
-  }
-  
-  /**
-   * Track user interactions
-   */
-  trackUserAction(action: string, details?: Record<string, any>): void {
-    this.info('user', `User action: ${action}`, details);
-  }
-  
-  /**
-   * Begin batching logs (for high-volume operations)
-   */
-  beginBatch(): void {
-    // Flush any existing batch first
-    if (this.batchedLogs.length > 0) {
-      this.flushBatch();
-    }
-    
-    this.batchMode = true;
-    this.batchedLogs = [];
-  }
-  
-  /**
-   * End batching and optionally flush logs
-   */
-  endBatch(flush: boolean = true): void {
-    this.batchMode = false;
-    if (flush && this.batchedLogs.length > 0) {
-      this.flushBatch();
-    }
-    
-    // Clear batch timer if exists
-    if (this.batchTimer) {
-      window.clearTimeout(this.batchTimer);
-      this.batchTimer = undefined;
-    }
-  }
-  
-  /**
-   * Flush batched logs to backend in a single request
-   */
-  flushBatch(): void {
-    if (this.batchedLogs.length === 0) return;
-    
-    // Clone the batch to allow for new logs to come in
-    const batch = [...this.batchedLogs];
-    this.batchedLogs = [];
-    
-    // Clear batch timer if exists
-    if (this.batchTimer) {
-      window.clearTimeout(this.batchTimer);
-      this.batchTimer = undefined;
-    }
-    
-    // First, add all logs to the buffer
-    for (const entry of batch) {
-      // Add to internal circular buffer
-      this.logBuffer.push(entry);
-      
-      // Output to console if enabled
-      if (this.config.consoleOutput) {
-        this.consoleOutput(entry);
-      }
-    }
-    
-    // Then send as a batch to backend
-    this.relayBatchToBackend(batch);
-  }
-  
-  /**
-   * Clear all logs
-   */
-  clearLogs(): void {
-    this.logBuffer.clear();
-    this.throttleMap.clear();
-    this.info('logger', 'Logs cleared');
-  }
-  
-  /**
-   * Get all logs for debug purposes
-   */
-  getAllLogs(): LogEntry[] {
-    return this.logBuffer.getAll();
-  }
-  
-  /**
-   * Set minimum log level
-   */
-  setMinLogLevel(level: LogLevel): void {
-    this.config.minLevel = level;
-    this.info('logger', `Log level set to: ${this.getLogLevelName(level)}`);
-  }
-  
-  /**
-   * Get log level name as string
-   */
-  getLogLevelName(level: LogLevel): string {
-    switch(level) {
-      case LogLevel.TRACE: return 'TRACE';
-      case LogLevel.DEBUG: return 'DEBUG';
-      case LogLevel.INFO: return 'INFO';
-      case LogLevel.WARN: return 'WARN';
-      case LogLevel.ERROR: return 'ERROR';
-      case LogLevel.CRITICAL: return 'CRITICAL';
-      default: return 'UNKNOWN';
-    }
-  }
-  
-  /**
-   * Clean up resources used by the logger
-   */
-  destroy(): void {
-    // Clean up any active operations
-    for (const [name, data] of this.operationContexts.entries()) {
-      if (data.timeoutId) {
-        window.clearTimeout(data.timeoutId);
-      }
-    }
-    
-    // Clear any batch timer
-    if (this.batchTimer) {
-      window.clearTimeout(this.batchTimer);
-    }
-    
-    // Flush any pending logs
-    if (this.batchedLogs.length > 0) {
-      this.flushBatch();
-    }
-    
-    // Remove any event listeners
-    for (const cleanup of this.eventListeners) {
-      cleanup();
-    }
-    
-    this.info('logger', 'Logger destroyed');
-  }
-  
-  /**
-   * Private: Process a single log entry
-   */
-  private processLogEntry(entry: LogEntry): void {
-    // Add to internal circular buffer
-    this.logBuffer.push(entry);
-    
-    // Output to console if enabled
-    if (this.config.consoleOutput) {
-      this.consoleOutput(entry);
-    }
-    
-    // Send to backend
-    this.relayToBackend(entry);
-  }
-  
-  /**
-   * Private: Build context combining global and operation contexts
-   */
-  private buildContext(localContext?: Record<string, any>): Record<string, any> {
-    // Start with global context
-    const context = { ...this.globalContext };
-    
-    // Add operation context if there's an active operation
-    if (this.activeOperation) {
-      const opData = this.operationContexts.get(this.activeOperation);
-      if (opData?.context) {
-        Object.assign(context, opData.context);
-        
-        // Also add operation duration
-        context.operationElapsedMs = Date.now() - opData.startTime;
-      }
-    }
-    
-    // Add local context if provided
-    if (localContext) {
-      Object.assign(context, localContext);
-    }
-    
-    return context;
-  }
-  
-  /**
-   * Private: Output to browser console
-   */
-  private consoleOutput(entry: LogEntry): void {
-    // Skip console output for some levels based on mode
-    if (!this.config.developerMode && entry.level <= LogLevel.DEBUG) {
-      return;
-    }
-    
-    const prefix = `[${entry.component}]`;
-    const context = entry.context ? entry.context : '';
-    
-    // Add styling based on level
-    let method = 'log';
-    let style = '';
-    
-    switch (entry.level) {
-      case LogLevel.TRACE:
-        method = 'debug';
-        style = 'color: #8c84e8; font-weight: normal;';
-        break;
-      case LogLevel.DEBUG:
-        method = 'debug';
-        style = 'color: #84a9e8; font-weight: normal;';
-        break;
-      case LogLevel.INFO:
-        method = 'info';
-        style = 'color: #4caf50; font-weight: normal;';
-        break;
-      case LogLevel.WARN:
-        method = 'warn';
-        style = 'color: #ff9800; font-weight: bold;';
-        break;
-      case LogLevel.ERROR:
-        method = 'error';
-        style = 'color: #f44336; font-weight: bold;';
-        break;
-      case LogLevel.CRITICAL:
-        method = 'error';
-        style = 'color: #b71c1c; font-weight: bold; font-size: 1.1em;';
-        break;
-    }
-    
-    // Use styled console output
-    console[method](`%c${prefix}`, style, entry.message, context);
-    
-    // Show stack trace separately for errors
-    if (entry.stackTrace && entry.level >= LogLevel.ERROR) {
-      console.groupCollapsed('Stack trace');
-      console.error(entry.stackTrace);
-      console.groupEnd();
-    }
-  }
-  
-  /**
-   * Private: Send log to backend
-   */
-  private relayToBackend(entry: LogEntry): void {
-    try {
-      // Clone entry to avoid mutation
-      const entryCopy = { ...entry };
-      
-      // Ensure context is serializable and limit size
-      if (entryCopy.context) {
-        entryCopy.context = this.sanitizeContext(entryCopy.context);
-      }
-      
-      // Send to backend via Wails bridge
-      (window as any).go.gui.App.BackendLogger(
-        entry.component, 
-        JSON.stringify(entryCopy)
-      );
-    } catch (e) {
-      console.error("Failed to relay log to backend:", e);
-      
-      // Add to retry queue for critical logs
-      if (entry.level >= LogLevel.ERROR) {
-        this.retryQueue.push({ entry, retries: 0 });
-      }
-      
-      // For non-critical logs, use sendBeacon as last resort
-      else if (navigator.sendBeacon) {
+        if (customConfig?.devMode === undefined) {
+            this._cfg.devMode = this._isDevMode();
+        }
+        this._buf = new CircBuf<LEntry>(this._cfg.bufSz);
+        this._sid = this._genSid();
+        this._gCtx = {
+            userAgent: navigator.userAgent,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            timestamp: Date.now(),
+            sessionId: this._sid
+        };
         try {
-          const beacon = new Blob(
-            [JSON.stringify({ component: entry.component, log: entry })], 
-            { type: 'application/json' }
-          );
-          navigator.sendBeacon('/api/logs', beacon);
-        } catch (beaconErr) {
-          // Last resort failed, log to console only
-          console.error("Failed to send log via beacon:", beaconErr);
-        }
-      }
-    }
-  }
-  
-  /**
-   * Private: Send batch of logs to backend in single request
-   */
-  private relayBatchToBackend(entries: LogEntry[]): void {
-    if (entries.length === 0) return;
-    
-    try {
-      // Use component from first entry
-      const component = entries[0].component;
-      
-      // Clone entries to avoid mutation
-      const sanitizedEntries = entries.map(entry => {
-        const copy = { ...entry };
-        if (copy.context) {
-          copy.context = this.sanitizeContext(copy.context);
-        }
-        return copy;
-      });
-      
-      // Send batch to backend
-      (window as any).go.gui.App.BackendLoggerBatch(
-        component,
-        JSON.stringify(sanitizedEntries)
-      );
-    } catch (e) {
-      console.error("Failed to relay batch to backend:", e);
-      
-      // Add critical logs to retry queue
-      for (const entry of entries) {
-        if (entry.level >= LogLevel.ERROR) {
-          this.retryQueue.push({ entry, retries: 0 });
-        }
-      }
-      
-      // For non-critical logs, use sendBeacon as last resort
-      if (navigator.sendBeacon) {
-        try {
-          const beacon = new Blob(
-            [JSON.stringify({ batch: entries })], 
-            { type: 'application/json' }
-          );
-          navigator.sendBeacon('/api/logs/batch', beacon);
-        } catch (beaconErr) {
-          // Last resort failed, already logged to console
-        }
-      }
-    }
-  }
-  
-  /**
-   * Private: Process retry queue
-   */
-  private startRetryProcessing(): void {
-    const processRetryQueue = async () => {
-      if (this.isProcessingRetryQueue || this.retryQueue.length === 0) return;
-      
-      this.isProcessingRetryQueue = true;
-      
-      try {
-        // Process retries one by one
-        const item = this.retryQueue.shift();
-        if (!item) {
-          this.isProcessingRetryQueue = false;
-          return;
-        }
-        
-        const { entry, retries } = item;
-        
-        if (retries < this.config.batching.retryCount) {
-          try {
-            // Try to send again
-            (window as any).go.gui.App.BackendLogger(
-              entry.component,
-              JSON.stringify(entry)
-            );
-          } catch (e) {
-            // Put back in queue with incremented retry count
-            this.retryQueue.push({ entry, retries: retries + 1 });
-            
-            // Wait before next retry
-            await new Promise(resolve => 
-              setTimeout(resolve, this.config.batching.retryDelayMs)
-            );
-          }
-        } else {
-          // Max retries reached, use sendBeacon as last resort
-          if (navigator.sendBeacon) {
-            try {
-              const beacon = new Blob(
-                [JSON.stringify({ component: entry.component, log: entry })], 
-                { type: 'application/json' }
-              );
-              navigator.sendBeacon('/api/logs', beacon);
-            } catch (beaconErr) {
-              // Last resort failed, give up
+            const version = this._getAppVer();
+            if (version) {
+                this._gCtx.appVersion = version;
             }
-          }
+        } catch (e) { /* Silently ignore */ }
+        if (this._cfg.autoErr) {
+            this._setupErrLsnr();
         }
-      } finally {
-        this.isProcessingRetryQueue = false;
-        
-        // Continue processing if more items in queue
-        if (this.retryQueue.length > 0) {
-          setTimeout(processRetryQueue, 10);
-        }
-      }
-    };
-    
-    // Start processing retry queue periodically
-    setInterval(processRetryQueue, 5000);
-  }
-  
-  /**
-   * Private: Check if in development mode
-   */
-  private detectDeveloperMode(): boolean {
-    // Check for common development indicators
-    if (
-      (window as any).__LANGKIT_VERSION === 'dev' ||
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.port === '3000' || // Common dev ports
-      window.location.port === '8080' ||
-      window.location.port === '5173' ||
-      // For Wails development
-      window.location.href.includes('wails.localhost') ||
-      // Check for query param
-      new URLSearchParams(window.location.search).has('dev')
-    ) {
-      return true;
-    }
-    return false;
-  }
-  
-  /**
-   * Private: Get application version
-   */
-  private getAppVersion(): string | null {
-    // Try different ways to get version
-    return (window as any).__LANGKIT_VERSION || 
-           (window as any).appVersion || 
-           document.querySelector('meta[name="app-version"]')?.getAttribute('content') ||
-           null;
-  }
-  
-  /**
-   * Private: Generate a unique session ID
-   */
-  private generateSessionId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
-  }
-  
-  /**
-   * Private: Generate throttle key with improved algorithm
-   */
-  private generateThrottleKey(level: LogLevel, component: string, message: string): string {
-    // For better throttling, normalize the message:
-    // 1. Remove specific IDs, numbers, timestamps, etc.
-    const normalized = message
-      // Replace UUIDs, hexadecimal hashes
-      .replace(/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/gi, '[UUID]')
-      // Replace numeric sequences (keep at most 2 digits)
-      .replace(/\b\d{3,}\b/g, '[NUM]')
-      // Replace timestamps in various formats
-      .replace(/\d{1,2}:\d{2}(:\d{2})?(\.\d+)?/g, '[TIME]')
-      .replace(/\d{4}-\d{2}-\d{2}/g, '[DATE]')
-      // Replace URLs, file paths
-      .replace(/(https?:\/\/[^\s]+)/g, '[URL]')
-      .replace(/([\\\/][\w\-. ]+)+/g, '[PATH]')
-      .trim();
-    
-    // Use a more stable algorithm that captures the message essence
-    // Taking first 40 chars gives a good signature while handling longer messages better
-    const signature = normalized.length > 40 
-      ? normalized.substring(0, 40) 
-      : normalized;
-    
-    return `${level}:${component}:${signature}`;
-  }
-  
-  /**
-   * Private: Check if log should be throttled
-   */
-  private shouldThrottle(level: LogLevel, component: string, throttleKey: string, message: string): boolean {
-    // Skip throttling for high-level logs
-    if (level >= LogLevel.WARN) return false;
-    
-    // Check for critical patterns that should never be throttled
-    if (this.config.criticalPatterns.some(pattern => pattern.test(message))) {
-      return false;
-    }
-    
-    if (!this.config.throttling.enabled) return false;
-    
-    const now = Date.now();
-    const throttleInfo = this.throttleMap.get(throttleKey);
-    
-    // Get component-specific throttle settings or defaults
-    const componentSettings = this.config.throttling.byComponent[component];
-    const throttleInterval = componentSettings?.interval || this.config.throttling.interval;
-    const maxLogs = componentSettings?.maxLogs || this.config.throttling.maxSimilarLogs;
-    
-    // Higher volume reduction for trace logs
-    const effectiveMaxLogs = level === LogLevel.TRACE ? Math.max(1, Math.floor(maxLogs / 3)) : maxLogs;
-    
-    if (throttleInfo) {
-      // If within throttle window, increment count but don't log
-      if (now - throttleInfo.lastTime < throttleInterval) {
-        // Store sample message occasionally for richer summary
-        if (throttleInfo.count % this.config.throttling.sampleInterval === 0 && 
-            throttleInfo.samples.length < 3) {
-          throttleInfo.samples.push(message);
-        }
-        
-        throttleInfo.count++;
-        this.throttleMap.set(throttleKey, throttleInfo);
-        
-        // Only log if we haven't exceeded the max
-        return throttleInfo.count > effectiveMaxLogs;
-      } else {
-        // Report throttled messages with summary
-        if (throttleInfo.count > effectiveMaxLogs) {
-          const samplesText = throttleInfo.samples.length > 0 
-            ? ` Examples: ${throttleInfo.samples.join(" | ")}` 
-            : '';
-            
-          this.processLogEntry({
-            level,
-            component,
-            message: `${message} (${throttleInfo.count} similar messages throttled in last ${Math.round(throttleInterval/1000)}s)${samplesText}`,
-            timestamp: now,
-            context: { throttled: true, count: throttleInfo.count },
-            sessionId: this.sessionId,
-            tags: ['throttled']
-          });
-        }
-        
-        // Reset throttle info
-        this.throttleMap.set(throttleKey, {
-          count: 1, 
-          lastTime: now,
-          samples: []
+        this._startRetryProc();
+        const unloadHandler = this._onBeforeUnload.bind(this);
+        window.addEventListener('beforeunload', unloadHandler);
+        this._evtListeners.push(() => {
+            window.removeEventListener('beforeunload', unloadHandler);
         });
-        
-        return false;
-      }
-    } else {
-      // First occurrence, no throttling
-      this.throttleMap.set(throttleKey, { 
-        count: 1, 
-        lastTime: now,
-        samples: []
-      });
-      
-      return false;
+        this.info('logger', 'Logger initialized', {
+            developerMode: this._cfg.devMode,
+            minLevel: Lvl.INFO
+        });
     }
-  }
-  
-  /**
-   * Private: Capture stack trace
-   */
-  private captureStack(): string {
-    const err = new Error();
-    return err.stack || '';
-  }
-  
-  /**
-   * Private: Derive tags from log content
-   */
-  private deriveTags(level: LogLevel, component: string, message: string): string[] {
-    const tags: string[] = [component];
-    
-    // Add level as tag
-    switch (level) {
-      case LogLevel.TRACE: tags.push('trace'); break;
-      case LogLevel.DEBUG: tags.push('debug'); break;
-      case LogLevel.INFO: tags.push('info'); break;
-      case LogLevel.WARN: tags.push('warning'); break;
-      case LogLevel.ERROR: tags.push('error'); break;
-      case LogLevel.CRITICAL: tags.push('critical'); break;
-    }
-    
-    // Add operation tag if present
-    if (this.activeOperation) {
-      tags.push(`op:${this.activeOperation}`);
-    }
-    
-    // Add error tag for errors
-    if (level >= LogLevel.ERROR) {
-      tags.push('error');
-    }
-    
-    // Add performance tag for performance-related messages
-    if (message.toLowerCase().includes('performance') || 
-        message.toLowerCase().includes('timer') ||
-        component === 'performance') {
-      tags.push('performance');
-    }
-    
-    return tags;
-  }
-  
-  /**
-   * Private: Set up global error listener
-   */
-  private setupErrorListener(): void {
-    const errorHandler = (event: ErrorEvent) => {
-      this.logError(
-        event.error || new Error(event.message),
-        'window',
-        'Unhandled error',
-        {
-          source: event.filename,
-          line: event.lineno,
-          column: event.colno
+
+    log(lvl: Lvl, comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
+        if (lvl < this._cfg.minLvl) return;
+        if (lvl <= Lvl.DEBUG && this._cfg.hiVolCats.has(comp) && !this._cfg.devMode) {
+            if (Math.random() > this._cfg.sampRate) return;
         }
-      );
-    };
-    
-    const rejectionHandler = (event: PromiseRejectionEvent) => {
-      const error = event.reason instanceof Error 
-        ? event.reason 
-        : new Error(String(event.reason));
-      
-      this.logError(
-        error,
-        'promise',
-        'Unhandled promise rejection',
-        {
-          reason: String(event.reason)
+        const thrKey = this._genThrKey(lvl, comp, msg);
+        if (this._shouldThr(lvl, comp, thrKey, msg)) {
+            return;
         }
-      );
-    };
-    
-    window.addEventListener('error', errorHandler);
-    window.addEventListener('unhandledrejection', rejectionHandler);
-    
-    // Store cleanup function
-    this.eventListeners.push(() => {
-      window.removeEventListener('error', errorHandler);
-      window.removeEventListener('unhandledrejection', rejectionHandler);
-    });
-  }
-  
-  /**
-   * Private: Handle beforeunload event
-   */
-  private handleBeforeUnload(e: BeforeUnloadEvent): void {
-    // Flush any batched logs
-    if (this.batchedLogs.length > 0) {
-      this.flushBatch();
-    }
-    
-    // Use sendBeacon for any critical logs in retry queue
-    if (this.retryQueue.length > 0 && navigator.sendBeacon) {
-      try {
-        const criticalRetries = this.retryQueue
-          .filter(item => item.entry.level >= LogLevel.ERROR)
-          .map(item => item.entry);
-          
-        if (criticalRetries.length > 0) {
-          const beacon = new Blob(
-            [JSON.stringify({ batch: criticalRetries })], 
-            { type: 'application/json' }
-          );
-          navigator.sendBeacon('/api/logs/batch', beacon);
-        }
-      } catch (e) {
-        // Ignore errors during unload
-      }
-    }
-  }
-  
-  /**
-   * Private: Sanitize context to ensure it's serializable
-   */
-  private sanitizeContext(context: Record<string, any>): Record<string, any> {
-    const result: Record<string, any> = {};
-    const serializeSeen = new WeakMap();
-    
-    const sanitizeValue = (value: any, depth: number = 0): any => {
-      // Max depth check
-      if (depth > 5) return '[MAX_DEPTH]';
-      
-      // Handle null and primitive types
-      if (value === null || value === undefined) return value;
-      if (typeof value !== 'object' && typeof value !== 'function') return value;
-      
-      // Handle functions
-      if (typeof value === 'function') return '[FUNCTION]';
-      
-      // Handle circular references
-      if (value instanceof Object) {
-        if (serializeSeen.has(value)) return '[CIRCULAR]';
-        serializeSeen.set(value, true);
-      }
-      
-      // Handle arrays
-      if (Array.isArray(value)) {
-        return value.map(item => sanitizeValue(item, depth + 1));
-      }
-      
-      // Handle DOM nodes
-      if (value instanceof Node) return value.nodeName || '[DOM_NODE]';
-      
-      // Handle objects
-      try {
-        const obj: Record<string, any> = {};
-        
-        // Limit to reasonable number of properties
-        const entries = Object.entries(value).slice(0, 20);
-        
-        for (const [key, val] of entries) {
-          // Skip functions, symbols, and non-standard properties
-          if (typeof val === 'function' || typeof key === 'symbol') continue;
-          
-          // Sanitize value recursively
-          obj[key] = sanitizeValue(val, depth + 1);
-        }
-        
-        // Add indication if properties were truncated
-        if (Object.keys(value).length > 20) {
-          obj['...'] = `[${Object.keys(value).length - 20} more properties]`;
-        }
-        
-        return obj;
-      } catch (e) {
-        // If anything goes wrong, return a placeholder
-        return '[UNSERIALIZABLE]';
-      }
-    };
-    
-    // Process each top-level field
-    for (const [key, value] of Object.entries(context)) {
-      try {
-        result[key] = sanitizeValue(value);
-      } catch (e) {
-        result[key] = '[ERROR_SERIALIZING]';
-      }
-    }
-    
-    return result;
-  }
-  
-  /**
-   * Private: Merge configuration objects
-   */
-  private mergeConfig(defaultConfig: LoggerConfig, customConfig: Partial<LoggerConfig>): LoggerConfig {
-    const result = { ...defaultConfig };
-    
-    // Merge top-level properties
-    for (const key in customConfig) {
-      if (key === 'throttling' && customConfig.throttling) {
-        // Deep merge throttling config
-        result.throttling = {
-          ...result.throttling,
-          ...customConfig.throttling,
-          byComponent: {
-            ...result.throttling.byComponent,
-            ...(customConfig.throttling.byComponent || {})
-          }
+
+        const timestamp = Date.now();
+
+        // Create formatted time string for display (HH:MM:SS)
+        const now = new Date();
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
+        const timeString = hours + ':' + minutes + ':' + seconds;
+
+        const e: LEntry = {
+            lvl,
+            comp,
+            msg,
+            ts: timestamp,
+            ctx: this._buildCtx(ctx),
+            op: op || this._actOp,
+            sid: this._sid,
+            tags: this._deriveTags(lvl, comp, msg),
+            // Add fields to match expected log structure
+            _unix_time: Math.floor(timestamp / 1000),  // Unix timestamp in seconds
+            time: timeString  // Formatted time string for display
         };
-      } else if (key === 'batching' && customConfig.batching) {
-        // Deep merge batching config
-        result.batching = {
-          ...result.batching,
-          ...customConfig.batching
-        };
-      } else if (key === 'highVolumeCategories' && customConfig.highVolumeCategories) {
-        // Convert to Set
-        result.highVolumeCategories = new Set([
-          ...result.highVolumeCategories,
-          ...customConfig.highVolumeCategories
-        ]);
-      } else if (key === 'criticalPatterns' && Array.isArray(customConfig.criticalPatterns)) {
-        // Replace patterns
-        result.criticalPatterns = [...customConfig.criticalPatterns];
-      } else {
-        // Simple property assignment
-        (result as any)[key] = (customConfig as any)[key];
-      }
+        if (this._cfg.capStack && lvl >= Lvl.ERROR) {
+            e.stack = this._capStack();
+        }
+        if (this._batchMode && this._cfg.batConf.en) {
+            this._batLogs.push(e);
+            if (!this._batTimer && this._cfg.batConf.maxWait > 0) {
+                this._batTimer = window.setTimeout(() => {
+                    this.flushBatch();
+                    this._batTimer = undefined;
+                }, this._cfg.batConf.maxWait);
+            }
+            if (this._batLogs.length >= this._cfg.batConf.maxSz) {
+                this.flushBatch();
+            }
+        } else {
+            this._procLEntry(e);
+        }
     }
-    
-    return result;
-  }
+
+    trace(comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
+        this.log(Lvl.TRACE, comp, msg, ctx, op);
+    }
+
+    debug(comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
+        this.log(Lvl.DEBUG, comp, msg, ctx, op);
+    }
+
+    info(comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
+        this.log(Lvl.INFO, comp, msg, ctx, op);
+    }
+
+    warn(comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
+        this.log(Lvl.WARN, comp, msg, ctx, op);
+    }
+
+    error(comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
+        this.log(Lvl.ERROR, comp, msg, ctx, op);
+    }
+
+    critical(comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
+        this.log(Lvl.CRITICAL, comp, msg, ctx, op);
+    }
+
+    logErr(err: Error, comp: string, msg?: string, ctx?: Record<string, any>): void {
+        const errorMsg = msg || `Error: ${err.message}`;
+        const errorCtx = {
+            ...ctx,
+            errorType: err.name,
+            errorMessage: err.message,
+            stack: err.stack
+        };
+        this.log(Lvl.ERROR, comp, errorMsg, errorCtx);
+    }
+
+    setGCtx(context: Record<string, any>): void {
+        this._gCtx = { ...this._gCtx, ...context };
+    }
+
+    startOp(name: string, context?: Record<string, any>, timeout?: number): void {
+        if (this._actOp) {
+            this.endOp({ status: 'interrupted', reason: 'New operation started' });
+        }
+        this._actOp = name;
+        const existing = this._opCtxs.get(name);
+        if (existing?.timeoutId) {
+            window.clearTimeout(existing.timeoutId);
+        }
+        const actualTimeout = timeout ?? this._cfg.opTimeout;
+        let timeoutId: number | undefined;
+        if (actualTimeout > 0) {
+            timeoutId = window.setTimeout(() => {
+                if (this._actOp === name) {
+                    this.warn('operations', `Operation timed out: ${name}`, {
+                        timeoutMs: actualTimeout
+                    });
+                    this.endOp({ status: 'timeout', timeoutMs: actualTimeout });
+                } else {
+                    this._opCtxs.delete(name);
+                }
+            }, actualTimeout);
+        }
+        this._opCtxs.set(name, {
+            context: context || {},
+            startTime: Date.now(),
+            timeoutId
+        });
+        this.info('operations', `Operation started: ${name}`, context);
+    }
+
+    endOp(result?: string | Record<string, any>): void {
+        if (!this._actOp) return;
+        const name = this._actOp;
+        const opData = this._opCtxs.get(name);
+        if (opData?.timeoutId) {
+            window.clearTimeout(opData.timeoutId);
+        }
+        const duration = opData ? Date.now() - opData.startTime : undefined;
+        const context = typeof result === 'string'
+            ? { result, durationMs: duration }
+            : { ...(result || {}), durationMs: duration };
+        this.info('operations', `Operation completed: ${name}`, context);
+        this._opCtxs.delete(name);
+        this._actOp = undefined;
+    }
+
+    startTimer(name: string, component?: string): void {
+        const start = performance.now();
+        this._timers.set(name, start);
+        if (component) {
+            this.trace(component, `Timer started: ${name}`);
+        }
+    }
+
+    endTimer(name: string, component?: string, logLevel: Lvl = Lvl.DEBUG): number {
+        const start = this._timers.get(name);
+        if (start === undefined) {
+            this.warn('performance', `Timer "${name}" was never started`);
+            return 0;
+        }
+        const end = performance.now();
+        const duration = end - start;
+        this._timers.delete(name);
+        if (component) {
+            this.log(logLevel, component, `Timer ${name}: ${duration.toFixed(2)}ms`, {
+                duration,
+                timerName: name
+            });
+        }
+        return duration;
+    }
+
+    trackAction(action: string, details?: Record<string, any>): void {
+        this.info('user', `User action: ${action}`, details);
+    }
+
+    beginBatch(): void {
+        if (this._batLogs.length > 0) {
+            this.flushBatch();
+        }
+        this._batchMode = true;
+        this._batLogs = [];
+    }
+
+    endBatch(flush = true): void {
+        this._batchMode = false;
+        if (flush && this._batLogs.length > 0) {
+            this.flushBatch();
+        }
+        if (this._batTimer) {
+            window.clearTimeout(this._batTimer);
+            this._batTimer = undefined;
+        }
+    }
+
+    flushBatch(): void {
+        if (this._batLogs.length === 0) return;
+        const batch = [...this._batLogs];
+        this._batLogs = [];
+        if (this._batTimer) {
+            window.clearTimeout(this._batTimer);
+            this._batTimer = undefined;
+        }
+        for (const e of batch) {
+            // ONLY store non-TRACE logs to prevent TRACE logs from burdening the UI/log store
+            if (e.lvl > Lvl.TRACE) {
+                 this._buf.add(e);
+            }
+            if (this._cfg.conOut) {
+                this._conOut(e);
+            }
+        }
+        this._relayBatchBE(batch);
+    }
+
+    clearLogs(): void {
+        this._buf.clear();
+        this._thrMap.clear();
+        this.info('logger', 'Logs cleared');
+    }
+
+    getAllLogs(): LEntry[] {
+        return this._buf.getAll();
+    }
+
+    setMinLvl(level: Lvl): void {
+        this._cfg.minLvl = level;
+        this.info('logger', `Log level set to: ${this.getLvlName(level)}`);
+    }
+
+    getLvlName(level: Lvl): string {
+        switch (level) {
+            case Lvl.TRACE: return 'TRACE';
+            case Lvl.DEBUG: return 'DEBUG';
+            case Lvl.INFO: return 'INFO';
+            case Lvl.WARN: return 'WARN';
+            case Lvl.ERROR: return 'ERROR';
+            case Lvl.CRITICAL: return 'CRITICAL';
+            default: return 'UNKNOWN';
+        }
+    }
+
+    destroy(): void {
+        for (const [, data] of this._opCtxs.entries()) {
+            if (data.timeoutId) {
+                window.clearTimeout(data.timeoutId);
+            }
+        }
+        if (this._batTimer) {
+            window.clearTimeout(this._batTimer);
+        }
+        if (this._batLogs.length > 0) {
+            this.flushBatch();
+        }
+        for (const cleanup of this._evtListeners) {
+            cleanup();
+        }
+        this.info('logger', 'Logger destroyed');
+    }
+
+    private _procLEntry(e: LEntry): void {
+        // ONLY store non-TRACE logs to prevent TRACE logs from burdening the UI/log store
+        if (e.lvl > Lvl.TRACE) {
+            this._buf.add(e);
+        }
+        if (this._cfg.conOut) {
+            this._conOut(e);
+        }
+        this._relayBE(e);
+    }
+
+    private _buildCtx(localContext?: Record<string, any>): Record<string, any> {
+        const context = { ...this._gCtx };
+        if (this._actOp) {
+            const opData = this._opCtxs.get(this._actOp);
+            if (opData?.context) {
+                Object.assign(context, opData.context);
+                context.operationElapsedMs = Date.now() - opData.startTime;
+            }
+        }
+        if (localContext) {
+            Object.assign(context, localContext);
+        }
+        return context;
+    }
+
+    private _conOut(e: LEntry): void {
+        if (!this._cfg.devMode && e.lvl <= Lvl.DEBUG) {
+            return;
+        }
+        const pfx = `[${e.comp}]`;
+        const ctx = e.ctx ? e.ctx : '';
+        let mth = 'log';
+        let stl = '';
+        switch (e.lvl) {
+            case Lvl.TRACE: mth = 'debug'; stl = 'color: #8c84e8; font-weight: normal;'; break;
+            case Lvl.DEBUG: mth = 'debug'; stl = 'color: #84a9e8; font-weight: normal;'; break;
+            case Lvl.INFO: mth = 'info'; stl = 'color: #4caf50; font-weight: normal;'; break;
+            case Lvl.WARN: mth = 'warn'; stl = 'color: #ff9800; font-weight: bold;'; break;
+            case Lvl.ERROR: mth = 'error'; stl = 'color: #f44336; font-weight: bold;'; break;
+            case Lvl.CRITICAL: mth = 'error'; stl = 'color: #b71c1c; font-weight: bold; font-size: 1.1em;'; break;
+        }
+        console[mth](`%c${pfx}`, stl, e.msg, ctx);
+        if (e.stack && e.lvl >= Lvl.ERROR) {
+            console.groupCollapsed('Stack trace');
+            console.error(e.stack);
+            console.groupEnd();
+        }
+    }
+
+    private _relayBE(e: LEntry): void {
+        try {
+            const eCopy = { ...e };
+            if (eCopy.ctx) {
+                eCopy.ctx = this._sanitizeCtx(eCopy.ctx);
+            }
+            (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(eCopy));
+        } catch (err) {
+            console.error("Failed to relay log to backend:", err);
+            if (e.lvl >= Lvl.ERROR) {
+                this._retryQ.push({ entry: e, retries: 0 });
+            } else if (navigator.sendBeacon) {
+                try {
+                    const beacon = new Blob([JSON.stringify({ component: e.comp, log: e })], { type: 'application/json' });
+                    navigator.sendBeacon('/api/logs', beacon);
+                } catch (beaconErr) {
+                    console.error("Failed to send log via beacon:", beaconErr);
+                }
+            }
+        }
+    }
+
+    private _relayBatchBE(entries: LEntry[]): void {
+        if (entries.length === 0) return;
+        try {
+            const component = entries[0].comp;
+            const sanEntries = entries.map(e => {
+                const copy = { ...e };
+                if (copy.ctx) {
+                    copy.ctx = this._sanitizeCtx(copy.ctx);
+                }
+                return copy;
+            });
+            (window as any).go.gui.App.BackendLoggerBatch(component, JSON.stringify(sanEntries));
+        } catch (err) {
+            console.error("Failed to relay batch to backend:", err);
+            for (const e of entries) {
+                if (e.lvl >= Lvl.ERROR) {
+                    this._retryQ.push({ entry: e, retries: 0 });
+                }
+            }
+            if (navigator.sendBeacon) {
+                try {
+                    const beacon = new Blob([JSON.stringify({ batch: entries })], { type: 'application/json' });
+                    navigator.sendBeacon('/api/logs/batch', beacon);
+                } catch (beaconErr) { /* Already logged */ }
+            }
+        }
+    }
+
+    private _startRetryProc(): void {
+        const procQ = async () => {
+            if (this._isProcRetryQ || this._retryQ.length === 0) return;
+            this._isProcRetryQ = true;
+            try {
+                const item = this._retryQ.shift();
+                if (!item) {
+                    this._isProcRetryQ = false;
+                    return;
+                }
+                const { entry: e, retries: r } = item;
+                if (r < this._cfg.batConf.retries) {
+                    try {
+                        (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(e));
+                    } catch (err) {
+                        this._retryQ.push({ entry: e, retries: r + 1 });
+                        await new Promise(resolve => setTimeout(resolve, this._cfg.batConf.retryDelay));
+                    }
+                } else {
+                    if (navigator.sendBeacon) {
+                        try {
+                            const beacon = new Blob([JSON.stringify({ component: e.comp, log: e })], { type: 'application/json' });
+                            navigator.sendBeacon('/api/logs', beacon);
+                        } catch (beaconErr) { /* Give up */ }
+                    }
+                }
+            } finally {
+                this._isProcRetryQ = false;
+                if (this._retryQ.length > 0) {
+                    setTimeout(procQ, 10);
+                }
+            }
+        };
+        setInterval(procQ, 5000);
+    }
+
+    private _isDevMode(): boolean {
+        return (
+            (window as any).__LANGKIT_VERSION === 'dev' ||
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1' ||
+            ['3000', '8080', '5173'].includes(window.location.port) ||
+            window.location.href.includes('wails.localhost') ||
+            new URLSearchParams(window.location.search).has('dev')
+        );
+    }
+
+    private _getAppVer(): string | null {
+        return (window as any).__LANGKIT_VERSION ||
+            (window as any).appVersion ||
+            document.querySelector('meta[name="app-version"]')?.getAttribute('content') ||
+            null;
+    }
+
+    private _genSid(): string {
+        return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+    }
+
+    private _genThrKey(lvl: Lvl, comp: string, msg: string): string {
+        const normalized = msg
+            .replace(/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/gi, '[UUID]')
+            .replace(/\b\d{3,}\b/g, '[NUM]')
+            .replace(/\d{1,2}:\d{2}(:\d{2})?(\.\d+)?/g, '[TIME]')
+            .replace(/\d{4}-\d{2}-\d{2}/g, '[DATE]')
+            .replace(/(https?:\/\/[^\s]+)/g, '[URL]')
+            .replace(/([\\\/][\w\-. ]+)+/g, '[PATH]')
+            .trim();
+        const signature = normalized.length > 40 ? normalized.substring(0, 40) : normalized;
+        return `${lvl}:${comp}:${signature}`;
+    }
+
+    private _shouldThr(lvl: Lvl, comp: string, thrKey: string, msg: string): boolean {
+        if (lvl >= Lvl.WARN) return false;
+        if (this._cfg.critPats.some(pattern => pattern.test(msg))) return false;
+        if (!this._cfg.thrConf.en) return false;
+
+        const now = Date.now();
+        const thrInfo = this._thrMap.get(thrKey);
+        const compConf = this._cfg.thrConf.byComp[comp];
+        const thrInt = compConf?.int || this._cfg.thrConf.int;
+        const maxL = compConf?.maxL || this._cfg.thrConf.maxSimL;
+        const effMaxL = lvl === Lvl.TRACE ? Math.max(1, Math.floor(maxL / 3)) : maxL;
+
+        if (thrInfo) {
+            if (now - thrInfo.lastTime < thrInt) {
+                if (thrInfo.count % this._cfg.thrConf.sampInt === 0 && thrInfo.samples.length < 3) {
+                    thrInfo.samples.push(msg);
+                }
+                thrInfo.count++;
+                this._thrMap.set(thrKey, thrInfo);
+                return thrInfo.count > effMaxL;
+            } else {
+                if (thrInfo.count > effMaxL) {
+                    const samplesText = thrInfo.samples.length > 0 ? ` Examples: ${thrInfo.samples.join(" | ")}` : '';
+                    this._procLEntry({
+                        lvl,
+                        comp,
+                        msg: `${msg} (${thrInfo.count} similar messages throttled in last ${Math.round(thrInt / 1000)}s)${samplesText}`,
+                        ts: now,
+                        ctx: { throttled: true, count: thrInfo.count },
+                        sid: this._sid,
+                        tags: ['throttled']
+                    });
+                }
+                this._thrMap.set(thrKey, { count: 1, lastTime: now, samples: [] });
+                return false;
+            }
+        } else {
+            this._thrMap.set(thrKey, { count: 1, lastTime: now, samples: [] });
+            return false;
+        }
+    }
+
+    private _capStack(): string {
+        return new Error().stack || '';
+    }
+
+    private _deriveTags(lvl: Lvl, comp: string, msg: string): string[] {
+        const tags: string[] = [comp];
+        switch (lvl) {
+            case Lvl.TRACE: tags.push('trace'); break;
+            case Lvl.DEBUG: tags.push('debug'); break;
+            case Lvl.INFO: tags.push('info'); break;
+            case Lvl.WARN: tags.push('warning'); break;
+            case Lvl.ERROR: tags.push('error'); break;
+            case Lvl.CRITICAL: tags.push('critical'); break;
+        }
+        if (this._actOp) {
+            tags.push(`op:${this._actOp}`);
+        }
+        if (lvl >= Lvl.ERROR) {
+            tags.push('error');
+        }
+        if (msg.toLowerCase().includes('performance') || msg.toLowerCase().includes('timer') || comp === 'performance') {
+            tags.push('performance');
+        }
+        return tags;
+    }
+
+    private _setupErrLsnr(): void {
+        const errHndlr = (event: ErrorEvent) => {
+            this.logErr(
+                event.error || new Error(event.message),
+                'window',
+                'Unhandled error',
+                { source: event.filename, line: event.lineno, column: event.colno }
+            );
+        };
+        const rejHndlr = (event: PromiseRejectionEvent) => {
+            const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
+            this.logErr(error, 'promise', 'Unhandled promise rejection', { reason: String(event.reason) });
+        };
+        window.addEventListener('error', errHndlr);
+        window.addEventListener('unhandledrejection', rejHndlr);
+        this._evtListeners.push(() => {
+            window.removeEventListener('error', errHndlr);
+            window.removeEventListener('unhandledrejection', rejHndlr);
+        });
+    }
+
+    private _onBeforeUnload(e: BeforeUnloadEvent): void {
+        if (this._batLogs.length > 0) {
+            this.flushBatch();
+        }
+        if (this._retryQ.length > 0 && navigator.sendBeacon) {
+            try {
+                const criticalRetries = this._retryQ
+                    .filter(item => item.entry.lvl >= Lvl.ERROR)
+                    .map(item => item.entry);
+                if (criticalRetries.length > 0) {
+                    const beacon = new Blob([JSON.stringify({ batch: criticalRetries })], { type: 'application/json' });
+                    navigator.sendBeacon('/api/logs/batch', beacon);
+                }
+            } catch (err) { /* Ignore errors during unload */ }
+        }
+    }
+
+    private _sanitizeCtx(context: Record<string, any>): Record<string, any> {
+        const result: Record<string, any> = {};
+        const seen = new WeakMap();
+        const sVal = (value: any, depth = 0): any => {
+            if (depth > 5) return '[MAX_DEPTH]';
+            if (value === null || value === undefined) return value;
+            if (typeof value !== 'object' && typeof value !== 'function') return value;
+            if (typeof value === 'function') return '[FUNCTION]';
+            if (value instanceof Object) {
+                if (seen.has(value)) return '[CIRCULAR]';
+                seen.set(value, true);
+            }
+            if (Array.isArray(value)) {
+                return value.map(item => sVal(item, depth + 1));
+            }
+            if (value instanceof Node) return value.nodeName || '[DOM_NODE]';
+            try {
+                const obj: Record<string, any> = {};
+                const entries = Object.entries(value).slice(0, 20);
+                for (const [key, val] of entries) {
+                    if (typeof val === 'function' || typeof key === 'symbol') continue;
+                    obj[key] = sVal(val, depth + 1);
+                }
+                if (Object.keys(value).length > 20) {
+                    obj['...'] = `[${Object.keys(value).length - 20} more properties]`;
+                }
+                return obj;
+            } catch (e) {
+                return '[UNSERIALIZABLE]';
+            }
+        };
+        for (const [key, value] of Object.entries(context)) {
+            try {
+                result[key] = sVal(value);
+            } catch (e) {
+                result[key] = '[ERROR_SERIALIZING]';
+            }
+        }
+        return result;
+    }
+
+    private _mergeCfg(defCfg: LogConf, custCfg: Partial<LogConf>): LogConf {
+        const result = { ...defCfg };
+        for (const key in custCfg) {
+            if (key === 'thrConf' && custCfg.thrConf) {
+                result.thrConf = {
+                    ...result.thrConf,
+                    ...custCfg.thrConf,
+                    byComp: {
+                        ...result.thrConf.byComp,
+                        ...(custCfg.thrConf.byComp || {})
+                    }
+                };
+            } else if (key === 'batConf' && custCfg.batConf) {
+                result.batConf = { ...result.batConf, ...custCfg.batConf };
+            } else if (key === 'hiVolCats' && custCfg.hiVolCats) {
+                result.hiVolCats = new Set([...result.hiVolCats, ...custCfg.hiVolCats]);
+            } else if (key === 'critPats' && Array.isArray(custCfg.critPats)) {
+                result.critPats = [...custCfg.critPats];
+            } else {
+                (result as any)[key] = (custCfg as any)[key];
+            }
+        }
+        return result;
+    }
 }
 
-// Export singleton instance
 export const logger = new Logger();
