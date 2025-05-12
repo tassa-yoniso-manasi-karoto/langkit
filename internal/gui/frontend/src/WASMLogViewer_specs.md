@@ -15,11 +15,9 @@ The Langkit WebAssembly integration delivers significant performance improvement
 
 ### 1.2 Performance Benefits
 
-WebAssembly optimization primarily targets three critical functions:
+WebAssembly optimization primarily targets one critical function:
 
 1. **mergeInsertLogs**: Core log merging and chronological ordering function
-2. **findLogAtScrollPosition**: UI virtualization function for efficient scrolling
-3. **recalculatePositions**: Position calculation for virtualized log rendering
 
 Actual performance improvements vary based on log volume and hardware:
 
@@ -29,6 +27,8 @@ Actual performance improvements vary based on log volume and hardware:
 - **Extra Large Datasets (>5,000 logs)**: 8-10× faster
 
 These improvements dramatically enhance responsiveness when processing log data, especially during high-volume operations like bulk imports or long-running processing tasks.
+
+Note: Previous versions of this specification included WASM implementations for `findLogAtScrollPosition` and `recalculatePositions` functions, but these have been removed due to performance issues. They were found to introduce latency rather than improve performance.
 
 ## 2. Architecture
 
@@ -208,10 +208,11 @@ The Rust implementation provides optimized algorithms for log processing with a 
 |----------|-------------|------------|--------------|
 | `merge_insert_logs` | Merges and sorts logs chronologically | `existing_logs: JsValue, new_logs: JsValue` | `Result<JsValue, JsValue>` |
 | `get_memory_usage` | Reports current memory usage | None | `JsValue` containing memory statistics |
-| `force_garbage_collection` | Triggers immediate memory cleanup | None | None |
+| `reset_internal_allocation_stats` | Resets memory tracking stats | None | None |
 | `estimate_memory_for_logs` | Predicts memory requirements | `log_count: usize` | `JsValue` with memory estimates |
-| `find_log_at_scroll_position` | Finds log at scroll position | `logs_array, log_positions_map, log_heights_map, scroll_top, avg_log_height, position_buffer, start_offset?` | `Result<JsValue, JsValue>` |
-| `recalculate_positions` | Calculates positions for virtualized logs | `logs_array, log_heights_map, avg_log_height, position_buffer` | `Result<JsValue, JsValue>` |
+| `ensure_sufficient_memory` | Ensures enough memory for operation | `needed_bytes: usize` | `bool` indicating success |
+
+Note: The functions `find_log_at_scroll_position` and `recalculate_positions` have been removed due to performance issues. They were found to introduce latency rather than improve performance.
 
 #### 3.1.2 Memory Management
 
@@ -247,6 +248,8 @@ The TypeScript integration layer manages WebAssembly initialization, feature det
 | `checkMemoryAvailability` | Checks memory before WASM use, logging infrequently | `logCount: number` | `boolean` |
 | `getWasmModule` | Gets the WebAssembly module instance | None | Module instance or null |
 | `handleWasmError` | Centralized error handler using throttled logging | `error: Error, operation: string, context: object` | None |
+
+Note: The functions `findLogAtScrollPositionWasm` and `recalculatePositionsWasm` have been removed from the TypeScript integration interface.
 
 #### 3.2.2 Threshold Logic
 
@@ -678,10 +681,11 @@ Additional functions that could benefit from WebAssembly optimization:
 
 | Function | Description | Expected Improvement | Complexity |
 |----------|-------------|---------------------|-------------|
-| `findLogAtScrollPosition` | Finds log entries at viewport position | 3-5× | Medium |
 | `filterLogs` | Applies complex filters to logs | 2-4× | Medium |
 | `searchLogs` | Searches logs with pattern matching | 5-8× | High |
 | `processBatchUpdates` | Processes batched log updates | 2-3× | Low |
+
+Note: Initial attempts to optimize UI virtualization functions (`findLogAtScrollPosition` and `recalculatePositions`) with WebAssembly resulted in decreased performance. These functions are better implemented directly in JavaScript, as the serialization/deserialization overhead outweighs any computational performance gains.
 
 ### 10.2 Implementation Guidelines
 
@@ -718,31 +722,20 @@ pub fn merge_insert_logs(existing_logs: JsValue, new_logs: JsValue) -> Result<Js
 // Reports current memory usage
 pub fn get_memory_usage() -> JsValue;
 
-// Triggers immediate memory cleanup
-pub fn force_garbage_collection();
+// Resets internal allocation tracking
+pub fn reset_internal_allocation_stats();
 
 // Predicts memory requirements
 pub fn estimate_memory_for_logs(log_count: usize) -> JsValue;
 
-// Finds log at scroll position
-pub fn find_log_at_scroll_position(
-    logs_array: JsValue,
-    log_positions_map: JsValue,
-    log_heights_map: JsValue,
-    scroll_top: f64,
-    avg_log_height: f64,
-    position_buffer: f64,
-    start_offset: Option<u32>
-) -> Result<JsValue, JsValue>;
+// Ensures sufficient memory for operation
+pub fn ensure_sufficient_memory(needed_bytes: usize) -> bool;
 
-// Calculates positions for log entries
-pub fn recalculate_positions(
-    logs_array: JsValue,
-    log_heights_map: JsValue,
-    avg_log_height: f64,
-    position_buffer: f64
-) -> Result<JsValue, JsValue>;
+// Optional: Text search using SIMD instructions when available
+pub fn contains_text_simd(haystack: &str, needle: &str) -> bool;
 ```
+
+Note: The functions `find_log_at_scroll_position` and `recalculate_positions` have been removed due to performance issues.
 
 #### 11.1.2 TypeScript Integration API
 

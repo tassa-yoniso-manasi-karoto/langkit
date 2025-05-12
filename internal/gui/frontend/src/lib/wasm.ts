@@ -59,8 +59,7 @@ export interface WasmModule {
   estimate_memory_for_logs: (logCount: number) => any;
   contains_text_simd?: (haystack: string, needle: string) => boolean;
   ensure_sufficient_memory?: (needed_bytes: number) => boolean;
-  find_log_at_scroll_position?: ( logs_array: any[], log_positions_map: Record<number, number>, log_heights_map: Record<number, number>, scroll_top: number, avg_log_height: number, position_buffer: number, start_offset?: number) => number;
-  recalculate_positions?: ( logs_array: any[], log_heights_map: Record<number, number>, avg_log_height: number, position_buffer: number) => { positions: Record<string, number>, totalHeight: number };
+  // findLogAtScrollPosition and recalculatePositions removed due to performance issues
 }
 
 let wasmModule: WasmModule | null = null;
@@ -214,9 +213,8 @@ export async function initializeWasm(): Promise<boolean> {
         reset_internal_allocation_stats: wasmGeneratedExports.reset_internal_allocation_stats,
         ensure_sufficient_memory: wasmGeneratedExports.ensure_sufficient_memory,
         estimate_memory_for_logs: wasmGeneratedExports.estimate_memory_for_logs,
-        contains_text_simd: wasmGeneratedExports.contains_text_simd,
-        find_log_at_scroll_position: wasmGeneratedExports.find_log_at_scroll_position,
-        recalculate_positions: wasmGeneratedExports.recalculate_positions
+        contains_text_simd: wasmGeneratedExports.contains_text_simd
+        // findLogAtScrollPosition and recalculatePositions removed due to performance issues
       } as WasmModule;
       
       let browserApisOk = false;
@@ -912,37 +910,3 @@ export function deserializeLogsFromWasm(data: any): { logs: any[]; time: number;
   }
 }
 
-export function findLogAtScrollPositionWasm( logs: any[], logPositions: Map<number, number>, logHeights: Map<number, number>, scrollTop: number, avgLogHeight: number, positionBuffer: number, scrollMetrics?: any ): number {
-  trackOperation('findLogAtScrollPosition');
-  const wasmMod = getWasmModule();
-  if (!wasmMod?.find_log_at_scroll_position) throw new WasmOperationError('findLogAtScrollPosition not init', 'findLogAtScrollPosition');
-  const estIdx = Math.floor(scrollTop / (avgLogHeight + positionBuffer)), start = Math.max(0, estIdx - 100), end = Math.min(logs.length, estIdx + (scrollMetrics?.visibleLogs||50) + 100);
-  const relLogs = logs.slice(start,end); const posObj={}, hObj={};
-  for(let i=start;i<end;i++){if(i<logs.length){const l=logs[i],s=l._sequence||i;if(logPositions.has(s))posObj[s]=logPositions.get(s);if(logHeights.has(s))hObj[s]=logHeights.get(s);}}
-  const wasmStartT = performance.now();
-  const res = wasmMod.find_log_at_scroll_position(relLogs, posObj, hObj, scrollTop, avgLogHeight, positionBuffer, start);
-  updatePerformanceMetrics(performance.now()-wasmStartT,0,end-start,'findLogAtScrollPosition');
-  clearOperationErrorCount('findLogAtScrollPosition');
-  // Conditional logging for scroll performance can be added here if needed, using shouldLogVerbose()
-  return res as number;
-}
-export function recalculatePositionsWasm( logs: any[], logHeights: Map<number, number>, avgLogHeight: number, positionBuffer: number, tsCompTime: number = 0 ): { positions: Map<number, number>, totalHeight: number } {
-  trackOperation('recalculatePositions');
-  const wasmMod = getWasmModule();
-  if (!wasmMod?.recalculate_positions) throw new WasmOperationError('recalculatePositions not init', 'recalculatePositions');
-  if (!checkMemoryAvailability(logs.length)) throw new WasmMemoryError('Insuff. mem for recalc', {logCount: logs.length});
-  const hObj={}; if(logHeights.size>1000){const e=Array.from(logHeights.entries());for(let i=0;i<e.length;i+=500){const c=e.slice(i,i+500);for(const[k,v]of c)hObj[k]=v;}}else logHeights.forEach((v,k)=>hObj[k]=v);
-  const wasmStartT = performance.now();
-  try {
-    const result = wasmMod.recalculate_positions(logs, hObj, avgLogHeight, positionBuffer);
-    updatePerformanceMetrics(performance.now()-wasmStartT, tsCompTime, logs.length, 'recalculatePositions');
-    clearOperationErrorCount('recalculatePositions');
-    // Conditional logging for position calculation can be added here if needed
-    const posMap=new Map(); const pObj=result.positions as Record<string,number>;
-    if(logs.length>1000){const k=Object.keys(pObj);for(let i=0;i<k.length;i+=500){const c=k.slice(i,i+500);for(const key of c)posMap.set(parseInt(key,10),pObj[key]);}}else Object.keys(pObj).forEach(key=>posMap.set(parseInt(key,10),pObj[key]));
-    return { positions: posMap, totalHeight: result.totalHeight as number };
-  } catch (e) { 
-    if(wasmMod.get_memory_usage) updateMemoryUsage(wasmMod.get_memory_usage()); 
-    throw e instanceof Error ? e : new WasmOperationError(`Recalc fail: ${e}`, 'recalculatePositions'); 
-  }
-}

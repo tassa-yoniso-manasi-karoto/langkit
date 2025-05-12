@@ -728,6 +728,11 @@ export function updatePerformanceMetrics(
 
 // Export trackOperation
 export function trackOperation(operation: string): void {
+  // Skip tracking removed operations to avoid confusion in the dashboard
+  if (operation === 'findLogAtScrollPosition' || operation === 'recalculatePositions') {
+    return;
+  }
+
   // Prepare the update for operationsPerType
   const newOpsPerType = {
       ...wasmState.operationsPerType,

@@ -385,39 +385,6 @@
             </div>
           </div>
 
-          <!-- findLogAtScrollPosition -->
-          <div class="bg-gray-800/70 rounded p-3">
-            <div class="text-xs text-green-400 mb-1 font-medium">Virtualization</div>
-            <div class="text-white font-bold mb-0.5">findLogAtScrollPosition</div>
-            <div class="text-xs text-gray-400">
-              Efficiently calculates which log entries should be visible at a given scroll position.
-            </div>
-            <div class="mt-2 text-xs flex justify-between">
-              <span class="text-gray-500">Calls: {wasmState?.operationsPerType?.findLogAtScrollPosition || 0}</span>
-              <span class="text-gray-500">
-                {wasmState.performanceMetrics?.operationTimings?.findLogAtScrollPosition?.avgTime
-                  ? formatTime(wasmState.performanceMetrics?.operationTimings?.findLogAtScrollPosition?.avgTime)
-                  : '—'}
-              </span>
-            </div>
-          </div>
-
-          <!-- recalculatePositions -->
-          <div class="bg-gray-800/70 rounded p-3">
-            <div class="text-xs text-purple-400 mb-1 font-medium">Virtualization</div>
-            <div class="text-white font-bold mb-0.5">recalculatePositions</div>
-            <div class="text-xs text-gray-400">
-              Efficiently calculates positions for all log entries in the virtual scroll container.
-            </div>
-            <div class="mt-2 text-xs flex justify-between">
-              <span class="text-gray-500">Calls: {wasmState?.operationsPerType?.recalculatePositions || 0}</span>
-              <span class="text-gray-500">
-                {wasmState.performanceMetrics?.operationTimings?.recalculatePositions?.avgTime
-                  ? formatTime(wasmState.performanceMetrics?.operationTimings?.recalculatePositions?.avgTime)
-                  : '—'}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 

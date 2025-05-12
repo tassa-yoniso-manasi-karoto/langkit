@@ -5,15 +5,6 @@
     import { logStore, type LogMessage } from '../lib/logStore';
     import { slide, fade } from 'svelte/transition';
     import { backOut } from 'svelte/easing';
-    import {
-        isWasmEnabled,
-        shouldUseWasm,
-        findLogAtScrollPositionWasm,
-        recalculatePositionsWasm,
-        handleWasmError,
-        isOperationBlacklisted,
-        WasmOperationError
-    } from '../lib/wasm';
 
     // Optional version prop to handle dev vs. prod initialization
     export let version: string = "dev";
@@ -1211,25 +1202,26 @@
     // Calculate positions for all logs based on individual heights
     function recalculatePositions(): void {
         // CRITICAL FIX: Simplify position calculation logic for more reliability
-        
+
         // Safety check for empty logs
         if (filteredLogs.length === 0) {
             virtualContainerHeight = 0;
             totalLogHeight = 0;
             return;
         }
-        
+
+        // JavaScript implementation (fallback)
         // Calculate statistics only
         let heightsTotal = 0;
         let heightCount = 0;
         let minHeight = Infinity;
         let maxHeight = 0;
-        
+
         // Scan measured logs to get average height
         for (const log of filteredLogs) {
             const sequence = log._sequence || 0;
             if (sequence === null || sequence === undefined) continue;
-            
+
             const height = logHeights.get(sequence);
             if (height) {
                 // Only include actual measured heights in statistics
@@ -1240,12 +1232,12 @@
                 maxHeight = Math.max(maxHeight, cappedHeight);
             }
         }
-        
+
         // Calculate new average height if we have enough samples
         if (heightCount > 10) {
             // Use a safe average that prevents unreasonable values
             const newAvg = heightsTotal / heightCount;
-            
+
             // Only update if reasonable (not too small, not too large)
             if (newAvg >= 20 && newAvg <= 100) {
                 avgLogHeight = newAvg;
@@ -1253,15 +1245,15 @@
                 console.warn(`Skipping unreasonable average height update: ${newAvg}px`);
             }
         }
-        
+
         // Simplified approach: Use average height × count for total height
         // This is much more reliable than summing individual heights
         const safeAvgHeight = Math.max(20, avgLogHeight);
         totalLogHeight = filteredLogs.length * safeAvgHeight;
-        
+
         // Set virtual container height
         virtualContainerHeight = totalLogHeight;
-        
+
         // Log statistics in debug mode, but only occasionally
         if (debug && heightCount > 0 && filteredLogs.length % 100 === 0) {
             console.log(`Height stats: logs=${filteredLogs.length}, samples=${heightCount}, avg=${safeAvgHeight.toFixed(1)}px, min=${minHeight}px, max=${maxHeight}px`);
@@ -1272,34 +1264,35 @@
     function findLogAtScrollPosition(scrollTop: number): number {
         // Early short-circuit for empty logs
         if (filteredLogs.length === 0) return 0;
-        
+
         // In column-reverse, we need to adjust the scrollTop value
         // Convert from scrollTop to a position from the top of content
-        const adjustedScrollPosition = scrollContainer ? 
-            (totalLogHeight - scrollContainer.clientHeight - scrollTop) : 
+        const adjustedScrollPosition = scrollContainer ?
+            (totalLogHeight - scrollContainer.clientHeight - scrollTop) :
             scrollTop;
-        
+
+        // JavaScript implementation (fallback)
         // Binary search for the log
         let low = 0;
         let high = filteredLogs.length - 1;
-        
+
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const sequence = filteredLogs[mid]._sequence || 0;
             const pos = logPositions.get(sequence) || mid * (avgLogHeight + POSITION_BUFFER);
             const height = logHeights.get(sequence) || avgLogHeight + POSITION_BUFFER;
-            
+
             if (adjustedScrollPosition >= pos && adjustedScrollPosition < (pos + height)) {
                 return mid; // Found exact log
             }
-            
+
             if (adjustedScrollPosition < pos) {
                 high = mid - 1;
             } else {
                 low = mid + 1;
             }
         }
-        
+
         // Return the closest log index
         return Math.max(0, Math.min(filteredLogs.length - 1, low));
     }

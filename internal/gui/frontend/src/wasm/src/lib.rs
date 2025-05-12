@@ -1,4 +1,3 @@
-// src/wasm/lib.rs - Optimized version with better memory management
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use js_sys::Error;
@@ -123,7 +122,6 @@ impl AllocationTracker {
         })
     }
 }
-// --- End Replace AllocationTracker ---
 
 
 // Function to safely get a mutable reference to the static tracker
@@ -137,13 +135,11 @@ fn get_allocation_tracker() -> &'static mut AllocationTracker {
     }
 }
 
-// --- Start Insert get_timestamp_ms ---
 // Helper function to get millisecond timestamp
 fn get_timestamp_ms() -> u64 {
     let now = js_sys::Date::now();
     now as u64
 }
-// --- End Insert get_timestamp_ms ---
 
 
 #[wasm_bindgen]
@@ -196,12 +192,6 @@ fn estimate_log_message_size(log_msg: &LogMessage) -> usize {
 }
 
 
-// We no longer need this struct - memory information is obtained directly
-// from WebAssembly.Memory browser APIs and our AllocationTracker
-// when needed. This reduces code complexity and potential confusion.
-
-
-// --- Start Replace merge_insert_logs and helpers ---
 #[wasm_bindgen]
 pub fn merge_insert_logs(existing_logs_js: JsValue, new_logs_js: JsValue) -> Result<JsValue, JsValue> {
     // Reset allocation tracking for this specific operation
@@ -590,11 +580,7 @@ fn sort_logs(logs: &mut Vec<LogMessage>) {
         }
     });
 }
-// --- End Replace merge_insert_logs and helpers ---
 
-
-// --- Start Replace get_memory_usage and helpers ---
-// REPLACE the existing get_memory_usage function with this robust implementation
 /// Get WebAssembly memory usage information combining browser APIs with supplementary tracker data
 /// 
 /// This function provides a comprehensive view of memory usage by combining:
@@ -696,9 +682,7 @@ pub fn get_memory_usage() -> JsValue {
         }
     }
 }
-// --- End Replace get_memory_usage and helpers ---
 
-// ADD this new helper function for robust memory size detection
 // Guarantees a valid size value in all cases
 fn get_memory_size_bytes() -> usize {
     // Method 1: Use wasm_bindgen::memory() (primary approach)
@@ -717,7 +701,6 @@ fn get_memory_size_bytes() -> usize {
     estimate_memory_size_from_tracker()
 }
 
-// ADD this helper function to get memory size from wasm_bindgen::memory()
 fn get_memory_size_from_wasm_bindgen() -> Option<usize> {
     let memory = wasm_bindgen::memory();
     
@@ -736,7 +719,6 @@ fn get_memory_size_from_wasm_bindgen() -> Option<usize> {
     }
 }
 
-// ADD this alternative approach using WebAssembly.Memory API
 fn get_memory_size_from_current_memory() -> Option<usize> {
     // Try to access memory via WebAssembly.Memory - this is the most reliable approach
     match js_sys::WebAssembly::Memory::from(wasm_bindgen::memory()).grow(0) {
@@ -761,7 +743,6 @@ fn get_memory_size_from_current_memory() -> Option<usize> {
     }
 }
 
-// ADD this fallback estimation method
 fn estimate_memory_size_from_tracker() -> usize {
     let tracker = get_allocation_tracker();
     
@@ -794,8 +775,7 @@ pub fn reset_internal_allocation_stats() {
     log(&format!("WebAssembly internal allocation tracker reset (DOES NOT perform actual garbage collection)"));
 }
 
-// IMPROVEMENT #4: Add memory growth capability
-// REPLACE existing ensure_sufficient_memory with this robust version
+
 #[wasm_bindgen]
 pub fn ensure_sufficient_memory(needed_bytes: usize) -> bool {
     // Get current memory information
@@ -897,8 +877,6 @@ pub fn ensure_sufficient_memory(needed_bytes: usize) -> bool {
 // as it correctly resets the values before the baseline is applied here.
 
 
-// --- Start Replace estimate_memory_for_logs ---
-// REPLACE estimate_memory_for_logs with this robust version
 #[wasm_bindgen]
 pub fn estimate_memory_for_logs(log_count: usize) -> JsValue {
     // Simplify with fixed values for more predictable behavior
@@ -953,9 +931,7 @@ pub fn estimate_memory_for_logs(log_count: usize) -> JsValue {
         }
     }
 }
-// --- End Replace estimate_memory_for_logs ---
 
-// --- Start Add SIMD module ---
 // SIMD-optimized operations for supported browsers
 #[cfg(target_feature = "simd128")]
 mod simd_ops {
@@ -982,468 +958,3 @@ mod simd_ops {
          haystack.contains(needle)
      }
 }
-
-// --- End Add SIMD module ---
-
-
-// --- Start find_log_at_scroll_position ---
-#[wasm_bindgen]
-pub fn find_log_at_scroll_position(
-    logs_array: JsValue,
-    log_positions_map: JsValue,
-    log_heights_map: JsValue,
-    scroll_top: f64,
-    avg_log_height: f64,
-    position_buffer: f64,
-    start_offset: Option<u32> // Optional start_offset parameter
-) -> Result<JsValue, JsValue> {
-    // Reset allocation tracking for this specific operation
-    let tracker = get_allocation_tracker();
-    tracker.reset();
-
-    // NEW: Calculate estimated memory requirements
-    let estimated_bytes = match js_sys::Array::is_array(&logs_array) {
-        true => js_sys::Array::from(&logs_array).length() as usize * 250, // Consistent with merge_insert_logs
-        false => 2000 // Fallback estimate
-    };
-
-    // Ensure sufficient memory with consistent approach (same as merge_insert_logs)
-    let memory_check = ensure_sufficient_memory(estimated_bytes);
-    if !memory_check {
-        return Err(Error::new(&format!(
-            "Insufficient memory for scroll position calculation: needed ~{} bytes",
-            estimated_bytes
-        )).into());
-    }
-
-    // NEW: Log operation start for diagnostics
-    log(&format!("Starting findLogAtScrollPosition with {} estimated bytes", estimated_bytes));
-
-    // Convert JS logs array to Rust Vec with more robust error handling
-    let logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value::<Vec<LogMessage>>(logs_array) {
-        Ok(l) => {
-            // Track allocation more precisely
-            let estimated_size: usize = l.iter().map(estimate_log_message_size).sum(); // Use same size estimation as merge_insert_logs
-            tracker.track_allocation(estimated_size);
-            log(&format!("Successfully deserialized {} logs", l.len()));
-            l
-        },
-        Err(e) => {
-            log(&format!("Failed to deserialize logs: {:?}", e));
-            return Err(Error::new(&format!("Failed to deserialize logs: {:?}", e)).into());
-        },
-    };
-
-    // Early return for empty logs
-    if logs.is_empty() {
-        return Ok(JsValue::from(0));
-    }
-
-    // IMPROVED: More robust Map conversion with format checking and fallbacks
-    let positions: HashMap<u32, f64> = if js_sys::Map::instanceof(&log_positions_map) {
-        // It's a JavaScript Map - use special conversion
-        log("Converting JavaScript Map to Rust HashMap for positions");
-        match convert_js_map_to_hashmap(&log_positions_map) {
-            Ok(map) => {
-                log(&format!("Successfully converted positions Map with {} entries", map.len()));
-                tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * map.len());
-                map
-            },
-            Err(e) => return Err(e)
-        }
-    } else {
-        // Standard deserialization path for plain objects
-        match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(log_positions_map) {
-            Ok(p) => {
-                log(&format!("Successfully deserialized positions object with {} entries", p.len()));
-                tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * p.len());
-                p
-            },
-            Err(e) => {
-                log(&format!("Failed to deserialize positions: {:?}", e));
-                return Err(Error::new(&format!("Failed to deserialize positions: {:?}", e)).into());
-            }
-        }
-    };
-
-    // Same approach for heights
-    let heights: HashMap<u32, f64> = if js_sys::Map::instanceof(&log_heights_map) {
-        // It's a JavaScript Map - use special conversion
-        log("Converting JavaScript Map to Rust HashMap for heights");
-        match convert_js_map_to_hashmap(&log_heights_map) {
-            Ok(map) => {
-                log(&format!("Successfully converted heights Map with {} entries", map.len()));
-                tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * map.len());
-                map
-            },
-            Err(e) => return Err(e)
-        }
-    } else {
-        // Standard deserialization path for plain objects
-        match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(log_heights_map) {
-            Ok(h) => {
-                log(&format!("Successfully deserialized heights object with {} entries", h.len()));
-                tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * h.len());
-                h
-            },
-            Err(e) => {
-                log(&format!("Failed to deserialize heights: {:?}", e));
-                return Err(Error::new(&format!("Failed to deserialize heights: {:?}", e)).into());
-            }
-        }
-    };
-
-    // Binary search implementation with enhanced performance
-    let mut low = 0;
-    let mut high = logs.len().saturating_sub(1); // Prevent underflow
-
-    // Exit early if there's nothing to search
-    if high < low {
-        return Ok(JsValue::from(0));
-    }
-
-    // COLUMN-REVERSE LAYOUT ADJUSTMENT:
-    // In column-reverse, scrollTop=0 means bottom of content (newest logs)
-    // Negative scrollTop values mean scrolling up (towards older logs)
-    // We use absolute value to handle both positive and negative scrollTop
-    
-    // First normalize scrollTop to always be non-negative for calculations
-    let normalized_scroll_top = scroll_top.abs();
-    
-    // Use SIMD operations for range checking if available
-    #[cfg(target_feature = "simd128")]
-    {
-        // SIMD optimization could be implemented here if needed
-    }
-
-    // Standard binary search, but optimized for quick returns
-    while low <= high {
-        let mid = (low + high) / 2;
-        let sequence = logs[mid].sequence.unwrap_or(0);
-
-        // Get position with optimal hash lookup
-        let pos = positions
-            .get(&sequence)
-            .copied()
-            .unwrap_or_else(|| mid as f64 * (avg_log_height + position_buffer));
-
-        // Get height with optimal hash lookup
-        let height = heights
-            .get(&sequence)
-            .copied()
-            .unwrap_or_else(|| avg_log_height + position_buffer);
-
-        // Check if normalized scroll position is within this log's area
-        if normalized_scroll_top >= pos && normalized_scroll_top < (pos + height) {
-            // If given a start_offset, adjust the result
-            let final_index = if let Some(offset) = start_offset {
-                mid as u32 + offset
-            } else {
-                mid as u32
-            };
-
-            // Track operation for dashboard
-            tracker.track_allocation(std::mem::size_of::<i32>());
-
-            // Log success for tracking
-            log(&format!("Found log at scroll position {}: index {}",
-                normalized_scroll_top, final_index));
-
-            return Ok(JsValue::from(final_index as i32));
-        }
-
-        if normalized_scroll_top < pos {
-            if mid == 0 {
-                break; // Prevent underflow
-            }
-            high = mid - 1;
-        } else {
-            low = mid + 1;
-        }
-    }
-
-    // Return closest valid index, adjusted for start_offset if provided
-    let result = low.min(logs.len() - 1);
-    let final_index = if let Some(offset) = start_offset {
-        (result as u32 + offset) as i32
-    } else {
-        result as i32
-    };
-
-    // Track operation for dashboard
-    tracker.track_allocation(std::mem::size_of::<i32>());
-
-    // Log approximate match for tracking
-    log(&format!("Approximate match for scroll position {}: index {}",
-        normalized_scroll_top, final_index));
-
-    // Return result using more explicit JsValue conversion
-    Ok(JsValue::from(final_index))
-}
-
-// NEW: Helper function to convert a JavaScript Map/Object to a Rust HashMap<u32, f64>
-// This handles multiple formats that can come from JavaScript
-fn convert_js_map_to_hashmap(js_value: &JsValue) -> Result<HashMap<u32, f64>, JsValue> {
-    // Create result HashMap
-    let mut result = HashMap::new();
-
-    // First try handling JavaScript Map objects
-    if js_sys::Map::instanceof(js_value) {
-        let map = js_sys::Map::from(js_value.clone());
-        
-        // Simpler approach: iterate keys directly
-        let keys = map.keys();
-        
-        if js_sys::Array::is_array(&keys) {
-            let keys_array = js_sys::Array::from(&keys);
-            let length = keys_array.length();
-            
-            for i in 0..length {
-                let key = keys_array.get(i);
-                
-                // Try to convert key to number
-                if let Some(key_num) = key.as_f64() {
-                    // Get value for this key - Map.get returns JsValue not Result
-                    let value = map.get(&key);
-                    if let Some(val) = value.as_f64() {
-                        result.insert(key_num as u32, val);
-                    }
-                }
-            }
-            
-            if !result.is_empty() {
-                log(&format!("Successfully extracted {} entries from JavaScript Map using keys array", result.len()));
-                return Ok(result);
-            }
-        }
-        
-        // Alternative approach: simply iterate through numeric keys
-        // This works well since we expect sequence IDs as keys
-        let max_id = 20000; // Reasonable upper limit for log sequence IDs
-        
-        for i in 0..max_id {
-            let key = JsValue::from_f64(i as f64);
-            
-            if map.has(&key) {
-                let value = map.get(&key);
-                if let Some(val) = value.as_f64() {
-                    result.insert(i, val);
-                }
-            }
-            
-            // Optimization: stop after finding a reasonable number of entries
-            if i > 1000 && result.len() > 0 && i > (result.len() * 4) as u32 {
-                break;
-            }
-        }
-        
-        if !result.is_empty() {
-            log(&format!("Successfully extracted {} entries from JavaScript Map", result.len()));
-            return Ok(result);
-        }
-    }
-    
-    // Second approach: try to read as a plain JavaScript object
-    if JsValue::is_object(js_value) {
-        let js_obj = js_sys::Object::from(js_value.clone());
-        // Get object's keys
-        let keys = js_sys::Object::keys(&js_obj);
-        let keys_len = keys.length();
-        
-        for i in 0..keys_len {
-            let key_js = keys.get(i);
-            // Try to convert string key to number
-            if let Some(key_str) = key_js.as_string() {
-                if let Ok(key) = key_str.parse::<u32>() {
-                    // Get the value for this key
-                    if let Ok(val_js) = js_sys::Reflect::get(&js_obj, &key_js) {
-                        if let Some(val) = val_js.as_f64() {
-                            result.insert(key, val);
-                        }
-                    }
-                }
-            }
-        }
-        
-        if !result.is_empty() {
-            log(&format!("Successfully extracted {} entries from JavaScript object", result.len()));
-            return Ok(result);
-        }
-    }
-    
-    // Third approach: last resort - try standard deserialization
-    match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(js_value.clone()) {
-        Ok(map) => {
-            log(&format!("Used standard deserialization for HashMap<u32, f64> with {} entries", map.len()));
-            return Ok(map);
-        },
-        Err(e) => {
-            // If it's completely empty, just return an empty HashMap rather than error
-            if (JsValue::is_object(js_value) && js_sys::Object::keys(&js_sys::Object::from(js_value.clone())).length() == 0) ||
-               (js_sys::Map::instanceof(js_value) && js_sys::Map::from(js_value.clone()).size() == 0) {
-                log("Received empty Map/Object, returning empty HashMap");
-                return Ok(HashMap::new());
-            }
-            
-            // Otherwise, report detailed error
-            log(&format!("Failed to convert to HashMap<u32, f64>: {:?}", e));
-            return Err(Error::new(&format!("Failed to convert to HashMap: {:?}", e)).into());
-        }
-    }
-}
-
-// This function is no longer used since we now access memory info directly
-// when needed rather than through an intermediate structure
-// Removing this function simplifies our code and avoids confusion
-// --- End find_log_at_scroll_position ---
-
-
-// --- Start recalculate_positions ---
-#[wasm_bindgen]
-pub fn recalculate_positions(
-    logs_array: JsValue,
-    log_heights_map: JsValue,
-    avg_log_height: f64,
-    position_buffer: f64
-) -> Result<JsValue, JsValue> {
-    // Reset allocation tracking for this operation
-    let tracker = get_allocation_tracker();
-    tracker.reset();
-
-    // NEW: Calculate estimated memory requirements
-    let estimated_bytes = match js_sys::Array::is_array(&logs_array) {
-        true => js_sys::Array::from(&logs_array).length() as usize * 250, // Consistent with merge_insert_logs
-        false => 2000 // Fallback estimate
-    };
-
-    // Ensure sufficient memory with consistent approach (same as merge_insert_logs)
-    let memory_check = ensure_sufficient_memory(estimated_bytes);
-    if !memory_check {
-        return Err(Error::new(&format!(
-            "Insufficient memory for position calculation: needed ~{} bytes",
-            estimated_bytes
-        )).into());
-    }
-
-    // NEW: Log operation start for diagnostics
-    log(&format!("Starting recalculatePositions with {} estimated bytes", estimated_bytes));
-
-    // Parse input logs with improved error handling
-    let logs: Vec<LogMessage> = match serde_wasm_bindgen::from_value::<Vec<LogMessage>>(logs_array) {
-        Ok(l) => {
-            // Use the same size estimation as merge_insert_logs for consistency
-            let estimated_size: usize = l.iter().map(estimate_log_message_size).sum();
-            tracker.track_allocation(estimated_size);
-            log(&format!("Successfully deserialized {} logs", l.len()));
-            l
-        },
-        Err(e) => {
-            log(&format!("Failed to deserialize logs: {:?}", e));
-            return Err(Error::new(&format!("Failed to deserialize logs: {:?}", e)).into());
-        }
-    };
-
-    // Parse heights map using more robust approach that handles both Maps and Objects
-    let heights: HashMap<u32, f64> = if js_sys::Map::instanceof(&log_heights_map) {
-        // It's a JavaScript Map - use special conversion
-        log("Converting JavaScript Map to Rust HashMap for heights");
-        match convert_js_map_to_hashmap(&log_heights_map) {
-            Ok(map) => {
-                log(&format!("Successfully converted heights Map with {} entries", map.len()));
-                tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * map.len());
-                map
-            },
-            Err(e) => return Err(e)
-        }
-    } else {
-        // Standard deserialization path for plain objects
-        match serde_wasm_bindgen::from_value::<HashMap<u32, f64>>(log_heights_map) {
-            Ok(h) => {
-                log(&format!("Successfully deserialized heights object with {} entries", h.len()));
-                tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * h.len());
-                h
-            },
-            Err(e) => {
-                log(&format!("Failed to deserialize heights: {:?}", e));
-                return Err(Error::new(&format!("Failed to deserialize heights: {:?}", e)).into());
-            }
-        }
-    };
-
-    // Create result storage with capacity planning
-    let mut positions: HashMap<u32, f64> = HashMap::with_capacity(logs.len());
-    tracker.track_allocation(std::mem::size_of::<(u32, f64)>() * logs.len());
-
-    let mut current_position = 0.0;
-    let mut total_height = 0.0;
-
-    // Calculate positions for each log
-    for log in &logs {
-        let sequence = log.sequence.unwrap_or(0);
-
-        // Store position for this log
-        positions.insert(sequence, current_position);
-
-        // Get height, with several fallback mechanisms
-        let height = heights
-            .get(&sequence)
-            .copied()
-            .unwrap_or_else(|| {
-                // Cap height to reasonable values (20px minimum, 100px maximum)
-                // to prevent extreme results with malformed data
-                let default_height = avg_log_height + position_buffer;
-                default_height.max(20.0).min(100.0)
-            });
-
-        // Update running totals with safety guards for negative or NaN values
-        if height.is_finite() && height > 0.0 {
-            current_position += height;
-            total_height += height;
-        } else {
-            // Use fallback for corrupted height values
-            let fallback = avg_log_height.max(20.0);
-            current_position += fallback;
-            total_height += fallback;
-            crate::log(&format!("Warning: Non-finite height for log sequence {}, using fallback value", sequence));
-        }
-    }
-
-    // IMPROVED: Explicitly construct JavaScript object for result
-    // This approach matches merge_insert_logs for consistency
-    let result = js_sys::Object::new();
-
-    // Create a new JS object for positions
-    let js_positions = js_sys::Object::new();
-
-    // Build positions object explicitly instead of using serde_wasm_bindgen
-    for (key, value) in &positions {
-        // Use Reflect.set for each position directly
-        js_sys::Reflect::set(
-            &js_positions,
-            &JsValue::from_str(&key.to_string()),
-            &JsValue::from_f64(*value)
-        )?;
-    }
-
-    // Add the positions map to the result
-    js_sys::Reflect::set(&result, &"positions".into(), &js_positions)?;
-
-    // Set total height with safety check
-    let safe_total_height = if total_height.is_finite() && total_height >= 0.0 {
-        total_height
-    } else {
-        // Fallback if height calculation went wrong
-        logs.len() as f64 * avg_log_height
-    };
-
-    // Set the totalHeight property
-    js_sys::Reflect::set(&result, &"totalHeight".into(), &JsValue::from_f64(safe_total_height))?;
-
-    // Log success for tracking
-    log(&format!("Successfully calculated positions for {} logs, total height: {}",
-        logs.len(), safe_total_height));
-
-    // Return the constructed object
-    Ok(result.into())
-}
-// --- End recalculate_positions ---

@@ -1,6 +1,7 @@
 SVG animations: rework state transitions
 
 - create dev panel and mv WAS Dashboard + WASM Test button there
+- simple ETA should not account for resumed progress
 
 - 🤯 make consistent progress bars between GUI and CLI
   
