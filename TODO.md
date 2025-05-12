@@ -1,8 +1,6 @@
 SVG animations: rework state transitions
 
-- fix Rust version of findLogAtScrollPosition  & recalculatePositions which seem dysfunctional
 - create dev panel and mv WAS Dashboard + WASM Test button there
-
 
 - 🤯 make consistent progress bars between GUI and CLI
   
