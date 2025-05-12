@@ -322,7 +322,6 @@
 
 <div class="bg-gray-800/60 backdrop-blur-sm rounded-lg p-4 shadow-md text-white">
   <div class="flex items-center justify-between mb-3">
-    <h3 class="text-lg font-medium">WebAssembly Performance</h3>
 
     <!-- Tab Buttons -->
     <div class="flex gap-2">
@@ -367,7 +366,7 @@
       <div class="bg-gray-700/70 rounded p-4">
         <div class="text-sm text-gray-400 mb-4 text-center">WebAssembly Functions</div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid gap-4">
           <!-- mergeInsertLogs -->
           <div class="bg-gray-800/70 rounded p-3">
             <div class="text-xs text-blue-400 mb-1 font-medium">Log Processing</div>

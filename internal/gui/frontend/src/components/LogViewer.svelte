@@ -6,6 +6,58 @@
     import { slide, fade } from 'svelte/transition';
     import { backOut } from 'svelte/easing';
 
+    // Listen for dev dashboard events
+    function handleToggleVirtualization() {
+        if (version === 'dev') {
+            manualVirtualToggle = true;
+            virtualEnabled = !virtualEnabled;
+            console.log(`[DEV] Virtualization ${virtualEnabled ? 'enabled' : 'disabled'} by dev dashboard`);
+
+            if (virtualEnabled) {
+                setTimeout(() => resetVirtualization(), 50);
+            }
+        }
+    }
+
+    function handleCheckVirtualization() {
+        if (version === 'dev' && virtualEnabled && virtualizationReady) {
+            console.log("[DEV] Virtualization check triggered from dev dashboard");
+            recalculatePositions();
+            updateVirtualization();
+
+            // Schedule additional checks
+            [50, 200, 500].forEach(delay => {
+                setTimeout(() => {
+                    if (virtualEnabled && virtualizationReady) {
+                        console.log(`Check at t+${delay}ms`);
+                        updateVirtualization();
+                    }
+                }, delay);
+            });
+        }
+    }
+
+    function handleToggleDebugScroll() {
+        if (version === 'dev') {
+            debugAutoScroll = !debugAutoScroll;
+            console.log(`[DEV] Debug scroll overlay ${debugAutoScroll ? 'enabled' : 'disabled'} by dev dashboard`);
+        }
+    }
+
+    function handleForceScrollBottom() {
+        if (version === 'dev') {
+            console.log("[DEV] Force scroll to bottom triggered from dev dashboard");
+            scrollToBottomWithStrategy();
+        }
+    }
+
+    function handleClearLogs() {
+        if (version === 'dev') {
+            console.log("[DEV] Clearing logs from dev dashboard");
+            logStore.set([]);
+        }
+    }
+
     // Optional version prop to handle dev vs. prod initialization
     export let version: string = "dev";
     // Add isProcessing prop to receive processing state from App.svelte
@@ -1953,6 +2005,11 @@
         document.addEventListener('wheel', wheelHandler, { passive: true });
         document.addEventListener('touchmove', touchHandler, { passive: true });
         document.addEventListener('keydown', keyHandler);
+
+        // Register dev dashboard event handlers
+        document.addEventListener('dev:toggle-virtualization', handleToggleVirtualization);
+        document.addEventListener('dev:toggle-debug-scroll', handleToggleDebugScroll);
+        document.addEventListener('dev:force-scroll-bottom', handleForceScrollBottom);
         
         // onMount cleanup function - remove ALL event listeners
         return () => {
@@ -1965,6 +2022,15 @@
             // Remove all scroll-related event listeners
             if (scrollContainer) {
                 scrollContainer.removeEventListener('scroll', handleScroll);
+            }
+
+            // Remove dev dashboard event handlers
+            document.removeEventListener('dev:toggle-virtualization', handleToggleVirtualization);
+            document.removeEventListener('dev:toggle-debug-scroll', handleToggleDebugScroll);
+            document.removeEventListener('dev:force-scroll-bottom', handleForceScrollBottom);
+
+            // Remove other event listeners
+            if (scrollContainer) {
                 scrollContainer.removeEventListener('wheel', wheelHandler);
             }
             
@@ -2052,67 +2118,11 @@
             >
                 Clear
             </button>
-            
-            <!-- Virtual Rendering Toggle (for debugging) -->
-            {#if version === 'dev'}
-                <button 
-                    on:click={toggleVirtualization}
-                    class="px-3 py-1 h-7 bg-[#333] text-text rounded whitespace-nowrap 
-                           flex-shrink-0 text-[11px] uppercase tracking-wider 
-                           hover:bg-primary/10 hover:text-white hover:border-primary/55 hover:shadow-input 
-                           transition-all duration-200"
-                    aria-pressed={virtualEnabled}
-                    aria-label="Toggle virtualization"
-                >
-                    {virtualEnabled ? 'Virt: ON' : 'Virt: OFF'}
-                </button>
-                
-                <!-- Force Check Button (for testing) -->
-                {#if virtualEnabled}
-                    <button 
-                        on:click={() => {
-                            console.log("MANUAL VIRTUALIZATION CHECK");
-                            recalculatePositions();
-                            updateVirtualization();
-                            
-                            // Schedule additional checks
-                            [50, 200, 500].forEach(delay => {
-                                setTimeout(() => {
-                                    if (virtualEnabled && virtualizationReady) {
-                                        console.log(`Check at t+${delay}ms`);
-                                        updateVirtualization();
-                                        virtualStart = virtualStart;
-                                        virtualEnd = virtualEnd;
-                                    }
-                                }, delay);
-                            });
-                        }}
-                        class="px-3 py-1 h-7 bg-red-600/50 text-white rounded whitespace-nowrap 
-                               flex-shrink-0 text-[11px] uppercase tracking-wider font-bold
-                               hover:bg-red-600/70 hover:text-white transition-all duration-200"
-                    >
-                        CHECK VIRT
-                    </button>
-                {/if}
-                
                 <!-- Debug info -->
+            {#if version === 'dev'}
                 <span class="text-xs text-primary/50" aria-live="polite">
                     {filteredLogs.length} logs {virtualEnabled ? '| ' + visibleLogCount + ' visible' : ''} {isProcessing ? '| PROCESSING' : ''}
                 </span>
-            {/if}
-
-            <!-- Debug Auto-Scroll Button -->
-            {#if version === 'dev'}
-                <button
-                    on:click={() => debugAutoScroll = !debugAutoScroll}
-                    class="px-3 py-1 h-7 bg-[#444] text-text rounded whitespace-nowrap
-                           flex-shrink-0 text-[11px] uppercase tracking-wider
-                           hover:bg-primary/20 hover:text-white hover:border-primary/55 hover:shadow-input
-                           transition-all duration-200"
-                    aria-pressed={debugAutoScroll}
-                >
-                    Debug Scroll
-                </button>
             {/if}
         </div>
     </div>
@@ -2143,16 +2153,6 @@
                     aria-hidden={virtualEnabled ? "true" : "false"}
                     data-virtual-container="true"
                 >
-                    <!-- Visual indicators for virtualization mode -->
-                    {#if virtualEnabled}
-                        <!-- Show virtual range indicator for easier debugging -->
-                        <div 
-                            class="fixed top-2 right-2 z-50 bg-black/80 text-primary text-xs px-2 py-1 rounded pointer-events-none flex items-center gap-2"
-                        >
-                            <span class="text-green-400 font-bold">VIRTUAL MODE</span>
-                            <span>Showing {visibleLogCount} of {filteredLogs.length} logs ({virtualStart}-{virtualEnd})</span>
-                        </div>
-                    {/if}
                     <!-- Initial loading state before virtualization is ready -->
                     {#if virtualEnabled && !virtualizationReady}
                         <!-- Show the first 50 logs in non-virtualized mode until virtualization is ready -->

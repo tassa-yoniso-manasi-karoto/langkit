@@ -27,6 +27,7 @@
     import ProgressManager from './components/ProgressManager.svelte';
     import LogViewerNotification from './components/LogViewerNotification.svelte';
     import MemoryTestButton from './components/MemoryTestButton.svelte';
+    import DevDashboard from './components/DevDashboard.svelte';
     
     import { 
         SendProcessingRequest, 
@@ -913,9 +914,6 @@
           </div>
         {/if}
 
-        <!-- Memory Test Button (smaller icon-only version) -->
-        <MemoryTestButton size="small" variant="secondary" />
-
         <button
             class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
                    transition-all duration-200 hover:bg-white/15 hover:text-white
@@ -1102,6 +1100,11 @@
     version={version}
     onClose={() => $showSettings = false}
 />
+
+<!-- Developer dashboard (only appears in dev mode) -->
+{#if version}
+    <DevDashboard {version} />
+{/if}
 
 <style>
     /* Smooth fade mask for scrollable content */
