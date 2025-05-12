@@ -488,7 +488,8 @@ export class Logger {
             if (eCopy.ctx) {
                 eCopy.ctx = this._sanitizeCtx(eCopy.ctx);
             }
-            (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(eCopy));
+            // Send individual log as a single-element batch to BackendLoggerBatch
+            (window as any).go.gui.App.BackendLoggerBatch(e.comp, JSON.stringify([eCopy]));
         } catch (err) {
             console.error("Failed to relay log to backend:", err);
             if (e.lvl >= Lvl.ERROR) {
@@ -515,14 +516,25 @@ export class Logger {
                 }
                 return copy;
             });
+            // This function exists in app.go (line 153)
             (window as any).go.gui.App.BackendLoggerBatch(component, JSON.stringify(sanEntries));
         } catch (err) {
             console.error("Failed to relay batch to backend:", err);
-            for (const e of entries) {
-                if (e.lvl >= Lvl.ERROR) {
-                    this._retryQ.push({ entry: e, retries: 0 });
+            // Try to send logs individually in separate batches
+            try {
+                for (const e of sanEntries) {
+                    (window as any).go.gui.App.BackendLoggerBatch(e.comp || component, JSON.stringify([e]));
+                }
+            } catch (individualErr) {
+                console.error("Failed individual log fallback:", individualErr);
+                // Queue error logs for retry
+                for (const e of entries) {
+                    if (e.lvl >= Lvl.ERROR) {
+                        this._retryQ.push({ entry: e, retries: 0 });
+                    }
                 }
             }
+
             if (navigator.sendBeacon) {
                 try {
                     const beacon = new Blob([JSON.stringify({ batch: entries })], { type: 'application/json' });
@@ -545,7 +557,8 @@ export class Logger {
                 const { entry: e, retries: r } = item;
                 if (r < this._cfg.batConf.retries) {
                     try {
-                        (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(e));
+                        // Use BackendLoggerBatch with a single-element array
+                        (window as any).go.gui.App.BackendLoggerBatch(e.comp, JSON.stringify([e]));
                     } catch (err) {
                         this._retryQ.push({ entry: e, retries: r + 1 });
                         await new Promise(resolve => setTimeout(resolve, this._cfg.batConf.retryDelay));

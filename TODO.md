@@ -1,6 +1,5 @@
 SVG animations: rework state transitions
 
-- fix logger.ts
 - fix Rust version of findLogAtScrollPosition  & recalculatePositions which seem dysfunctional
 - create dev panel and mv WAS Dashboard + WASM Test button there
 
