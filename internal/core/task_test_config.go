@@ -641,9 +641,15 @@ func (h *TestMessageHandler) ResetProgress() {
 	h.logs = append(h.logs, "RESET PROGRESS")
 }
 
-// IncrementProgress increments progress
+// IncrementProgress increments progress with simple ETA calculation
 func (h *TestMessageHandler) IncrementProgress(taskID string, increment, total, priority int, operation, description, size string) {
-	h.logs = append(h.logs, fmt.Sprintf("PROGRESS [%s]: +%d/%d - %s (%s)", 
+	h.logs = append(h.logs, fmt.Sprintf("PROGRESS [%s]: +%d/%d - %s (%s)",
+		taskID, increment, total, description, operation))
+}
+
+// IncrementProgressAdvanced increments progress with advanced ETA calculation
+func (h *TestMessageHandler) IncrementProgressAdvanced(taskID string, increment, total, priority int, operation, description, size string) {
+	h.logs = append(h.logs, fmt.Sprintf("PROGRESS ADVANCED [%s]: +%d/%d - %s (%s)",
 		taskID, increment, total, description, operation))
 }
 

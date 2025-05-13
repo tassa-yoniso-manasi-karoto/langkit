@@ -21,16 +21,28 @@ func NewProgressTracker(handler MessageHandler, barID string) ProgressTracker {
 // UpdateProgress updates the overall progress
 func (p *DefaultProgressTracker) UpdateProgress(completed, total int, description string) {
 	if p.handler != nil {
-		// Use IncrementProgress since that's what MessageHandler provides
-		p.handler.IncrementProgress(
-			p.barID,         // taskID
-			1,               // increment
-			total,           // total
-			20,              // priority
-			description,     // operation
-			description,     // description
-			"h-2",           // size
-		)
+		// Use advanced ETA for item-bar, simple ETA for other progress bars
+		if p.barID == ProgressBarIDItem {
+			p.handler.IncrementProgressAdvanced(
+				p.barID,         // taskID
+				1,               // increment
+				total,           // total
+				20,              // priority
+				description,     // operation
+				description,     // description
+				"h-2",           // size
+			)
+		} else {
+			p.handler.IncrementProgress(
+				p.barID,         // taskID
+				1,               // increment
+				total,           // total
+				20,              // priority
+				description,     // operation
+				description,     // description
+				"h-2",           // size
+			)
+		}
 	}
 }
 

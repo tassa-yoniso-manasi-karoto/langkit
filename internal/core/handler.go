@@ -20,6 +20,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/eta"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 )
 
@@ -35,23 +36,24 @@ type MessageHandler interface {
 	// this is a helper that returns an err but doesn't use a LevelError,
 	// it is meant to be used to handle ctx.Err following user-requested context cancelation
 	LogErrWithLevel(level int8, err error, behavior string, msg string) *ProcessingError
-	
+
 	LogFields(level int8, behavior string, msg string, fields map[string]interface{}) *ProcessingError
 	LogErrFields(err error, behavior string, msg string, fields map[string]interface{}) *ProcessingError
-	
+
 	ZeroLog() *zerolog.Logger
 	GetLogBuffer() bytes.Buffer
 	HandleStatus(status string) //TODO
-	
-	// Progress tracking methods
-	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
+
+	// Progress tracking methods with specific ETA algorithm choice
+	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string) // Defaults to Simple ETA
+	IncrementProgressAdvanced(taskID string, increment, total, priority int, operation, descr, size string) // Uses Advanced ETA
 	ResetProgress()
 	RemoveProgressBar(taskID string)
-	
+
 	// SetHighLoadMode enables high performance processing for intensive operations
 	// Optional duration parameter - defaults to 5 seconds if not provided
 	SetHighLoadMode(durations ...time.Duration)
-	
+
 	// GetContext returns the context for operations like crash reporting
 	GetContext() context.Context
 }
@@ -69,7 +71,7 @@ type CLIHandler struct {
 
 	progressBars map[string]*progressbar.ProgressBar
 	progressValues map[string]int // Track absolute progress values
-	etaCalculators map[string]ETAProvider
+	etaCalculators map[string]eta.Provider
 }
 
 func NewCLIHandler(ctx context.Context) *CLIHandler {
@@ -77,7 +79,7 @@ func NewCLIHandler(ctx context.Context) *CLIHandler {
 		ctx: ctx,
 		progressBars: make(map[string]*progressbar.ProgressBar),
 		progressValues: make(map[string]int),
-		etaCalculators: make(map[string]ETAProvider),
+		etaCalculators: make(map[string]eta.Provider),
 	}
 	crash.InitReporter(ctx)
 	
@@ -146,7 +148,7 @@ func (h *CLIHandler) ResetProgress() {
 
 	// Reset progress tracking and ETA calculators
 	h.progressValues = make(map[string]int)
-	h.etaCalculators = make(map[string]ETAProvider)
+	h.etaCalculators = make(map[string]eta.Provider)
 }
 
 
@@ -177,7 +179,13 @@ func (h *CLIHandler) RemoveProgressBar(taskID string) {
 }
 
 
-func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, desc, size string) {
+// incrementProgressInternal handles progress bar updates with specific ETA algorithm
+func (h *CLIHandler) incrementProgressInternal(
+	taskID string,
+	increment, total, priority int,
+	operation, desc, size string,
+	algoType eta.AlgorithmType,
+) {
 	if h.progressBars == nil {
 		h.progressBars = make(map[string]*progressbar.ProgressBar)
 	}
@@ -187,28 +195,42 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	}
 
 	if h.etaCalculators == nil {
-		h.etaCalculators = make(map[string]ETAProvider)
+		h.etaCalculators = make(map[string]eta.Provider)
 	}
 
-	// Update absolute progress tracking (like GUI handler does)
+	// Update absolute progress tracking
 	h.progressValues[taskID] += increment
 	current := h.progressValues[taskID]
 
-	// Only create or update ETA for media-bar and item-bar
-	isEtaEnabled := taskID == "media-bar" || taskID == "item-bar"
-
 	// Get or create ETA calculator for this task
-	var eta ETAProvider
+	var provider eta.Provider
+	isEtaEnabled := true // ETA is always potentially enabled if this internal method is called
+
 	if isEtaEnabled {
-		eta = h.etaCalculators[taskID]
-		if eta == nil && total > 0 {
-			// Use complex ETA calculator only for item-bar
-			if taskID == "item-bar" {
-				eta = NewETACalculator(int64(total))
-			} else {
-				eta = NewSimpleETACalculator(int64(total))
+		provider = h.etaCalculators[taskID]
+		if provider == nil && total > 0 {
+			// Create the appropriate ETA calculator based on the algorithm type
+			if algoType == eta.AlgorithmAdvanced {
+				provider = eta.NewETACalculator(int64(total))
+			} else { // Default to Simple if algoType == eta.AlgorithmSimple
+				provider = eta.NewSimpleETACalculator(int64(total))
 			}
-			h.etaCalculators[taskID] = eta
+			h.etaCalculators[taskID] = provider
+		} else if provider != nil && provider.GetAlgorithmType() != algoType && total > 0 {
+			// Algorithm type mismatch for existing calculator, recreate
+			// This handles cases where a taskID might be reused with a different ETA requirement
+			h.ZeroLog().Warn().
+				Str("taskID", taskID).
+				Str("existingAlgo", provider.GetAlgorithmType().String()).
+				Str("requestedAlgo", algoType.String()).
+				Msg("ETA algorithm type mismatch for task, recreating calculator.")
+
+			if algoType == eta.AlgorithmAdvanced {
+				provider = eta.NewETACalculator(int64(total))
+			} else {
+				provider = eta.NewSimpleETACalculator(int64(total))
+			}
+			h.etaCalculators[taskID] = provider
 		}
 	}
 
@@ -245,35 +267,40 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 		bar.Describe(desc) // update text if you want
 
 		if isEtaEnabled && total > 0 {
-			if eta != nil {
+			if provider != nil {
 				// Update existing calculator (preserves rate history)
-				eta.UpdateTotalTasks(int64(total))
+				provider.UpdateTotalTasks(int64(total))
 			} else {
 				// If no calculator exists yet, create a new one
-				if taskID == "item-bar" {
-					eta = NewETACalculator(int64(total))
+				if algoType == eta.AlgorithmAdvanced {
+					provider = eta.NewETACalculator(int64(total))
 				} else {
-					eta = NewSimpleETACalculator(int64(total))
+					provider = eta.NewSimpleETACalculator(int64(total))
 				}
-				h.etaCalculators[taskID] = eta
+				h.etaCalculators[taskID] = provider
 			}
 		}
 	}
 
-	// Update ETA calculator with the absolute progress (like GUI handler does)
-	if isEtaEnabled && eta != nil {
+	// Update ETA calculator with the absolute progress
+	if isEtaEnabled && provider != nil {
 		// Send the absolute progress to the ETA calculator
 		// This allows for proper handling of resumption
-		eta.TaskCompleted(int64(current))
+		provider.TaskCompleted(int64(current))
 
 		// Calculate the ETA with confidence intervals
-		etaResult := eta.CalculateETAWithConfidence()
+		etaResult := provider.CalculateETAWithConfidence()
 		if etaResult.Estimate >= 0 {
-			// Format the ETA with confidence information
-			etaStr := formatETAWithConfidence(etaResult)
+			// Conditional ETA display logic based on algorithm type
+			if etaResult.Algorithm == eta.AlgorithmAdvanced ||
+			   increment > 0 ||
+			   provider.ElapsedTime() >= eta.SimpleETAMinimumElapsed {
+				// Format the ETA with confidence information
+				etaStr := formatETAWithConfidence(etaResult)
 
-			// Update the progress bar description with the ETA
-			bar.Describe(fmt.Sprintf("%s [%s]", desc, etaStr))
+				// Update the progress bar description with the ETA
+				bar.Describe(fmt.Sprintf("%s [%s]", desc, etaStr))
+			}
 		}
 	}
 
@@ -287,6 +314,16 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 		delete(h.progressValues, taskID)
 		delete(h.etaCalculators, taskID)
 	}
+}
+
+// IncrementProgress updates progress with simple ETA calculation
+func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, desc, size string) {
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, desc, size, eta.AlgorithmSimple)
+}
+
+// IncrementProgressAdvanced updates progress with advanced ETA calculation
+func (h *CLIHandler) IncrementProgressAdvanced(taskID string, increment, total, priority int, operation, desc, size string) {
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, desc, size, eta.AlgorithmAdvanced)
 }
 
 // SetHighLoadMode is a no-op for CLI mode since there's no throttling
@@ -314,7 +351,7 @@ type GUIHandler struct {
 	buffer       bytes.Buffer
 	progressMap  map[string]int
 	throttler    *batch.AdaptiveEventThrottler
-	etaCalculators map[string]ETAProvider
+	etaCalculators map[string]eta.Provider
 }
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
@@ -356,7 +393,7 @@ func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler)
 		ctx:         ctx,
 		progressMap: make(map[string]int),
 		throttler:   throttler,
-		etaCalculators: make(map[string]ETAProvider),
+		etaCalculators: make(map[string]eta.Provider),
 	}
 	crash.InitReporter(ctx)
 	
@@ -460,51 +497,51 @@ func formatDuration(d time.Duration) string {
 }
 
 // formatETAWithConfidence formats an ETAResult with reliability information into a human-readable string
-func formatETAWithConfidence(eta ETAResult) string {
-	if eta.Estimate < 0 {
+func formatETAWithConfidence(result eta.ETAResult) string {
+	if result.Estimate < 0 {
 		return ""
 	}
 
-	if eta.Estimate == 0 {
+	if result.Estimate == 0 {
 		return "Done"
 	}
 
 	// Format bounds with helper function
-	lowerStr := formatDuration(eta.LowerBound)
-	upperStr := formatDuration(eta.UpperBound)
-	estimateStr := formatDuration(eta.Estimate)
+	lowerStr := formatDuration(result.LowerBound)
+	upperStr := formatDuration(result.UpperBound)
+	estimateStr := formatDuration(result.Estimate)
 
-	// For SimpleETACalculator (which always uses cross-mult), show simple display without reliability
-	if eta.CrossMultWeight > 0.95 && eta.SampleCount <= 1 {
+	// Check algorithm type directly instead of using implementation details
+	if result.Algorithm == eta.AlgorithmSimple {
 		// SimpleETACalculator case - never show reliability regardless of dev mode
 		return fmt.Sprintf("ETA: %s", estimateStr)
 	}
 
 	// Format reliability level as percentage - only used for advanced calculator
-	reliabilityStr := fmt.Sprintf("%.0f%%", eta.ReliabilityScore*100)
+	reliabilityStr := fmt.Sprintf("%.0f%%", result.ReliabilityScore*100)
 
 	// Determine whether to show reliability indicator (only in dev mode)
 	showReliability := version.Version == "dev"
-	
+
 	// Calculate whether range is narrow enough to show as point estimate
-	etaSeconds := eta.Estimate.Seconds()
-	rangeDifference := (eta.UpperBound.Seconds() - eta.LowerBound.Seconds())
+	etaSeconds := result.Estimate.Seconds()
+	rangeDifference := (result.UpperBound.Seconds() - result.LowerBound.Seconds())
 	isRangeNarrow := rangeDifference < etaSeconds * 0.2  // Range is within 20% of estimate
-	
+
 	// After 100 samples or 25% completion, evidence shows cross-multiplication
 	// is extremely accurate (proven ~5% error margin)
-	if eta.SampleCount >= 100 || eta.PercentDone > 0.25 {
+	if result.SampleCount >= 100 || result.PercentDone > 0.25 {
 		// Always show point estimate with high sample count
 		if showReliability {
 			return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
 		}
 		return fmt.Sprintf("ETA: %s", estimateStr)
 	}
-	
+
 	// With cross-multiplication, we can be more confident at lower thresholds
-	if eta.CrossMultETA > 0 && eta.CrossMultWeight > 0.7 {
+	if result.CrossMultETA > 0 && result.CrossMultWeight > 0.7 {
 		// High cross-mult weight indicates math is reliable for this estimate
-		if eta.SampleCount >= 50 || eta.PercentDone > 0.15 {
+		if result.SampleCount >= 50 || result.PercentDone > 0.15 {
 			// Show point estimate with high cross-mult weight and good sample count
 			if showReliability {
 				return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
@@ -512,18 +549,18 @@ func formatETAWithConfidence(eta ETAResult) string {
 			return fmt.Sprintf("ETA: %s", estimateStr)
 		}
 	}
-	
+
 	// Medium confidence with cross-multiplication - show very narrow range
-	if eta.CrossMultETA > 0 && eta.CrossMultWeight > 0.4 {
+	if result.CrossMultETA > 0 && result.CrossMultWeight > 0.4 {
 		// Medium cross-mult weight (40-70%)
-		if eta.SampleCount >= 30 || eta.PercentDone > 0.1 {
+		if result.SampleCount >= 30 || result.PercentDone > 0.1 {
 			// Create tight visual bounds (±5%) for good sample counts
-			visualLowerBound := time.Duration(float64(eta.Estimate) * 0.95)
-			visualUpperBound := time.Duration(float64(eta.Estimate) * 1.05)
-			
+			visualLowerBound := time.Duration(float64(result.Estimate) * 0.95)
+			visualUpperBound := time.Duration(float64(result.Estimate) * 1.05)
+
 			tighterLowerStr := formatDuration(visualLowerBound)
 			tighterUpperStr := formatDuration(visualUpperBound)
-			
+
 			// If strings are the same after formatting, use point estimate
 			if tighterLowerStr == tighterUpperStr {
 				if showReliability {
@@ -531,32 +568,32 @@ func formatETAWithConfidence(eta ETAResult) string {
 				}
 				return fmt.Sprintf("ETA: %s", estimateStr)
 			}
-			
+
 			if showReliability {
 				return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, reliabilityStr)
 			}
 			return fmt.Sprintf("ETA: %s-%s", tighterLowerStr, tighterUpperStr)
 		}
 	}
-	
+
 	// Standard display formats based on sample count, reliability, and variability
 	switch {
-	case (eta.SampleCount >= 30 || eta.PercentDone > 0.7) && isRangeNarrow && eta.Variability < 0.25:
+	case (result.SampleCount >= 30 || result.PercentDone > 0.7) && isRangeNarrow && result.Variability < 0.25:
 		// Very high reliability, low variability, many samples, narrow range: Show point estimate
 		if showReliability {
 			return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
 		}
 		return fmt.Sprintf("ETA: %s", estimateStr)
-		
-	case eta.SampleCount >= 15 && eta.Variability < 0.4:
+
+	case result.SampleCount >= 15 && result.Variability < 0.4:
 		// High reliability, low-moderate variability: Show narrower range with reliability
 		// Use average of estimate and bounds to create a narrower display
-		tighterLower := time.Duration((float64(eta.LowerBound) * 0.3) + (float64(eta.Estimate) * 0.7))
-		tighterUpper := time.Duration((float64(eta.UpperBound) * 0.3) + (float64(eta.Estimate) * 0.7))
-		
+		tighterLower := time.Duration((float64(result.LowerBound) * 0.3) + (float64(result.Estimate) * 0.7))
+		tighterUpper := time.Duration((float64(result.UpperBound) * 0.3) + (float64(result.Estimate) * 0.7))
+
 		tighterLowerStr := formatDuration(tighterLower)
 		tighterUpperStr := formatDuration(tighterUpper)
-		
+
 		// If the strings ended up the same after formatting, use the point estimate
 		if tighterLowerStr == tighterUpperStr {
 			if showReliability {
@@ -564,19 +601,19 @@ func formatETAWithConfidence(eta ETAResult) string {
 			}
 			return fmt.Sprintf("ETA: %s", estimateStr)
 		}
-		
+
 		if showReliability {
 			return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, reliabilityStr)
 		}
 		return fmt.Sprintf("ETA: %s-%s", tighterLowerStr, tighterUpperStr)
-		
-	case eta.SampleCount >= 5:
+
+	case result.SampleCount >= 5:
 		// Moderate samples, show range with reliability
 		if showReliability {
 			return fmt.Sprintf("ETA: %s-%s (%s)", lowerStr, upperStr, reliabilityStr)
 		}
 		return fmt.Sprintf("ETA: %s-%s", lowerStr, upperStr)
-		
+
 	default:
 		// Limited data, show range without reliability
 		return fmt.Sprintf("ETA: %s-%s", lowerStr, upperStr)
@@ -613,7 +650,7 @@ func (h *GUIHandler) ResetProgress() {
 	h.progressMap = make(map[string]int)
 	
 	// Reset ETA calculators
-	h.etaCalculators = make(map[string]ETAProvider)
+	h.etaCalculators = make(map[string]eta.Provider)
 	
 	// Emit event to frontend to reset all progress bars
 	runtime.EventsEmit(h.ctx, "progress-reset", true)
@@ -636,19 +673,21 @@ func (h *GUIHandler) RemoveProgressBar(taskID string) {
 		Msg("Explicitly removed progress bar")
 }
 
-func (h *GUIHandler) IncrementProgress(
-	taskID string, 
-	increment, total, priority int, 
+// incrementProgressInternal handles progress bar updates with specific ETA algorithm
+func (h *GUIHandler) incrementProgressInternal(
+	taskID string,
+	increment, total, priority int,
 	operation, descr, size string,
+	algoType eta.AlgorithmType,
 ) {
 	// Make sure we have the ETA calculator map initialized
 	if h.etaCalculators == nil {
-		h.etaCalculators = make(map[string]ETAProvider)
+		h.etaCalculators = make(map[string]eta.Provider)
 	}
-	
+
 	// Only create or update ETA for media-bar and item-bar
-	isEtaEnabled := taskID == "media-bar" || taskID == "item-bar"
-	
+	isEtaEnabled := taskID == ProgressBarIDMedia || taskID == ProgressBarIDItem
+
 	// Update local progress tracking
 	h.progressMap[taskID] += increment
 	current := h.progressMap[taskID]
@@ -656,37 +695,49 @@ func (h *GUIHandler) IncrementProgress(
 	// Get or create ETA calculator
 	var etaStr string
 	if isEtaEnabled {
-		eta := h.etaCalculators[taskID]
-		if eta == nil && total > 0 {
-			// Create new ETA calculator - use complex one only for item-bar
-			if taskID == "item-bar" {
-				eta = NewETACalculator(int64(total))
-			} else {
-				eta = NewSimpleETACalculator(int64(total))
+		provider := h.etaCalculators[taskID]
+		if provider == nil && total > 0 {
+			// Create the appropriate ETA calculator based on the algorithm type
+			if algoType == eta.AlgorithmAdvanced {
+				provider = eta.NewETACalculator(int64(total))
+			} else { // Default to Simple if algoType == eta.AlgorithmSimple
+				provider = eta.NewSimpleETACalculator(int64(total))
 			}
-			h.etaCalculators[taskID] = eta
-		} else if eta != nil && eta.GetTotalTasks() != int64(total) && total > 0 {
+			h.etaCalculators[taskID] = provider
+		} else if provider != nil && provider.GetAlgorithmType() != algoType && total > 0 {
+			// Algorithm type mismatch for existing calculator, recreate
+			// This handles cases where a taskID might be reused with a different ETA requirement
+			h.ZeroLog().Warn().
+				Str("taskID", taskID).
+				Str("existingAlgo", provider.GetAlgorithmType().String()).
+				Str("requestedAlgo", algoType.String()).
+				Msg("ETA algorithm type mismatch for task, recreating calculator.")
+
+			if algoType == eta.AlgorithmAdvanced {
+				provider = eta.NewETACalculator(int64(total))
+			} else {
+				provider = eta.NewSimpleETACalculator(int64(total))
+			}
+			h.etaCalculators[taskID] = provider
+		} else if provider != nil && provider.GetTotalTasks() != int64(total) && total > 0 {
 			// Update existing calculator when total changes (preserves rate history)
-			eta.UpdateTotalTasks(int64(total))
+			provider.UpdateTotalTasks(int64(total))
 		}
-		
+
 		// Update ETA calculation
-		if eta != nil {
-			eta.TaskCompleted(int64(current))
-			
+		if provider != nil {
+			provider.TaskCompleted(int64(current))
+
 			// Get formatted ETA with confidence if available
-			etaResult := eta.CalculateETAWithConfidence()
-			
-			// Only show ETA if a valid estimate is available AND
-			// special conditions for SimpleETACalculator
+			etaResult := provider.CalculateETAWithConfidence()
+
+			// Only show ETA if a valid estimate is available
 			if etaResult.Estimate >= 0 {
-				// Check if this is a SimpleETACalculator (which is used for media-bar)
-				_, isSimpleETA := eta.(*SimpleETACalculator)
-				
+				// Check algorithm type directly for clean decisioning
 				// For SimpleETACalculator, add extra conditions to avoid premature ETAs
-				if !isSimpleETA || // Advanced calculator - show ETA normally
+				if etaResult.Algorithm == eta.AlgorithmAdvanced || // Advanced calculator - show ETA normally
 				   increment > 0 || // New work was done - show ETA
-				   eta.ElapsedTime() >= 2*time.Second { // Enough time elapsed - show ETA
+				   provider.ElapsedTime() >= eta.SimpleETAMinimumElapsed { // Enough time elapsed - show ETA
 					etaStr = formatETAWithConfidence(etaResult)
 				}
 			}
@@ -720,7 +771,7 @@ func (h *GUIHandler) IncrementProgress(
 		"animated":    true,
 		"priority":    priority,
 	}
-	
+
 	// Send through throttler if available
 	if h.throttler != nil {
 		h.throttler.UpdateProgress(taskID, payload)
@@ -736,12 +787,22 @@ func (h *GUIHandler) IncrementProgress(
 	}
 }
 
+// IncrementProgress updates progress with simple ETA calculation
+func (h *GUIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string) {
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, descr, size, eta.AlgorithmSimple)
+}
+
+// IncrementProgressAdvanced updates progress with advanced ETA calculation
+func (h *GUIHandler) IncrementProgressAdvanced(taskID string, increment, total, priority int, operation, descr, size string) {
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, descr, size, eta.AlgorithmAdvanced)
+}
+
 // BulkUpdateProgress handles multiple progress updates efficiently
 // Useful for task resumption with thousands of updates
 func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{}) {
 	// Make sure we have the ETA calculator map initialized
 	if h.etaCalculators == nil {
-		h.etaCalculators = make(map[string]ETAProvider)
+		h.etaCalculators = make(map[string]eta.Provider)
 	}
 	
 	// First pass: update our progress map and ETAs
@@ -750,45 +811,43 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 			h.progressMap[id] = current
 			
 			// Only create or update ETA for media-bar and item-bar
-			isEtaEnabled := id == "media-bar" || id == "item-bar"
+			isEtaEnabled := id == ProgressBarIDMedia || id == ProgressBarIDItem
 			
 			if isEtaEnabled {
 				if total, ok := data["total"].(int); ok && total > 0 {
 					// Get or create the ETA calculator
-					eta := h.etaCalculators[id]
-					if eta == nil {
-						// Use complex ETA calculator only for item-bar
-						if id == "item-bar" {
-							eta = NewETACalculator(int64(total))
+					provider := h.etaCalculators[id]
+					if provider == nil {
+						// Use the appropriate calculator based on task ID
+						if id == ProgressBarIDItem {
+							provider = eta.NewETACalculator(int64(total))
 						} else {
-							eta = NewSimpleETACalculator(int64(total))
+							provider = eta.NewSimpleETACalculator(int64(total))
 						}
-						h.etaCalculators[id] = eta
-					} else if eta.GetTotalTasks() != int64(total) {
+						h.etaCalculators[id] = provider
+					} else if provider.GetTotalTasks() != int64(total) {
 						// Update total without resetting (preserves rate history)
-						eta.UpdateTotalTasks(int64(total))
+						provider.UpdateTotalTasks(int64(total))
 					}
-					
+
 					// Update ETA with current progress
 					// Only track progressive changes since the previous update
-					if eta.GetCompletedTasks() < int64(current) {
-						eta.TaskCompleted(int64(current))
+					if provider.GetCompletedTasks() < int64(current) {
+						provider.TaskCompleted(int64(current))
 					}
-					
+
 					// Calculate and format ETA string with confidence
-					etaResult := eta.CalculateETAWithConfidence()
+					etaResult := provider.CalculateETAWithConfidence()
 					var etaStr string
 
 					if etaResult.Estimate >= 0 {
-						// Check if this is a SimpleETACalculator
-						_, isSimpleETA := eta.(*SimpleETACalculator)
-
+						// Using algorithm type directly for clean decisioning
 						// Only show ETA if:
-						// - For advanced calculator (not SimpleETACalculator) - show normally
-						// - For SimpleETACalculator - only show if some new work or enough time passed
+						// - For advanced calculator - show normally
+						// - For SimpleETACalculator - only show if enough time passed
 						// This prevents showing ETA immediately on resumption for SimpleETACalculator
-						if !isSimpleETA || // Advanced calculator - show ETA normally
-						   eta.ElapsedTime() >= 5*time.Second { // More time elapsed - show ETA
+						if etaResult.Algorithm == eta.AlgorithmAdvanced || // Advanced calculator - show ETA normally
+						   provider.ElapsedTime() >= eta.MinBulkProgressElapsed { // More time elapsed - show ETA
 							etaStr = formatETAWithConfidence(etaResult)
 
 							// Update description with ETA info

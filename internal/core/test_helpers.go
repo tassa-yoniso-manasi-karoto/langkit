@@ -2,7 +2,9 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"io"
+	"time"
 	
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/mock"
@@ -96,6 +98,7 @@ func NewMockHandler() *MockHandler {
 	mockHandler.On("GetLogBuffer").Return(bytes.Buffer{})
 	mockHandler.On("IsCLI").Return(true)
 	mockHandler.On("ResetProgress").Return()
+	mockHandler.On("GetContext").Return(context.Background())
 	mockHandler.On("IncrementProgress", 
 		mock.AnythingOfType("string"),
 		mock.AnythingOfType("int"),
@@ -180,6 +183,19 @@ func (m *MockHandler) ResetProgress() {
 	m.Called()
 }
 
+func (m *MockHandler) RemoveProgressBar(taskID string) {
+	m.Called(taskID)
+}
+
+func (m *MockHandler) SetHighLoadMode(durations ...time.Duration) {
+	m.Called(durations)
+}
+
+func (m *MockHandler) GetContext() context.Context {
+	args := m.Called()
+	return args.Get(0).(context.Context)
+}
+
 // MockResumptionHandler adjusted to implement MessageHandler 
 type MockResumptionHandler struct {
 	mock.Mock
@@ -252,6 +268,19 @@ func (m *MockResumptionHandler) ResetProgress() {
 	m.Called()
 }
 
+func (m *MockResumptionHandler) RemoveProgressBar(taskID string) {
+	m.Called(taskID)
+}
+
+func (m *MockResumptionHandler) SetHighLoadMode(durations ...time.Duration) {
+	m.Called(durations)
+}
+
+func (m *MockResumptionHandler) GetContext() context.Context {
+	args := m.Called()
+	return args.Get(0).(context.Context)
+}
+
 func (m *MockResumptionHandler) GetOutputFilePath() string {
 	args := m.Called()
 	return args.String(0)
@@ -283,6 +312,7 @@ func NewMockResumptionHandlerWithDefaults() *MockResumptionHandler {
     mockHandler.On("ZeroLog").Return(&logger)
     mockHandler.On("GetLogBuffer").Return(bytes.Buffer{})
     mockHandler.On("ResetProgress").Return()
+    mockHandler.On("GetContext").Return(context.Background())
     mockHandler.On("IncrementProgress", 
         mock.AnythingOfType("string"),
         mock.AnythingOfType("int"),

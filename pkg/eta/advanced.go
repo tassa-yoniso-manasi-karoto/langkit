@@ -1,29 +1,10 @@
-package core
+package eta
 
 import (
 	"math"
 	"sync"
 	"time"
 )
-
-// ETAResult represents an ETA calculation with estimate ranges
-type ETAResult struct {
-	Estimate         time.Duration // Point estimate (median)
-	LowerBound       time.Duration // Lower estimate bound
-	UpperBound       time.Duration // Upper estimate bound
-	ReliabilityScore float64       // Reliability indicator (0.0-1.0)
-	SampleCount      int           // Number of samples used
-	PercentDone      float64       // Percentage of tasks completed (0.0-1.0)
-	
-	// Advanced fields - may be empty/zero for SimpleETACalculator
-	RatesPerSec      []float64     // Debug: Recent processing rates (items/second)
-	AvgRate          float64       // Debug: Average processing rate (items/second)
-	CumulativeRate   float64       // Debug: Cumulative rate (total items / total time)
-	Variability      float64       // Debug: Measure of processing rate variability
-	CrossMultETA     time.Duration // ETA based on cross-multiplication 
-	CrossMultWeight  float64       // Weight given to cross-multiplication ETA
-	IsLargeJob       bool          // Whether this is considered a large job
-}
 
 // ETACalculator provides a more accurate ETA for CPU-bound concurrent tasks
 // It implements the ETAProvider interface with advanced statistical tracking
@@ -357,6 +338,7 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 		SampleCount:      len(e.samples),
 		PercentDone:      percentDone,
 		Variability:      e.rateVariability,
+		Algorithm:        AlgorithmAdvanced,
 	}
 
 	// If task is already complete, return zero ETA
@@ -370,12 +352,13 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 			PercentDone:      1.0,
 			CumulativeRate:   0,
 			Variability:      0,
+			Algorithm:        AlgorithmAdvanced,
 		}
 	}
 
 	// If we don't have enough samples, no tasks completed, or elapsed time is too short,
 	// return no estimate
-	if len(e.samples) < 2 || e.completedTasks == 0 || time.Since(e.startTime) < 2*time.Second {
+	if len(e.samples) < 2 || e.completedTasks == 0 || time.Since(e.startTime) < SimpleETAMinimumElapsed {
 		// Return last reported result if we have one (to maintain consistency)
 		if e.lastReported.Estimate >= 0 {
 			return e.lastReported
@@ -742,9 +725,6 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 	// Update stable estimate
 	e.stableEstimate = estimate
 
-	// We already calculated cross-multiplication weight above
-	// This is used in the ETAResult for potential display decisions
-
 	// Format the final result with all ETA information
 	result = ETAResult{
 		Estimate:         estimate,
@@ -760,6 +740,7 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 		CrossMultETA:     crossMultETA,
 		CrossMultWeight:  crossMultWeight,  // Using the weight calculated earlier
 		IsLargeJob:       e.totalTasks > 200,  // Consider more jobs as "large" for ETA display
+		Algorithm:        AlgorithmAdvanced,
 	}
 
 	// Save this result for next time
@@ -840,4 +821,9 @@ func (e *ETACalculator) UpdateTotalTasks(newTotalTasks int64) {
 	// Purposely preserve all rate statistics and sample history
 	// Processing rates are based on completed tasks over time, which 
 	// remains valid even when we discover tasks that were already done
+}
+
+// GetAlgorithmType returns the type of algorithm used by this calculator
+func (e *ETACalculator) GetAlgorithmType() AlgorithmType {
+	return AlgorithmAdvanced
 }

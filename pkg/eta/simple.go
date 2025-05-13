@@ -1,40 +1,9 @@
-package core
+package eta
 
 import (
 	"sync"
 	"time"
 )
-
-// ETAProvider defines the interface for ETA calculation implementations
-type ETAProvider interface {
-	// TaskCompleted informs the calculator that a task has been completed
-	TaskCompleted(tasksCompleted int64)
-	
-	// CalculateETA returns the estimated time remaining
-	CalculateETA() time.Duration
-	
-	// CalculateETAWithConfidence returns detailed ETA information
-	CalculateETAWithConfidence() ETAResult
-	
-	// Progress returns the current progress as a percentage (0-100)
-	Progress() float64
-	
-	// GetCompletedTasks returns the current number of completed tasks
-	GetCompletedTasks() int64
-	
-	// GetTotalTasks returns the total number of tasks
-	GetTotalTasks() int64
-	
-	// ElapsedTime returns the time elapsed since the beginning of the operation
-	ElapsedTime() time.Duration
-	
-	// UpdateTotalTasks updates the total task count without resetting rate statistics
-	UpdateTotalTasks(newTotalTasks int64)
-}
-
-
-// Minimum tasks that must be processed in current session before an ETA is shown
-const minimumTasksForSimpleETASession = 1
 
 // SimpleETACalculator provides a basic ETA calculator based purely on cross-multiplication
 // It implements the ETAProvider interface with a much simpler approach than ETACalculator
@@ -94,6 +63,7 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 		ReliabilityScore: 0,
 		SampleCount:      0,
 		PercentDone:      percentDone,
+		Algorithm:        AlgorithmSimple,
 	}
 
 	// If task is already complete, return zero ETA
@@ -105,6 +75,7 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 			ReliabilityScore: 1.0,
 			SampleCount:      0,
 			PercentDone:      1.0,
+			Algorithm:        AlgorithmSimple,
 		}
 	}
 
@@ -112,7 +83,7 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 	tasksDoneThisSession := e.completedTasks - e.initialProgress
 
 	// If not enough tasks completed in this session OR elapsed time is too short, return no estimate
-	if tasksDoneThisSession < minimumTasksForSimpleETASession || time.Since(e.startTime) < 2*time.Second {
+	if tasksDoneThisSession < MinimumTasksForSimpleETASession || time.Since(e.startTime) < SimpleETAMinimumElapsed {
 		return result
 	}
 
@@ -128,13 +99,11 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 	estimate := time.Duration(float64(elapsedTime) * float64(remainingTasks) / float64(tasksDoneThisSession))
 
 	// Apply a minor pessimism factor to avoid being too optimistic
-	pessimismFactor := 1.05 // 5% pessimism
-	adjustedEstimate := time.Duration(float64(estimate) * pessimismFactor)
+	adjustedEstimate := time.Duration(float64(estimate) * SimpleETAPessimismFactor)
 
 	// For simple ETAs, create a modest range around the estimate
-	rangeMultiplier := 1.10 // 10% range
-	lowerBound := time.Duration(float64(adjustedEstimate) / rangeMultiplier)
-	upperBound := time.Duration(float64(adjustedEstimate) * rangeMultiplier)
+	lowerBound := time.Duration(float64(adjustedEstimate) / SimpleETARangeMultiplier)
+	upperBound := time.Duration(float64(adjustedEstimate) * SimpleETARangeMultiplier)
 
 	// Fill the result - no reliability tracking in SimpleETACalculator
 	result = ETAResult{
@@ -146,6 +115,7 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 		PercentDone:      percentDone,
 		CrossMultETA:     estimate,
 		CrossMultWeight:  1.0, // Always 100% cross-multiplication
+		Algorithm:        AlgorithmSimple,
 	}
 
 	return result
@@ -196,4 +166,9 @@ func (e *SimpleETACalculator) UpdateTotalTasks(newTotalTasks int64) {
 	
 	// Simply update the total task count
 	e.totalTasks = newTotalTasks
+}
+
+// GetAlgorithmType returns the type of algorithm used by this calculator
+func (e *SimpleETACalculator) GetAlgorithmType() AlgorithmType {
+	return AlgorithmSimple
 }

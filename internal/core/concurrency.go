@@ -59,7 +59,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 			tsk.Handler.ZeroLog().Debug().Msgf("rm %s as totalItems is zero", id)
 			return
 		}
-		tsk.Handler.IncrementProgress(
+		tsk.Handler.IncrementProgressAdvanced(
 			id,
 			incr,
 			totalItems,

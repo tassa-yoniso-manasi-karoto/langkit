@@ -474,7 +474,7 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 	
 	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
 		return tsk.Handler.LogErr(fmt.Errorf("no audiotracks exists in file"),
-			AbortTask, fmt.Sprint("ignoring file '%s'", path.Base(tsk.MediaSourceFile)))
+			AbortTask, fmt.Sprintf("ignoring file '%s'", path.Base(tsk.MediaSourceFile)))
 	}
 	
 	// Select appropriate audio track using selection helpers
