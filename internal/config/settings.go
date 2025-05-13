@@ -12,6 +12,18 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
+// IntermediaryFileMode defines how to handle intermediary files
+type IntermediaryFileMode string
+
+const (
+	// KeepIntermediaryFiles preserves intermediary files as-is
+	KeepIntermediaryFiles IntermediaryFileMode = "keep"
+	// RecompressIntermediaryFiles compresses intermediary files to save space
+	RecompressIntermediaryFiles IntermediaryFileMode = "recompress"
+	// DeleteIntermediaryFiles removes intermediary files immediately
+	DeleteIntermediaryFiles IntermediaryFileMode = "delete"
+)
+
 type Settings struct {
 	APIKeys struct {
 		Replicate  string `json:"replicate" mapstructure:"replicate"`
@@ -41,6 +53,13 @@ type Settings struct {
 		MinInterval int  `json:"minInterval" mapstructure:"min_interval"` // milliseconds
 		MaxInterval int  `json:"maxInterval" mapstructure:"max_interval"` // milliseconds
 	} `json:"eventThrottling" mapstructure:"event_throttling"`
+	
+	// Internal counters
+	CountAppStart    int               `json:"countAppStart" mapstructure:"count_app_start"`
+	CountProcessStart int               `json:"countProcessStart" mapstructure:"count_process_start"`
+	
+	// File handling settings
+	IntermediaryFileMode IntermediaryFileMode `json:"intermediaryFileMode" mapstructure:"intermediary_file_mode"`
 }
 
 func GetConfigDir() (string, error) {
@@ -97,6 +116,13 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("event_throttling.enabled", true)
 	viper.SetDefault("event_throttling.min_interval", 0)   // 0ms = no throttle when quiet
 	viper.SetDefault("event_throttling.max_interval", 250) // 250ms max interval
+	
+	// Default counter values
+	viper.SetDefault("count_app_start", 0)
+	viper.SetDefault("count_process_start", 0)
+	
+	// Default intermediary file mode
+	viper.SetDefault("intermediary_file_mode", string(KeepIntermediaryFiles))
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {

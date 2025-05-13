@@ -1,5 +1,8 @@
 import { writable } from 'svelte/store';
 
+// IntermediaryFileMode defines how to handle intermediary files
+type IntermediaryFileMode = 'keep' | 'recompress' | 'delete';
+
 type Settings = {
     apiKeys: {
         replicate: string;
@@ -28,9 +31,14 @@ type Settings = {
 
     eventThrottling: { enabled: boolean; minInterval: number; maxInterval: number; }; // Expect object
     convertValues: boolean;   // Make required
+    
     // Internal settings (not exposed in UI)
-    appStartCount?: number;
+    countAppStart?: number;
+    countProcessStart?: number;
     hasSeenLogViewerTooltip?: boolean;
+    
+    // File handling settings
+    intermediaryFileMode?: IntermediaryFileMode;
 };
 
 /* these values are irrelevant, only the default values of the backend matter */
@@ -61,11 +69,14 @@ const initSettings: Settings = {
     logViewerVirtualizationThreshold: 2000, // Default to 2000 logs for virtualization
 
     // Default values for internal settings
-    appStartCount: 0,
+    countAppStart: 0,
+    countProcessStart: 0,
     hasSeenLogViewerTooltip: false,
     // Add defaults for missing properties
     eventThrottling: { enabled: true, minInterval: 0, maxInterval: 250 }, // Default object
-    convertValues: false    // Assuming default
+    convertValues: false,    // Assuming default
+    // Default file handling settings
+    intermediaryFileMode: 'keep'
 };
 
 type showSettings = boolean;

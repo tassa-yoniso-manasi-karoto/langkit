@@ -8,6 +8,7 @@
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte'; // Import dashboard
+    import Hovertip from './Hovertip.svelte'; // Import hovertip component
     import { isWasmSupported, getWasmState, resetWasmMetrics } from '../lib/wasm'; // Import WASM utils
     import { WasmInitStatus } from '../lib/wasm-state'; // Import enum
 
@@ -604,6 +605,49 @@
                                                focus:ring-primary/50 transition-all
                                                duration-200 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
                                 />
+                            </div>
+                        </section>
+                        
+                        <!-- Intermediary File Handling Settings -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">storage</span>
+                                Intermediary Files
+                            </h3>
+                            
+                            <div class="setting-row grid grid-cols-[180px,auto] items-center gap-x-4">
+                                <div class="setting-label flex items-center gap-2">
+                                    <span>Intermediary File Mode</span>
+                                    <!-- Custom tooltip implementation instead of Hovertip component -->
+                                    <div class="relative inline-block">
+                                        <span class="material-icons text-xs text-primary/80 cursor-help hover-trigger">help_outline</span>
+                                        <div class="absolute left-full top-0 ml-2 w-80 bg-gray-800 text-white text-xs rounded p-3 shadow-lg 
+                                                    opacity-0 invisible hover-tooltip z-[9999] transition-opacity duration-200">
+                                            <div class="relative">
+                                                <p class="mb-2">Intermediary files can be useful for reprocessing with different settings, but may consume substantial disk space:</p>
+                                                <ul class="list-disc ml-4 space-y-1">
+                                                    <li><strong class="text-primary/90">Keep:</strong> Preserves files at original quality for maximum reusability</li>
+                                                    <li><strong class="text-primary/90">Recompress:</strong> Compresses files to balance space and reusability</li>
+                                                    <li><strong class="text-primary/90">Delete:</strong> Removes intermediary files immediately after processing</li>
+                                                </ul>
+                                                <!-- Arrow pointing left -->
+                                                <div class="absolute right-full top-2 border-8 border-transparent border-r-gray-800"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="setting-control">
+                                    <select
+                                        bind:value={currentSettings.intermediaryFileMode}
+                                        class="w-full px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50"
+                                        on:change={updateSettings}
+                                    >
+                                        <option value="keep">Keep Files (Original Quality)</option>
+                                        <option value="recompress">Recompress Files (Save Space)</option>
+                                        <option value="delete">Delete Files (Save Maximum Space)</option>
+                                    </select>
+                                </div>
                             </div>
                         </section>
                         
@@ -1232,5 +1276,17 @@
     
     .setting-control {
         min-width: 120px;
+    }
+    
+    /* Custom tooltip hover effects */
+    .hover-trigger:hover + .hover-tooltip,
+    .hover-tooltip:hover {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    /* Add a slight delay to make it feel more natural */
+    .hover-tooltip {
+        transition-delay: 150ms;
     }
 </style>

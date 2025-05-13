@@ -245,6 +245,17 @@
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
 
+        // Increment process start count
+        settings.update(currentSettings => {
+            return {
+                ...currentSettings,
+                countProcessStart: (currentSettings.countProcessStart || 0) + 1
+            };
+        });
+        
+        // Save updated settings to persist the incremented counter
+        await SaveSettings(get(settings));
+
         processingStartTime = await GetCurrentTimestamp(); // FIXME it seems that Date.now() is UNIX epoch and can provide unix timestamp : Math.floor(Date.now() / 1000)
         console.log(`Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
         isProcessing = true;
@@ -322,7 +333,7 @@
             const updatedSettings = {
                 ...get(settings), // Merge with existing settings from store
                 ...loadedSettings,
-                appStartCount: ((loadedSettings as any).appStartCount || 0) + 1 // Use type assertion
+                countAppStart: ((loadedSettings as any).countAppStart || 0) + 1 // Use type assertion
             };
             
             settings.set(updatedSettings as any); // Use type assertion until Settings type is fully updated

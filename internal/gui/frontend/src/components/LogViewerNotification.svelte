@@ -25,12 +25,12 @@
     
     // Component state
     let hasSeenTooltip = false;
-    let appStartCount = 0;
+    let countAppStart = 0;
     let visible = false;
 
     // Subscribe to settings
     const unsubscribeSettings = settings.subscribe(val => {
-        appStartCount = val.appStartCount || 0;
+        countAppStart = val.countAppStart || 0;
         hasSeenTooltip = val.hasSeenLogViewerTooltip || false;
     });
     
@@ -91,7 +91,7 @@
     
     // Content selection (not visibility)
     $: shouldShowProcessingTooltip = mode === 'processing' && 
-                                    appStartCount <= 5 && 
+                                    countAppStart <= 5 && 
                                     !hasSeenTooltip;
     
     $: shouldShowErrorTooltip = mode === 'error' && 

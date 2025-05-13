@@ -4,6 +4,7 @@
     import Portal from "svelte-portal/src/Portal.svelte";
     import { wasmLogger, WasmLogLevel } from '../lib/wasm-logger';
     import { getWasmState } from '../lib/wasm-state';
+    import { settings } from '../lib/stores';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
     import MemoryTestButton from './MemoryTestButton.svelte';
     
@@ -28,9 +29,16 @@
     let activeTab = 'performance';
     const tabs = [
         { id: 'performance', name: 'WASM', icon: 'speed' },
+        { id: 'state', name: 'State', icon: 'data_object' },
         { id: 'logs', name: 'Logs', icon: 'subject' },
         { id: 'debug', name: 'Debug', icon: 'bug_report' }
     ];
+    
+    // Store current settings
+    let currentSettings;
+    const unsubscribeSettings = settings.subscribe(value => {
+        currentSettings = value;
+    });
     
     // Only show in dev mode - reactively update when version is loaded
     $: showDashboard = !!version && (version === 'dev' || version.includes('dev'));
@@ -118,6 +126,7 @@
     onDestroy(() => {
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+        unsubscribeSettings();
     });
     
     // Keep dashboard in viewport when window is resized
@@ -235,6 +244,41 @@
                     {#if activeTab === 'performance'}
                         <div transition:fade={{duration: 200}}>
                             <WasmPerformanceDashboard />
+                        </div>
+                    {:else if activeTab === 'state'}
+                        <div transition:fade={{duration: 200}}>
+                            <h4>Application State</h4>
+                            
+                            <div class="state-section">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">Counter Values</h5>
+                                <table class="state-table">
+                                    <tbody>
+                                        <tr>
+                                            <td class="state-key">countAppStart</td>
+                                            <td class="state-value">{currentSettings?.countAppStart || 0}</td>
+                                            <td class="state-description">App launch count</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="state-key">countProcessStart</td>
+                                            <td class="state-value">{currentSettings?.countProcessStart || 0}</td>
+                                            <td class="state-description">Processing run count</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="state-section">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">File Settings</h5>
+                                <table class="state-table">
+                                    <tbody>
+                                        <tr>
+                                            <td class="state-key">intermediaryFileMode</td>
+                                            <td class="state-value">{currentSettings?.intermediaryFileMode || 'keep'}</td>
+                                            <td class="state-description">Intermediary file handling</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     {:else if activeTab === 'logs'}
                         <div transition:fade={{duration: 200}}>
@@ -541,5 +585,52 @@
     .debug-button:hover, .control-button:hover {
         background: rgba(255, 255, 255, 0.15);
         border-color: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* State tab styles */
+    .state-section {
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .state-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    
+    .state-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    
+    .state-table tr {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .state-table tr:last-child {
+        border-bottom: none;
+    }
+    
+    .state-key {
+        width: 40%;
+        padding: 6px 4px;
+        color: var(--primary-color, #9f6ef7);
+        font-family: monospace;
+    }
+    
+    .state-value {
+        width: 20%;
+        padding: 6px 4px;
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 600;
+    }
+    
+    .state-description {
+        width: 40%;
+        padding: 6px 4px;
+        color: rgba(255, 255, 255, 0.6);
+        font-style: italic;
     }
 </style>
