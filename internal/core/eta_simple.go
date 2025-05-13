@@ -33,21 +33,26 @@ type ETAProvider interface {
 }
 
 
+// Minimum tasks that must be processed in current session before an ETA is shown
+const minimumTasksForSimpleETASession = 1
+
 // SimpleETACalculator provides a basic ETA calculator based purely on cross-multiplication
 // It implements the ETAProvider interface with a much simpler approach than ETACalculator
 type SimpleETACalculator struct {
-	startTime      time.Time
-	totalTasks     int64
-	completedTasks int64
-	mu             sync.RWMutex
+	startTime       time.Time
+	totalTasks      int64
+	completedTasks  int64
+	initialProgress int64   // Tasks already completed at start
+	mu              sync.RWMutex
 }
 
 // NewSimpleETACalculator creates a new SimpleETACalculator
 func NewSimpleETACalculator(totalTasks int64) *SimpleETACalculator {
 	return &SimpleETACalculator{
-		startTime:      time.Now(),
-		totalTasks:     totalTasks,
-		completedTasks: 0,
+		startTime:       time.Now(),
+		totalTasks:      totalTasks,
+		completedTasks:  0,
+		initialProgress: 0,
 	}
 }
 
@@ -55,6 +60,13 @@ func NewSimpleETACalculator(totalTasks int64) *SimpleETACalculator {
 func (e *SimpleETACalculator) TaskCompleted(tasksCompleted int64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	// If this is the first update and we're starting with progress already done,
+	// record that as our initial progress
+	if e.completedTasks == 0 && tasksCompleted > 0 {
+		e.initialProgress = tasksCompleted
+	}
+
 	e.completedTasks = tasksCompleted
 }
 
@@ -68,12 +80,12 @@ func (e *SimpleETACalculator) CalculateETA() time.Duration {
 func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	percentDone := float64(0)
 	if e.totalTasks > 0 {
 		percentDone = float64(e.completedTasks) / float64(e.totalTasks)
 	}
-	
+
 	// Default result for error cases
 	result := ETAResult{
 		Estimate:         -1,
@@ -83,7 +95,7 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 		SampleCount:      0,
 		PercentDone:      percentDone,
 	}
-	
+
 	// If task is already complete, return zero ETA
 	if e.completedTasks >= e.totalTasks {
 		return ETAResult{
@@ -95,47 +107,47 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 			PercentDone:      1.0,
 		}
 	}
-	
-	// If no tasks completed, return no estimate
-	if e.completedTasks == 0 {
+
+	// Calculate tasks completed during this session
+	tasksDoneThisSession := e.completedTasks - e.initialProgress
+
+	// If not enough tasks completed in this session OR elapsed time is too short, return no estimate
+	if tasksDoneThisSession < minimumTasksForSimpleETASession || time.Since(e.startTime) < 2*time.Second {
 		return result
 	}
-	
-	elapsedTotal := time.Since(e.startTime)
-	
-	// Simple cross-multiplication:
-	// time_total = time_elapsed * (total_tasks / completed_tasks)
-	// time_remaining = time_total - time_elapsed
-	estimate := time.Duration(float64(elapsedTotal) / percentDone - float64(elapsedTotal))
-	
+
+	// Current remaining tasks
+	remainingTasks := e.totalTasks - e.completedTasks
+
+	// Time spent on this session
+	elapsedTime := time.Since(e.startTime)
+
+	// Re-implement using standard cross-multiplication:
+	// time_total_for_remaining = (time_elapsed / tasks_done_this_session) * remaining_tasks
+	// Simple cross-multiplication for remaining time
+	estimate := time.Duration(float64(elapsedTime) * float64(remainingTasks) / float64(tasksDoneThisSession))
+
 	// Apply a minor pessimism factor to avoid being too optimistic
 	pessimismFactor := 1.05 // 5% pessimism
 	adjustedEstimate := time.Duration(float64(estimate) * pessimismFactor)
-	
+
 	// For simple ETAs, create a modest range around the estimate
 	rangeMultiplier := 1.10 // 10% range
 	lowerBound := time.Duration(float64(adjustedEstimate) / rangeMultiplier)
 	upperBound := time.Duration(float64(adjustedEstimate) * rangeMultiplier)
-	
-	// For simple ETAs, reliability increases with percentage done
-	// Start with 0.7 reliability and increase to 0.95 as we approach completion
-	reliability := 0.7 + (percentDone * 0.25)
-	if reliability > 0.95 {
-		reliability = 0.95
-	}
-	
-	// Fill the result
+
+	// Fill the result - no reliability tracking in SimpleETACalculator
 	result = ETAResult{
 		Estimate:         adjustedEstimate,
 		LowerBound:       lowerBound,
 		UpperBound:       upperBound,
-		ReliabilityScore: reliability,
-		SampleCount:      1, // Just one sample for simple calculation
+		ReliabilityScore: 0.0, // Set to zero - not used in SimpleETACalculator
+		SampleCount:      1,   // Just one sample for simple calculation
 		PercentDone:      percentDone,
 		CrossMultETA:     estimate,
 		CrossMultWeight:  1.0, // Always 100% cross-multiplication
 	}
-	
+
 	return result
 }
 

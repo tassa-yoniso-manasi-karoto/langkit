@@ -373,8 +373,9 @@ func (e *ETACalculator) CalculateETAWithConfidence() ETAResult {
 		}
 	}
 
-	// If we don't have enough samples yet or no tasks completed, return no estimate
-	if len(e.samples) < 2 || e.completedTasks == 0 {
+	// If we don't have enough samples, no tasks completed, or elapsed time is too short,
+	// return no estimate
+	if len(e.samples) < 2 || e.completedTasks == 0 || time.Since(e.startTime) < 2*time.Second {
 		// Return last reported result if we have one (to maintain consistency)
 		if e.lastReported.Estimate >= 0 {
 			return e.lastReported

@@ -9,14 +9,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
-	
+
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	
+
 	"github.com/rs/zerolog"
 	"github.com/schollz/progressbar/v3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
@@ -66,15 +66,17 @@ type CLIHandler struct {
 	ctx	context.Context
 	logger *zerolog.Logger
 	buffer bytes.Buffer
-	
+
 	progressBars map[string]*progressbar.ProgressBar
+	progressValues map[string]int // Track absolute progress values
 	etaCalculators map[string]ETAProvider
 }
 
 func NewCLIHandler(ctx context.Context) *CLIHandler {
-	h := &CLIHandler{ 
+	h := &CLIHandler{
 		ctx: ctx,
 		progressBars: make(map[string]*progressbar.ProgressBar),
+		progressValues: make(map[string]int),
 		etaCalculators: make(map[string]ETAProvider),
 	}
 	crash.InitReporter(ctx)
@@ -141,8 +143,9 @@ func (h *CLIHandler) ResetProgress() {
 		bar.Clear()
 		delete(h.progressBars, id)
 	}
-	
-	// Reset ETA calculators
+
+	// Reset progress tracking and ETA calculators
+	h.progressValues = make(map[string]int)
 	h.etaCalculators = make(map[string]ETAProvider)
 }
 
@@ -162,8 +165,12 @@ func (h *CLIHandler) RemoveProgressBar(taskID string) {
 			Str("taskID", taskID).
 			Msg("Removed progress bar")
 	}
-	
-	// Also remove any ETA calculator for this task
+
+	// Also remove any progress tracking and ETA calculator for this task
+	if h.progressValues != nil {
+		delete(h.progressValues, taskID)
+	}
+
 	if h.etaCalculators != nil {
 		delete(h.etaCalculators, taskID)
 	}
@@ -174,14 +181,22 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	if h.progressBars == nil {
 		h.progressBars = make(map[string]*progressbar.ProgressBar)
 	}
-	
+
+	if h.progressValues == nil {
+		h.progressValues = make(map[string]int)
+	}
+
 	if h.etaCalculators == nil {
 		h.etaCalculators = make(map[string]ETAProvider)
 	}
-	
+
+	// Update absolute progress tracking (like GUI handler does)
+	h.progressValues[taskID] += increment
+	current := h.progressValues[taskID]
+
 	// Only create or update ETA for media-bar and item-bar
 	isEtaEnabled := taskID == "media-bar" || taskID == "item-bar"
-	
+
 	// Get or create ETA calculator for this task
 	var eta ETAProvider
 	if isEtaEnabled {
@@ -213,22 +228,22 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 				BarEnd:        "]",
 			}),
 		}
-		
+
 		// Only enable built-in ETA prediction if we're not using our custom ETA
 		if !isEtaEnabled {
 			options = append(options, progressbar.OptionSetPredictTime(true))
 		}
-		
+
 		bar = progressbar.NewOptions(total, options...)
 		h.progressBars[taskID] = bar
 		fmt.Printf("\n%s\n", operation) // Show an extra line with the name of the operation if you like
 	}
-	
+
 	// If the total changed, adjust the bar's max and update ETA calculator
 	if bar.GetMax() != total {
 		bar.ChangeMax(total)
 		bar.Describe(desc) // update text if you want
-		
+
 		if isEtaEnabled && total > 0 {
 			if eta != nil {
 				// Update existing calculator (preserves rate history)
@@ -238,32 +253,30 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 				if taskID == "item-bar" {
 					eta = NewETACalculator(int64(total))
 				} else {
-					eta = NewSimpleETACalculator(int64(total)) 
+					eta = NewSimpleETACalculator(int64(total))
 				}
 				h.etaCalculators[taskID] = eta
 			}
 		}
 	}
-	
-	// Update ETA calculator with the newly completed tasks
+
+	// Update ETA calculator with the absolute progress (like GUI handler does)
 	if isEtaEnabled && eta != nil {
-		// Only send the increment to the ETA calculator, not the absolute progress
-		// This ensures we're only measuring work done in the current run
-		if increment > 0 {
-			eta.TaskCompleted(eta.GetCompletedTasks() + int64(increment))
-		}
-		
+		// Send the absolute progress to the ETA calculator
+		// This allows for proper handling of resumption
+		eta.TaskCompleted(int64(current))
+
 		// Calculate the ETA with confidence intervals
 		etaResult := eta.CalculateETAWithConfidence()
 		if etaResult.Estimate >= 0 {
 			// Format the ETA with confidence information
 			etaStr := formatETAWithConfidence(etaResult)
-			
+
 			// Update the progress bar description with the ETA
 			bar.Describe(fmt.Sprintf("%s [%s]", desc, etaStr))
 		}
 	}
-	
+
 	// Increment by the specified amount
 	bar.Add(increment)
 
@@ -271,6 +284,7 @@ func (h *CLIHandler) IncrementProgress(taskID string, increment, total, priority
 	if bar.State().CurrentPercent >= 1.0 {
 		bar.Clear()
 		delete(h.progressBars, taskID)
+		delete(h.progressValues, taskID)
 		delete(h.etaCalculators, taskID)
 	}
 }
@@ -450,30 +464,27 @@ func formatETAWithConfidence(eta ETAResult) string {
 	if eta.Estimate < 0 {
 		return ""
 	}
-	
+
 	if eta.Estimate == 0 {
 		return "Done"
 	}
-	
+
 	// Format bounds with helper function
 	lowerStr := formatDuration(eta.LowerBound)
 	upperStr := formatDuration(eta.UpperBound)
 	estimateStr := formatDuration(eta.Estimate)
-	
-	// Format reliability level as percentage
-	reliabilityStr := fmt.Sprintf("%.0f%%", eta.ReliabilityScore*100)
-	
-	// Determine whether to show reliability indicator (only in dev mode)
-	showReliability := version.Version == "dev"
-	
-	// For SimpleETACalculator (which always uses cross-mult), show simple display
+
+	// For SimpleETACalculator (which always uses cross-mult), show simple display without reliability
 	if eta.CrossMultWeight > 0.95 && eta.SampleCount <= 1 {
-		// This is the simple ETA calculator case
-		if showReliability {
-			return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
-		}
+		// SimpleETACalculator case - never show reliability regardless of dev mode
 		return fmt.Sprintf("ETA: %s", estimateStr)
 	}
+
+	// Format reliability level as percentage - only used for advanced calculator
+	reliabilityStr := fmt.Sprintf("%.0f%%", eta.ReliabilityScore*100)
+
+	// Determine whether to show reliability indicator (only in dev mode)
+	showReliability := version.Version == "dev"
 	
 	// Calculate whether range is narrow enough to show as point estimate
 	etaSeconds := eta.Estimate.Seconds()
@@ -665,8 +676,19 @@ func (h *GUIHandler) IncrementProgress(
 			
 			// Get formatted ETA with confidence if available
 			etaResult := eta.CalculateETAWithConfidence()
+			
+			// Only show ETA if a valid estimate is available AND
+			// special conditions for SimpleETACalculator
 			if etaResult.Estimate >= 0 {
-				etaStr = formatETAWithConfidence(etaResult)
+				// Check if this is a SimpleETACalculator (which is used for media-bar)
+				_, isSimpleETA := eta.(*SimpleETACalculator)
+				
+				// For SimpleETACalculator, add extra conditions to avoid premature ETAs
+				if !isSimpleETA || // Advanced calculator - show ETA normally
+				   increment > 0 || // New work was done - show ETA
+				   eta.ElapsedTime() >= 2*time.Second { // Enough time elapsed - show ETA
+					etaStr = formatETAWithConfidence(etaResult)
+				}
 			}
 		}
 	}
@@ -756,12 +778,23 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 					// Calculate and format ETA string with confidence
 					etaResult := eta.CalculateETAWithConfidence()
 					var etaStr string
+
 					if etaResult.Estimate >= 0 {
-						etaStr = formatETAWithConfidence(etaResult)
-						
-						// Update description with ETA info
-						if desc, ok := data["description"].(string); ok && etaStr != "" {
-							data["description"] = fmt.Sprintf("%s [%s]", desc, etaStr)
+						// Check if this is a SimpleETACalculator
+						_, isSimpleETA := eta.(*SimpleETACalculator)
+
+						// Only show ETA if:
+						// - For advanced calculator (not SimpleETACalculator) - show normally
+						// - For SimpleETACalculator - only show if some new work or enough time passed
+						// This prevents showing ETA immediately on resumption for SimpleETACalculator
+						if !isSimpleETA || // Advanced calculator - show ETA normally
+						   eta.ElapsedTime() >= 5*time.Second { // More time elapsed - show ETA
+							etaStr = formatETAWithConfidence(etaResult)
+
+							// Update description with ETA info
+							if desc, ok := data["description"].(string); ok && etaStr != "" {
+								data["description"] = fmt.Sprintf("%s [%s]", desc, etaStr)
+							}
 						}
 					}
 				}

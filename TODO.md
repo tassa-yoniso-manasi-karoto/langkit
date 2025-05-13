@@ -1,7 +1,5 @@
 SVG animations: rework state transitions
 
-- simple ETA should not account for resumed progress
-
 - 🤯 make consistent progress bars between GUI and CLI
   
 - go-rod
@@ -15,6 +13,8 @@ SVG animations: rework state transitions
   - dubs allow user to request cached sep voice file deletion → in Settings
 
 - coffee icon
+
+- server for TranslitProvider (docker) management across processing tasks
 
 - support Condensed Audio summaries
 
