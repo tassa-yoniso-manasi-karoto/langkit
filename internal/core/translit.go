@@ -217,49 +217,35 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 			Msg("Some transliteration outputs exist but others need to be generated")
 	}
 
-	// Get the appropriate transliteration provider based on language
-	provider, err := GetTranslitProvider(langCode, tsk.RomanizationStyle)
-	if err != nil {
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: couldn't get provider for language %s-%s", langCode, tsk.RomanizationStyle))
-	}
-	
-	// Initialize provider - measure performance
-	initStartTime := time.Now()
-	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
-		es.CurrentTranslitProvider = provider.ProviderName()
-	}) // necessity: high
-	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s provider initialization starting, please wait...", provider.ProviderName())
-	if err := provider.Initialize(ctx, tsk); err != nil {
-		reporter.SaveSnapshot("Transliteration provider initialization failed", tsk.DebugVals()) // necessity: high
-		if errors.Is(err, context.Canceled) {
-			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: init: operation canceled by user")
-		} else if errors.Is(err, context.DeadlineExceeded) {
-			return tsk.Handler.LogErr(err, AbortTask, "translit: init: operation timed out.")
-		}
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: failed to init provider for language %s", langCode))
-	}
-	initDuration := time.Since(initStartTime)
-	tsk.Handler.ZeroLog().Info().
-		Dur("init_duration", initDuration).
-		Msgf("translit: %s successfully initialized", provider.ProviderName())
-	
 	// Get complete subtitle text
 	subtitleText := GetCompleteSubtitleText(tsk.TargSubs)
 	tsk.Handler.ZeroLog().Trace().Msgf("translit: subtitleText: len=%d", len(subtitleText))
 	
-	// Process text - measure performance
+	// Use the provider manager to get a provider and process the text
+	// This handles initialization, processing, and releasing the provider
 	processStartTime := time.Now()
 	
-	tsk.Handler.ZeroLog().Warn().Msgf("processing text with %s, please wait...", provider.ProviderName())
-	result, err := provider.ProcessText(ctx, subtitleText, tsk.Handler)
-	outputTypes[0].text = result.Tokenized
-	outputTypes[1].text = result.Romanized
-	outputTypes[2].text = result.Selective
-	outputTypes[3].text = result.TokenizedSelective
-	processEndTime := time.Now()
-	processDuration := processEndTime.Sub(processStartTime)
+	// Ensure provider manager is initialized
+	if DefaultProviderManager == nil {
+		InitTranslitService(tsk.Handler.ZeroLog().With().Logger())
+	}
+	
+	// Record the provider name for crash reporting
+	// Use a temporary provider to get the name without initializing
+	tmpProvider, err := GetTranslitProvider(langCode, tsk.RomanizationStyle)
+	if err == nil {
+		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+			es.CurrentTranslitProvider = tmpProvider.ProviderName()
+		}) // necessity: high
+	}
+	
+	tsk.Handler.ZeroLog().Warn().Msgf("translit: using managed provider for language %s, please wait...", langCode)
+	
+	// Process the text using the provider manager
+	result, err := ProcessWithManagedProvider(ctx, langCode, tsk.RomanizationStyle, subtitleText, tsk.Handler, DefaultProviderManager)
+	
+	processDuration := time.Since(processStartTime)
+	
 	if err != nil {
 		reporter.SaveSnapshot("Text processing failed", tsk.DebugVals()) // necessity: high
 		if errors.Is(err, context.Canceled) {
@@ -267,11 +253,18 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			return tsk.Handler.LogErr(err, AbortTask, "translit: process: operation timed out.")
 		}
-		return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't process text with provider")
+		return tsk.Handler.LogErr(err, AbortAllTasks, "couldn't process text with managed provider")
 	}
+	
+	// Assign result to output types
+	outputTypes[0].text = result.Tokenized
+	outputTypes[1].text = result.Romanized
+	outputTypes[2].text = result.Selective
+	outputTypes[3].text = result.TokenizedSelective
+	
 	tsk.Handler.ZeroLog().Info().
 		Dur("process_duration", processDuration).
-		Msgf("translit: %s finished processing text", provider.ProviderName())
+		Msgf("translit: finished processing text with managed provider")
 	
 	// Write output files - measure performance
 	writeStartTime := time.Now()
@@ -321,21 +314,9 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	tsk.Handler.ZeroLog().Debug().
 		Str("language", langCode).
 		Dur("total_duration", totalDuration).
-		Dur("init_duration", initDuration).
 		Dur("process_duration", processDuration).
 		Dur("write_duration", writeDuration).
 		Msg("Transliteration performance metrics")
-	
-	tsk.Handler.ZeroLog().Warn().Msgf("translit: %s shutting down provider, please wait...", provider.ProviderName())
-	if err := provider.Close(ctx, langCode, tsk.RomanizationStyle); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "translit: close: operation canceled by user")
-		} else if errors.Is(err, context.DeadlineExceeded) {
-			return tsk.Handler.LogErr(err, AbortTask, "translit: close: operation timed out.")
-		}
-		return tsk.Handler.LogErr(err, AbortAllTasks,
-			fmt.Sprintf("translit: failed to close provider for language %s", langCode))
-	}
 	
 	tsk.Handler.ZeroLog().Debug().Msg("Foreign subs were transliterated")
 	return nil

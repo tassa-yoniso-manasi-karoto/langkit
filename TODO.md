@@ -14,8 +14,6 @@ SVG animations: rework state transitions
 
 - coffee icon
 
-- server for TranslitProvider (docker) management across processing tasks
-
 - support Condensed Audio summaries
 
 - remove useless test files

@@ -38,6 +38,24 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	reporter := crash.Reporter
    	reporter.SaveSnapshot("Starting routing", tsk.DebugVals()) // necessity: high
 
+	// Initialize TranslitProviderManager if not already initialized
+	if DefaultProviderManager == nil {
+		logger := tsk.Handler.ZeroLog().With().Str("component", "provider_manager_init").Logger()
+		logger.Info().Msg("Initializing TranslitProviderManager")
+		InitTranslitService(logger)
+	}
+	
+	// Register a deferred cleanup function to ensure TranslitProviderManager is properly shut down
+	// for non-bulk processing tasks (bulk processing has its own cleanup)
+	if !tsk.IsBulkProcess {
+		defer func() {
+			if DefaultProviderManager != nil {
+				tsk.Handler.ZeroLog().Info().Msg("Shutting down TranslitProviderManager")
+				ShutdownTranslitService()
+			}
+		}()
+	}
+
 	// Start memory profiler if enabled (30 second interval)
 	if profiling.IsMemoryProfilingEnabled() {
 		memoryProfilerDone = profiling.StartMemoryProfiler("routing", 30*time.Second)
@@ -187,6 +205,13 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 					continue
 				}
 				tsk.Handler.ZeroLog().Debug().Msg("Aborting processing")
+				
+				// Ensure we shutdown resources even when aborting due to error
+				if DefaultProviderManager != nil {
+					tsk.Handler.ZeroLog().Info().Msg("Shutting down TranslitProviderManager after error")
+					ShutdownTranslitService()
+				}
+				
 				return
 			}
 			tsk.Handler.IncrementProgress(
@@ -198,6 +223,12 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				"Total media files done...",
 				"h-5",
 			)
+		}
+		
+		// Shutdown provider manager after bulk processing is complete
+		if DefaultProviderManager != nil {
+			tsk.Handler.ZeroLog().Info().Msg("Shutting down TranslitProviderManager after bulk processing")
+			ShutdownTranslitService()
 		}
 	}
 	tsk.Handler.ZeroLog().Debug().Msg("Routing completed successfully")
