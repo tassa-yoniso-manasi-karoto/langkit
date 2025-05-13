@@ -5,14 +5,14 @@ SVG animations: rework state transitions
 - go-rod
   - single Browser Access URL declaration
   - make currenlty running browser download known in the GUI
- 
-- appStartCount→ countAppStart; save countAppStart in config and add countProcessStart
 
 - GUI options:
   - condensed audio toggle
   - dubs allow user to request cached sep voice file deletion → in Settings
 
 - coffee icon
+
+- propagate target language change in setting panel to quickaccess lang tag
 
 - support Condensed Audio summaries
 

@@ -149,6 +149,15 @@ func initCommandsWithSettings() {
 	RootCmd.PersistentFlags().Int("sep-to", 15*60, "timeout in seconds for the voice separation request")
 	RootCmd.PersistentFlags().Int("dl-to", 600, "timeout in seconds for download operations")
 	
+	// Set intermediary file handling mode with default from settings or "keep" if not set
+	intermediaryMode := string(config.KeepIntermediaryFiles)
+	if settings.IntermediaryFileMode != "" {
+		intermediaryMode = string(settings.IntermediaryFileMode)
+	}
+	RootCmd.PersistentFlags().String("intermediary-files", intermediaryMode, 
+		"How to handle intermediary files: keep (original quality),\n"+
+		"recompress (save space), or delete (maximum space savings)")
+	
 	subs2cardsCmd.PersistentFlags().Int("w", 1000, "maximum width of screenshot")
 	subs2cardsCmd.PersistentFlags().Int("h", 562, "maximum height of screenshot")
 	

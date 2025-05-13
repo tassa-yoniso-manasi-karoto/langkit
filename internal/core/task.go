@@ -138,6 +138,9 @@ type Task struct {
 	WantDubs             bool // controls whether dubtitle file should be made too when using STT for subs2cards
 	InitialPrompt        string
 	
+	// File handling options
+	IntermediaryFileMode config.IntermediaryFileMode // How to handle intermediary files
+	
 	// Subtitle processing options
 	WantTranslit               bool // TODO use len(TranslitTypes) > 0 instead
 	TranslitTypes              []TranslitType
@@ -188,6 +191,9 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		// let that value be overwritten as needed (currently only by CLI).
 		WantDubs: true,
 		KanjiThreshold: -1,
+		
+		// Default file handling settings
+		IntermediaryFileMode: config.KeepIntermediaryFiles,
 		
 		// Default output merging settings
 		MergeOutputFiles: false,
@@ -267,6 +273,11 @@ func (tsk *Task) ApplyConfig(settings config.Settings) {
 		tsk.TimeoutDL = settings.TimeoutDL
 	}
 	
+	// Apply intermediary file mode if set
+	if settings.IntermediaryFileMode != "" {
+		tsk.IntermediaryFileMode = settings.IntermediaryFileMode
+	}
+	
 	// FIXME CLI wasn't designed with a default language in config in mind → unknown behavior down the line
 	if settings.TargetLanguage != "" {
 		tsk.Langs = []string{settings.TargetLanguage}
@@ -332,6 +343,13 @@ func (tsk *Task) applyCLIFlags(cmd *cobra.Command) {
 		"stt":                &tsk.STT,
 		"browser-access-url": &tsk.BrowserAccessURL,
 		"merge-format":       &tsk.MergingFormat,
+	}
+	
+	// Special handling for intermediary-files flag (needs conversion to IntermediaryFileMode)
+	if cmd.Flags().Changed("intermediary-files") {
+		if val, err := cmd.Flags().GetString("intermediary-files"); err == nil {
+			tsk.IntermediaryFileMode = config.IntermediaryFileMode(val)
+		}
 	}
 	
 	intFlags := map[string]*int{
