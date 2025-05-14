@@ -1,5 +1,6 @@
 <script lang="ts">
     import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../../wailsjs/go/gui/App';
+    import { logger } from '../lib/logger';
 
     export let mediaSource: MediaSource | null = null;  // Single selected video/directory
     export let previewFiles: MediaSource[] = [];        // Preview only for directories
@@ -24,10 +25,10 @@
                 };
                 // Get preview of videos in directory
                 previewFiles = await GetVideosInDirectory(dirPath);
-                console.error('previewFiles are:', previewFiles);
+                logger.error('mediaInput', 'Failed to get videos in directory', { previewFiles });
             }
         } catch (error) {
-            console.error('Error selecting directory:', error);
+            logger.error('mediaInput', 'Error selecting directory', { error });
         }
     }
 
@@ -43,7 +44,7 @@
                 previewFiles = []; // Clear preview as it's not a directory
             }
         } catch (error) {
-            console.error('Error selecting video:', error);
+            logger.error('mediaInput', 'Error selecting video', { error });
         }
     }
 
@@ -83,10 +84,10 @@
                     }));
                 } else {
                     previewFiles = [];
-                    console.error('Cannot get directory contents from drag and drop: path unavailable');
+                    logger.error('mediaInput', 'Cannot get directory contents from drag and drop: path unavailable');
                 }
             } catch (error) {
-                console.error('Error handling directory drop:', error);
+                logger.error('mediaInput', 'Error handling directory drop', { error });
             }
         }
     }

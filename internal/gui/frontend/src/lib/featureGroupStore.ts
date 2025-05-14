@@ -4,6 +4,7 @@
 import { writable, derived, get } from 'svelte/store';
 import { errorStore } from './errorStore';
 import type { FeatureDefinition } from './featureModel';
+import { logger } from './logger';
 
 // Types for the group system
 export interface FeatureGroup {
@@ -326,11 +327,8 @@ function createFeatureGroupStore() {
             // Check if this feature is the active one
             const isActive = activeFeature === featureId;
             
-            console.log(
-                `isActiveDisplayFeature check for ${groupId}:`,
-                `Feature: ${featureId}`,
-                `Active feature: ${activeFeature}`,
-                `Is active: ${isActive}`
+            logger.trace('store/featureGroupStore', 
+                `isActiveDisplayFeature check for ${groupId}: Feature: ${featureId}, Active feature: ${activeFeature}, Is active: ${isActive}`
             );
             
             return isActive;
@@ -390,7 +388,7 @@ function createFeatureGroupStore() {
                 return newState;
             });
             
-            console.log('Initialized canonical feature order:', orderedFeatureIds);
+            logger.trace('store/featureGroupStore', 'Initialized canonical feature order', { orderedFeatureIds });
             
             // Update canonical order for all groups
             const state = get(store);
@@ -406,7 +404,7 @@ function createFeatureGroupStore() {
             const state = get(store);
             
             if (!state.groups[groupId]) {
-                console.error(`Group ${groupId} doesn't exist`);
+                logger.error('store/featureGroupStore', `Group ${groupId} doesn't exist`);
                 return;
             }
             
@@ -423,7 +421,7 @@ function createFeatureGroupStore() {
                 return newState;
             });
             
-            console.log(`Updated canonical order for group ${groupId}`);
+            logger.trace('store/featureGroupStore', `Updated canonical order for group ${groupId}`);
         },
         
         /**
@@ -443,7 +441,7 @@ function createFeatureGroupStore() {
             // Standard handling for all groups (e.g., subtitle, merge)
             const groupOrder = state.groupCanonicalOrder[groupId] || [];
             if (groupOrder.length === 0) {
-                console.warn(`No canonical order for group ${groupId}, falling back to feature definition order`);
+                logger.warn('store/featureGroupStore', `No canonical order for group ${groupId}, falling back to feature definition order`);
                 
                 // Fallback to group feature order if no canonical order is available
                 const groupFeatures = state.groups[groupId]?.featureIds || [];
@@ -498,7 +496,7 @@ function createFeatureGroupStore() {
             // Get the group this option belongs to
             const groupId = this.getGroupForOption(optionId);
             if (!groupId) {
-                console.warn(`Option ${optionId} is not registered with any group`);
+                logger.warn('store/featureGroupStore', `Option ${optionId} is not registered with any group`);
                 return true; // Default to showing if not registered
             }
             
@@ -557,13 +555,13 @@ function createFeatureGroupStore() {
             
             // If no subtitle features are enabled, skip validation entirely
             if (!anyFeatureEnabled) {
-                console.log(`No features in group ${groupId} are enabled, skipping browser URL validation`);
+                logger.trace('store/featureGroupStore', `No features in group ${groupId} are enabled, skipping browser URL validation`);
                 return true;
             }
             
             // If URL is empty, it's valid as Go-Rod will handle browser automatically
             if (!url || url.trim() === '') {
-                console.log(`Empty browser URL, automatic browser management will be used`);
+                logger.trace('store/featureGroupStore', `Empty browser URL, automatic browser management will be used`);
                 return true;
             }
             
@@ -572,9 +570,9 @@ function createFeatureGroupStore() {
             
             // Just log the validation result without creating errors
             if (isValidURL) {
-                console.log(`✓ Valid browser URL: "${url}" will be used`);
+                logger.trace('store/featureGroupStore', `✓ Valid browser URL: "${url}" will be used`);
             } else {
-                console.log(`Non-standard browser URL: "${url}". If connection fails, automatic browser management will be used.`);
+                logger.trace('store/featureGroupStore', `Non-standard browser URL: "${url}". If connection fails, automatic browser management will be used.`);
             }
             
             // Always return true - never block the process button

@@ -4,6 +4,7 @@
     import { debounce } from 'lodash';
     
     import { featureGroupStore } from '../lib/featureGroupStore';
+    import { logger } from '../lib/logger';
     
     import Dropdown from './Dropdown.svelte';
     import Hovertip from './Hovertip.svelte';
@@ -60,7 +61,7 @@
         isInitialized = true;
         lastExternalUpdateTime = Date.now();
         
-        console.log(`GroupOption mounted: ${groupId}.${optionId}=${value}`);
+        logger.trace('groupOption', `GroupOption mounted: ${groupId}.${optionId}=${value}`);
     });
     
     // Handle external value changes (from parent or store)
@@ -99,7 +100,7 @@
             // Update the provider in the group store
             const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
             if (selectedScheme.provider !== currentProvider) {
-                console.log(`Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
+                logger.trace('groupOption', `Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
                 featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
             }
         }
@@ -143,7 +144,7 @@
     // Handle romanization style changes with special provider update logic
     function handleRomanizationChange(event: any) {
         const newValue = event.detail;
-        console.log(`Romanization style change: ${newValue}`);
+        logger.trace('groupOption', `Romanization style change: ${newValue}`);
         
         // Mark as user update with authority
         lastUserUpdateTime = Date.now() + 100;
@@ -156,7 +157,7 @@
         const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
         if (selectedScheme) {
             const newProvider = selectedScheme.provider;
-            console.log(`Updating provider to ${newProvider} based on style ${newValue}`);
+            logger.trace('groupOption', `Updating provider to ${newProvider} based on style ${newValue}`);
             
             // Update the provider in the group store
             featureGroupStore.setGroupOption(groupId, 'provider', newProvider);
@@ -185,7 +186,7 @@
         const isCheckbox = event?.target instanceof HTMLInputElement && event.target.type === 'checkbox';
         const valueToPropagate = isCheckbox ? (event.target as HTMLInputElement).checked : localValue;
         
-        console.log(`Immediate change: ${valueToPropagate} for ${groupId}.${optionId}`);
+        logger.trace('groupOption', `Immediate change: ${valueToPropagate} for ${groupId}.${optionId}`);
         
         // Mark as user update with authority
         lastUserUpdateTime = Date.now() + 100;
@@ -255,7 +256,7 @@
                             
                             // Directly toggle the value
                             const newValue = !localValue;
-                            console.log(`Toggle checkbox: ${localValue} -> ${newValue} for ${groupId}.${optionId}`);
+                            logger.trace('groupOption', `Toggle checkbox: ${localValue} -> ${newValue} for ${groupId}.${optionId}`);
                             
                             // Update local state
                             localValue = newValue;

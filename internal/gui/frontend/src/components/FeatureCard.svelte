@@ -6,6 +6,7 @@
     import { errorStore } from '../lib/errorStore';
     import { showSettings } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
+    import { logger } from '../lib/logger';
     
     // Class for message items to keep styling consistent
     const messageItemClass = "flex items-center gap-2 py-2 px-3 first:pt-2 last:pb-2 hover:bg-white/5 transition-colors duration-200 group";
@@ -71,7 +72,7 @@
         }
         
         isTopmostFeatureForAnyGroup = foundTopmost;
-        //console.log(`Feature ${feature.id} topmost status check: ${isTopmostFeatureForAnyGroup}`);
+        //logger.trace('featureCard', `Feature ${feature.id} topmost status check: ${isTopmostFeatureForAnyGroup}`);
     }
 
     // Create a local variable to track store changes
@@ -273,7 +274,7 @@
         let isTopmostForThisOption = false;
         if (enabled) {
             isTopmostForThisOption = featureGroupStore.isTopmostForOption(feature.id, optionId);
-            console.log(`Option ${optionId} isTopmostForOption check: ${isTopmostForThisOption}`);
+            logger.trace('featureCard', `Option ${optionId} isTopmostForOption check: ${isTopmostForThisOption}`);
         }
         
         // For backwards compatibility, maintain generic isTopmostInGroup checks
@@ -365,7 +366,7 @@
             optionVisibilityCache.set(cacheKey, result);
             return result;
         } catch (error) {
-            console.error('Error evaluating condition:', optionDef.showCondition, error);
+            logger.error('featureCard', 'Error evaluating condition', { condition: optionDef.showCondition, error });
             optionVisibilityCache.set(cacheKey, false);
             return false;
         }
@@ -377,12 +378,12 @@
         
         // Safety check to prevent duplicate processing
         if (oldValue === value) {
-            console.log(`Ignoring redundant update: ${optionId} remains ${value}`);
+            logger.trace('featureCard', `Ignoring redundant update: ${optionId} remains ${value}`);
             return;
         }
         
         // Log the change for debugging
-        console.log(`FeatureCard handleDropdownChange: ${optionId} from ${oldValue} to ${value}`);
+        logger.trace('featureCard', `FeatureCard handleDropdownChange: ${optionId} from ${oldValue} to ${value}`);
         
         // Update local state
         options[optionId] = value;
@@ -788,7 +789,7 @@
     
     <!-- Options drawer with slide animation - only displayed if the feature has visible options -->
     {#if hasVisibleOptions()}
-    {@const _logVisible = console.log('hasVisibleOptions() returned true')}
+    {@const _logVisible = logger.trace('featureCard', 'hasVisibleOptions() returned true')}
     <div
     bind:this={optionsContainer} 
     class="overflow-hidden" 

@@ -5,6 +5,7 @@
     import { wasmLogger, WasmLogLevel } from '../lib/wasm-logger';
     import { getWasmState } from '../lib/wasm-state';
     import { settings } from '../lib/stores';
+    import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
     import MemoryTestButton from './MemoryTestButton.svelte';
     
@@ -107,7 +108,7 @@
         // Prevent event from propagating to parent elements
         if (event) event.stopPropagation();
 
-        console.log(`Toggling dashboard: ${isExpanded} → ${!isExpanded}`);
+        logger.trace('devDashboard', `Toggling dashboard: ${isExpanded} → ${!isExpanded}`);
         isExpanded = !isExpanded;
 
         // Log dashboard toggle

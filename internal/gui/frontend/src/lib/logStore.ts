@@ -1,5 +1,6 @@
 import { writable, get, derived } from 'svelte/store';
 import { settings } from './stores';
+import { logger } from './logger';
 import {
   isWasmEnabled,
   getWasmModule,
@@ -98,7 +99,7 @@ function createLogStore() {
                 _height: 0
             };
         } catch (error) {
-            console.error("Error processing log:", error, rawLog);
+            logger.error('store/logStore', "Error processing log", { error, rawLog });
             return null;
         }
     }

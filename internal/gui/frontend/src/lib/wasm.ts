@@ -1,5 +1,6 @@
 import initWasmBindgen, * as wasmGeneratedExports from '../wasm-generated/pkg/log_engine.js';
 import { wasmLogger, WasmLogLevel } from './wasm-logger';
+import { logger } from './logger';
 import {
   WasmInitStatus,
   getWasmState as getWasmStateInternal,
@@ -636,7 +637,7 @@ function ensureWasmSerializable<T>(data: T[]): any[] {
           obj[key] = value;
         });
       } catch (e) {
-        console.error("Error converting Map to object:", e);
+        logger.error('store/wasm', "Error converting Map to object", { error: e });
       }
       return obj;
     }

@@ -2,6 +2,7 @@
 import { wasmLogger, WasmLogLevel } from './wasm-logger';
 // Import error type for instanceof check, use type-only import
 import type { WasmInitializationError } from './wasm';
+import { logger } from './logger';
 
 export enum WasmInitStatus {
   NOT_STARTED = "not_started",
@@ -170,7 +171,7 @@ export function standardizeMemoryInfo(memInfo: any): any {
   // Log detailed info for debugging if needed in development mode
   if (typeof (window as any).__LANGKIT_VERSION === 'string' &&
       (window as any).__LANGKIT_VERSION === 'dev') {
-    console.debug('[MemInfo] Standardizing memory info:', {
+    logger.debug('store/wasm-state', 'Standardizing memory info', {
       infoType: typeof memInfo,
       isMap,
       toStringResult: Object.prototype.toString.call(memInfo),
@@ -869,7 +870,7 @@ export function reportWasmState(): void {
     (window as any).go.gui.App.RecordWasmState(JSON.stringify(stateToReport));
   } catch (e) {
     // Avoid logging errors here to prevent cascading issues
-    console.error("Failed to report WASM state to backend:", e);
+    logger.error('store/wasm-state', "Failed to report WASM state to backend", { error: e });
   }
 }
 

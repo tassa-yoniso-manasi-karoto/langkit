@@ -272,7 +272,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         await SaveSettings(get(settings));
 
         processingStartTime = await GetCurrentTimestamp(); // FIXME it seems that Date.now() is UNIX epoch and can provide unix timestamp : Math.floor(Date.now() / 1000)
-        console.log(`Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
+        logger.trace('app', `Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
         isProcessing = true;
         progress = 0;
         
@@ -295,10 +295,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                 audioTrackIndex: mediaSource?.audioTrackIndex ?? 0, // Use nullish coalescing
             };
 
-            console.log("Sending processing request:", request);
+            logger.trace('app', "Sending processing request", { request });
             await SendProcessingRequest(request);
         } catch (error: any) { // Type the error
-            console.error("Processing failed:", error);
+            logger.error('app', "Processing failed", { error });
             errorStore.addError({
                 id: "processing-failed",
                 message: "Processing failed: " + (error?.message || "Unknown error"),
@@ -330,7 +330,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                 }));
             });
         } catch (error) {
-            console.error("Failed to cancel processing:", error);
+            logger.error('app', "Failed to cancel processing", { error });
             errorStore.addError({
                 id: "cancel-failed",
                 message: "Failed to cancel processing",
@@ -356,7 +356,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             defaultTargetLanguage = updatedSettings.targetLanguage;
             showLogViewer = updatedSettings.showLogViewerByDefault;
         } catch (error) {
-            console.error("Failed to load settings:", error);
+            logger.error('app', "Failed to load settings", { error });
             errorStore.addError({
                 id: "settings-load-failed",
                 message: "Failed to load settings",
@@ -393,7 +393,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         //         dismissible: true
         //     });
         // }
-        console.warn("Docker check temporarily disabled."); // Placeholder
+        logger.warn('app', "Docker check temporarily disabled"); // Placeholder
     }
 
     // Use a more efficient approach to handle events, with debouncing for frequent events
@@ -439,7 +439,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                 }
                 
                 // Log specific optimization changes
-                console.log(`[${timestamp}] Optimizations applied:
+                logger.trace('app', `Optimizations applied:
                 - Glow effect: ${showGlow ? 'ENABLED' : 'DISABLED'}
                 - Progress updates: ${minimized ? 'THROTTLED (10fps)' : 'NORMAL (60fps)'}
                 - Log updates: ${minimized ? 'MINIMAL' : 'NORMAL'}
@@ -451,12 +451,12 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             
             // Only log if maximized state changes
             if (maximized !== isWindowMaximized) {
-                console.log(`[${timestamp}] Window maximized state changed: ${maximized}`);
+                logger.trace('app', `Window maximized state changed: ${maximized}`);
                 isWindowMaximized = maximized;
             }
             
         } catch (error) {
-            console.error('Failed to check window state:', error);
+            logger.error('app', 'Failed to check window state', { error });
         }
     }
     
@@ -506,7 +506,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         
         // Log performance stats every 20 updates
         if (progressUpdateCount % 20 === 0) {
-            console.log(`[${new Date().toISOString()}] ⚡ Progress update stats:
+            logger.trace('app', `⚡ Progress update stats:
             - Batch size: ${updateCount} updates
             - Time since last update: ${timeSinceLastUpdate}ms
             - Update interval: ${isWindowMinimized ? 'throttled (100ms)' : 'normal (16ms)'}
@@ -556,7 +556,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         document.addEventListener('transitionend', handleTransitionEnd);
         
         // Log initialization of performance monitoring
-        console.log(`[${new Date().toISOString()}] 🚀 Initializing window-state based performance optimizations:
+        logger.trace('app', `🚀 Initializing window-state based performance optimizations:
         - Window state checked every 2 seconds
         - Visual updates throttled when minimized
         - Progress updates batched for efficiency
@@ -761,7 +761,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         // Defer loading of the Feature Selector component until main UI has rendered
         // This improves perceived performance and creates a nicer sequential reveal effect
         setTimeout(() => {
-            console.log(`[${new Date().toISOString()}] 🎬 Showing feature selector component after UI shell render`);
+            logger.trace('app', `🎬 Showing feature selector component after UI shell render`);
             showFeatureSelector = true;
         }, 300); // 300ms gives UI shell time to render first
         
@@ -785,7 +785,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         });
 
         EventsOn("progress-remove", (taskId: string) => {
-            console.log(`Explicitly removing progress bar: ${taskId}`);
+            logger.trace('app', `Explicitly removing progress bar: ${taskId}`);
             removeProgressBar(taskId);
         });
 
@@ -830,14 +830,14 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
 
         // Handle task completion events
         EventsOn("task-complete", (taskId: string) => {
-            console.log(`Task ${taskId} completed.`);
+            logger.trace('app', `Task ${taskId} completed.`);
             // Optionally remove the progress bar after a short delay
             setTimeout(() => removeProgressBar(taskId), 2000);
         });
 
         // Handle task error events
         EventsOn("task-error", (errorData: { id: string, error: string }) => {
-            console.error(`Task ${errorData.id} failed: ${errorData.error}`);
+            logger.error('app', `Task ${errorData.id} failed: ${errorData.error}`);
             // Update the specific progress bar to show error state
             updateProgressBar({
                 id: errorData.id,
@@ -851,7 +851,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         
         // Handle application version check
         EventsOn("update-available", (newVersion: string) => {
-            console.log(`Update available: ${newVersion}`);
+            logger.info('app', `Update available: ${newVersion}`);
             version = newVersion; // Update version display if needed
             updateAvailable = true;
         });

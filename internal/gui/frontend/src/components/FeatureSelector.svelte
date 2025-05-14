@@ -8,6 +8,7 @@
     import { updateSTTModels, sttModelsStore } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
     import { logStore } from '../lib/logStore';
+    import { logger } from '../lib/logger';
     import { 
         features, 
         createDefaultOptions, 
@@ -99,9 +100,9 @@
             isValidLanguage = response.isValid;
             standardTag = response.standardTag || '';
             validationError = response.error || '';
-            console.log("Language validated: " + standardTag + " (valid: " + isValidLanguage + ")");
+            logger.trace('featureSelector', `Language validated: ${standardTag} (valid: ${isValidLanguage})`);
         } catch (error) {
-            console.error('Error checking language code:', error);
+            logger.error('featureSelector', 'Error checking language code', { error });
             isValidLanguage = null;
             standardTag = '';
             validationError = 'Validation failed';
@@ -137,12 +138,12 @@
             needsDocker = response.needsDocker || false;
             dockerEngine = response.dockerEngine || 'Docker Desktop';
             
-            console.log(`Loaded ${romanizationSchemes.length} romanization schemes for ${tag}`);
-            console.log(`needsDocker: ${needsDocker}, needsScraper: ${needsScraper}`);
+            logger.trace('featureSelector', `Loaded ${romanizationSchemes.length} romanization schemes for ${tag}`);
+            logger.trace('featureSelector', `needsDocker: ${needsDocker}, needsScraper: ${needsScraper}`);
             
             return isRomanizationAvailable;
         } catch (error) {
-            console.error('Error fetching romanization styles:', error);
+            logger.error('featureSelector', 'Error fetching romanization styles', { error });
             romanizationSchemes = [];
             isRomanizationAvailable = false;
             isSelectiveTransliterationAvailable = false;
@@ -158,14 +159,14 @@
      */
     function applyDefaultRomanizationStyle(): void {
         if (romanizationSchemes.length === 0) {
-            console.log("No romanization schemes available to set as default");
+            logger.trace('featureSelector', "No romanization schemes available to set as default");
             return;
         }
         
         const newStyle = romanizationSchemes[0].name;
         const newProvider = romanizationSchemes[0].provider;
         
-        console.log("Setting default romanization style to " + newStyle + " with provider " + newProvider);
+        logger.trace('featureSelector', `Setting default romanization style to ${newStyle} with provider ${newProvider}`);
         
         // Update group store options
         featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
@@ -192,10 +193,10 @@
     async function checkTokenization(code: string): Promise<boolean> {
         try {
             tokenizationAllowed = await NeedsTokenization(code);
-            console.log("Tokenization support for " + code + ": " + tokenizationAllowed);
+            logger.trace('featureSelector', `Tokenization support for ${code}: ${tokenizationAllowed}`);
             return tokenizationAllowed;
         } catch (err) {
-            console.error("Error checking tokenization support:", err);
+            logger.error('featureSelector', "Error checking tokenization support", { error: err });
             tokenizationAllowed = false;
             return false;
         }
@@ -207,12 +208,12 @@
      */
     async function processLanguageChange(newLanguage: string): Promise<void> {
         if (isProcessingLanguage) {
-            console.log("Already processing language change, skipping");
+            logger.trace('featureSelector', "Already processing language change, skipping");
             return;
         }
         
         isProcessingLanguage = true;
-        console.log("Processing language change to: " + newLanguage);
+        logger.trace('featureSelector', `Processing language change to: ${newLanguage}`);
         
         try {
             // Step 1: Reset all feature selections for safety
@@ -224,7 +225,7 @@
             await validateLanguage(newLanguage, true);
             
             if (!isValidLanguage && newLanguage) {
-                console.log(`Language ${newLanguage} is not valid`);
+                logger.trace('featureSelector', `Language ${newLanguage} is not valid`);
                 return;
             }
             
@@ -246,7 +247,7 @@
             updateFeatureAvailabilityErrors();
             
         } catch (error) {
-            console.error("Error during language change processing:", error);
+            logger.error('featureSelector', "Error during language change processing", { error });
             logStore.addLog({
                 level: 'ERROR',
                 message: `Error processing language change: ${error.message}`,
@@ -288,7 +289,7 @@
     
     // Function to reset all feature selections
     function resetAllFeatures() {
-        console.log("Resetting all feature selections due to language change");
+        logger.trace('featureSelector', "Resetting all feature selections due to language change");
         
         // Disable all features
         Object.keys(selectedFeatures).forEach(featureId => {
@@ -313,7 +314,7 @@
     // Handle feature click for toggling and unavailable features
     function handleFeatureEnabledChange(event: CustomEvent) {
         const { id, enabled } = event.detail;
-        console.log(`Feature toggle: ${id} -> ${enabled}`);
+        logger.trace('featureSelector', `Feature toggle: ${id} -> ${enabled}`);
         
         // Update the selected features state
         selectedFeatures[id] = enabled;
@@ -322,7 +323,7 @@
         // Find the feature definition
         const featureDef = features.find(f => f.id === id);
         if (!featureDef) {
-            console.error(`Feature not found: ${id}`);
+            logger.error('featureSelector', `Feature not found: ${id}`);
             return;
         }
         
@@ -378,10 +379,10 @@
      * Handles all feature group related updates when a feature's enabled state changes
      */
     function handleFeatureGroupUpdates(featureDef: FeatureDefinition, featureId: string, enabled: boolean) {
-        console.log(`Feature ${featureId} belongs to groups: ${featureDef.featureGroups.join(', ')}`);
+        logger.trace('featureSelector', `Feature ${featureId} belongs to groups: ${featureDef.featureGroups.join(', ')}`);
         
         featureDef.featureGroups.forEach(groupId => {
-            console.log(`Processing group ${groupId} for feature ${featureId}`);
+            logger.trace('featureSelector', `Processing group ${groupId} for feature ${featureId}`);
             
             // Update enabled state in the group store
             featureGroupStore.updateFeatureEnabled(groupId, featureId, enabled);
@@ -391,7 +392,7 @@
             
             // Get all enabled features in this group
             const enabledFeaturesInGroup = getEnabledFeaturesInGroup(groupId);
-            console.log(`Group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+            logger.trace('featureSelector', `Group ${groupId} has ${enabledFeaturesInGroup.length} enabled features}`);
             
             // Handle active display feature updates based on the state change
             if (enabled) {
@@ -414,14 +415,14 @@
         groupFeatureIds: string[], 
         enabledFeaturesInGroup: string[]
     ) {
-        console.log(`Feature ${featureId} enabled - checking if it should be active display for group ${groupId}`);
+        logger.trace('featureSelector', `Feature ${featureId} enabled - checking if it should be active display for group ${groupId}`);
         
         // Get the features in the order they should be prioritized
         const enabledOrderedFeatures = groupFeatureIds.filter(fId => enabledFeaturesInGroup.includes(fId));
         
         // If this is the highest priority enabled feature, make it the active display feature
         if (enabledOrderedFeatures.length > 0 && enabledOrderedFeatures[0] === featureId) {
-            console.log(`Making ${featureId} the active display feature for group ${groupId}`);
+            logger.trace('featureSelector', `Making ${featureId} the active display feature for group ${groupId}`);
             featureGroupStore.updateActiveDisplayFeature(
                 groupId,
                 groupFeatureIds,
@@ -441,8 +442,8 @@
     ) {
         // Only update the active display feature if the disabled feature was the active one
         if (featureGroupStore.isActiveDisplayFeature(groupId, featureId)) {
-            console.log(`Feature ${featureId} was active display for group ${groupId} but is now disabled`);
-            console.log(`After disabling, group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+            logger.trace('featureSelector', `Feature ${featureId} was active display for group ${groupId} but is now disabled`);
+            logger.trace('featureSelector', `After disabling, group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
             
             // Update the active display feature to the next best available
             featureGroupStore.updateActiveDisplayFeature(
@@ -476,7 +477,7 @@
      * Sync options from the group store to all features in the group
      */
     function syncFeatureOptions(groupId: string) {
-        console.log(`Syncing options for group ${groupId} to features`);
+        logger.trace('featureSelector', `Syncing options for group ${groupId} to features`);
         currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
             groupId, currentFeatureOptions
         );
@@ -484,28 +485,28 @@
 
     // Improved provider warning checks
     function updateProviderWarnings() {
-        console.log("Running updateProviderWarnings check");
+        logger.trace('featureSelector', "Running updateProviderWarnings check");
         
         // Check dubtitles STT provider
         if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
             const sttModel = currentFeatureOptions.dubtitles.stt;
-            console.log(`Checking provider requirements for STT model: ${sttModel}`);
+            logger.trace('featureSelector', `Checking provider requirements for STT model: ${sttModel}`);
             
             // Find the model info to get the provider
             const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
             
             if (modelInfo) {
                 const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
-                console.log(`Model provider: ${providerName}`);
+                logger.trace('featureSelector', `Model provider: ${providerName}`);
                 
                 // Check if this provider requires a token
                 const { isValid, tokenType } = checkProviderApiToken(providerName);
-                console.log(`Provider ${providerName} token check: valid=${isValid}, tokenType=${tokenType}`);
+                logger.trace('featureSelector', `Provider ${providerName} token check: valid=${isValid}, tokenType=${tokenType}`);
                 
                 if (!isValid) {
                     // Use addError to add/update the error message
                     const errorMessage = `${tokenType || providerName} API token is required for ${modelInfo.displayName}`;
-                    console.log(`Adding error: provider-dubtitles - ${errorMessage}`);
+                    logger.trace('featureSelector', `Adding error: provider-dubtitles - ${errorMessage}`);
                     
                     errorStore.addError({
                         id: 'provider-dubtitles',
@@ -514,17 +515,17 @@
                     });
                 } else {
                     // Remove the error if it exists
-                    console.log(`Token is valid, removing any existing provider-dubtitles error`);
+                    logger.trace('featureSelector', `Token is valid, removing any existing provider-dubtitles error`);
                     errorStore.removeError('provider-dubtitles');
                 }
             } else {
-                console.log(`Warning: Could not find model info for ${sttModel}`);
+                logger.warn('featureSelector', `Could not find model info for ${sttModel}`);
                 // Clear any existing error if model not found
                 errorStore.removeError('provider-dubtitles');
             }
         } else {
             // Remove the error if the feature is disabled
-            console.log(`Feature not selected or options missing, removing provider-dubtitles error`);
+            logger.trace('featureSelector', `Feature not selected or options missing, removing provider-dubtitles error`);
             errorStore.removeError('provider-dubtitles');
         }
 
@@ -557,7 +558,7 @@
             'elevenlabs': 'elevenLabs'
         };
         
-        console.log(`Checking API token for provider: ${provider}`);
+        logger.trace('featureSelector', `Checking API token for provider: ${provider}`);
         
         // Normalize provider name to lowercase for case-insensitive matching
         const normalizedProvider = provider.toLowerCase();
@@ -570,7 +571,7 @@
             tokenType = providersRequiringTokens[normalizedProvider];
         }
         
-        console.log(`Token type for ${provider}: ${tokenType || 'none required'}`);
+        logger.trace('featureSelector', `Token type for ${provider}: ${tokenType || 'none required'}`);
         
         // Check if token is needed
         if (!tokenType) {
@@ -588,7 +589,7 @@
         // Check if token has a value
         const hasToken = Boolean(currentSettings.apiKeys[tokenType]?.trim());
         
-        console.log(`Token status for ${provider} (${tokenType}): ${hasToken ? 'valid' : 'missing'}`);
+        logger.trace('featureSelector', `Token status for ${provider} (${tokenType}): ${hasToken ? 'valid' : 'missing'}`);
         
         return { 
             isValid: hasToken,
@@ -604,7 +605,7 @@
                 hasLanguageTags = info.hasLanguageTags;
                 showAudioTrackIndex = !hasLanguageTags;
             } catch (error) {
-                console.error('Error checking media files:', error);
+                logger.error('featureSelector', 'Error checking media files', { error });
             }
         }
     }
@@ -614,7 +615,7 @@
         const previousTag = quickAccessLangTag;
         const newTag = event.detail.languageTag;
         
-        console.log(`Language tag changing from ${previousTag} to ${newTag}`);
+        logger.trace('featureSelector', `Language tag changing from ${previousTag} to ${newTag}`);
         quickAccessLangTag = newTag;
         
         // Process language change if it's different (case-insensitive)
@@ -644,7 +645,7 @@
         if (isSTTModelChange && featureId === 'dubtitles' && optionId === 'stt') {
             // Prevent duplicate processing
             if (isProcessingSTTChange) {
-                console.log(`Ignoring recursive STT model change event for ${value}`);
+                logger.trace('featureSelector', `Ignoring recursive STT model change event for ${value}`);
                 return;
             }
             
@@ -652,7 +653,7 @@
             isProcessingSTTChange = true;
             
             try {
-                console.log(`FeatureSelector handling STT model change to ${value}`);
+                logger.trace('featureSelector', `FeatureSelector handling STT model change to ${value}`);
                 
                 // Force provider warnings check immediately
                 updateProviderWarnings();
@@ -664,14 +665,14 @@
         
         // Handle group option changes
         if (isGroupOption && groupId) {
-            console.log(`FeatureSelector received group option change - ${groupId}.${optionId}: '${value}'`);
+            logger.trace('featureSelector', `FeatureSelector received group option change - ${groupId}.${optionId}: '${value}'`);
             
             // Special handling for romanization style changes
             if (groupId === 'subtitle' && optionId === 'style' && romanizationSchemes.length > 0) {
                 // Update the provider based on the selected style
                 const selectedScheme = romanizationSchemes.find(s => s.name === value);
                 if (selectedScheme) {
-                    console.log(`Style changed to ${value}, updating provider to ${selectedScheme.provider}`);
+                    logger.trace('featureSelector', `Style changed to ${value}, updating provider to ${selectedScheme.provider}`);
                     
                     // First set the style
                     featureGroupStore.setGroupOption(groupId, optionId, value);
@@ -719,7 +720,7 @@
             // Use Function constructor to evaluate the expression
             return new Function('return ' + prepared)();
         } catch (error) {
-            console.error('Error evaluating feature condition:', featureDef.showCondition, error);
+            logger.error('featureSelector', 'Error evaluating feature condition', { condition: featureDef.showCondition, error });
             return false;
         }
     }
@@ -734,7 +735,7 @@
         
         // Update if current model doesn't exist in the list
         if (!currentSTTModels.names.includes(currentModel)) {
-          console.log(`Current STT model ${currentModel} not in available models list. Resetting to ${firstModel}`);
+          logger.trace('featureSelector', `Current STT model ${currentModel} not in available models list. Resetting to ${firstModel}`);
           currentFeatureOptions.dubtitles.stt = firstModel;
           dispatch('optionChange', { featureId: 'dubtitles', optionId: 'stt', value: firstModel });
         }
@@ -772,7 +773,7 @@
         const featureElements = Array.from(document.querySelectorAll('[data-feature-id]'));
         
         if (featureElements.length === 0) {
-            console.log('No feature elements found in the DOM yet');
+            logger.trace('featureSelector', 'No feature elements found in the DOM yet');
             return;
         }
         
@@ -780,7 +781,7 @@
             .map(el => el.getAttribute('data-feature-id'))
             .filter(Boolean);
         
-        console.log('Current feature display order:', orderedFeatureIds);
+        logger.trace('featureSelector', 'Current feature display order', { orderedFeatureIds });
         
         // Update the display order for each group
         Object.keys(featureGroupStore.getGroups()).forEach(groupId => {
@@ -824,7 +825,7 @@
     // Component lifecycle
     // Initialize feature groups
     function initializeFeatureGroups() {
-        console.log(`Initializing feature groups - current language: ${standardTag}`);
+        logger.trace('featureSelector', `Initializing feature groups - current language: ${standardTag}`);
         
         // First, handle existing features to ensure they're visible
         // This ensures all feature cards are created correctly first
@@ -835,7 +836,7 @@
                                       feature.id === 'subtitleTokenization';
                                       
             if (isSubtitleFeature) {
-                console.log(`Adding ${feature.id} to subtitle group`);
+                logger.trace('featureSelector', `Adding ${feature.id} to subtitle group`);
                 
                 // Mark for group membership but don't initialize fully yet
                 if (!feature.featureGroups) {
@@ -886,7 +887,7 @@
             // Handle merge features
             const isMergeFeature = feature.outputMergeGroup === 'merge';
             if (isMergeFeature) {
-                console.log(`Adding ${feature.id} to merge group`);
+                logger.trace('featureSelector', `Adding ${feature.id} to merge group}`);
                 
                 // Mark for group membership
                 if (!feature.featureGroups) {
@@ -1049,7 +1050,7 @@
             currentSTTModels = value;
         });
         
-        console.log("FeatureSelector mounting - loading data...");
+        logger.trace('featureSelector', "FeatureSelector mounting - loading data...");
 
         try {
             // Load STT models BEFORE any animation starts
@@ -1081,13 +1082,13 @@
                     currentFeatureOptions.dubtitles.stt = sttModels.suggested;
                 }
             } catch (error) {
-                console.error('Failed to load STT models:', error);
+                logger.error('featureSelector', 'Failed to load STT models', { error });
             }
             
             // Initialize canonical feature order from feature definitions
             const canonicalOrder = features.map(f => f.id);
             featureGroupStore.initializeCanonicalOrder(canonicalOrder);
-            console.log('Initialized canonical feature order:', canonicalOrder);
+            logger.trace('featureSelector', 'Initialized canonical feature order', { canonicalOrder });
             
             // Initialize feature groups 
             initializeFeatureGroups();
@@ -1112,7 +1113,7 @@
             
             // Mark component as ready BEFORE starting animations
             isInitialDataLoaded = true;
-            console.log("FeatureSelector initial data loaded successfully");
+            logger.trace('featureSelector', "FeatureSelector initial data loaded successfully");
             
             // Restore the progressive reveal animation
             // Check if device has reduced motion preference
@@ -1148,7 +1149,7 @@
                     const delay = baseDelay * Math.pow(incrementFactor, index / 1.2);
                     
                     setTimeout(() => {
-                        console.log(`Revealing feature ${feature} at ${Math.round(delay)}ms`);
+                        logger.trace('featureSelector', `Revealing feature ${feature} at ${Math.round(delay)}ms`);
                         visibleFeatures = [...visibleFeatures, feature];
                     }, delay);
                 });
@@ -1161,11 +1162,11 @@
             // Do an initial provider warning check after everything is set up
             setTimeout(() => {
                 updateProviderWarnings();
-                console.log("Initial provider warnings check completed");
+                logger.trace('featureSelector', "Initial provider warnings check completed");
             }, 500);
             
         } catch (error) {
-            console.error("Error during FeatureSelector initialization:", error);
+            logger.error('featureSelector', "Error during FeatureSelector initialization", { error });
             // Mark as loaded anyway to prevent endless loading state
             isInitialDataLoaded = true;
             
@@ -1182,7 +1183,7 @@
     });
 
     onDestroy(() => {
-        console.log('FeatureSelector unmounting, cleaning up errors');
+        logger.trace('featureSelector', 'FeatureSelector unmounting, cleaning up errors');
        
         if (sttModelsUnsubscribe) {
             sttModelsUnsubscribe();
@@ -1230,12 +1231,12 @@
     // update provider warnings when STT model changes
     $: if (currentFeatureOptions?.dubtitles?.stt) {
         // This ensures we update warnings whenever the STT model changes
-        console.log(`STT model changed reactively to: ${currentFeatureOptions.dubtitles.stt}`);
+        logger.trace('featureSelector', `STT model changed reactively to: ${currentFeatureOptions.dubtitles.stt}`);
         updateProviderWarnings();
     }
     
     $: if (currentSTTModels && currentSTTModels.models && currentSTTModels.models.length > 0) {
-        console.log("STT models updated, checking default model selection");
+        logger.trace('featureSelector', "STT models updated, checking default model selection");
         
         // Make sure dubtitles feature options exist
         if (!currentFeatureOptions.dubtitles) {
@@ -1246,7 +1247,7 @@
         const currentModel = currentFeatureOptions.dubtitles.stt;
         if (!currentModel || !currentSTTModels.names.includes(currentModel)) {
             const firstModel = currentSTTModels.names[0];
-            console.log(`Setting initial STT model to ${firstModel}`);
+            logger.trace('featureSelector', `Setting initial STT model to ${firstModel}`);
             
             // Update the feature options directly
             currentFeatureOptions.dubtitles.stt = firstModel;

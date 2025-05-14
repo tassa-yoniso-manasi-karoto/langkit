@@ -1,4 +1,6 @@
 // src/lib/utils.ts
+import { logger } from './logger';
+
 /**
  * Format bytes to human-readable format
  */
@@ -39,7 +41,7 @@ export function formatTimestamp(timestamp: number): string {
   try {
     return new Date(timestamp).toLocaleString();
   } catch (e) {
-    console.error("Failed to format timestamp:", timestamp, e);
+    logger.error('store/utils', "Failed to format timestamp", { timestamp, error: e });
     return 'Invalid Date';
   }
 }

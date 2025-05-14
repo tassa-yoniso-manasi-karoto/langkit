@@ -4,6 +4,7 @@
     import { fade, slide } from 'svelte/transition';
     import { flip } from 'svelte/animate';
     import { errorStore, type ErrorMessage, type ErrorSeverity } from '../lib/errorStore';
+    import { logger } from '../lib/logger';
 
     // Position is passed in from the ProcessButton.
     export let position = { x: 0, y: 0 };
@@ -44,7 +45,7 @@
         return () => {
             if (error.action) {
                 if (error.id === 'no-media') {
-                    console.debug('Suggestion: Please click the drop zone to select a media file.');
+                    logger.debug('processErrorTooltip', 'Suggestion: Please click the drop zone to select a media file.');
                 }
                 error.action.handler();
             }

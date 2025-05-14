@@ -4,6 +4,7 @@
     import { quintOut } from 'svelte/easing';
     import { progressBars, removeProgressBar, type ProgressBarData } from '../lib/progressBarsStore';
     import { logStore, type LogMessage } from '../lib/logStore';
+    import { logger } from '../lib/logger';
 
     // If user wants to collapse the bar list
     let isCollapsed: boolean = false;
@@ -207,12 +208,12 @@
         const taskId = log.task_id || '';
         const isUserCancelled = log.message && log.message.toLowerCase().includes("canceled");
         
-        console.log(`Processing log behavior: ${log.behavior}, taskId: ${taskId}, message: ${log.message}`);
-        console.log(`Current progress bars:`, $progressBars);
+        logger.trace('progressManager', `Processing log behavior: ${log.behavior}, taskId: ${taskId}, message: ${log.message}`);
+        logger.trace('progressManager', `Current progress bars:`, { progressBars: $progressBars });
         
         // Check for user cancellation FIRST, regardless of the behavior type
         if (isUserCancelled) {
-            console.log(`User cancellation detected`);
+            logger.trace('progressManager', `User cancellation detected`);
             // This is a user cancellation, not an error
             $progressBars.forEach(bar => {
                 updateErrorStateForTask(bar.id, 'user_cancel');
@@ -225,32 +226,32 @@
         
         // Normal error handling continues if not a cancellation
         if (log.behavior === 'abort_task') {
-            console.log(`ABORT_TASK behavior detected! Message: ${log.message}, taskId: ${taskId}`);
+            logger.trace('progressManager', `ABORT_TASK behavior detected! Message: ${log.message}, taskId: ${taskId}`);
             
             // Use a fallback task ID if none is provided
             const targetTaskId = taskId || 'global-task';
-            console.log(`Using targetTaskId: ${targetTaskId}`);
+            logger.trace('progressManager', `Using targetTaskId: ${targetTaskId}`);
             
             // Mark this task as errored
             taskErrors.set(targetTaskId, log.message);
             abortedTasksCount++;
-            console.log(`Updated abortedTasksCount to ${abortedTasksCount}`);
+            logger.trace('progressManager', `Updated abortedTasksCount to ${abortedTasksCount}`);
             
             // Force update all progress bars to make the error more visible
             if ($progressBars.length > 0) {
-                console.log(`Setting error state on all progress bars`);
+                logger.trace('progressManager', `Setting error state on all progress bars`);
                 $progressBars.forEach(bar => {
                     updateErrorStateForTask(bar.id, 'abort_task');
                 });
             } else {
-                console.log(`No progress bars found to update!`);
+                logger.trace('progressManager', `No progress bars found to update!`);
                 // Just update the specific task
                 updateErrorStateForTask(targetTaskId, 'abort_task');
             }
             
             // Update status text with warning color in the requested format
             statusText = `Continuing with errors (${abortedTasksCount} ${abortedTasksCount === 1 ? 'task' : 'tasks'})`;
-            console.log(`Set status text to: ${statusText}`);
+            logger.trace('progressManager', `Set status text to: ${statusText}`);
         } 
         else if (log.behavior === 'abort_all') {
             isGlobalAbort = true;
@@ -279,11 +280,11 @@
         }
 
         // Debug logging to help troubleshoot
-        console.log(`Updating error state for task: ${taskId}, behavior: ${behavior}`);
+        logger.trace('progressManager', `Updating error state for task: ${taskId}, behavior: ${behavior}`);
         
         progressBars.update(bars => {
             // First, log the bars we're working with
-            console.log(`Current progress bars before update: ${bars.length}`);
+            logger.trace('progressManager', `Current progress bars before update: ${bars.length}`);
             
             // If it's a task abortion, make sure we update the UI
             if (behavior === 'abort_task') {
@@ -299,24 +300,24 @@
                     // Set the error state using the mapped value *only if behavior is a valid key*
                     const newErrorState = isValidErrorKey(behavior) ? errorStateMap[behavior] : behavior; // Fallback to behavior itself if key invalid
                     
-                    console.log(`Updating bar ${bar.id} with error state: ${newErrorState}`);
+                    logger.trace('progressManager', `Updating bar ${bar.id} with error state: ${newErrorState}`);
                     
                     // For debugging, let's examine the bar before and after update
-                    console.log(`Bar before update:`, bar);
+                    logger.trace('progressManager', `Bar before update:`, { bar });
                     
                     const updatedBar = { 
                         ...bar, 
                         errorState: newErrorState 
                     };
                     
-                    console.log(`Bar after update:`, updatedBar);
+                    logger.trace('progressManager', `Bar after update:`, { updatedBar });
                     return updatedBar;
                 }
                 return bar;
             });
             
             // Do a final check for the updated bars
-            console.log(`Updated bars:`, updatedBars);
+            logger.trace('progressManager', `Updated bars:`, { updatedBars });
             
             // Return the updated array
             return updatedBars;

@@ -8,11 +8,10 @@ SVG animations: rework state transitions
 
 - GUI options:
   - condensed audio toggle
-  - finish setting request cached sep voice file deletion
 
 - enable WASM all the time
 
-- clean up Settings panel
+- guarante all settings in Settings panel work
 
 - dev dashboard:
   - make it available in prod builds just like dev settings in android
@@ -20,7 +19,7 @@ SVG animations: rework state transitions
 
 - support Condensed Audio summaries
 
-- convert all console.* logging calls into logger.ts calls
+- add strategic frontend logging for prod
 
 - remove useless test files
 

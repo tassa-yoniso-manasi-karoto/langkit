@@ -3,6 +3,7 @@
     import { fade } from 'svelte/transition';
     import { errorStore } from '../lib/errorStore';
     import ProcessErrorTooltip from './ProcessErrorTooltip.svelte';
+    import { logger } from '../lib/logger';
 
     // Create event dispatcher without generic type parameters
     const dispatch = createEventDispatcher();
@@ -70,7 +71,7 @@
         if (!hasCriticalErrors && !isProcessing) {
             dispatch('process');
         } else {
-            console.debug('Button click blocked; hasCriticalErrors:', hasCriticalErrors, 'isProcessing:', isProcessing);
+            logger.debug('processButton', 'Button click blocked', { hasCriticalErrors, isProcessing });
         }
     }
 

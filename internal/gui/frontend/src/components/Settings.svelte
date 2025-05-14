@@ -4,6 +4,7 @@
     import { settings, showSettings } from '../lib/stores';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
     import { ExportDebugReport } from '../../wailsjs/go/gui/App';
+    import { logger } from '../lib/logger';
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
@@ -208,7 +209,7 @@
             try {
                 await (window as any).go.gui.App.RefreshSTTModelsAfterSettingsUpdate();
             } catch (error) {
-                console.error('Failed to refresh STT models:', error);
+                logger.error('settings', 'Failed to refresh STT models', { error });
             }
             
             // Update local wasmState
@@ -222,7 +223,7 @@
                 detail: currentSettings
             }));
         } catch (error) {
-            console.error('Failed to save settings:', error);
+            logger.error('settings', 'Failed to save settings', { error });
             // Show error in the UI - ensure error is treated as Error instance
             const errorMsg = error instanceof Error ? error.message : String(error);
             exportError = 'Failed to save settings: ' + (errorMsg || 'Unknown error');
@@ -252,7 +253,7 @@
                 wasmState = getWasmState();
             }
         } catch (error) {
-            console.error('Failed to update settings:', error);
+            logger.error('settings', 'Failed to update settings', { error });
         }
     }
 
@@ -264,7 +265,7 @@
             await ExportDebugReport();
             exportSuccess = true;
         } catch (err: any) { // Type the error
-            console.error('Failed to export debug report:', err);
+            logger.error('settings', 'Failed to export debug report', { error: err });
             exportError = err?.message || 'Unknown error occurred.';
         } finally {
             isExportingDebug = false;
@@ -296,7 +297,7 @@
             };
             await validateLanguages();
         } catch (error) {
-            console.error('Failed to load settings:', error);
+            logger.error('settings', 'Failed to load settings', { error });
         }
 
         // Update local wasmState on mount as well
