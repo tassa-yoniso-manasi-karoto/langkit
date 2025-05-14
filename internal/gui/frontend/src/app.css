@@ -304,12 +304,15 @@ input[type="url"],
 select,
 textarea,
 .dropdown-button {
-  background: var(--input-bg);
+  background-color: hsla(var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-lightness), 0.4);
   background-image: var(--input-gradient);
   border: 2px solid var(--input-border);
   box-shadow: var(--input-shadow);
   backdrop-filter: blur(var(--input-backdrop-blur));
   transition: all 0.2s ease-out;
+  color: white;
+  max-width: 100%;
+  width: 100%;
 }
 
 /* Hover state */
@@ -324,7 +327,7 @@ input[type="url"]:hover,
 select:hover,
 textarea:hover,
 .dropdown-button:hover {
-  background: var(--input-bg-hover);
+  background-color: hsla(var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-hover-lightness), 0.45);
   border-color: var(--input-border-hover);
   box-shadow: var(--input-shadow);
   background-image: var(--input-gradient-hover, var(--input-gradient));
@@ -342,16 +345,29 @@ input[type="url"]:focus,
 select:focus,
 textarea:focus,
 .dropdown-button:focus {
-  background: var(--input-bg-focus);
+  background-color: hsla(var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-focus-lightness), 0.5);
   border-color: var(--input-border-focus);
   box-shadow: var(--input-shadow-focus);
+  outline: none;
+}
+
+/* Specific styles for select to maintain dropdown arrow and option styling */
+select {
+  -webkit-appearance: menulist;
+  -moz-appearance: menulist;
+  appearance: menulist;
+}
+
+select option {
+  background-color: hsl(var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-lightness));
+  color: white;
 }
 
 /* Apply to numeric input arrow buttons */
 input[type="number"]::-webkit-inner-spin-button, 
 input[type="number"]::-webkit-outer-spin-button {
   opacity: 1;
-  background: var(--input-bg-hover);
+  background-color: hsla(var(--input-bg-hue), var(--input-bg-saturation), var(--input-bg-hover-lightness), 0.45);
 }
 
 

@@ -7,6 +7,7 @@
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
+    import SelectInput from './SelectInput.svelte';
     import Hovertip from './Hovertip.svelte'; // Import hovertip component
     import { isWasmSupported, getWasmState, resetWasmMetrics } from '../lib/wasm'; // Import WASM utils
     import { WasmInitStatus } from '../lib/wasm-state'; // Import enum
@@ -449,7 +450,11 @@
                         <!-- API and Timeout Settings with improved input styling -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
-                                <span class="material-icons text-primary">vpn_key</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" class="text-primary" stroke-width="0.8" stroke="currentColor">
+                                    <path fill="currentColor" d="M28 26c-.178 0-.347.03-.511.074l-1.056-1.055c.352-.595.567-1.28.567-2.019s-.215-1.424-.567-2.019l1.055-1.055c.165.043.334.074.512.074a2 2 0 1 0-2-2c0 .178.03.347.074.512l-1.055 1.055C24.424 19.215 23.739 19 23 19s-1.424.215-2.019.567l-1.055-1.055c.043-.165.074-.334.074-.512a2 2 0 1 0-2 2c.178 0 .347-.03.512-.074l1.055 1.055C19.215 21.576 19 22.261 19 23s.215 1.424.567 2.019l-1.055 1.055A2 2 0 0 0 18 26a2 2 0 1 0 2 2c0-.178-.03-.347-.074-.512l1.055-1.055c.595.352 1.28.567 2.019.567s1.424-.215 2.019-.567l1.055 1.055A2 2 0 0 0 26 28a2 2 0 1 0 2-2m-7-3c0-1.102.897-2 2-2s2 .898 2 2s-.897 2-2 2s-2-.897-2-2"/>
+                                    <circle cx="22" cy="10" r="2" fill="currentColor"/>
+                                    <path fill="currentColor" d="M21 2c-4.963 0-9 4.037-9 9c0 .779.099 1.547.294 2.291L2 23.586V30h6.414l7-7l-2.707-2.707l-1.414 1.414L12.586 23l-1.59 1.59l-1.287-1.295l-1.418 1.41l1.29 1.299L7.587 28H4v-3.586l9.712-9.712l.856-.867l-.199-.585A7.008 7.008 0 0 1 21 4c3.86 0 7.001 3.14 7.001 7h2c0-4.963-4.037-9-9-9Z"/>
+                                </svg>
                                 API Keys
                             </h3>
                             <div class="space-y-4">
@@ -654,15 +659,15 @@
                                 </div>
                                 
                                 <div class="setting-control">
-                                    <select
+                                    <SelectInput
                                         bind:value={currentSettings.intermediaryFileMode}
-                                        class="w-48 px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50"
+                                        className="px-3 py-2 rounded-lg"
                                         on:change={updateSettings}
                                     >
                                         <option value="keep">Keep Files (Original Quality)</option>
                                         <option value="recompress">Recompress Files (Save Space)</option>
                                         <option value="delete">Delete Files (Save Maximum Space)</option>
-                                    </select>
+                                    </SelectInput>
                                 </div>
                             </div>
                         </section>
@@ -708,16 +713,16 @@
                                             <span class="setting-description">Control when WebAssembly optimization is used</span>
                                         </div>
                                         <div class="setting-control">
-                                            <select
+                                            <SelectInput
                                                 bind:value={currentSettings.forceWasmMode}
                                                 on:change={updateSettings}
                                                 disabled={!currentSettings.useWasm}
-                                                class="w-48 px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                                                className="px-3 py-2 rounded-lg disabled:opacity-50"
                                             >
                                                 <option value="auto">Auto (Based on threshold)</option>
                                                 <option value="enabled">Always Enabled</option>
                                                 <option value="disabled">Always Disabled</option>
-                                            </select>
+                                            </SelectInput>
                                         </div>
                                     </div>
 
@@ -1146,8 +1151,8 @@
     .toggle-switch {
         position: relative;
         display: inline-block;
-        width: 46px;
-        height: 24px;
+        width: 64px;  /* 1.5x from original 46px */
+        height: 34px; /* 1.5x from original 24px */
     }
     
     .toggle-switch input {
@@ -1165,17 +1170,17 @@
         bottom: 0;
         background-color: rgba(60, 60, 80, 0.6);
         transition: .4s;
-        border-radius: 12px;
-        border: 1px solid hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
+        border-radius: 17px; /* Half of height */
+        border: 2px solid hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
     }
     
     .slider:before {
         position: absolute;
         content: "";
-        height: 16px;
-        width: 16px;
-        left: 4px;
-        bottom: 3px;
+        height: 22px; /* Appropriately sized */
+        width: 22px;  /* Appropriately sized */
+        left: 6px;    /* Adjusted for new size */
+        bottom: 4px;  /* Adjusted for new size */
         background-color: white;
         transition: .4s;
         border-radius: 50%;
@@ -1186,11 +1191,11 @@
     }
     
     input:focus + .slider {
-        box-shadow: 0 0 4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7);
+        box-shadow: 0 0 6px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7);
     }
     
     input:checked + .slider:before {
-        transform: translateX(22px);
+        transform: translateX(30px); /* Adjusted for new width */
     }
     
     /* Setting row styles */
