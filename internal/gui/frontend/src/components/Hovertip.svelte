@@ -84,7 +84,7 @@
 	<slot name="trigger" />
 </div>
 
-<!-- Render the tooltip in a portal with the globally defined z-index class -->
+<!-- Render the tooltip in a portal - z-index is defined in app.css -->
 {#if visible}
 	<Portal target="body">
 		<div bind:this={tooltip} style={tooltipStyle} class="fixed hovertip">

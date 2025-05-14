@@ -362,7 +362,7 @@
     /* Base styles for the draggable icon */
     .dev-dashboard-icon {
         position: fixed !important;
-        z-index: 9999 !important;
+        /* z-index moved to app.css */
         user-select: none;
         cursor: move;
         filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.2));
@@ -409,7 +409,7 @@
     /* Expanded dashboard panel styles */
     .dev-dashboard-panel {
         position: fixed !important;
-        z-index: 9999 !important;
+        /* z-index moved to app.css */
         user-select: none;
         width: 480px; /* Increased width for better content display */
         background: hsla(215, 15%, 15%, 0.9);

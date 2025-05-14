@@ -136,7 +136,7 @@
     .audio-track-container {
         width: fit-content;
         white-space: nowrap;
-        z-index: 10;
+        /* z-index moved to app.css */
     }
     
     /* Add subtle glow on hover for the inputs */

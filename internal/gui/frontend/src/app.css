@@ -29,6 +29,13 @@
     --group-subtitle-color: theme('colors.group-subtitle');
     --group-merge-color: theme('colors.group-merge');
     
+    /* Z-index orchestration */
+    --z-index-quick-access: 10;
+    --z-index-settings-modal: 50;
+    --z-index-dropdown: 9000;
+    --z-index-hovertip: 9998;
+    --z-index-dev-dashboard: 9999;
+    
     /* Color system variables - core values from tailwind.config.js */
     --primary-hue: 261;
     --primary-saturation: 90%;
@@ -543,4 +550,26 @@ input[type="number"]::-webkit-outer-spin-button {
   font-style: italic;
   font-weight: 500;
   src: url('/fonts/dm-mono-v14-latin_latin-ext-500italic.woff2') format('woff2');
+}
+
+/* Component z-index management */
+.dev-dashboard-icon,
+.dev-dashboard-panel {
+  z-index: var(--z-index-dev-dashboard) !important;
+}
+
+.hovertip {
+  z-index: var(--z-index-hovertip) !important;
+}
+
+.dropdown-options {
+  z-index: var(--z-index-dropdown) !important;
+}
+
+.audio-track-container {
+  z-index: var(--z-index-quick-access) !important;
+}
+
+.settings-modal .backdrop-blur-lg {
+  z-index: var(--z-index-settings-modal) !important;
 }

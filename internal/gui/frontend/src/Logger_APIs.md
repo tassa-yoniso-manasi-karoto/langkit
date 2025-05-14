@@ -6,13 +6,16 @@ component inform from which part of the frontend was a given log emitted from.
 ## Core API
 
 ```typescript
-import { logger } from './lib/logger';
+import logger from './lib/logger';
 ```
 
 ### Log Levels
 
+Note: prefer using method that embed the level already (i.e. log.warn) rather
+than using the log method and passing an explicit Lvl.
+
 ```typescript
-enum LogLevel {
+enum Lvl {
   TRACE = -1,
   DEBUG = 0,
   INFO = 1,

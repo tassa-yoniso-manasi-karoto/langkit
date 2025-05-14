@@ -180,7 +180,7 @@
                 class="dropdown-options fixed max-h-60 overflow-auto focus:outline-none" 
                 bind:this={optionsContainerRef} 
                 role="listbox"
-                style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px; width: {dropdownPosition.width}px; z-index: 9999;"
+                style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px; width: {dropdownPosition.width}px;"
             >
                 {#each options as option, i (optionKey && typeof option === 'object' ? option[optionKey] : i)}
                     {@const isSelected = optionKey && typeof option === 'object' 

@@ -348,7 +348,7 @@
 {#if $showSettings}
     <div class="settings-modal">
         <!-- Improved backdrop with more blur and less transparency -->
-        <div class="fixed inset-0 backdrop-blur-lg z-50 overflow-y-auto"
+        <div class="fixed inset-0 backdrop-blur-lg overflow-y-auto"
              transition:fade={{ duration: 200 }}>
             <div class="container mx-auto max-w-2xl p-4 min-h-screen flex items-center"
                  transition:slide={{ duration: 300 }}
@@ -616,25 +616,24 @@
                             </h3>
                             
                             <div class="setting-row grid grid-cols-[180px,auto] items-center gap-x-4">
-                                <div class="setting-label flex items-center gap-2">
-                                    <span>Intermediary File Mode</span>
-                                    <!-- Custom tooltip implementation instead of Hovertip component -->
-                                    <div class="relative inline-block">
-                                        <span class="material-icons text-xs text-primary/80 cursor-help hover-trigger">help_outline</span>
-                                        <div class="absolute left-full top-0 ml-2 w-80 bg-gray-800 text-white text-xs rounded p-3 shadow-lg 
-                                                    opacity-0 invisible hover-tooltip z-[9999] transition-opacity duration-200">
-                                            <div class="relative">
+                                <div class="flex flex-col items-center justify-center gap-1">
+                                    <!-- Centered container for text and icon -->
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>Intermediary File Mode</span>
+                                        <Hovertip position="right">
+                                            <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                            <div class="max-w-xs">
                                                 <p class="mb-2">Intermediary files can be useful for reprocessing with different settings, but may consume substantial disk space:</p>
                                                 <ul class="list-disc ml-4 space-y-1">
                                                     <li><strong class="text-primary/90">Keep:</strong> Preserves files at original quality for maximum reusability</li>
                                                     <li><strong class="text-primary/90">Recompress:</strong> Compresses files to balance space and reusability</li>
                                                     <li><strong class="text-primary/90">Delete:</strong> Removes intermediary files immediately after processing</li>
                                                 </ul>
-                                                <!-- Arrow pointing left -->
-                                                <div class="absolute right-full top-2 border-8 border-transparent border-r-gray-800"></div>
                                             </div>
-                                        </div>
+                                        </Hovertip>
                                     </div>
+                                    <!-- Description - also centered -->
+                                    <span class="text-xs text-white/60 text-center">How to handle intermediary files produced during processing</span>
                                 </div>
                                 
                                 <div class="setting-control">
@@ -659,7 +658,7 @@
                             </h3>
 
                             <!-- WebAssembly Settings -->
-                            <div class="mb-5 border-b border-primary/10 pb-4">
+                            <div class="mb-5  pb-4">
                                 <h4 class="text-base font-medium mb-2 text-gray-200">WebAssembly Optimization</h4>
 
                                 {#if !isWasmSupported()}
@@ -1276,17 +1275,5 @@
     
     .setting-control {
         min-width: 120px;
-    }
-    
-    /* Custom tooltip hover effects */
-    .hover-trigger:hover + .hover-tooltip,
-    .hover-tooltip:hover {
-        opacity: 1;
-        visibility: visible;
-    }
-    
-    /* Add a slight delay to make it feel more natural */
-    .hover-tooltip {
-        transition-delay: 150ms;
     }
 </style>
