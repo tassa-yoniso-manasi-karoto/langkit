@@ -7,7 +7,6 @@
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
-    import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte'; // Import dashboard
     import Hovertip from './Hovertip.svelte'; // Import hovertip component
     import { isWasmSupported, getWasmState, resetWasmMetrics } from '../lib/wasm'; // Import WASM utils
     import { WasmInitStatus } from '../lib/wasm-state'; // Import enum
@@ -523,65 +522,83 @@
                                 <span class="material-icons text-primary">timer</span>
                                 Timeouts & Retries
                             </h3>
-                            <div class="grid grid-cols-[180px,auto,auto] items-center gap-y-3 gap-x-2">
-                                <label class="text-sm text-gray-200" title="Number of retry attempts for failed API calls">
-                                    Maximum API retries:
-                                </label>
-                                <NumericInput
-                                    bind:value={currentSettings.maxAPIRetries}
-                                    min={1}
-                                    step={1}
-                                    className="w-24 px-2 py-1 hover:border-primary/55
-                                              hover:shadow-input focus:shadow-input-focus
-                                              focus:border-primary focus:ring-1
-                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                />
-                                <span class="text-xs text-gray-400"></span>
-                                
-                                <label class="text-sm text-gray-200" title="Timeout for voice separation operations (Demucs, Spleeter, etc.)">
-                                    Voice separation timeout:
-                                </label>
-                                <NumericInput
-                                    bind:value={currentSettings.timeoutSep}
-                                    min={60}
-                                    max={7200}
-                                    step={60}
-                                    className="w-24 px-2 py-1 hover:border-primary/55
-                                              hover:shadow-input focus:shadow-input-focus
-                                              focus:border-primary focus:ring-1
-                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                />
-                                <span class="text-xs text-gray-400">seconds (default: 2100)</span>
-                                
-                                <label class="text-sm text-gray-200" title="Timeout for speech-to-text operations per audio segment">
-                                    Speech-to-text timeout:
-                                </label>
-                                <NumericInput
-                                    bind:value={currentSettings.timeoutSTT}
-                                    min={10}
-                                    max={600}
-                                    step={10}
-                                    className="w-24 px-2 py-1 hover:border-primary/55
-                                              hover:shadow-input focus:shadow-input-focus
-                                              focus:border-primary focus:ring-1
-                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                />
-                                <span class="text-xs text-gray-400">seconds (default: 90)</span>
-                                
-                                <label class="text-sm text-gray-200" title="Timeout for download operations">
-                                    Download timeout:
-                                </label>
-                                <NumericInput
-                                    bind:value={currentSettings.timeoutDL}
-                                    min={30}
-                                    max={3600}
-                                    step={30}
-                                    className="w-24 px-2 py-1 hover:border-primary/55
-                                              hover:shadow-input focus:shadow-input-focus
-                                              focus:border-primary focus:ring-1
-                                              focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                />
-                                <span class="text-xs text-gray-400">seconds (default: 600)</span>
+                            <!-- Maximum API retries -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum API retries</span>
+                                    <span class="setting-description">Number of retry attempts for failed API calls</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.maxAPIRetries}
+                                        min={1}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Voice separation timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Voice separation timeout</span>
+                                    <span class="setting-description">Timeout in seconds for voice separation operations (Demucs, Spleeter) - Default: 2100</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutSep}
+                                        min={60}
+                                        max={7200}
+                                        step={60}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Speech-to-text timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Speech-to-text timeout</span>
+                                    <span class="setting-description">Timeout in seconds for speech-to-text operations per audio segment - Default: 90</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutSTT}
+                                        min={10}
+                                        max={600}
+                                        step={10}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Download timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Download timeout</span>
+                                    <span class="setting-description">Timeout in seconds for download operations - Default: 600</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutDL}
+                                        min={30}
+                                        max={3600}
+                                        step={30}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
                             </div>
                         </section>
 
@@ -591,20 +608,22 @@
                                 <span class="material-icons text-primary">speed</span>
                                 Worker Pool Settings
                             </h3>
-                            <div class="flex items-center gap-4">
-                                <label class="text-sm text-gray-200 whitespace-nowrap">
-                                    Maximum Workers:
-                                </label>
-                                <NumericInput
-                                    bind:value={currentSettings.maxWorkers}
-                                    min={1}
-                                    step={1}
-                                    className="w-32 px-3 py-2 pl-4 hover:border-primary/55
-                                               hover:shadow-input focus:shadow-input-focus
-                                               focus:border-primary focus:ring-1
-                                               focus:ring-primary/50 transition-all
-                                               duration-200 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                />
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum Workers</span>
+                                    <span class="setting-description">Number of concurrent worker processes</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.maxWorkers}
+                                        min={1}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
                             </div>
                         </section>
                         
@@ -615,9 +634,8 @@
                                 Intermediary Files
                             </h3>
                             
-                            <div class="setting-row grid grid-cols-[180px,auto] items-center gap-x-4">
-                                <div class="flex flex-col items-center justify-center gap-1">
-                                    <!-- Centered container for text and icon -->
+                            <div class="setting-row">
+                                <div class="setting-label">
                                     <div class="flex items-center justify-center gap-1">
                                         <span>Intermediary File Mode</span>
                                         <Hovertip position="right">
@@ -632,14 +650,13 @@
                                             </div>
                                         </Hovertip>
                                     </div>
-                                    <!-- Description - also centered -->
-                                    <span class="text-xs text-white/60 text-center">How to handle intermediary files produced during processing</span>
+                                    <span class="setting-description">How to handle intermediary files produced during processing</span>
                                 </div>
                                 
                                 <div class="setting-control">
                                     <select
                                         bind:value={currentSettings.intermediaryFileMode}
-                                        class="w-full px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50"
+                                        class="w-48 px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50"
                                         on:change={updateSettings}
                                     >
                                         <option value="keep">Keep Files (Original Quality)</option>
@@ -658,7 +675,7 @@
                             </h3>
 
                             <!-- WebAssembly Settings -->
-                            <div class="mb-5  pb-4">
+                            <div class="mb-5 pb-4">
                                 <h4 class="text-base font-medium mb-2 text-gray-200">WebAssembly Optimization</h4>
 
                                 {#if !isWasmSupported()}
@@ -679,7 +696,7 @@
                                                     bind:checked={currentSettings.useWasm}
                                                     on:change={updateSettings}
                                                 />
-                                                <span class="slider round"></span> <!-- Added round class -->
+                                                <span class="slider round"></span>
                                             </label>
                                         </div>
                                     </div>
@@ -695,7 +712,7 @@
                                                 bind:value={currentSettings.forceWasmMode}
                                                 on:change={updateSettings}
                                                 disabled={!currentSettings.useWasm}
-                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                                                class="w-48 px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
                                             >
                                                 <option value="auto">Auto (Based on threshold)</option>
                                                 <option value="enabled">Always Enabled</option>
@@ -708,114 +725,24 @@
                                     <div class="setting-row" class:disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}>
                                         <div class="setting-label">
                                             <span>WebAssembly Size Threshold</span>
-                                            <span class="setting-description">Use WebAssembly for operations with more than {currentSettings.wasmSizeThreshold} logs</span>
+                                            <span class="setting-description">Use WebAssembly for operations with more than {currentSettings.wasmSizeThreshold} logs (Range: 100-5000)</span>
                                         </div>
-                                        <div class="setting-control flex items-center gap-2">
-                                            <span class="text-xs text-gray-400">100</span>
-                                            <input
-                                                type="range"
-                                                min="100"
-                                                max="5000"
-                                                step="100"
+                                        <div class="setting-control">
+                                            <NumericInput
                                                 bind:value={currentSettings.wasmSizeThreshold}
-                                                on:change={updateSettings}
+                                                min={100}
+                                                max={5000}
+                                                step={100}
                                                 disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}
-                                                class="flex-1"
+                                                className="w-48 px-3 py-2 hover:border-primary/55
+                                                        hover:shadow-input focus:shadow-input-focus
+                                                        focus:border-primary focus:ring-1
+                                                        focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white disabled:opacity-50"
                                             />
-                                            <span class="text-xs text-gray-400">5000</span>
-                                            <span class="setting-value text-sm text-gray-300 w-16 text-right">{currentSettings.wasmSizeThreshold}</span>
                                         </div>
                                     </div>
                                 {/if}
                             </div>
-                            <!-- WASM Memory Management section will follow here -->
-                                
-                                <!-- Add new Memory Management Options here -->
-                                <div class="setting-group mt-6 pt-6 border-t border-primary/20">
-                                    <h4 class="text-md font-medium mb-4 text-gray-200">Memory Management</h4>
-                                    
-                                    <!-- Memory Pre-allocation -->
-                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
-                                        <div class="setting-label">
-                                            <span>Initial Memory Allocation</span>
-                                            <span class="setting-description">Pre-allocate memory at startup to reduce growth events</span>
-                                        </div>
-                                        <div class="setting-control">
-                                            <select
-                                                bind:value={currentSettings.wasmMemoryPreallocation}
-                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
-                                                disabled={!currentSettings.useWasm}
-                                                on:change={updateSettings}
-                                            >
-                                                <option value={16}>16 MB</option>
-                                                <option value={32}>32 MB</option>
-                                                <option value={64}>64 MB</option>
-                                                <option value={128}>128 MB</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Memory Margin -->
-                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
-                                        <div class="setting-label">
-                                            <span>Memory Safety Margin</span>
-                                            <span class="setting-description">Higher values are safer but may lead to more TypeScript fallbacks</span>
-                                        </div>
-                                        <div class="setting-control">
-                                            <select
-                                                bind:value={currentSettings.wasmMemoryMargin}
-                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
-                                                disabled={!currentSettings.useWasm}
-                                                on:change={updateSettings}
-                                            >
-                                                <option value="high">High (95% threshold)</option>
-                                                <option value="medium">Medium (90% threshold)</option>
-                                                <option value="low">Low (85% threshold)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Growth Strategy -->
-                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
-                                        <div class="setting-label">
-                                            <span>Memory Growth Strategy</span>
-                                            <span class="setting-description">How aggressively to grow memory when needed</span>
-                                        </div>
-                                        <div class="setting-control">
-                                            <select
-                                                bind:value={currentSettings.wasmMemoryGrowthStrategy}
-                                                class="px-3 py-2 bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg text-white focus:border-primary focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
-                                                disabled={!currentSettings.useWasm}
-                                                on:change={updateSettings}
-                                            >
-                                                <option value="conservative">Conservative (minimal growth)</option>
-                                                <option value="balanced">Balanced (medium growth)</option>
-                                                <option value="aggressive">Aggressive (large growth)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- End new Memory Management Options -->
-
-                                <!-- Performance dashboard -->
-                                {#if currentSettings.useWasm}
-                                    {#if wasmState?.initStatus === WasmInitStatus.SUCCESS}
-                                        <div class="mt-4">
-                                            <WasmPerformanceDashboard />
-                                        </div>
-                                    {:else if wasmState?.initStatus === WasmInitStatus.INITIALIZING}
-                                        <div class="p-4 bg-gray-800/60 text-center rounded-lg mt-4">
-                                            <div class="animate-pulse text-gray-400">
-                                                Initializing WebAssembly...
-                                            </div>
-                                        </div>
-                                    {:else if wasmState?.initStatus === WasmInitStatus.FAILED}
-                                        <div class="p-4 bg-error-hard/10 border border-error-hard/30 rounded-lg mt-4">
-                                            <div class="text-error-hard text-sm mb-2">WebAssembly initialization failed</div>
-                                            <div class="text-xs text-gray-300">{wasmState.lastError?.message || 'Unknown error'}</div>
-                                        </div>
-                                    {/if}
-                                {/if}
                             <!-- LogViewer Settings -->
                             <div class="mb-5 mt-6 pt-6 border-t border-primary/20"> <!-- Added top margin/border -->
                                 <h4 class="text-base font-medium mb-2 text-gray-200">LogViewer Performance</h4>
@@ -824,21 +751,19 @@
                                 <div class="setting-row">
                                     <div class="setting-label">
                                         <span>Virtualization Threshold</span>
-                                        <span class="setting-description">Enable virtualization when log count exceeds this threshold</span>
+                                        <span class="setting-description">Enable virtualization when log count exceeds this threshold (Range: 500-10000)</span>
                                     </div>
-                                    <div class="setting-control flex items-center gap-2">
-                                        <span class="text-xs text-gray-400">500</span>
-                                        <input
-                                            type="range"
-                                            id="logViewerVirtualizationThreshold"
-                                            min="500"
-                                            max="10000"
-                                            step="500"
+                                    <div class="setting-control">
+                                        <NumericInput
                                             bind:value={currentSettings.logViewerVirtualizationThreshold}
-                                            class="flex-1"
+                                            min={500}
+                                            max={10000}
+                                            step={500}
+                                            className="w-48 px-3 py-2 hover:border-primary/55
+                                                    hover:shadow-input focus:shadow-input-focus
+                                                    focus:border-primary focus:ring-1
+                                                    focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
                                         />
-                                        <span class="text-xs text-gray-400">10000</span>
-                                        <span class="setting-value text-sm text-gray-300 w-16 text-right">{currentSettings.logViewerVirtualizationThreshold}</span>
                                     </div>
                                 </div>
 
@@ -855,42 +780,57 @@
                                 <span class="material-icons text-primary">palette</span>
                                 Interface Settings
                             </h3>
-                            <div class="space-y-4">
-                                <label class="flex items-center gap-3 cursor-pointer group checkbox-container">
-                                    <input
-                                        type="checkbox"
-                                        bind:checked={currentSettings.enableGlow}
-                                        class="w-4 h-4 accent-primary rounded custom-checkbox"
-                                        on:change={updateSettings}
-                                    />
-                                    <span class="text-sm text-gray-200 group-hover:text-white transition-colors">
-                                        Enable glow effects (disable if you experience performance issues)
-                                    </span>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer group checkbox-container">
-                                    <input
-                                        type="checkbox"
-                                        bind:checked={currentSettings.showLogViewerByDefault}
-                                        class="w-4 h-4 accent-primary rounded custom-checkbox"
-                                        on:change={updateSettings}
-                                    />
-                                    <span class="text-sm text-gray-200 group-hover:text-white transition-colors">
-                                        Show log viewer by default
-                                    </span>
-                                </label>
-                                <div class="flex items-center gap-4">
-                                    <label class="text-sm text-gray-200 whitespace-nowrap">
-                                        Maximum log entries:
+                            <!-- Enable glow effects -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Enable glow effects</span>
+                                    <span class="setting-description">Adds visual glow effects to UI elements</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.enableGlow}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
                                     </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Show log viewer by default -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Show log viewer by default</span>
+                                    <span class="setting-description">Automatically open log viewer when starting a process</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.showLogViewerByDefault}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Maximum log entries -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum log entries</span>
+                                    <span class="setting-description">Limit the number of log entries to improve performance</span>
+                                </div>
+                                <div class="setting-control">
                                     <NumericInput
                                         bind:value={currentSettings.maxLogEntries}
                                         min={100}
                                         step={100}
-                                        className="w-32 px-3 py-2 pl-4 hover:border-primary/55
-                                                   hover:shadow-input focus:shadow-input-focus
-                                                   focus:border-primary focus:ring-1
-                                                   focus:ring-primary/50 transition-all
-                                                   duration-200 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
                                         on:change={updateSettings}
                                     />
                                 </div>
@@ -1255,9 +1195,10 @@
     
     /* Setting row styles */
     .setting-row {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         align-items: center;
+        gap: 1rem;
         padding: 0.75rem 0;
         border-bottom: 1px solid hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1);
     }
@@ -1266,6 +1207,8 @@
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
+        align-items: center;
+        text-align: center;
     }
     
     .setting-description {
@@ -1275,5 +1218,9 @@
     
     .setting-control {
         min-width: 120px;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }
 </style>
