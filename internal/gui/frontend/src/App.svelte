@@ -891,7 +891,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
 </script>
 
 <!-- Version display (fixed, using Tailwind and DM Mono) -->
-<div class="fixed top-[0.3rem] right-[3.9rem] z-50 p-0 text-[0.6rem] text-gray-500 text-xs font-dm-mono flex items-center">
+<div class="fixed top-[0.2rem] right-[3.9rem] z-50 p-0 text-[0.6rem] text-gray-500 text-xs font-dm-mono flex items-center">
     {#if version}
         {#if version === "dev"}
             {version}

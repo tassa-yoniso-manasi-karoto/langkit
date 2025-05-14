@@ -8,9 +8,7 @@ SVG animations: rework state transitions
 
 - GUI options:
   - condensed audio toggle
-  - dubs allow user to request cached sep voice file deletion → in Settings
-
-- coffee icon
+  - finish setting request cached sep voice file deletion
 
 - propagate target language change in setting panel to quickaccess lang tag
 
