@@ -28,6 +28,7 @@
     import LogViewerNotification from './components/LogViewerNotification.svelte';
     import MemoryTestButton from './components/MemoryTestButton.svelte';
     import DevDashboard from './components/DevDashboard.svelte';
+import CoffeeSupport from './components/CoffeeSupport.svelte';
     
     import { 
         SendProcessingRequest, 
@@ -890,7 +891,7 @@
 </script>
 
 <!-- Version display (fixed, using Tailwind and DM Mono) -->
-<div class="fixed top-[0.5rem] right-[3.9rem] z-50 p-0 text-[0.6rem] text-gray-500 text-xs font-dm-mono">
+<div class="fixed top-[0.3rem] right-[3.9rem] z-50 p-0 text-[0.6rem] text-gray-500 text-xs font-dm-mono flex items-center">
     {#if version}
         {#if version === "dev"}
             {version}
@@ -902,6 +903,7 @@
                 an update is available
             </UpdateNotification>
         {/if}
+        <CoffeeSupport {version} />
     {/if}
 </div>
 
@@ -915,7 +917,6 @@
     <!-- Settings button container -->
     <div class="absolute top-4 right-4 z-20 flex items-center gap-4">
         <!-- WASM Status Indicator -->
-        <!-- WASM Status Indicator (only shown when enabled) -->
         {#if isWasmEnabled()}
           <div class="wasm-status-indicator flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary text-xs"
                class:active={$wasmActive}
