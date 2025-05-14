@@ -10,9 +10,17 @@ SVG animations: rework state transitions
   - condensed audio toggle
   - finish setting request cached sep voice file deletion
 
-- propagate target language change in setting panel to quickaccess lang tag
+- enable WASM all the time
+
+- clean up Settings panel
+
+- dev dashboard:
+  - make it available in prod builds just like dev settings in android
+  - count* variable not saved, WASMmerge calls are saved (??)
 
 - support Condensed Audio summaries
+
+- convert all console.* logging calls into logger.ts calls
 
 - remove useless test files
 

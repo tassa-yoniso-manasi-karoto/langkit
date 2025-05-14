@@ -8,6 +8,7 @@
     import { settings, showSettings, wasmActive } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
+    import { logger } from './lib/logger';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
     import { enableWasm, isWasmEnabled, getWasmModule } from './lib/wasm'; // Removed setWasmSizeThreshold
     import { wasmLogger, WasmLogLevel } from './lib/wasm-logger';
@@ -95,6 +96,19 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
     // References for LogViewer button positioning
     let logViewerButton: HTMLButtonElement;
     let logViewerButtonPosition = { x: 0, y: 0 };
+    
+    // Reactive tracking of language settings
+    // A reactive statement to sync settings target language with quick access language
+    $: {
+        if ($settings && $settings.targetLanguage !== undefined) {
+            // When the settings target language changes, update both the default and quick access
+            if ($settings.targetLanguage !== defaultTargetLanguage) {
+                logger.trace('settings', `Target language changed: ${defaultTargetLanguage} → ${$settings.targetLanguage}`);
+                defaultTargetLanguage = $settings.targetLanguage;
+                quickAccessLangTag = $settings.targetLanguage;
+            }
+        }
+    }
 
     // State for performance notice
     let showPerformanceNotice = false;

@@ -6,7 +6,7 @@ component inform from which part of the frontend was a given log emitted from.
 ## Core API
 
 ```typescript
-import { logger, LogLevel } from './lib/logger';
+import { logger } from './lib/logger';
 ```
 
 ### Log Levels
