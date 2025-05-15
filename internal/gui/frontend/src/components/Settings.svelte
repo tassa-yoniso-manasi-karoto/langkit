@@ -255,22 +255,16 @@ import { isDeveloperMode } from '../lib/developerMode';
         await validateLanguages();
         if (!isValid) return;
         try {
-            // Only update specific WebAssembly settings that should apply immediately
-            // Include logViewerVirtualizationThreshold in the check for immediate updates
-            if (currentSettings.useWasm !== undefined ||
-                currentSettings.wasmSizeThreshold !== undefined ||
-                currentSettings.forceWasmMode !== undefined ||
-                currentSettings.logViewerVirtualizationThreshold !== undefined) {
-                    
-                await (window as any).go.gui.App.SaveSettings(currentSettings);
-                // Create a new object with the correct type for forceWasmMode before setting
-                const settingsToUpdate = {
-                    ...currentSettings,
-                    forceWasmMode: currentSettings.forceWasmMode as "auto" | "enabled" | "disabled"
-                };
-                settings.set(settingsToUpdate);
-                wasmState = getWasmState();
-            }
+            // Always update settings (not just WebAssembly-related ones)
+            // UI settings like enableGlow and showLogViewerByDefault need to update immediately too
+            await (window as any).go.gui.App.SaveSettings(currentSettings);
+            // Create a new object with the correct type for forceWasmMode before setting
+            const settingsToUpdate = {
+                ...currentSettings,
+                forceWasmMode: currentSettings.forceWasmMode as "auto" | "enabled" | "disabled"
+            };
+            settings.set(settingsToUpdate);
+            wasmState = getWasmState();
         } catch (error) {
             logger.error('settings', 'Failed to update settings', { error });
         }

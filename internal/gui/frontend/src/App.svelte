@@ -275,6 +275,13 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         isProcessing = true;
         progress = 0;
         
+        // Apply "Show log viewer by default" setting when starting a process
+        const currentSettings = get(settings);
+        if (currentSettings && currentSettings.showLogViewerByDefault) {
+            showLogViewer = true;
+            logger.trace('app', 'Showing log viewer based on default setting');
+        }
+        
         // Completely clear all progress bars when starting a new process
         // This ensures we don't have lingering error states from previous runs
         progressBars.set([]);
@@ -351,7 +358,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             };
             
             settings.set(updatedSettings as any); // Use type assertion until Settings type is fully updated
-            showGlow = updatedSettings.enableGlow;
+            // Initialize showGlow based on enableGlow setting (if not minimized)
+            if (!isWindowMinimized) {
+                showGlow = updatedSettings.enableGlow;
+            }
             defaultTargetLanguage = updatedSettings.targetLanguage;
             showLogViewer = updatedSettings.showLogViewerByDefault;
         } catch (error) {
@@ -522,9 +532,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         progressUpdateDebounceTimer = null;
     }
 
-    // Define these functions in the component scope so they can be removed in onDestroy
+    // Define these functions and subscriptions in the component scope so they can be removed in onDestroy
     let handleTransitionEnd: (e: TransitionEvent) => void;
     let updateLogViewerButtonPosition: () => void;
+    let uiSettingsSubscription: () => void;
 
     onMount(async () => { // Make onMount async
         // Initialize window state detection - check initially and set up interval
@@ -625,6 +636,26 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                 
                 // Send current state to backend
                 syncWasmStateForReport();
+            });
+            
+            // Subscribe to UI settings changes
+            uiSettingsSubscription = settings.subscribe(($newSettings) => {
+                // Update showGlow when enableGlow setting changes
+                if ($newSettings && $newSettings.enableGlow !== undefined) {
+                    // Only update showGlow if not minimized
+                    if (!isWindowMinimized) {
+                        showGlow = $newSettings.enableGlow;
+                    }
+                }
+                
+                // Update showLogViewer when showLogViewerByDefault setting changes
+                if ($newSettings && $newSettings.showLogViewerByDefault !== undefined) {
+                    // If the user hasn't explicitly set showLogViewer yet, or if we're turning it on
+                    if (!isProcessing || $newSettings.showLogViewerByDefault) {
+                        showLogViewer = $newSettings.showLogViewerByDefault;
+                        logger.trace('app', `Updated log viewer visibility based on setting: ${showLogViewer ? 'visible' : 'hidden'}`);
+                    }
+                }
             });
             
             // Listen for settings changes to enable/disable WebAssembly
@@ -843,6 +874,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         }
         if (updateLogViewerButtonPosition) {
            window.removeEventListener('resize', updateLogViewerButtonPosition); 
+        }
+        // Unsubscribe from UI settings subscription
+        if (uiSettingsSubscription) {
+            uiSettingsSubscription();
         }
         
         // Log application shutdown
