@@ -1,6 +1,6 @@
 \<script lang="ts">
   import { testWasmMemoryAccess } from '../tests/wasm/memory-test';
-  import { wasmLogger, WasmLogLevel } from '../lib/wasm-logger';
+  import { logger } from '../lib/logger';
 
   export let variant: 'primary' | 'secondary' | 'debug' = 'debug';
   export let size: 'small' | 'medium' | 'large' = 'medium';
@@ -11,17 +11,17 @@
     if (isRunning) return;
 
     isRunning = true;
-    wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Starting WebAssembly memory test');
+    logger.info('memory-test', 'Starting WebAssembly memory test');
 
     try {
       // Force WASM module initialization if needed
-      wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Importing WASM module directly');
+      logger.info('memory-test', 'Importing WASM module directly');
 
       // Import the module directly to run test
       await testWasmMemoryAccess();
-      wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Memory test completed successfully');
+      logger.info('memory-test', 'Memory test completed successfully');
     } catch (error) {
-      wasmLogger.log(WasmLogLevel.ERROR, 'memory', 'Memory test failed', {
+      logger.error('memory-test', 'Memory test failed', {
         error: error instanceof Error ? error.message : String(error)
       });
     } finally {

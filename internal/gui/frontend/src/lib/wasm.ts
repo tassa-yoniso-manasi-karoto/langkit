@@ -1,5 +1,4 @@
 import initWasmBindgen, * as wasmGeneratedExports from '../wasm-generated/pkg/log_engine.js';
-import { wasmLogger, WasmLogLevel } from './wasm-logger';
 import { logger } from './logger';
 import {
   WasmInitStatus,
@@ -92,9 +91,9 @@ export function resetWasmMetrics(): void {
   resetWasmMetricsInternal();
   try {
     localStorage.removeItem('wasm-metrics');
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.INFO, 'metrics', 'Cleared saved metrics.');
+    if (shouldLogVerbose()) logger.info('store/wasm', 'Cleared saved metrics.');
   } catch (e: any) {
-    wasmLogger.log(WasmLogLevel.WARN, 'metrics', `Failed clear saved metrics: ${e.message}`);
+    logger.warn('store/wasm', `Failed clear saved metrics: ${e.message}`);
   }
 }
 
@@ -102,17 +101,17 @@ export function getWasmBuildInfo(): WasmBuildInfo | null { return wasmBuildInfo;
 
 export async function requestMemoryReset(): Promise<boolean> {
   if (!isWasmEnabled() || !wasmModule) {
-    wasmLogger.log(WasmLogLevel.WARN, 'memory', 'Mem reset: WASM not active.');
+    logger.warn('store/wasm', 'Mem reset: WASM not active.');
     return false;
   }
-  wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Performing WASM module reset.');
+  logger.info('store/wasm', 'Performing WASM module reset.');
   const currentSettings = get(settings);
   const wasForceEnabled = currentSettings.forceWasmMode === 'enabled';
   wasmModule = null; wasmInitialized = false; wasmEnabled = false;
   setWasmActive(false);
   await new Promise(resolve => setTimeout(resolve, 50));
   if (wasForceEnabled) {
-    wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Restoring WASM after reset.');
+    logger.info('store/wasm', 'Restoring WASM after reset.');
     return initializeWasm();
   }
   return true;
@@ -129,7 +128,7 @@ export function getWasmSizeThreshold(): number {
 export function setOperationThreshold(operation: string, threshold: number): void {
   const validatedThreshold = Math.max(WASM_CONFIG.MIN_THRESHOLD, Math.min(threshold, WASM_CONFIG.MAX_THRESHOLD));
   operationThresholds.set(operation, validatedThreshold);
-  if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.TRACE, 'config', `Set threshold ${operation}: ${validatedThreshold}`);
+  if (shouldLogVerbose()) logger.trace('store/wasm', `Set threshold ${operation}: ${validatedThreshold}`);
 }
 
 export function getOperationThreshold(operation: string): number {
@@ -139,7 +138,7 @@ export function getOperationThreshold(operation: string): number {
 export function enableWasm(enabled: boolean): Promise<boolean> {
   const previouslyEnabled = wasmEnabled;
   wasmEnabled = enabled;
-  if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.TRACE, 'config', `WASM ${enabled ? 'enabled' : 'disabled'}`);
+  if (shouldLogVerbose()) logger.trace('store/wasm', `WASM ${enabled ? 'enabled' : 'disabled'}`);
   if (enabled && !wasmInitialized && !initializePromise) {
     return initializeWasm();
   }
@@ -163,14 +162,14 @@ export function getWasmModule(): WasmModule | null { return wasmModule; }
 async function loadBuildInfo(version: string = 'unknown'): Promise<WasmBuildInfo | null> {
   try {
     const buildInfoPath = `/wasm/build-info.json?t=${Date.now()}`;
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.DEBUG, 'init', `Loading build info: ${buildInfoPath}`);
+    if (shouldLogVerbose()) logger.debug('store/wasm', `Loading build info: ${buildInfoPath}`);
     const response = await fetch(buildInfoPath);
     if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
     const buildInfoData = await response.json();
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.DEBUG, 'init', `Build info loaded: v${buildInfoData.version}`);
+    if (shouldLogVerbose()) logger.debug('store/wasm', `Build info loaded: v${buildInfoData.version}`);
     return buildInfoData;
   } catch (error: any) {
-    wasmLogger.log(WasmLogLevel.WARN, 'init', `Failed to load build-info.json: ${error.message}`);
+    logger.warn('store/wasm', `Failed to load build-info.json: ${error.message}`);
     return null;
   }
 }
@@ -191,21 +190,21 @@ export async function initializeWasm(): Promise<boolean> {
       resolve(false);
       return;
     }
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.TRACE, 'init', 'Starting WASM init');
+    if (shouldLogVerbose()) logger.trace('store/wasm', 'Starting WASM init');
 
     try {
       if (!isWasmSupported()) throw new WasmInitializationError("WASM not supported");
       const version = (window as any).__LANGKIT_VERSION || 'unknown';
       wasmBuildInfo = await loadBuildInfo(version); // Loads from /public/wasm/build-info.json
-      if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.INFO, 'init', `Env: ${version}, Build: ${wasmBuildInfo?.version || 'N/A'}`);
+      if (shouldLogVerbose()) logger.info('store/wasm', `Env: ${version}, Build: ${wasmBuildInfo?.version || 'N/A'}`);
       
-      wasmLogger.log(WasmLogLevel.INFO, 'init', 'Using statically imported, inlined WASM module.');
+      logger.info('store/wasm', 'Using statically imported, inlined WASM module.');
 
       // Use the async initializeWithInlinedBinary function which calls __wbg_init
       // This ensures the global overrides for WebAssembly.instantiate are triggered
-      wasmLogger.log(WasmLogLevel.INFO, 'init', 'Initializing WASM with inlined binary.');
+      logger.info('store/wasm', 'Initializing WASM with inlined binary.');
       const instantiatedModuleExports = await wasmGeneratedExports.initializeWithInlinedBinary();
-      wasmLogger.log(WasmLogLevel.INFO, 'init', 'WASM binary initialization completed.');
+      logger.info('store/wasm', 'WASM binary initialization completed');
 
       // Assign values to our module from the result of initialization
       const moduleInstance = {
@@ -228,12 +227,7 @@ export async function initializeWasm(): Promise<boolean> {
             apiAccessStatus.has_browser_api_access === true &&
             apiAccessStatus.total_bytes > 0) {
           browserApisOk = true;
-          wasmLogger.log(
-            WasmLogLevel.INFO,
-            'init',
-            'POST-INIT SUCCESS: WebAssembly browser APIs verified via inliner status check.',
-            { statusResult: apiAccessStatus }
-          );
+          logger.info('store/wasm', 'POST-INIT SUCCESS: WebAssembly browser APIs verified via inliner status check.', { statusResult: apiAccessStatus });
           // Update memory usage with the data from the status check
           updateMemoryUsage({
             total_bytes: apiAccessStatus.total_bytes,
@@ -243,20 +237,11 @@ export async function initializeWasm(): Promise<boolean> {
             available: true
           });
         } else {
-          wasmLogger.log(
-            WasmLogLevel.CRITICAL,
-            'init',
-            'POST-INIT WARNING: WebAssembly memory access check failed in inliner.',
-            { statusResult: apiAccessStatus }
-          );
+          logger.critical('store/wasm', 'POST-INIT WARNING: WebAssembly memory access check failed in inliner.', { statusResult: apiAccessStatus });
           // Continue to second check - don't fail yet
         }
       } else {
-        wasmLogger.log(
-          WasmLogLevel.WARN,
-          'init',
-          'get_memory_api_access_status function not found in WASM module.'
-        );
+        logger.warn('store/wasm', 'get_memory_api_access_status function not found in WASM module.');
         // Continue to second check
       }
 
@@ -266,16 +251,16 @@ export async function initializeWasm(): Promise<boolean> {
           memInfoFromRust = moduleInstance.get_memory_usage();
           if (memInfoFromRust && memInfoFromRust.has_browser_api_access === true && memInfoFromRust.total_bytes > 0) {
             browserApisOk = true;
-            wasmLogger.log(WasmLogLevel.INFO, 'init', 'POST-INIT SUCCESS: WASM APIs verified through Rust function.', { total_bytes: memInfoFromRust.total_bytes });
+            logger.info('store/wasm', 'POST-INIT SUCCESS: WASM APIs verified through Rust function.', { total_bytes: memInfoFromRust.total_bytes });
             updateMemoryUsage(memInfoFromRust);
           } else {
-            wasmLogger.log(WasmLogLevel.CRITICAL, 'init', 'POST-INIT FAILURE: Rust reports WebAssembly APIs inaccessible.', { memInfoFromRust });
+            logger.critical('store/wasm', 'POST-INIT FAILURE: Rust reports WebAssembly APIs inaccessible.', { memInfoFromRust });
           }
         } catch (e) {
-          wasmLogger.log(WasmLogLevel.CRITICAL, 'init', 'POST-INIT ERROR calling get_memory_usage()', { e });
+          logger.critical('store/wasm', 'POST-INIT ERROR calling get_memory_usage()', { e });
         }
       } else if (!browserApisOk) {
-        wasmLogger.log(WasmLogLevel.CRITICAL, 'init', 'POST-INIT FAILURE: WebAssembly browser APIs inaccessible via memory info');
+        logger.critical('store/wasm', 'POST-INIT FAILURE: WebAssembly browser APIs inaccessible via memory info');
       }
 
       if (!browserApisOk) {
@@ -294,14 +279,14 @@ export async function initializeWasm(): Promise<boolean> {
           const stdMemInfo = memInfoFromRust ? standardizeMemoryInfo(memInfoFromRust) : null;
           const initialBytes = stdMemInfo?.total_bytes || 0;
           const preallocTarget = 32 * 1024 * 1024;
-          if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.INFO,'memory', `Pre-allocating ${formatBytes(preallocTarget)}.`);
+          if (shouldLogVerbose()) logger.info('store/wasm', `Pre-allocating ${formatBytes(preallocTarget)}.`);
           if (wasmModule.ensure_sufficient_memory(preallocTarget)) {
             const afterMem = wasmModule.get_memory_usage();
             // Log the detailed memory object for diagnostics - always use standardizeMemoryInfo
             if (shouldLogVerbose()) {
               // Use the standardizeMemoryInfo helper which handles Maps correctly
               const stdAfterMem = standardizeMemoryInfo(afterMem);
-              wasmLogger.log(WasmLogLevel.INFO, 'memory', `Pre-alloc success. After: ${formatBytes(stdAfterMem?.total_bytes)}`);
+              logger.info('store/wasm', `Pre-alloc success. After: ${formatBytes(stdAfterMem?.total_bytes)}`);
 
               // Log extra info in dev mode
               if ((window as any).__LANGKIT_VERSION === 'dev') {
@@ -313,22 +298,22 @@ export async function initializeWasm(): Promise<boolean> {
                   const mapKeys = [];
                   try {
                     (afterMem as Map<string, any>).forEach((v, k) => mapKeys.push(k));
-                    wasmLogger.log(WasmLogLevel.DEBUG, 'memory', `Memory is a Map with keys: ${mapKeys.join(', ')}`);
+                    logger.debug('store/wasm', `Memory is a Map with keys: ${mapKeys.join(', ')}`);
                   } catch (e) {
-                    wasmLogger.log(WasmLogLevel.DEBUG, 'memory', `Error getting Map keys: ${e.message}`);
+                    logger.debug('store/wasm', `Error getting Map keys: ${e.message}`);
                   }
                 } else {
                   // Log regular object keys
                   const objKeys = Object.keys(afterMem || {});
-                  wasmLogger.log(WasmLogLevel.DEBUG, 'memory', `Memory is a regular object with keys: ${objKeys.join(', ')}`);
+                  logger.debug('store/wasm', `Memory is a regular object with keys: ${objKeys.join(', ')}`);
                 }
               }
             }
-          } else { wasmLogger.log(WasmLogLevel.WARN, 'memory', `Pre-alloc failed.`); }
-        } catch (e) { wasmLogger.log(WasmLogLevel.WARN, 'memory', `Pre-alloc error: ${e}`); }
+          } else { logger.warn('store/wasm', `Pre-alloc failed.`); }
+        } catch (e) { logger.warn('store/wasm', `Pre-alloc error: ${e}`); }
       }
       
-      wasmLogger.log(WasmLogLevel.INFO, 'init', 'WASM module initialized successfully.', { initTime: initTime.toFixed(0), wasmSize: getWasmSize() });
+      logger.info('store/wasm', 'WASM module initialized successfully.', { initTime: initTime.toFixed(0), wasmSize: getWasmSize() });
       scheduleMemoryCheck();
       loadSavedMetrics();
       if (wasmInitialized) setTimeout(() => preWarmWebAssembly(), 500);
@@ -336,7 +321,7 @@ export async function initializeWasm(): Promise<boolean> {
     } catch (error: unknown) {
       initTime = performance.now() - startTime;
       const err = error instanceof Error ? error : new Error(String(error));
-      wasmLogger.log(WasmLogLevel.ERROR, 'init', `WASM Init Error: ${err.message}`, { errName: err.name });
+      logger.error('store/wasm', `WASM Init Error: ${err.message}`, { errName: err.name });
       handleWasmError(err, 'initialization', { initTime, buildInfo });
       wasmInitialized = false; wasmModule = null;
       wasmState.initStatus = WasmInitStatus.FAILED; wasmState.initTime = initTime;
@@ -351,7 +336,7 @@ export async function initializeWasm(): Promise<boolean> {
 
 function preWarmWebAssembly(): void {
   if (!isWasmEnabled() || !wasmModule) return;
-  if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.INFO, 'init', 'Pre-warming WASM.');
+  if (shouldLogVerbose()) logger.info('store/wasm', 'Pre-warming WASM.');
   try {
     // Create simple objects for pre-warming that match the expected structure
     // IMPORTANT: We need to create plain objects, not Maps
@@ -374,13 +359,13 @@ function preWarmWebAssembly(): void {
     const serializedA = ensureWasmSerializable(sa);
     const serializedB = ensureWasmSerializable(sb);
 
-    wasmLogger.log(WasmLogLevel.TRACE, 'init', 'Pre-warming with serialized test objects', {
+    logger.trace('store/wasm', 'Pre-warming with serialized test objects', {
       objectType: Object.prototype.toString.call(serializedA[0]),
       isMap: Object.prototype.toString.call(serializedA[0]) === '[object Map]'
     });
 
     // Debug the serialized objects
-    wasmLogger.log(WasmLogLevel.TRACE, 'init', 'First serialized object', {
+    logger.trace('store/wasm', 'First serialized object', {
       keys: Object.keys(serializedA[0]).join(', '),
       level: serializedA[0].level,
       message: serializedA[0].message
@@ -388,10 +373,10 @@ function preWarmWebAssembly(): void {
 
     wasmModule.merge_insert_logs(serializedA, serializedB);
 
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.INFO, 'init', `Pre-warm complete.`);
+    if (shouldLogVerbose()) logger.info('store/wasm', `Pre-warm complete.`);
     setupMaintenanceInterval();
   } catch (error) {
-    wasmLogger.log(WasmLogLevel.ERROR, 'init', 'Pre-warm failed', {
+    logger.error('store/wasm', 'Pre-warm failed', {
       error: error instanceof Error ? error.message : String(error)
     });
     handleWasmError(error instanceof Error ? error : new Error(String(error)), 'preWarm');
@@ -402,11 +387,11 @@ function setupMaintenanceInterval(): void {
   if (wasmState.maintenanceIntervalId) clearInterval(wasmState.maintenanceIntervalId);
   const intervalId = setInterval(() => {
     if (!isWasmEnabled() || !wasmModule || !wasmState.lastUsed || (Date.now() - wasmState.lastUsed < 600000)) return;
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.TRACE, 'maintenance', 'Performing WASM maintenance.');
+    if (shouldLogVerbose()) logger.trace('store/wasm', 'Performing WASM maintenance.');
     try {
       // Example: if (wasmModule.get_memory_usage()?.utilization_estimate > 0.7 && wasmModule.reset_internal_allocation_stats) wasmModule.reset_internal_allocation_stats();
       adjustSizeThresholds();
-    } catch (e) { if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.WARN, 'maintenance', `Maint. error: ${e}`);}
+    } catch (e) { if (shouldLogVerbose()) logger.warn('store/wasm', `Maint. error: ${e}`);}
   }, 300000);
   updateState({ maintenanceIntervalId: intervalId as unknown as number });
   window.addEventListener('beforeunload', () => { if (wasmState.maintenanceIntervalId) clearInterval(wasmState.maintenanceIntervalId); });
@@ -438,7 +423,7 @@ export function adjustSizeThresholds(): boolean {
     settings.update($s => ({ ...$s, wasmSizeThreshold: newThreshold }));
     lastThresholdAdjustmentTime = now;
     // updateState({ thresholdAdjustments: ... }); // Optional: track adjustments in wasmState
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.TRACE, 'adaptive', `Threshold: ${currentThreshold} -> ${newThreshold} (${adjustmentReason})`);
+    if (shouldLogVerbose()) logger.trace('store/wasm', `Threshold: ${currentThreshold} -> ${newThreshold} (${adjustmentReason})`);
     return true;
   }
   return false;
@@ -449,12 +434,12 @@ function checkMemoryThresholds(): void {
   try {
     const memInfo = standardizeMemoryInfo(wasmModule.get_memory_usage());
     if (memInfo.utilization > 0.85) {
-      wasmLogger.log(WasmLogLevel.WARN, 'memory', `Critical memory: ${(memInfo.utilization*100).toFixed(0)}%`);
+      logger.warn('store/wasm', `Critical memory: ${(memInfo.utilization*100).toFixed(0)}%`);
       if (wasmModule.reset_internal_allocation_stats) wasmModule.reset_internal_allocation_stats();
     } else if (memInfo.utilization > 0.7 && shouldLogVerbose()) {
-      wasmLogger.log(WasmLogLevel.TRACE, 'memory', `High memory: ${(memInfo.utilization*100).toFixed(0)}%`);
+      logger.trace('store/wasm', `High memory: ${(memInfo.utilization*100).toFixed(0)}%`);
     }
-  } catch (e) { wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Mem check fail: ${e}`); }
+  } catch (e) { logger.error('store/wasm', `Mem check fail: ${e}`); }
 }
 
 function scheduleMemoryCheck() {
@@ -470,9 +455,9 @@ function scheduleMemoryCheck() {
         const now = Date.now();
         if (shouldLogVerbose() && (now - lastMemoryCheckLog > 300000)) {
           lastMemoryCheckLog = now;
-          wasmLogger.log(WasmLogLevel.TRACE, 'memory', `Mem: ${formatBytes(memInfo.used_bytes)}/${formatBytes(memInfo.total_bytes)} (${(memInfo.utilization*100).toFixed(0)}%)`);
+          logger.trace('store/wasm', `Mem: ${formatBytes(memInfo.used_bytes)}/${formatBytes(memInfo.total_bytes)} (${(memInfo.utilization*100).toFixed(0)}%)`);
         }
-      } catch (e) { wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Periodic mem check fail: ${e}`); }
+      } catch (e) { logger.error('store/wasm', `Periodic mem check fail: ${e}`); }
     }
   }, 30000);
 }
@@ -497,9 +482,9 @@ function getWasmSize(): number {
     if (wasmBuildInfo && typeof (wasmBuildInfo as any).wasmSizeBytes === 'number') {
       return (wasmBuildInfo as any).wasmSizeBytes;
     }
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.DEBUG, 'init', 'getWasmSize: wasmSizeBytes missing.');
+    if (shouldLogVerbose()) logger.debug('store/wasm', 'getWasmSize: wasmSizeBytes missing.');
     return 0;
-  } catch (e) { wasmLogger.log(WasmLogLevel.WARN, 'init', `WASM size error: ${e}`); return 0; }
+  } catch (e) { logger.warn('store/wasm', `WASM size error: ${e}`); return 0; }
 }
 
 function loadSavedMetrics(): void {
@@ -509,15 +494,15 @@ function loadSavedMetrics(): void {
     if (p.performanceMetrics) wasmState.performanceMetrics = { ...wasmState.performanceMetrics, ...p.performanceMetrics };
     if (typeof p.totalOperations === 'number') wasmState.totalOperations = p.totalOperations;
     if (p.operationsPerType) wasmState.operationsPerType = { ...p.operationsPerType };
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.INFO, 'metrics', 'Loaded saved metrics.');
-  } catch (e) { wasmLogger.log(WasmLogLevel.WARN, 'metrics', `Load metrics fail: ${e}`); localStorage.removeItem('wasm-metrics'); }
+    if (shouldLogVerbose()) logger.info('store/wasm', 'Loaded saved metrics.');
+  } catch (e) { logger.warn('store/wasm', `Load metrics fail: ${e}`); localStorage.removeItem('wasm-metrics'); }
 }
 function saveMetrics(): void {
   if (!wasmInitialized) return;
   try {
     localStorage.setItem('wasm-metrics', JSON.stringify({ performanceMetrics: wasmState.performanceMetrics, totalOperations: wasmState.totalOperations, operationsPerType: wasmState.operationsPerType, savedAt: new Date().toISOString() }));
-    if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.DEBUG, 'metrics', 'Saved metrics.');
-  } catch (e) { wasmLogger.log(WasmLogLevel.WARN, 'metrics', `Save metrics fail: ${e}`); }
+    if (shouldLogVerbose()) logger.debug('store/wasm', 'Saved metrics.');
+  } catch (e) { logger.warn('store/wasm', `Save metrics fail: ${e}`); }
 }
 function setupMetricsPersistence(): void {
   setInterval(() => { if (wasmInitialized) saveMetrics(); }, 300000);
@@ -535,7 +520,7 @@ function categorizeWasmError(error: Error): any {
 const operationBlacklist: Map<string, any> = new Map();
 export function isOperationBlacklisted(operation: string): boolean { 
   const entry = operationBlacklist.get(operation); if (!entry) return false;
-  if (Date.now() > entry.nextRetryTime) { operationBlacklist.delete(operation); updateBlacklistState(); if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.TRACE, 'recovery', `Retry ${operation}`); return false; }
+  if (Date.now() > entry.nextRetryTime) { operationBlacklist.delete(operation); updateBlacklistState(); if (shouldLogVerbose()) logger.trace('store/wasm', `Retry ${operation}`); return false; }
   return true;
 }
 export function addToOperationBlacklist(operation: string, error?: Error): void { 
@@ -543,11 +528,11 @@ export function addToOperationBlacklist(operation: string, error?: Error): void 
   const backoffMs = Math.min(5000 * Math.pow(3, retryCount - 1), 1800000);
   const entry = { operation, timestamp: now, retryCount, nextRetryTime: now + backoffMs, lastError: error?.message, backoffMs };
   operationBlacklist.set(operation, entry);
-  wasmLogger.log(retryCount >= 3 ? WasmLogLevel.ERROR : WasmLogLevel.WARN, 'recovery', `Blacklisting ${operation} for ${Math.round(backoffMs/1000)}s (#${retryCount})`, { err: error?.message });
+  logger.warn('store/wasm', `Blacklisting ${operation} for ${Math.round(backoffMs/1000)}s (#${retryCount})`, { err: error?.message });
   updateBlacklistState();
 }
 export function clearOperationErrorCount(operation: string): void {
-  if (operationBlacklist.has(operation)) { if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.TRACE, 'recovery', `${operation} succeeded, removed from blacklist.`); operationBlacklist.delete(operation); updateBlacklistState(); }
+  if (operationBlacklist.has(operation)) { if (shouldLogVerbose()) logger.trace('store/wasm', `${operation} succeeded, removed from blacklist.`); operationBlacklist.delete(operation); updateBlacklistState(); }
 }
 function updateBlacklistState(): void {
   updateState({ blacklistedOperations: Array.from(operationBlacklist.values()) });
@@ -558,8 +543,8 @@ function isWasmInitializationError(error: Error): boolean {
 
 function getRecoveryStrategy(error: Error, errorType: any, operation: string): () => void { 
   switch(errorType.recoveryAction) {
-    case 'disable': return () => { wasmLogger.log(WasmLogLevel.CRITICAL, 'recovery', `Disabling WASM: critical error in ${operation}`); enableWasm(false); };
-    case 'reset': return () => { wasmLogger.log(WasmLogLevel.WARN, 'memory', `Attempting WASM reset: memory error in ${operation}`); requestMemoryReset().catch(e => wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Module reset fail: ${e}`)); };
+    case 'disable': return () => { logger.critical('store/wasm', `Disabling WASM: critical error in ${operation}`); enableWasm(false); };
+    case 'reset': return () => { logger.warn('store/wasm', `Attempting WASM reset: memory error in ${operation}`); requestMemoryReset().catch(e => logger.error('store/wasm', `Module reset fail: ${e}`)); };
     case 'blacklist': return () => addToOperationBlacklist(operation, error);
     default: return () => {};
   }
@@ -567,7 +552,7 @@ function getRecoveryStrategy(error: Error, errorType: any, operation: string): (
 export function handleWasmError(error: unknown, operation: string, context: Record<string, any> = {}): void { 
   const err = error instanceof Error ? error : new Error(String(error));
   const errorType = categorizeWasmError(err);
-  wasmLogger.log(errorType.severity === 'high' ? WasmLogLevel.ERROR : WasmLogLevel.WARN, 'error', `WASM ${operation} fail: ${err.message}`, { name: err.name, op: operation, cat: errorType.category, rec: errorType.recoveryAction });
+  logger.warn('store/wasm', `WASM ${operation} fail: ${err.message}`, { name: err.name, op: operation, cat: errorType.category, rec: errorType.recoveryAction });
   if (errorType.severity === 'high') setWasmError(err);
   getRecoveryStrategy(err, errorType, operation)();
   if (errorType.severity === 'high') reportWasmState();
@@ -600,9 +585,9 @@ export function getStandardizedMemoryInfo(): any {
   try {
     if (!isWasmEnabled() || !wasmModule || !wasmModule.get_memory_usage) return DEFAULT_MEMORY_INFO;
     const rawMemInfo = wasmModule.get_memory_usage();
-    if (!rawMemInfo || typeof rawMemInfo !== 'object') { if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.WARN, 'memory', 'Invalid mem obj from WASM'); return DEFAULT_MEMORY_INFO; }
+    if (!rawMemInfo || typeof rawMemInfo !== 'object') { if (shouldLogVerbose()) logger.warn('store/wasm', 'Invalid mem obj from WASM'); return DEFAULT_MEMORY_INFO; }
     return standardizeMemoryInfo(rawMemInfo);
-  } catch (e) { if (shouldLogVerbose()) wasmLogger.log(WasmLogLevel.ERROR, 'memory', `getStdMemInfo err: ${e}`); return DEFAULT_MEMORY_INFO; }
+  } catch (e) { if (shouldLogVerbose()) logger.error('store/wasm', `getStdMemInfo err: ${e}`); return DEFAULT_MEMORY_INFO; }
 }
 export function checkMemoryAvailability(logCount: number): boolean {
   if (logCount < 500) return true;
@@ -614,7 +599,7 @@ export function checkMemoryAvailability(logCount: number): boolean {
     if (logCount > 1000 && memInfo.utilization > 0.8) return false;
     const estBytes = logCount * 250, total = memInfo.total_bytes||0, used = memInfo.used_bytes||0;
     return (Math.max(0, total - used)) >= (estBytes * 1.2);
-  } catch (e) { wasmLogger.log(WasmLogLevel.ERROR, 'memory', `checkMemAvail err: ${e}`); return false; }
+  } catch (e) { logger.error('store/wasm', `checkMemAvail err: ${e}`); return false; }
 }
 
 /**
@@ -677,13 +662,13 @@ export function serializeLogsForWasm(logs: any[]): { data: any; time: number; op
 
   // Validate input
   if (!logs) {
-    wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Null or undefined logs array passed to serialization');
+    logger.warn('store/wasm', 'Null or undefined logs array passed to serialization');
     return { data: [], time: 0, optimization: 'empty_array_fallback' };
   }
 
   // Handle non-arrays
   if (!Array.isArray(logs)) {
-    wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Non-array value passed to serializeLogsForWasm', {
+    logger.warn('store/wasm', 'Non-array value passed to serializeLogsForWasm', {
       type: typeof logs,
       toString: Object.prototype.toString.call(logs)
     });
@@ -699,7 +684,7 @@ export function serializeLogsForWasm(logs: any[]): { data: any; time: number; op
     // Log for diagnostics
     if (logs.length > 0) {
       const firstItem = logs[0];
-      wasmLogger.log(WasmLogLevel.TRACE, 'ser', 'Serializing logs array for WASM', {
+      logger.trace('store/wasm', 'Serializing logs array for WASM', {
         count: logs.length,
         firstItemType: typeof firstItem,
         firstItemToString: firstItem ? Object.prototype.toString.call(firstItem) : 'null',
@@ -714,7 +699,7 @@ export function serializeLogsForWasm(logs: any[]): { data: any; time: number; op
   }
   catch (e) {
     // Always log serialization errors - they're critical
-    wasmLogger.log(WasmLogLevel.WARN, 'ser', `Serialization error: ${e instanceof Error ? e.message : String(e)}`, {
+    logger.warn('store/wasm', `Serialization error: ${e instanceof Error ? e.message : String(e)}`, {
       logCount: logs.length
     });
 
@@ -742,13 +727,13 @@ export function deserializeLogsFromWasm(data: any): { logs: any[]; time: number;
 
   // Validate input
   if (!data) {
-    wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Null or undefined data returned from WASM');
+    logger.warn('store/wasm', 'Null or undefined data returned from WASM');
     return { logs: [], time: 0 };
   }
 
   try {
     // Log result type for diagnostics (changed from DEBUG to TRACE to reduce log spam)
-    wasmLogger.log(WasmLogLevel.TRACE, 'ser', 'Deserializing data from WASM', {
+    logger.trace('store/wasm', 'Deserializing data from WASM', {
       type: typeof data,
       toString: Object.prototype.toString.call(data),
       isArray: Array.isArray(data),
@@ -763,17 +748,17 @@ export function deserializeLogsFromWasm(data: any): { logs: any[]; time: number;
     if (Array.isArray(data)) {
       resultArray = data;
       // Log the array length to help diagnose empty results (changed from DEBUG to TRACE to reduce log spam)
-      //wasmLogger.log(WasmLogLevel.TRACE, 'ser', `Deserialized array length: ${resultArray.length}`);
+      //logger.trace('store/wasm', `Deserialized array length: ${resultArray.length}`);
 
       // If array is empty when we expected data, log a warning
       if (resultArray.length === 0) {
-        wasmLogger.log(WasmLogLevel.WARN, 'ser', 'WASM returned empty array when non-empty was expected');
+        logger.warn('store/wasm', 'WASM returned empty array when non-empty was expected');
       }
 
       // Log a sample item to see if it has the right structure (changed from DEBUG to TRACE to reduce log spam)
       if (resultArray.length > 0) {
         const sample = resultArray[0];
-        wasmLogger.log(WasmLogLevel.TRACE, 'ser', 'Sample deserialized log entry', {
+        logger.trace('store/wasm', 'Sample deserialized log entry', {
           keys: Object.keys(sample).join(', '),
           hasLevel: sample.hasOwnProperty('level'),
           hasMessage: sample.hasOwnProperty('message'),
@@ -786,31 +771,31 @@ export function deserializeLogsFromWasm(data: any): { logs: any[]; time: number;
       if (Object.prototype.toString.call(data) === '[object Map]') {
         try {
           resultArray = Array.from((data as Map<any, any>).values());
-          wasmLogger.log(WasmLogLevel.DEBUG, 'ser', `Converted Map to array of length: ${resultArray.length}`);
+          logger.debug('store/wasm', `Converted Map to array of length: ${resultArray.length}`);
         } catch (mapErr) {
-          wasmLogger.log(WasmLogLevel.WARN, 'ser', `Failed to extract Map values: ${mapErr}`);
+          logger.warn('store/wasm', `Failed to extract Map values: ${mapErr}`);
         }
       } else {
         // Try to convert object to array if it has numeric keys
         const keys = Object.keys(data).filter(k => !isNaN(Number(k)));
         if (keys.length > 0) {
           resultArray = keys.map(k => data[k]).filter(Boolean);
-          wasmLogger.log(WasmLogLevel.DEBUG, 'ser', `Converted object with numeric keys to array of length: ${resultArray.length}`);
+          logger.debug('store/wasm', `Converted object with numeric keys to array of length: ${resultArray.length}`);
         } else {
           // Last attempt - check if there's a data or entries field
           if (data.data && Array.isArray(data.data)) {
             resultArray = data.data;
-            wasmLogger.log(WasmLogLevel.DEBUG, 'ser', `Used data field from object, length: ${resultArray.length}`);
+            logger.debug('store/wasm', `Used data field from object, length: ${resultArray.length}`);
           } else if (data.entries && Array.isArray(data.entries)) {
             resultArray = data.entries;
-            wasmLogger.log(WasmLogLevel.DEBUG, 'ser', `Used entries field from object, length: ${resultArray.length}`);
+            logger.debug('store/wasm', `Used entries field from object, length: ${resultArray.length}`);
           } else {
             // Try to wrap the single object in an array if it looks like a log entry
             if (data.level && data.message) {
               resultArray = [data];
-              wasmLogger.log(WasmLogLevel.DEBUG, 'ser', `Wrapped single log entry in array`);
+              logger.debug('store/wasm', `Wrapped single log entry in array`);
             } else {
-              wasmLogger.log(WasmLogLevel.WARN, 'ser', `Couldn't convert object to array`, {
+              logger.warn('store/wasm', `Couldn't convert object to array`, {
                 keys: Object.keys(data).join(', ')
               });
             }
@@ -902,11 +887,11 @@ export function deserializeLogsFromWasm(data: any): { logs: any[]; time: number;
     });
 
     // Log the final return value (changed from DEBUG to TRACE to reduce log spam)
-    //wasmLogger.log(WasmLogLevel.TRACE, 'ser', `Returning array of length: ${resultArray.length}`);
+    //logger.trace('store/wasm', `Returning array of length: ${resultArray.length}`);
 
     return { logs: resultArray, time: performance.now() - s };
   } catch (e) {
-    wasmLogger.log(WasmLogLevel.WARN, 'ser', `Deserialization error: ${e instanceof Error ? e.message : String(e)}`);
+    logger.warn('store/wasm', `Deserialization error: ${e instanceof Error ? e.message : String(e)}`);
     return { logs: [], time: performance.now() - s };
   }
 }

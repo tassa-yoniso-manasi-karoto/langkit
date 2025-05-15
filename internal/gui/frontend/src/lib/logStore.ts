@@ -17,7 +17,7 @@ import {
   clearOperationErrorCount
 } from './wasm';
 import type { WasmModule } from './wasm'; // Import WasmModule as type
-import { wasmLogger, WasmLogLevel } from './wasm-logger';
+
 // Keep direct state function imports
 import { trackOperation, updatePerformanceMetrics } from './wasm-state'; // setWasmError is handled within handleWasmError now
 
@@ -202,11 +202,11 @@ function createLogStore() {
     function ensureSerializable<T>(data: T[]): any[] {
       if (!data) return [];
       if (!Array.isArray(data)) {
-        wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Non-array passed to ensureSerializable');
+        logger.warn('store/logStore', 'Non-array passed to ensureSerializable');
         return [];
       }
 
-      wasmLogger.log(WasmLogLevel.TRACE, 'ser', 'Serializing for WASM', {
+      logger.trace('store/logStore', 'Serializing for WASM', {
         count: data.length,
         sampleType: data.length > 0 ? typeof data[0] : 'none'
       });
@@ -232,7 +232,7 @@ function createLogStore() {
                 obj[key] = value;
               }
             } catch (entriesErr) {
-              wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Failed to convert Map using entries()', { error: String(entriesErr) });
+              logger.warn('store/logStore', 'Failed to convert Map using entries()', { error: String(entriesErr) });
               // Just return the object as-is - let the WASM error show us what's happening
               return obj;
             }
@@ -240,7 +240,7 @@ function createLogStore() {
 
           return obj;
         } catch (err) {
-          wasmLogger.log(WasmLogLevel.WARN, 'ser', 'Error converting Map', { error: String(err) });
+          logger.warn('store/logStore', 'Error converting Map', { error: String(err) });
           return {}; // Return empty object as fallback
         }
       };
@@ -299,13 +299,6 @@ function createLogStore() {
       // This ensures user preferences take precedence over automatic checks
       if ($settings.forceWasmMode === 'enabled' && isWasmEnabled() && !isOperationBlacklisted('mergeInsertLogs')) {
         try {
-          // COMPLETELY REMOVE THIS LOG - it's redundant and happens for EVERY operation (Claude's suggestion)
-          // wasmLogger.log(
-          //   WasmLogLevel.INFO,
-          //   'force',
-          //   `Using WebAssembly for ${totalLogCount} logs due to force setting`
-          // );
-          
           const wasmModule = getWasmModule();
           if (!wasmModule) {
             throw new Error("WebAssembly module not available");
@@ -319,20 +312,15 @@ function createLogStore() {
           const serializedNew = ensureSerializable(serialized.data.slice(existingLogs.length));
 
           // Log what we're sending for debugging
-          wasmLogger.log(
-            WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
-            'wasm-data',
-            'Forced WASM mode - sending data to merge_insert_logs',
-            {
-              existingType: Object.prototype.toString.call(serializedExisting),
-              newType: Object.prototype.toString.call(serializedNew),
-              hasMap: serializedExisting.some(item =>
-                item && Object.prototype.toString.call(item) === '[object Map]'
-              ) || serializedNew.some(item =>
-                item && Object.prototype.toString.call(item) === '[object Map]'
-              )
-            }
-          );
+          logger.trace('store/logStore', 'Forced WASM mode - sending data to merge_insert_logs', {
+            existingType: Object.prototype.toString.call(serializedExisting),
+            newType: Object.prototype.toString.call(serializedNew),
+            hasMap: serializedExisting.some(item =>
+              item && Object.prototype.toString.call(item) === '[object Map]'
+            ) || serializedNew.some(item =>
+              item && Object.prototype.toString.call(item) === '[object Map]'
+            )
+          });
 
           const wasmStartTime = performance.now();
           const result = wasmModule.merge_insert_logs(
@@ -358,11 +346,7 @@ function createLogStore() {
 
       // Only check blacklist after force settings
       if (isOperationBlacklisted('mergeInsertLogs')) {
-        wasmLogger.log(
-          WasmLogLevel.INFO,
-          'fallback',
-          `Using TypeScript fallback for blacklisted operation (mergeInsertLogs)`
-        );
+        logger.info('store/logStore', `Using TypeScript fallback for blacklisted operation (mergeInsertLogs)`);
         return mergeInsertLogsTS(existingLogs, newLogs);
       }
 
@@ -371,12 +355,7 @@ function createLogStore() {
         // Check memory availability with simplified boolean check
         const memoryAvailable = checkMemoryAvailability(totalLogCount);
         if (!memoryAvailable) {
-          wasmLogger.log(
-            WasmLogLevel.DEBUG,
-            'memory',
-            `Using TypeScript fallback due to memory constraints`,
-            { logCount: totalLogCount }
-          );
+          logger.debug('store/logStore', `Using TypeScript fallback due to memory constraints`, { logCount: totalLogCount });
           return mergeInsertLogsTS(existingLogs, newLogs);
         }
 
@@ -406,7 +385,7 @@ function createLogStore() {
 
             // For very large log sets, use the batch merge approach
             if (totalLogCount > 10000) {
-              wasmLogger.log(WasmLogLevel.DEBUG, 'performance', 'Using pre-sort strategy for very large merge', { logCount: totalLogCount });
+              logger.debug('store/logStore', 'Using pre-sort strategy for very large merge', { logCount: totalLogCount });
               // Sort the arrays first in JS to potentially reduce WebAssembly workload if WASM sort is slow
               const sortedExisting = [...existingLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
               const sortedNew = [...newLogs].sort((a, b) => (a._unix_time || 0) - (b._unix_time || 0));
@@ -417,15 +396,10 @@ function createLogStore() {
               result = wasmModule.merge_insert_logs(serializedExisting, serializedNew);
 
               // Log what we're sending to debug the Map issue
-              wasmLogger.log(
-                WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
-                'wasm-data',
-                'Sending data to WASM merge function',
-                {
-                  existingType: Object.prototype.toString.call(serializedExisting),
-                  newType: Object.prototype.toString.call(serializedNew)
-                }
-              );
+              logger.trace('store/logStore', 'Sending data to WASM merge function', {
+                existingType: Object.prototype.toString.call(serializedExisting),
+                newType: Object.prototype.toString.call(serializedNew)
+              });
             }
             // For normal sized log sets, use standard WASM approach
             else {
@@ -434,15 +408,10 @@ function createLogStore() {
               const serializedNew = ensureSerializable(serialized.data.slice(existingLogs.length));
 
               // Log what we're sending to debug the Map issue
-              wasmLogger.log(
-                WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
-                'wasm-data',
-                'Sending data to WASM merge function',
-                {
-                  existingType: Object.prototype.toString.call(serializedExisting),
-                  newType: Object.prototype.toString.call(serializedNew)
-                }
-              );
+              logger.trace('store/logStore', 'Sending data to WASM merge function', {
+                existingType: Object.prototype.toString.call(serializedExisting),
+                newType: Object.prototype.toString.call(serializedNew)
+              });
 
               result = wasmModule.merge_insert_logs(serializedExisting, serializedNew);
             }
@@ -455,23 +424,18 @@ function createLogStore() {
             const deserialized = deserializeLogsFromWasm(result);
 
             // Add diagnostic logging to examine the deserialized result
-            wasmLogger.log(
-              WasmLogLevel.TRACE,  // Changed from DEBUG to TRACE to reduce log spam
-              'wasm-result',
-              'WASM merge result analysis',
-              {
-                resultLength: deserialized.logs.length,
-                hasItems: deserialized.logs.length > 0,
-                firstItem: deserialized.logs.length > 0 ? JSON.stringify(deserialized.logs[0]).slice(0, 100) + '...' : 'none',
-                // If we have items, check their structure
-                hasExpectedFields: deserialized.logs.length > 0 ?
-                  deserialized.logs[0].hasOwnProperty('level') &&
-                  deserialized.logs[0].hasOwnProperty('message') &&
-                  deserialized.logs[0].hasOwnProperty('time') : false,
-                // Sample of fields if available
-                fields: deserialized.logs.length > 0 ? Object.keys(deserialized.logs[0]).join(', ') : 'none'
-              }
-            );
+            logger.trace('store/logStore', 'WASM merge result analysis', {
+              resultLength: deserialized.logs.length,
+              hasItems: deserialized.logs.length > 0,
+              firstItem: deserialized.logs.length > 0 ? JSON.stringify(deserialized.logs[0]).slice(0, 100) + '...' : 'none',
+              // If we have items, check their structure
+              hasExpectedFields: deserialized.logs.length > 0 ?
+                deserialized.logs[0].hasOwnProperty('level') &&
+                deserialized.logs[0].hasOwnProperty('message') &&
+                deserialized.logs[0].hasOwnProperty('time') : false,
+              // Sample of fields if available
+              fields: deserialized.logs.length > 0 ? Object.keys(deserialized.logs[0]).join(', ') : 'none'
+            });
 
             // Record successful operation (Phase 1.2)
             clearOperationErrorCount('mergeInsertLogs');
@@ -495,21 +459,16 @@ function createLogStore() {
               tsTime = tsEndTime - tsStartTime;
 
               // Log comparison (CHANGED FROM INFO to TRACE)
-              wasmLogger.log(
-                WasmLogLevel.TRACE,
-                'performance',
-                `Merge performance comparison for ${totalLogCount} logs`,
-                {
-                  wasmTime: wasmTime.toFixed(2) + 'ms',
-                  tsTime: tsTime.toFixed(2) + 'ms',
-                  serializationTime: serialized.time.toFixed(2) + 'ms',
-                  deserializationTime: deserialized.time.toFixed(2) + 'ms',
-                  totalWasmOverhead: (wasmTime + serialized.time + deserialized.time).toFixed(2) + 'ms',
-                  speedup: tsTime > 0 && wasmTime > 0 ? (tsTime / wasmTime).toFixed(2) + 'x' : 'N/A',
-                  netSpeedup: tsTime > 0 && (wasmTime + serialized.time + deserialized.time) > 0 ? (tsTime / (wasmTime + serialized.time + deserialized.time)).toFixed(2) + 'x' : 'N/A',
-                  serializationOptimization: serialized.optimization
-                }
-              );
+              logger.trace('store/logStore', `Merge performance comparison for ${totalLogCount} logs`, {
+                wasmTime: wasmTime.toFixed(2) + 'ms',
+                tsTime: tsTime.toFixed(2) + 'ms',
+                serializationTime: serialized.time.toFixed(2) + 'ms',
+                deserializationTime: deserialized.time.toFixed(2) + 'ms',
+                totalWasmOverhead: (wasmTime + serialized.time + deserialized.time).toFixed(2) + 'ms',
+                speedup: tsTime > 0 && wasmTime > 0 ? (tsTime / wasmTime).toFixed(2) + 'x' : 'N/A',
+                netSpeedup: tsTime > 0 && (wasmTime + serialized.time + deserialized.time) > 0 ? (tsTime / (wasmTime + serialized.time + deserialized.time)).toFixed(2) + 'x' : 'N/A',
+                serializationOptimization: serialized.optimization
+              });
 
               // Update TypeScript comparison metrics specifically
               updatePerformanceMetrics(
@@ -536,7 +495,7 @@ function createLogStore() {
           }
           //
         } else { // Add an else block for clarity
-           //wasmLogger.log(WasmLogLevel.DEBUG, 'threshold', `Using TypeScript for mergeInsertLogs (${totalLogCount} logs) based on adaptive decision.`);
+           //logger.debug('store/logStore', `Using TypeScript for mergeInsertLogs (${totalLogCount} logs) based on adaptive decision.`);
            return mergeInsertLogsTS(existingLogs, newLogs);
         }
       }

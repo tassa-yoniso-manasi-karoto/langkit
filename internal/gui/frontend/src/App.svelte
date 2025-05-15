@@ -11,7 +11,6 @@
     import { logger } from './lib/logger';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
     import { enableWasm, isWasmEnabled, getWasmModule } from './lib/wasm'; // Removed setWasmSizeThreshold
-    import { wasmLogger, WasmLogLevel } from './lib/wasm-logger';
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
     // Import window API from Wails
@@ -578,7 +577,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         // --- WebAssembly Initialization ---
         try {
             // First, log the WebAssembly startup
-            wasmLogger.log(WasmLogLevel.INFO, 'init', 'Starting WebAssembly subsystem initialization');
+            logger.info('app', 'Starting WebAssembly subsystem initialization');
             
             // Load settings before initializing WebAssembly
             await loadSettings(); 
@@ -586,7 +585,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             
             // Check if WebAssembly is supported by the browser
             if (!await import('./lib/wasm').then(m => m.isWasmSupported())) {
-                wasmLogger.log(WasmLogLevel.WARN, 'init', 'WebAssembly is not supported by this browser');
+                logger.warn('app', 'WebAssembly is not supported by this browser');
                 errorStore.addError({
                     id: 'wasm-not-supported',
                     message: 'WebAssembly is not supported by your browser. Some optimizations will be disabled.',
@@ -610,7 +609,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             
             // Setup the request-wasm-state event handler for crash reporting
             EventsOn("request-wasm-state", () => {
-                wasmLogger.log(WasmLogLevel.DEBUG, 'backend', 'Backend requested WebAssembly state');
+                logger.debug('app', 'Backend requested WebAssembly state');
                 
                 // Update memory info if WebAssembly is active
                 try {
@@ -621,7 +620,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                         import('./lib/wasm-state').then(m => m.updateMemoryUsage(memInfo));
                     }
                 } catch (e: any) {
-                    wasmLogger.log(WasmLogLevel.ERROR, 'memory', `Failed to get memory info: ${e.message}`);
+                    logger.error('app', `Failed to get memory info: ${e.message}`);
                 }
                 
                 // Send current state to backend
@@ -632,28 +631,20 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             settings.subscribe(async ($newSettings) => {
                 // Only process WebAssembly settings if they've changed
                 if ($newSettings.useWasm !== undefined && $newSettings.useWasm !== $currentSettings.useWasm) {
-                    wasmLogger.log(
-                        WasmLogLevel.INFO, 
-                        'config', 
-                        `WebAssembly setting changed to: ${$newSettings.useWasm ? 'enabled' : 'disabled'}`
-                    );
+                    logger.info('app', `WebAssembly setting changed to: ${$newSettings.useWasm ? 'enabled' : 'disabled'}`);
                     
                     try {
                         const wasEnabled = await enableWasm($newSettings.useWasm);
                         
                         if ($newSettings.useWasm) {
                             if (wasEnabled) {
-                                wasmLogger.log(
-                                    WasmLogLevel.INFO,
-                                    'config', 
-                                    'WebAssembly successfully enabled via settings'
-                                );
+                                logger.info('app', 'WebAssembly successfully enabled via settings');
                                 
                                 // Apply threshold from settings
                                 // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
                                 // if ($newSettings.wasmSizeThreshold) {
                                 //     setWasmSizeThreshold($newSettings.wasmSizeThreshold);
-                                //     wasmLogger.log(
+                                //     logger.info('app', 
                                 //         WasmLogLevel.INFO,
                                 //         'config',
                                 //         `Set WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
@@ -669,18 +660,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                                 });
                             }
                         } else {
-                            wasmLogger.log(
-                                WasmLogLevel.INFO,
-                                'config', 
-                                'WebAssembly disabled via settings'
-                            );
+                            logger.info('app', 'WebAssembly disabled via settings');
                         }
                     } catch (error: any) {
-                        wasmLogger.log(
-                            WasmLogLevel.ERROR, 
-                            'config', 
-                            `Error applying WebAssembly setting: ${error.message}`
-                        );
+                        logger.error('app', `Error applying WebAssembly setting: ${error.message}`);
                         
                         errorStore.addError({
                             id: 'wasm-setting-error',
@@ -696,7 +679,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                     if (isWasmEnabled()) {
                         // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
                         // setWasmSizeThreshold($newSettings.wasmSizeThreshold);
-                        // wasmLogger.log(
+                        // logger.info('app', 
                         //     WasmLogLevel.INFO,
                         //     'config',
                         //     `Updated WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
@@ -707,20 +690,12 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
 
             // Initialize WebAssembly on startup if enabled in settings
             if ($currentSettings.useWasm) {
-                wasmLogger.log(
-                    WasmLogLevel.INFO, 
-                    'init', 
-                    'Initializing WebAssembly based on saved settings'
-                );
+                logger.info('app', 'Initializing WebAssembly based on saved settings');
                 
                 const wasEnabled = await enableWasm(true);
                 
                 if (wasEnabled) {
-                    wasmLogger.log(
-                        WasmLogLevel.INFO, 
-                        'init', 
-                        'WebAssembly initialized successfully on application startup'
-                    );
+                    logger.info('app', 'WebAssembly initialized successfully on application startup');
                     
                     // Apply threshold from settings
                     // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
@@ -728,26 +703,14 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                     //     setWasmSizeThreshold($currentSettings.wasmSizeThreshold);
                     // }
                 } else {
-                    wasmLogger.log(
-                        WasmLogLevel.WARN, 
-                        'init', 
-                        'WebAssembly initialization failed on startup, check browser console for details'
-                    );
+                    logger.warn('app', 'WebAssembly initialization failed on startup, check browser console for details');
                 }
             } else {
-                wasmLogger.log(
-                    WasmLogLevel.INFO, 
-                    'init', 
-                    'WebAssembly optimization is disabled in settings'
-                );
+                logger.info('app', 'WebAssembly optimization is disabled in settings');
             }
 
         } catch (initError: any) {
-            wasmLogger.log(
-                WasmLogLevel.CRITICAL, 
-                'init', 
-                `Critical error during WebAssembly setup: ${initError.message}`
-            );
+            logger.critical('app', `Critical error during WebAssembly setup: ${initError.message}`);
             
             errorStore.addError({
                 id: 'wasm-critical-init-error',
@@ -862,10 +825,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             // Add version to window for WebAssembly to access
             (window as any).__LANGKIT_VERSION = version;
             
-            wasmLogger.log(
-                WasmLogLevel.INFO,
-                'init',
-                `Application version detected: ${version}`,
+            logger.info('app', `Application version detected: ${version}`, 
                 { isDevMode: version === 'dev' }
             );
         });
@@ -886,17 +846,17 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         }
         
         // Log application shutdown
-        wasmLogger.log(WasmLogLevel.INFO, 'shutdown', 'Application shutting down, performing cleanup');
+        logger.info('app', 'Application shutting down, performing cleanup');
         
         // Force garbage collection if WebAssembly is active
         try {
             const module = getWasmModule();
             if (module && module.force_garbage_collection) {
                 module.force_garbage_collection();
-                wasmLogger.log(WasmLogLevel.INFO, 'memory', 'Performed final garbage collection during shutdown');
+                logger.info('app', 'Performed final garbage collection during shutdown');
             }
         } catch (e: any) {
-            wasmLogger.log(WasmLogLevel.WARN, 'shutdown', `Failed to perform final cleanup: ${e.message}`);
+            logger.warn('app', `Failed to perform final cleanup: ${e.message}`);
         }
         
         // Report final state for crash reporting

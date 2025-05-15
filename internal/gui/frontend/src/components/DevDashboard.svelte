@@ -2,7 +2,6 @@
     import { fade, scale } from 'svelte/transition';
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
-    import { wasmLogger, WasmLogLevel } from '../lib/wasm-logger';
     import { getWasmState } from '../lib/wasm-state';
     import { settings } from '../lib/stores';
     import { logger } from '../lib/logger';
@@ -112,11 +111,7 @@
         isExpanded = !isExpanded;
 
         // Log dashboard toggle
-        wasmLogger.log(
-            WasmLogLevel.DEBUG,
-            'devtools',
-            `Developer dashboard ${isExpanded ? 'expanded' : 'minimized'}`
-        );
+        logger.debug('devDashboard', `Developer dashboard ${isExpanded ? 'expanded' : 'minimized'}`);
     }
     
     function switchTab(id: string) {
@@ -150,11 +145,7 @@
     onMount(() => {
         // Log dashboard initialization only if shown
         if (showDashboard) {
-            wasmLogger.log(
-                WasmLogLevel.INFO,
-                'devtools',
-                `Developer dashboard initialized (version: ${version})`
-            );
+            logger.info('devDashboard', `Developer dashboard initialized (version: ${version})`);
         }
 
         // Watch for version changes after component is mounted

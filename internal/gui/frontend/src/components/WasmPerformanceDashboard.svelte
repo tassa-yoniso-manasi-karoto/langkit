@@ -5,7 +5,7 @@
   import { formatBytes, formatTime } from '../lib/utils';
   import { settings } from '../lib/stores';
   import { get } from 'svelte/store';
-  import { wasmLogger, WasmLogLevel } from '../lib/wasm-logger';
+  import { logger } from '../lib/logger';
 
   // Component state
   let wasmState = getWasmState();
@@ -17,7 +17,7 @@
 
   // Update metrics periodically
   onMount(() => {
-    wasmLogger.log(WasmLogLevel.INFO, 'dashboard', 'Initializing WebAssembly performance dashboard');
+    logger.info('dashboard', 'Initializing WebAssembly performance dashboard');
 
     // Function to do a complete memory refresh from the WASM module
     const refreshMemoryInfo = () => {
@@ -41,7 +41,7 @@
 
         return true;
       } catch (e) {
-        wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', `Error refreshing memory info: ${e.message}`);
+        logger.error('dashboard', `Error refreshing memory info: ${e.message}`);
         return false;
       }
     };
@@ -51,7 +51,7 @@
 
     // Force an immediate memory refresh
     if (refreshMemoryInfo()) {
-      wasmLogger.log(WasmLogLevel.INFO, 'dashboard', 'Initial memory info updated');
+      logger.info('dashboard', 'Initial memory info updated');
     }
 
     // Set up faster update interval (250ms)
@@ -77,17 +77,17 @@
   // Helper to safely get memory utilization
   function getMemoryUtilization(memoryUsage: any): number {
     // Debug output to help diagnose memory issues
-    wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', 'Calculating memory utilization');
+    logger.trace('dashboard', 'Calculating memory utilization');
     
     // Exit early if memory usage is null or undefined
     if (!memoryUsage) {
-      wasmLogger.log(WasmLogLevel.WARN, 'dashboard', 'Memory usage is null or undefined');
+      logger.warn('dashboard', 'Memory usage is null or undefined');
       return 0;
     }
     
     // First check if memoryUsage is a Map
     const isMap = Object.prototype.toString.call(memoryUsage) === '[object Map]';
-    wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Memory usage is a Map? ${isMap}`);
+    logger.trace('dashboard', `Memory usage is a Map? ${isMap}`);
 
     if (isMap) {
       // Access using Map.get() method
@@ -95,14 +95,14 @@
         // First try the utilization_estimate field (new field from Rust)
         const utilization_estimate = (memoryUsage as Map<string, any>).get('utilization_estimate');
         if (typeof utilization_estimate === 'number') {
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Using utilization_estimate: ${utilization_estimate}`);
+          logger.trace('dashboard', `Using utilization_estimate: ${utilization_estimate}`);
           return utilization_estimate;
         }
 
         // Then try the utilization field (field from wasm-state.ts)
         const utilization = (memoryUsage as Map<string, any>).get('utilization');
         if (typeof utilization === 'number') {
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Using utilization: ${utilization}`);
+          logger.trace('dashboard', `Using utilization: ${utilization}`);
           return utilization;
         }
 
@@ -113,7 +113,7 @@
             typeof total_bytes === 'number' &&
             total_bytes > 0) {
           const calculated = tracked_bytes / total_bytes;
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Calculated from tracked/total: ${calculated.toFixed(4)}`);
+          logger.trace('dashboard', `Calculated from tracked/total: ${calculated.toFixed(4)}`);
           return calculated;
         }
         
@@ -123,24 +123,24 @@
             typeof total_bytes === 'number' &&
             total_bytes > 0) {
           const calculated = used_bytes / total_bytes;
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Calculated from used/total: ${calculated.toFixed(4)}`);
+          logger.trace('dashboard', `Calculated from used/total: ${calculated.toFixed(4)}`);
           return calculated;
         }
       } catch (e) {
-        wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', `Error accessing Map properties: ${e.message}`);
+        logger.error('dashboard', `Error accessing Map properties: ${e.message}`);
       }
     } else {
       // Regular object property access
       try {
         // First try the utilization_estimate field (new field from Rust)
         if (typeof memoryUsage.utilization_estimate === 'number') {
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Using utilization_estimate: ${memoryUsage.utilization_estimate}`);
+          logger.trace('dashboard', `Using utilization_estimate: ${memoryUsage.utilization_estimate}`);
           return memoryUsage.utilization_estimate;
         }
 
         // Then try the utilization field (field from wasm-state.ts)
         if (typeof memoryUsage.utilization === 'number') {
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Using utilization: ${memoryUsage.utilization}`);
+          logger.trace('dashboard', `Using utilization: ${memoryUsage.utilization}`);
           return memoryUsage.utilization;
         }
 
@@ -149,7 +149,7 @@
             typeof memoryUsage.total_bytes === 'number' &&
             memoryUsage.total_bytes > 0) {
           const calculated = memoryUsage.tracked_bytes / memoryUsage.total_bytes;
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Calculated from tracked/total: ${calculated.toFixed(4)}`);
+          logger.trace('dashboard', `Calculated from tracked/total: ${calculated.toFixed(4)}`);
           return calculated;
         }
 
@@ -158,7 +158,7 @@
             typeof memoryUsage.total_bytes === 'number' &&
             memoryUsage.total_bytes > 0) {
           const calculated = memoryUsage.used_bytes / memoryUsage.total_bytes;
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Calculated from used/total: ${calculated.toFixed(4)}`);
+          logger.trace('dashboard', `Calculated from used/total: ${calculated.toFixed(4)}`);
           return calculated;
         }
 
@@ -167,11 +167,11 @@
             typeof memoryUsage.total === 'number' &&
             memoryUsage.total > 0) {
           const calculated = memoryUsage.used / memoryUsage.total;
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Calculated from used/total (legacy): ${calculated.toFixed(4)}`);
+          logger.trace('dashboard', `Calculated from used/total (legacy): ${calculated.toFixed(4)}`);
           return calculated;
         }
       } catch (e) {
-        wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', `Error accessing object properties: ${e.message}`);
+        logger.error('dashboard', `Error accessing object properties: ${e.message}`);
       }
     }
 
@@ -189,20 +189,20 @@
         });
       }
       
-      wasmLogger.log(WasmLogLevel.DEBUG, 'dashboard', 'Available memory properties', properties);
+      logger.debug('dashboard', 'Available memory properties', properties);
     } catch (e) {
-      wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', `Error logging properties: ${e.message}`);
+      logger.error('dashboard', `Error logging properties: ${e.message}`);
     }
 
     // Default fallback to avoid NaN
-    wasmLogger.log(WasmLogLevel.WARN, 'dashboard', 'Using default utilization fallback: 0');
+    logger.warn('dashboard', 'Using default utilization fallback: 0');
     return 0;
   }
 
   function updateWasmState() {
     // Get latest WASM state
     wasmState = getWasmState();
-    wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', 'Updated WASM state');
+    logger.trace('dashboard', 'Updated WASM state');
 
     // Get fresh memory information directly from the WASM module
     try {
@@ -210,7 +210,7 @@
       if (wasmModule && wasmModule.get_memory_usage) {
         // Get fresh memory info
         const freshMemoryInfo = wasmModule.get_memory_usage();
-        wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', 'Retrieved fresh memory info from module');
+        logger.trace('dashboard', 'Retrieved fresh memory info from module');
 
         // Override the memoryUsage in wasmState with fresh data
         if (freshMemoryInfo) {
@@ -218,17 +218,17 @@
             ...wasmState,
             memoryUsage: freshMemoryInfo
           };
-          wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', 'Updated wasmState with fresh memory info');
+          logger.trace('dashboard', 'Updated wasmState with fresh memory info');
         }
       }
     } catch (e) {
-      wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', `Error getting fresh memory info: ${e.message}`);
+      logger.error('dashboard', `Error getting fresh memory info: ${e.message}`);
     }
 
     // Add point to memory history (limited to 60 points = 1 minute)
     if (wasmState?.memoryUsage) {
       const utilization = getMemoryUtilization(wasmState.memoryUsage);
-      wasmLogger.log(WasmLogLevel.TRACE, 'dashboard', `Current memory utilization: ${utilization.toFixed(4)}`);
+      logger.trace('dashboard', `Current memory utilization: ${utilization.toFixed(4)}`);
 
       if (memoryUtilizationHistory.length >= 60) {
         memoryUtilizationHistory.shift();
@@ -242,7 +242,7 @@
       // Force Svelte to update the array reference
       memoryUtilizationHistory = [...memoryUtilizationHistory];
     } else {
-      wasmLogger.log(WasmLogLevel.WARN, 'dashboard', 'No memoryUsage available in wasmState');
+      logger.warn('dashboard', 'No memoryUsage available in wasmState');
     }
   }
 
@@ -278,11 +278,11 @@
     try {
       const wasmModule = getWasmModule();
       if (!wasmModule || typeof wasmModule.reset_internal_allocation_stats !== 'function') {
-        wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', "WebAssembly function reset_internal_allocation_stats not available");
+        logger.error('dashboard', "WebAssembly function reset_internal_allocation_stats not available");
         return;
       }
 
-      wasmLogger.log(WasmLogLevel.INFO, 'dashboard', "Cleaning up WASM memory");
+      logger.info('dashboard', "Cleaning up WASM memory");
       wasmModule.reset_internal_allocation_stats();
 
       // Refresh state immediately after reset
@@ -298,11 +298,11 @@
             };
           }
         } catch (e) {
-          wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', `Error refreshing memory info after reset: ${e.message}`);
+          logger.error('dashboard', `Error refreshing memory info after reset: ${e.message}`);
         }
       }, 50);
     } catch (e) {
-      wasmLogger.log(WasmLogLevel.ERROR, 'dashboard', `Failed to reset memory tracking: ${e.message}`);
+      logger.error('dashboard', `Failed to reset memory tracking: ${e.message}`);
     }
   }
 

@@ -1,5 +1,4 @@
 // src/lib/wasm-state.ts - Refined with immutable updates
-import { wasmLogger, WasmLogLevel } from './wasm-logger';
 // Import error type for instanceof check, use type-only import
 import type { WasmInitializationError } from './wasm';
 import { logger } from './logger';
@@ -251,15 +250,10 @@ export function standardizeMemoryInfo(memInfo: any): any {
   
   // Log validation issues occasionally
   if (hasValidationIssues && Math.random() < 0.05) {
-    wasmLogger.log(
-      WasmLogLevel.WARN,
-      'memory',
-      'Received invalid memory information from WebAssembly, using defaults',
-      {
-        receivedInfo: memInfo,
-        validationErrors: validationIssues
-      }
-    );
+    logger.warn('store/wasm-state', 'Received invalid memory information from WebAssembly, using defaults', {
+      receivedInfo: memInfo,
+      validationErrors: validationIssues
+    });
     
     // Return safe defaults for invalid data
     return getDefaultMemoryInfo();
@@ -304,11 +298,7 @@ export function updateState(updates: Partial<WasmState>): void { // Add export k
   // Validate critical fields before applying
   if (updates.initStatus !== undefined &&
       !Object.values(WasmInitStatus).includes(updates.initStatus)) {
-    wasmLogger.log(
-      WasmLogLevel.ERROR,
-      'state',
-      `Invalid initStatus value provided: ${updates.initStatus}`
-    );
+    logger.error('store/wasm-state', `Invalid initStatus value provided: ${updates.initStatus}`);
     return; // Do not apply invalid update
   }
 
@@ -337,16 +327,11 @@ export function updateState(updates: Partial<WasmState>): void { // Add export k
   // Log significant state changes
   const significantChange = detectSignificantChange(prevState, wasmState);
   if (significantChange) {
-    wasmLogger.log(
-      WasmLogLevel.TRACE, // CHANGED FROM INFO
-      'state',
-      `WebAssembly state changed: ${significantChange}`,
-      {
-        changeType: significantChange,
-        // Include only changed fields to reduce log size
-        changes: extractChanges(prevState, wasmState)
-      }
-    );
+    logger.trace('store/wasm-state', `WebAssembly state changed: ${significantChange}`, {
+      changeType: significantChange,
+      // Include only changed fields to reduce log size
+      changes: extractChanges(prevState, wasmState)
+    });
 
     // Report significant changes to backend
     reportWasmState();
@@ -596,7 +581,7 @@ export function getWasmState(): WasmState {
       
       return stateCopy;
   } catch (e) {
-      wasmLogger.log(WasmLogLevel.ERROR, 'state', `Failed to create deep copy of wasmState: ${e instanceof Error ? e.message : String(e)}`);
+      logger.error('store/wasm-state', `Failed to create deep copy of wasmState: ${e instanceof Error ? e.message : String(e)}`);
       // Fallback to simple shallow copy
       return { ...wasmState };
   }
@@ -612,11 +597,7 @@ export function resetWasmMetricsInternal(): void {
       operationsPerType: {}
   });
 
-  wasmLogger.log(
-    WasmLogLevel.TRACE, // CHANGED FROM INFO
-    'metrics',
-    'WebAssembly performance metrics reset (internal)'
-  );
+  logger.trace('store/wasm-state', 'WebAssembly performance metrics reset (internal)');
 
   // Report reset state to backend
   reportWasmState();
@@ -709,7 +690,7 @@ export function updatePerformanceMetrics(
   // Optional: Add specific logging here if needed beyond significant change detection
   if (newCount % 10 === 0 || newCount < 5) { // Log early and then periodically
       // REMOVE or make extremely infrequent (Feedback Step 4)
-      // wasmLogger.log(
+      // logger.trace('store/wasm-state', 
       //     WasmLogLevel.TRACE, // CHANGED FROM DEBUG
       //     'metrics',
       //     `Perf metrics updated (${newCount} ops)`,
@@ -814,12 +795,7 @@ export function updateMemoryUsage(memInfo: any): void {
   const lastMemoryLogTime = wasmState.lastMemoryLogTime || 0;
   
   if (now - lastMemoryLogTime > 60000 && safeMemInfo.utilization > 0.7) { // Once per minute if high
-    wasmLogger.log(
-      WasmLogLevel.INFO,
-      'memory',
-      `Memory update: ${memoryFormatter.formatUtilization(safeMemInfo.utilization)} used`,
-      memoryFormatter.formatMemoryInfo(safeMemInfo)
-    );
+    logger.info('store/wasm-state', `Memory update: ${memoryFormatter.formatUtilization(safeMemInfo.utilization)} used`, memoryFormatter.formatMemoryInfo(safeMemInfo));
     
     // Track last log time
     updateState({ lastMemoryLogTime: now });
