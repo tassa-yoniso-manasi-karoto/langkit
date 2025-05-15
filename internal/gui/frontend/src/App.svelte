@@ -74,7 +74,8 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         voiceEnhancing: false,
         subtitleRomanization: false,
         selectiveTransliteration: false,
-        subtitleTokenization: false
+        subtitleTokenization: false,
+        condensedAudio: false
     };
     let currentFeatureOptions: FeatureOptions | undefined;
     let isProcessing = false;

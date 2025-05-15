@@ -39,7 +39,8 @@
         voiceEnhancing: false,
         subtitleRomanization: false,
         selectiveTransliteration: false,
-        subtitleTokenization: false
+        subtitleTokenization: false,
+        condensedAudio: false
     };
     export let quickAccessLangTag = '';
     export let showLogViewer: boolean;

@@ -370,16 +370,37 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 				media.MaxHeight = int(height)
 			}
 		}
-		
-		if condensedAudio, ok := featureOpts["condensedAudio"]; ok {
-			if condensed, ok := condensedAudio.(bool); ok {
-				tsk.WantCondensedAudio = condensed
-			}
-		}
 
 		tsk.Handler.ZeroLog().Debug().
 			Interface("subs2cards_options", featureOpts).
 			Msg("Configured Subs2Cards")
+	}
+
+	if req.SelectedFeatures["condensedAudio"] {
+		featureOpts, ok := req.Options.Options["condensedAudio"]
+		if !ok {
+			tsk.Handler.Log(core.Error, core.AbortTask, "condensedAudio options not found")
+			return
+		}
+		
+		// For condensedAudio, we need to set a specific mode if it's the only feature
+		// or keep the existing mode if combined with other features
+		if tsk.Mode == 0 {
+			tsk.Mode = core.Subs2Cards // Use Subs2Cards mode as base for condensed audio processing
+		}
+		
+		// Always set the flag for condensed audio
+		tsk.WantCondensedAudio = true
+		
+		if padTiming, ok := featureOpts["padTiming"]; ok {
+			if padding, ok := padTiming.(float64); ok {
+				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+			}
+		}
+
+		tsk.Handler.ZeroLog().Debug().
+			Interface("condensedAudio_options", featureOpts).
+			Msg("Configured Condensed Audio")
 	}
 }
 

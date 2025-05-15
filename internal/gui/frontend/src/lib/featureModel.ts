@@ -90,15 +90,23 @@ export const features: FeatureDefinition[] = [
                 type: 'number',
                 label: 'Screenshot Height (px)',
                 default: 720
-            },
-            condensedAudio: {
-                type: 'boolean',
-                label: 'Condensed Audio',
-                default: false
             }
         },
         dependentFeature: 'dubtitles',
         dependencyMessage: "Dubtitles will be used as a source for subs2cards when both features are enabled"
+    },
+    {
+        id: 'condensedAudio',
+        label: 'Condensed Audio',
+        options: {
+            padTiming: {
+                type: 'number',
+                label: 'Padding (ms)',
+                default: 250
+            }
+        },
+        dependentFeature: 'dubtitles',
+        dependencyMessage: "Dubtitles will be used as a source for condensed audio when both features are enabled"
     },
     {
         id: 'dubtitles',
