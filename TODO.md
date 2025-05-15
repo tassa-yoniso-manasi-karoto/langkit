@@ -9,9 +9,7 @@ SVG animations: rework state transitions
 - GUI options:
   - condensed audio toggle
 
-- enable WASM all the time
-
-- guarante all settings in Settings panel work
+- guarantee all settings in Settings panel work
 
 - dev dashboard:
   - make it available in prod builds just like dev settings in android

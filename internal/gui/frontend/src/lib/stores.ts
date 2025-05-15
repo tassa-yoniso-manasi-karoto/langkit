@@ -63,7 +63,7 @@ const initSettings: Settings = {
     // Default values for WebAssembly settings
     useWasm: true,
     wasmSizeThreshold: 500, // Default from spec
-    forceWasmMode: 'auto', // Default to automatic decision
+    forceWasmMode: 'enabled', // Always use WebAssembly by default
 
     // NEW: LogViewer settings
     logViewerVirtualizationThreshold: 2000, // Default to 2000 logs for virtualization
