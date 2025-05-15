@@ -65,8 +65,11 @@
     export let isProcessing: boolean = false;
     let prevIsProcessing = false;
 
-    // Decide initial log filter
-    let selectedLogLevel = version === "dev" ? "DEBUG" : "INFO";
+    // Import developer mode store
+    import { isDeveloperMode } from '../lib/developerMode';
+    
+    // Decide initial log filter based on dev mode or developer mode
+    let selectedLogLevel = (version === "dev" || $isDeveloperMode) ? "DEBUG" : "INFO";
     let previousLogLevel = selectedLogLevel;
     
     // Log levels available

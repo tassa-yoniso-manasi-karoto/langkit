@@ -2,6 +2,7 @@
     import { onMount, onDestroy } from 'svelte'; // Added onDestroy
     import { slide, fade } from 'svelte/transition';
     import { settings, showSettings } from '../lib/stores';
+import { isDeveloperMode } from '../lib/developerMode';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
     import { ExportDebugReport } from '../../wailsjs/go/gui/App';
     import { logger } from '../lib/logger';
@@ -15,6 +16,24 @@
 
     // Track if we're currently resetting the animation state
     let isResetting = false;
+    
+    // Developer mode activation via bug icon clicks
+    let bugIconClickCount = 0;
+    
+    function handleBugIconClick() {
+        bugIconClickCount++;
+        
+        if (bugIconClickCount >= 7) {
+            // Toggle developer mode after 7 clicks
+            isDeveloperMode.update(value => !value);
+            
+            // Reset the counter
+            bugIconClickCount = 0;
+            
+            // Notify the user
+            logger.info('settings', `Developer mode ${$isDeveloperMode ? 'enabled' : 'disabled'}`);
+        }
+    }
     
     export let onClose: () => void = () => { /* FIXME this reset doesn't work but claude keeps outputing the same code... whatever honestly.*/ 
         // Set flag to prevent reactive updates during reset
@@ -151,8 +170,8 @@
 
     // Moved definition earlier
 
-    // Check if we should show dev-only features
-    $: isDevVersion = version === "dev";
+    // Check if we should show dev-only features (either by version or developer mode)
+    $: isDevVersion = version === "dev" || $isDeveloperMode;
 
     // Modified reactive declaration to handle reset state
     $: exportGlowClass = isResetting
@@ -846,7 +865,10 @@
                         <!-- Diagnostic / Debug Export Section with improved styling -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
-                                <span class="material-icons text-primary">bug_report</span>
+                                <span 
+                                    class="material-icons text-primary cursor-pointer" 
+                                    on:click={handleBugIconClick}
+                                >bug_report</span>
                                 Diagnostic Tools
                             </h3>
                             <div class="space-y-4">

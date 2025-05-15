@@ -4,6 +4,7 @@
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
     import { settings } from '../lib/stores';
+    import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
     import MemoryTestButton from './MemoryTestButton.svelte';
@@ -40,8 +41,8 @@
         currentSettings = value;
     });
     
-    // Only show in dev mode - reactively update when version is loaded
-    $: showDashboard = !!version && (version === 'dev' || version.includes('dev'));
+    // Show when in dev mode or developer mode is enabled
+    $: showDashboard = (!!version && (version === 'dev' || version.includes('dev'))) || $isDeveloperMode;
     
     // Handle dragging for both the icon and expanded dashboard
     function handleMouseDown(event: MouseEvent) {
