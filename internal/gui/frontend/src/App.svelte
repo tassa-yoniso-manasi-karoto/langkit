@@ -358,6 +358,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             };
             
             settings.set(updatedSettings as any); // Use type assertion until Settings type is fully updated
+            
+            // Save the updated settings to persist the incremented app start counter
+            await SaveSettings(updatedSettings);
+            
             // Initialize showGlow based on enableGlow setting (if not minimized)
             if (!isWindowMinimized) {
                 showGlow = updatedSettings.enableGlow;

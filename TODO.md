@@ -11,9 +11,6 @@ SVG animations: rework state transitions
 
 - guarantee all settings in Settings panel work
 
-- dev dashboard:
-  - count* variable not saved, WASMmerge calls are saved (??)
-
 - support Condensed Audio summaries
 
 - add strategic frontend logging for prod
