@@ -55,38 +55,77 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 		if nativeItem := tsk.NativeSubs.Translate(foreignItem); nativeItem != nil {
 			item.NativeCurr = joinLines(nativeItem.String())
 		}
+	} else {
+		item.NativeCurr = "" // Explicitly set to empty if no NativeSubs
 	}
-	audiofile, err := media.ExtractAudio("ogg", tsk.UseAudiotrack,
-		tsk.Offset, foreignItem.StartAt, foreignItem.EndAt,
-			tsk.MediaSourceFile, tsk.MediaPrefix, false)
-	if err != nil && !errors.Is(err, fs.ErrExist) {
-		tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract ogg audio")
-	}
-	if tsk.WantCondensedAudio {
-		_, err = media.ExtractAudio("wav", tsk.UseAudiotrack,
-			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
+	// Only extract OGG audio if needed (for Subs2Cards or if STT is enabled)
+	// For Condense mode, we don't need OGG audio for TSV output
+	var audiofile string
+	if tsk.Mode != Condense && (tsk.Mode == Subs2Cards || tsk.STT != "") {
+		var err error
+		audiofile, err = media.ExtractAudio("ogg", tsk.UseAudiotrack,
+			tsk.Offset, foreignItem.StartAt, foreignItem.EndAt,
 				tsk.MediaSourceFile, tsk.MediaPrefix, false)
 		if err != nil && !errors.Is(err, fs.ErrExist) {
-			tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract wav audio")
+			tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract ogg audio")
 		}
 	}
-	dryRun := tsk.Mode != Subs2Cards
-	imageFile, err := media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt,
-		tsk.MediaSourceFile, tsk.MediaPrefix, dryRun)
-	if err != nil {
-		// determining AlreadyDone is done on the AVIF because it is the most
-		// computing intensive part of each item's processing
-		if errors.Is(err, fs.ErrExist) {
+	
+	// Extract WAV for condensed audio if needed
+	// This is always required for Condense mode or when WantCondensedAudio is true
+	if tsk.Mode == Condense || tsk.WantCondensedAudio {
+		var errWAV error // Declare error variable for WAV extraction
+		_, errWAV = media.ExtractAudio("wav", tsk.UseAudiotrack,
+			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
+				tsk.MediaSourceFile, tsk.MediaPrefix, false)
+		if errWAV != nil && !errors.Is(errWAV, fs.ErrExist) {
+			tsk.Handler.ZeroLog().Error().Err(errWAV).Msg("can't extract wav audio")
+		}
+		
+		// Add this specifically for Condense mode to update AlreadyDone based on WAV
+		if tsk.Mode == Condense && errors.Is(errWAV, fs.ErrExist) {
 			item.AlreadyDone = true
-		} else {
-			tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract image")
+			tsk.Handler.ZeroLog().Trace().
+				Int("idx", indexedSub.Index).
+				Msgf("Item marked AlreadyDone for Condense mode due to existing WAV segment.")
 		}
 	}
+	
+	// Images are only needed for Subs2Cards mode
+	dryRun := tsk.Mode != Subs2Cards
+	
+	// Skip actual image extraction in Condense mode
+	var imageFile string
+	var err error
+	if tsk.Mode == Condense {
+		// In Condense mode, we don't need images, just use a dummy path
+		imageFile = tsk.MediaPrefix + "_dummy.avif"
+	} else {
+		imageFile, err = media.ExtractImage(foreignItem.StartAt, foreignItem.EndAt,
+			tsk.MediaSourceFile, tsk.MediaPrefix, dryRun)
+		if err != nil {
+			// determining AlreadyDone is done on the AVIF because it is the most
+			// computing intensive part of each item's processing
+			if errors.Is(err, fs.ErrExist) {
+				item.AlreadyDone = true
+			} else {
+				tsk.Handler.ZeroLog().Error().Err(err).Msg("can't extract image")
+			}
+		}
+	}
+	
 	item.Time = timePosition(foreignItem.StartAt)
 	item.Image = fmt.Sprintf("<img src=\"%s\">", path.Base(imageFile))
-	item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
+	
+	// Only set Sound field if we extracted an OGG file
+	if audiofile != "" {
+		item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
+	} else {
+		item.Sound = ""
+	}
 
-	if tsk.STT != "" {
+	// Skip STT processing for Condense mode since it's not needed
+	if tsk.STT != "" && tsk.Mode != Condense {
 		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 			es.CurrentSTTOperation = tsk.STT
 			es.CurrentItemIndex = indexedSub.Index
@@ -136,14 +175,14 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	if i > 0 && i < len(tsk.TargSubs.Items) {
 		item.ForeignPrev = tsk.TargSubs.Items[i-1].String()
 	}
-	if i > 0 && i < len(tsk.NativeSubs.Items) {
+	if tsk.NativeSubs != nil && i > 0 && i < len(tsk.NativeSubs.Items) {
 		item.NativePrev = tsk.NativeSubs.Items[i-1].String()
 	}
 
 	if i+1 < len(tsk.TargSubs.Items) {
 		item.ForeignNext = tsk.TargSubs.Items[i+1].String()
 	}
-	if i+1 < len(tsk.NativeSubs.Items) {
+	if tsk.NativeSubs != nil && i+1 < len(tsk.NativeSubs.Items) {
 		item.NativeNext = tsk.NativeSubs.Items[i+1].String()
 	}
 	return
@@ -153,42 +192,104 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 
 
 
-func (tsk *Task) ConcatWAVstoOGG(suffix string) {
-	out := fmt.Sprint(tsk.MediaPrefix, ".", suffix,".ogg")
-	if  _, err := os.Stat(out); err == nil {
-		return
+func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
+	// Define output file path
+	out := fmt.Sprint(tsk.MediaPrefix, ".", suffix, ".ogg")
+	
+	// Check if output file already exists
+	if _, err := os.Stat(out); err == nil {
+		tsk.Handler.ZeroLog().Info().
+			Str("outFile", out).
+			Msg("Condensed audio file already exists, skipping creation")
+		return nil
 	}
-	wavFiles, err := filepath.Glob(tsk.MediaPrefix+ "_*.wav")
+	
+	// Find all WAV files that we need to concatenate
+	wavPattern := tsk.MediaPrefix + "_*.wav"
+	wavFiles, err := filepath.Glob(wavPattern)
 	if err != nil {
+		err = fmt.Errorf("failed to find WAV files: %w", err)
 		tsk.Handler.ZeroLog().Error().Err(err).
+			Str("pattern", wavPattern).
 			Str("mediaOutputDir", tsk.mediaOutputDir()).
 			Msg("Error searching for .wav files")
+		return err
 	}
 
+	// Ensure we have files to process
 	if len(wavFiles) == 0 {
+		err = fmt.Errorf("no WAV files found to create condensed audio")
 		tsk.Handler.ZeroLog().Warn().
+			Str("pattern", wavPattern).
 			Str("mediaOutputDir", tsk.mediaOutputDir()).
-			Msg("No .wav files found")
+			Msg("No .wav files found for creating condensed audio")
+		return err
 	}
+	
+	tsk.Handler.ZeroLog().Info().
+		Int("fileCount", len(wavFiles)).
+		Str("outputFile", out).
+		Msg("Creating condensed audio file from WAV segments")
+	
 	// Generate the concat list for ffmpeg
 	concatFile, err := media.CreateConcatFile(wavFiles)
 	if err != nil {
-		tsk.Handler.ZeroLog().Error().Err(err).Msg("Error creating temporary concat file")
+		err = fmt.Errorf("failed to create concatenation file: %w", err)
+		tsk.Handler.ZeroLog().Error().Err(err).
+			Msg("Error creating temporary concat file for FFmpeg")
+		return err
 	}
 	defer os.Remove(concatFile)
 
-	// Run FFmpeg to concatenate and create the audio file
-	media.RunFFmpegConcat(concatFile, tsk.MediaPrefix+".wav")
-
-	// Convert WAV to OPUS using FFmpeg
-	media.RunFFmpegConvert(tsk.MediaPrefix+".wav", out)
-	// Clean up
-	os.Remove(tsk.MediaPrefix+".wav")
-	for _, f := range wavFiles {
-		if err := os.Remove(f); err != nil {
-			tsk.Handler.ZeroLog().Warn().Str("file", f).Msg("Removing file failed")
-		}
+	// Temporary WAV file path
+	tempWavFile := tsk.MediaPrefix + ".wav"
+	
+	// Run FFmpeg to concatenate and create the intermediate WAV file
+	if err := media.RunFFmpegConcat(concatFile, tempWavFile); err != nil {
+		tsk.Handler.ZeroLog().Error().Err(err).
+			Str("concatFile", concatFile).
+			Str("outputWav", tempWavFile).
+			Msg("Failed to concatenate WAV files")
+		return err
 	}
+
+	// Convert WAV to OPUS/OGG using FFmpeg
+	if err := media.RunFFmpegConvert(tempWavFile, out); err != nil {
+		tsk.Handler.ZeroLog().Error().Err(err).
+			Str("inputWav", tempWavFile).
+			Str("outputOgg", out).
+			Msg("Failed to convert WAV to OGG")
+		return err
+	}
+	
+	// Clean up intermediate WAV file
+	if err := os.Remove(tempWavFile); err != nil {
+		tsk.Handler.ZeroLog().Warn().
+			Str("file", tempWavFile).
+			Err(err).
+			Msg("Failed to remove temporary WAV file")
+	}
+	
+	// Clean up individual WAV segment files if configured to do so
+	if tsk.IntermediaryFileMode != "keep" {
+		for _, f := range wavFiles {
+			if err := os.Remove(f); err != nil {
+				tsk.Handler.ZeroLog().Warn().
+					Str("file", f).
+					Err(err).
+					Msg("Failed to remove WAV segment file")
+			}
+		}
+		tsk.Handler.ZeroLog().Debug().
+			Int("removedFiles", len(wavFiles)).
+			Msg("Removed WAV segment files after creating condensed audio")
+	}
+	
+	tsk.Handler.ZeroLog().Info().
+		Str("outputFile", out).
+		Msg("Successfully created condensed audio file")
+	
+	return nil
 }
 
 // timePosition formats the given time.Duration as a time code which can safely

@@ -33,10 +33,11 @@ const (
 	Subs2Dubs
 	Enhance
 	Translit
+	Condense
 )
 
 func (m Mode) String() string{
-	return []string{"Subs2Cards", "Subs2Dubs", "Enhance", "Translit"}[m]
+	return []string{"Subs2Cards", "Subs2Dubs", "Enhance", "Translit", "Condense"}[m]
 }
 
 type Meta struct {
@@ -115,9 +116,8 @@ type Task struct {
 	OutputFileExtension  string // defaults to ".tsv" for "\t" and ".csv" otherwise
 	Offset               time.Duration
 	MaxAPIRetries        int
-	
-	// Subs2cards options
 	WantCondensedAudio   bool
+	WantEnhancedTrack    bool // Used when Condense mode should also create an enhanced track
 	
 	// Audio track options
 	TargetChan           int // TODO rename TargetChanNum

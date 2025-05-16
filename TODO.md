@@ -6,12 +6,11 @@ SVG animations: rework state transitions
   - single Browser Access URL declaration
   - make currenlty running browser download known in the GUI
 
-- GUI options:
-  - condensed audio toggle
+- condensed audio 
+  - CHECK IT
+  - support Condensed Audio summaries
 
 - guarantee all settings in Settings panel work
-
-- support Condensed Audio summaries
 
 - add strategic frontend logging for prod
 

@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"regexp"
+	"time"
 
 	"github.com/gookit/color"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/k0kubun/pp"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
@@ -116,10 +118,39 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	}
 
 	// Launch bulk of app logic: supervisor
-	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs {
-		if err := tsk.Supervisor(ctx, outStream, write); err != nil {
-			reporter.SaveSnapshot("Supervisor failed", tsk.DebugVals()) // necessity: critical
-			return err
+	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs || tsk.Mode == Condense {
+		// For Condense mode, we don't need to write TSV output, just extract WAV segments
+		if tsk.Mode == Condense {
+			tsk.Handler.ZeroLog().Info().Msg("Running in Condense mode - extracting audio segments only")
+			if err := tsk.Supervisor(ctx, nil, nil); err != nil {
+				reporter.SaveSnapshot("Supervisor failed in Condense mode", tsk.DebugVals())
+				return err
+			}
+			
+			// Check if enhanced track is also requested for Condense mode
+			if tsk.WantEnhancedTrack {
+				tsk.Handler.ZeroLog().Info().Msg("Additionally creating enhanced audio track as part of Condense mode...")
+				
+				// Ensure we have a separation library specified
+				if tsk.SeparationLib == "" {
+					procErr = tsk.Handler.Log(Warn, AbortTask, "Cannot create enhanced track: No separation library specified for Condense mode with enhanced track option.")
+					if procErr != nil { 
+						return procErr // Abort this task
+					}
+				} else {
+					// Process audio enhancement as an auxiliary feature for Condense mode
+					if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
+						// Error is already logged by processAudioEnhancement or its callees
+						return procErr // Abort this task
+					}
+				}
+			}
+		} else {
+			// Normal operation for Subs2Cards and Subs2Dubs
+			if err := tsk.Supervisor(ctx, outStream, write); err != nil {
+				reporter.SaveSnapshot("Supervisor failed", tsk.DebugVals()) // necessity: critical
+				return err
+			}
 		}
 	}
 
@@ -140,6 +171,70 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 
 
 goodEnd:
+	// Handle condensed audio generation for Translit mode if requested
+	// Note: Enhance mode does not support condensed audio according to the design
+	if tsk.Mode == Translit && tsk.WantCondensedAudio {
+		if tsk.TargSubs == nil || len(tsk.TargSubs.Items) == 0 {
+			procErr = tsk.Handler.Log(Warn, AbortTask, "Cannot generate condensed audio: Target subtitles are required but not available/loaded for Translit mode with condensed audio option.")
+				if procErr != nil { return procErr }
+		} else {
+			// Ensure media output directory exists for WAV segments
+			mediaOutDir := tsk.mediaOutputDir()
+			if err := os.MkdirAll(mediaOutDir, os.ModePerm); err != nil {
+				// This is a critical error for the requested feature
+				procErr = tsk.Handler.LogErr(err, AbortTask, fmt.Sprintf("Failed to create media output directory for condensed audio: %s", mediaOutDir))
+				if procErr != nil { 
+					return procErr // Abort this task
+				}
+				// Continue processing even if condensed audio creation fails
+			} else {
+				// Ensure MediaPrefix is set properly for Translit mode with condensed audio
+					if tsk.TargSubFile == "" {
+						// This is a critical error - we need TargSubFile for outputBase
+						procErr = tsk.Handler.Log(Error, AbortTask, "Cannot generate condensed audio for Translit mode: TargSubFile is not set, cannot determine output base.")
+						if procErr != nil { 
+							return procErr // Abort this task
+						}
+					}
+					
+					// Set MediaPrefix for extraction
+					tsk.MediaPrefix = path.Join(mediaOutDir, tsk.outputBase())
+					tsk.Handler.ZeroLog().Debug().
+						Str("MediaPrefix", tsk.MediaPrefix).
+						Msg("MediaPrefix set for Translit + WantCondensedAudio")
+					
+					tsk.Handler.ZeroLog().Info().Msg("Extracting WAV segments for condensed audio (auxiliary output)...")
+				
+				// Extract WAV segments for each subtitle item
+				for _, foreignItem := range tsk.TargSubs.Items {
+					select {
+					case <-ctx.Done():
+						tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "Condensed audio WAV extraction canceled by user")
+						goto mergeOutputs
+					default:
+						_, err := media.ExtractAudio("wav", tsk.UseAudiotrack,
+							time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
+							tsk.MediaSourceFile, tsk.MediaPrefix, false) // dryRun = false
+						if err != nil && !os.IsExist(err) {
+							tsk.Handler.ZeroLog().Error().Err(err).
+								Str("time", timePosition(foreignItem.StartAt)).
+								Msg("Failed to extract WAV segment for condensed audio")
+						}
+					}
+				}
+				
+				// Call concatenation to create the final condensed audio file
+				tsk.Handler.ZeroLog().Info().Msg("Creating condensed audio file (auxiliary output)...")
+				if err := tsk.ConcatWAVstoOGG("CONDENSED"); err != nil {
+					procErr = tsk.Handler.LogErr(err, AbortTask, "Failed to create condensed audio file as part of Translit mode.")
+					if procErr != nil {
+						return procErr // Abort this task
+					}
+				}
+			}
+		}
+	}
+mergeOutputs:
 	// Only merge outputs when MergeOutputFiles is true (set by the frontend for merge group features)
 	if tsk.MergeOutputFiles && len(tsk.OutputFiles) > 0 {
 		tsk.Handler.ZeroLog().Debug().
@@ -425,6 +520,23 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 		totalItems = len(tsk.TargSubs.Items)
 	}
 	
+	// For Condense mode, we only need to create the media output directory and set MediaPrefix
+	// Skip native subtitles loading and TSV output file creation
+	if tsk.Mode == Condense {
+		tsk.Handler.ZeroLog().Debug().Msg("Preparing output directory for Condense mode")
+		
+		// Create media output directory
+		if err := os.MkdirAll(tsk.mediaOutputDir(), os.ModePerm); err != nil {
+			return nil, tsk.Handler.LogErr(err, AbortTask,
+				fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
+		}
+		
+		// Set media prefix for file output
+		tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
+		
+		return nil, nil
+	}
+	
 	// Validate requirements for Subs2Cards mode
 	if tsk.Mode == Subs2Cards {
 		if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
@@ -445,7 +557,7 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 		}
 	}
 
-	// Create output file
+	// Create output file (not needed for Condense mode)
 	outStream, err = os.OpenFile(tsk.outputFile(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		return nil, tsk.Handler.LogErr(err, AbortTask,

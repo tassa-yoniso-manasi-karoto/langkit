@@ -185,8 +185,10 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		// Helper function to process an item and update tracking metrics
 		// This centralizes the logic for handling both normal and already-done items
 		processItem := func(item *ProcessedItem, logMessage string) {
-			// Write the item to the output file
-			write(outStream, item)
+			// Write the item to the output file if both write and outStream are not nil
+			if write != nil && outStream != nil {
+				write(outStream, item)
+			}
 			
 			// Handle progress tracking based on item status
 			if !item.AlreadyDone {
@@ -306,8 +308,12 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 			Msg("Processing error occurred, cancelling all workers")
 		return finalErr
 	}
-	if tsk.WantCondensedAudio {
-		tsk.ConcatWAVstoOGG("CONDENSED") // TODO probably better to put it elsewhere
+	// If in Condense mode or WantCondensedAudio is true, create the condensed audio file
+	if tsk.Mode == Condense || tsk.WantCondensedAudio {
+		tsk.Handler.ZeroLog().Info().Msg("Creating condensed audio file...")
+		if err := tsk.ConcatWAVstoOGG("CONDENSED"); err != nil {
+			return tsk.Handler.LogErr(err, AbortTask, "Failed to create condensed audio file")
+		}
 	}
 	return nil
 }

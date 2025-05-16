@@ -30,7 +30,7 @@ Langkit is an all-in-one tool designed to **facilitate language learning from na
 > **Some features require an API key because certain processing tasks, such as speech-to-text, audio enhancement, are outsourced to an external provider** like Replicate. These companies offer cloud-based machine learning models that handle complex tasks remotely, allowing Langkit to leverage the models without requiring local computation. <br> The cost of running a few processing tasks using these models is typically very low. 
 
 > [!WARNING]
-> ⚠️ **about Feature Combinations**: langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior. Users are encouraged to **report any issues encountered either with the debug info exported from the Setting panel or with the crash report log**, especially when utilizing less common or more intricate feature combinations.
+> ⚠️ **About Feature Combinations**: ⚠️<br> langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior, especially when utilizing less common or more intricate feature combinations. Users are encouraged to **report any issues encountered either with the debug info exported from the Settings panel or with the Crash Report log**.
 
 # tldr cli
 
