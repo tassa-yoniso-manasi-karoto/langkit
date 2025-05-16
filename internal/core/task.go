@@ -119,6 +119,11 @@ type Task struct {
 	WantCondensedAudio   bool
 	WantEnhancedTrack    bool // Used when Condense mode should also create an enhanced track
 	
+	// Summary options for condensed audio
+	WantSummary        bool   // Whether to generate a summary for condensed audio
+	SummaryProvider    string // LLM provider to use for summarization
+	SummaryModel       string // Model to use within the provider
+	
 	// Audio track options
 	TargetChan           int // TODO rename TargetChanNum
 	UseAudiotrack        int

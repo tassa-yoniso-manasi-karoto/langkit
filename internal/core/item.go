@@ -285,6 +285,63 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 			Msg("Removed WAV segment files after creating condensed audio")
 	}
 	
+	// Generate and add summary to metadata if requested
+	if tsk.WantSummary && tsk.TargSubs != nil && len(tsk.TargSubs.Items) > 0 {
+		tsk.Handler.ZeroLog().Info().
+			Str("provider", tsk.SummaryProvider).
+			Str("model", tsk.SummaryModel).
+			Msg("Generating media summary for condensed audio...")
+		
+		// Import would be needed at the top of the file:
+		// "github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
+		
+		// Create options for the summary
+		// In a real implementation, this would use the summary package:
+		/*
+		options := summary.Options{
+			Provider:          tsk.SummaryProvider,
+			Model:             tsk.SummaryModel,
+			MaxLength:         500,  // Default, could be configurable
+			Temperature:       0.7,  // Default, could be configurable
+			Style:             "brief",
+			IncludeCharacters: true,
+			IncludePlot:       true,
+		}
+		
+		// Prepare subtitles for summarization
+		subtitleText := summary.PrepareSubtitlesForSummary(tsk.TargSubs)
+		
+		if subtitleText != "" {
+			// Generate the summary
+			ctx := context.Background()
+			summaryText, err := summary.GetDefaultService().GenerateSummary(ctx, subtitleText, options)
+			
+			if err != nil {
+				tsk.Handler.ZeroLog().Error().Err(err).
+					Msg("Failed to generate summary for condensed audio")
+				// Don't fail the whole task if summary generation fails
+			} else {
+				// Add summary to audio file metadata using the lyrics tag
+				// (commonly supported in audio players for displaying text)
+				err = media.AddMetadataToAudio(out, "lyrics", summaryText)
+				if err != nil {
+					tsk.Handler.ZeroLog().Error().Err(err).
+						Msg("Failed to add summary to condensed audio metadata")
+				} else {
+					tsk.Handler.ZeroLog().Info().
+						Msg("Summary added to condensed audio file metadata")
+				}
+			}
+		} else {
+			tsk.Handler.ZeroLog().Warn().
+				Msg("No subtitle text available for summarization")
+		}
+		*/
+		
+		// Placeholder until the summary package is fully integrated
+		tsk.Handler.ZeroLog().Info().Msg("Summary generation will be implemented when the summary package is integrated")
+	}
+	
 	tsk.Handler.ZeroLog().Info().
 		Str("outputFile", out).
 		Msg("Successfully created condensed audio file")

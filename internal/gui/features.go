@@ -460,6 +460,31 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 					tsk.Offset = time.Duration(int(padding)) * time.Millisecond
 				}
 			}
+			
+			// Handle summary options if present
+			if enableSummary, ok := featureOpts["enableSummary"].(bool); ok && enableSummary {
+				tsk.WantSummary = true
+				
+				// Set the provider
+				if provider, ok := featureOpts["summaryProvider"].(string); ok && provider != "" {
+					tsk.SummaryProvider = provider
+				} else {
+					tsk.SummaryProvider = "openai" // Default provider
+				}
+				
+				// Set the model
+				if model, ok := featureOpts["summaryModel"].(string); ok && model != "" {
+					tsk.SummaryModel = model
+				} else {
+					tsk.SummaryModel = "gpt-3.5-turbo" // Default model
+				}
+				
+				tsk.Handler.ZeroLog().Debug().
+					Bool("enableSummary", true).
+					Str("provider", tsk.SummaryProvider).
+					Str("model", tsk.SummaryModel).
+					Msg("Configured summary generation for condensed audio")
+			}
 
 			tsk.Handler.ZeroLog().Debug().
 				Interface("condensedAudio_options", featureOpts).
