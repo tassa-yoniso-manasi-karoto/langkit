@@ -136,271 +136,335 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 		}
 	}
 	
-	// Initialize subtitle processing options:
-	// Configure based on selected features starting from the most specific,
-	// restricted processing mode to the most general, multipurpose in order to
-	// have the correct tsk.Mode at the end to pass on downstream.
-	
-	if req.SelectedFeatures["voiceEnhancing"] {
-		featureOpts, ok := req.Options.Options["voiceEnhancing"]
-		if !ok {
-			tsk.Handler.Log(core.Error, core.AbortTask, "voiceEnhancing options not found")
-			return
-		}
-		
-		tsk.Mode = core.Enhance
-		
-		if sepLib, ok := featureOpts["sepLib"]; ok {
-			if sepLibStr, ok := sepLib.(string); ok {
-				tsk.SeparationLib = sepLibStr
-			}
-		}
-		
-		if voiceBoost, ok := featureOpts["voiceBoost"]; ok {
-			if boost, ok := voiceBoost.(float64); ok {
-				tsk.VoiceBoost = boost
-			}
-		}
-		
-		if originalBoost, ok := featureOpts["originalBoost"]; ok {
-			if boost, ok := originalBoost.(float64); ok {
-				tsk.OriginalBoost = boost
-			}
-		}
-		
-		if limiter, ok := featureOpts["limiter"]; ok {
-			if limit, ok := limiter.(float64); ok {
-				tsk.Limiter = limit
-			}
-		}
+	// Check if ONLY condensedAudio and voiceEnhancing features are selected
+	isOnlyCondensedAndEnhance := false
+	if len(req.SelectedFeatures) == 2 && 
+	   req.SelectedFeatures["condensedAudio"] && 
+	   req.SelectedFeatures["voiceEnhancing"] {
+		isOnlyCondensedAndEnhance = true
+	}
 
-		tsk.Handler.ZeroLog().Debug().
-			Interface("voice_enhancing_options", featureOpts).
-			Msg("Configured Voice Enhancing")
-	}
-	
-	// We'll capture all transliteration-related features first
-	var subtitleFeatures []string
-	if req.SelectedFeatures["subtitleRomanization"] {
-		subtitleFeatures = append(subtitleFeatures, "subtitleRomanization")
-	}
-	if req.SelectedFeatures["selectiveTransliteration"] {
-		subtitleFeatures = append(subtitleFeatures, "selectiveTransliteration")
-	}
-	if req.SelectedFeatures["subtitleTokenization"] {
-		subtitleFeatures = append(subtitleFeatures, "subtitleTokenization")
-	}
-	
-	// If any subtitle feature is selected, set up the transliteration mode
-	if len(subtitleFeatures) > 0 {
-		tsk.Mode = core.Translit
-		tsk.WantTranslit = true
+	if isOnlyCondensedAndEnhance {
+		// Special handling when only condensedAudio and voiceEnhancing are selected
+		tsk.Mode = core.Condense
+		tsk.WantCondensedAudio = true
+		tsk.WantEnhancedTrack = true
 		
-		// Initialize TranslitTypes to ensure we know which outputs to generate
-		tsk.TranslitTypes = []core.TranslitType{}
-		
-		// Process common provider settings from subtitleRomanization
-		// (or from other features if romanization isn't selected)
-		var providerFeature string
-		if req.SelectedFeatures["subtitleRomanization"] {
-			providerFeature = "subtitleRomanization"
-		} else if req.SelectedFeatures["subtitleTokenization"] {
-			providerFeature = "subtitleTokenization"
-		} else if req.SelectedFeatures["selectiveTransliteration"] {
-			providerFeature = "selectiveTransliteration"
-		}
-		
-		if providerFeature != "" {
-			featureOpts, ok := req.Options.Options[providerFeature]
-			if !ok {
-				tsk.Handler.Log(core.Error, core.AbortTask, providerFeature + " options not found")
-				return
-			}
-			
-			// Process common provider settings
-			if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
-				if recreate, ok := dockerRecreate.(bool); ok {
-					tsk.DockerRecreate = recreate
+		// Set options from condensedAudio
+		if featureOpts, ok := req.Options.Options["condensedAudio"]; ok {
+			if padTiming, ok := featureOpts["padTiming"]; ok {
+				if padding, ok := padTiming.(float64); ok {
+					tsk.Offset = time.Duration(int(padding)) * time.Millisecond
 				}
 			}
-			
-			if browserAccessURL, ok := featureOpts["browserAccessURL"]; ok {
-				if url, ok := browserAccessURL.(string); ok {
-					tsk.BrowserAccessURL = url
-				}
-			}
-			
-			if style, ok := featureOpts["style"]; ok {
-				if styleStr, ok := style.(string); ok {
-					tsk.RomanizationStyle = styleStr
-				}
-			}
-			
-			if provider, ok := featureOpts["provider"]; ok {
-				// Provider info is captured in the style selection for romanization
-				tsk.Handler.ZeroLog().Debug().Interface("provider", provider).Msg("Provider info")
-			}
-			
-			tsk.Handler.ZeroLog().Debug().
-				Interface("subtitle_provider_options", featureOpts).
-				Bool("docker_recreate", tsk.DockerRecreate).
-				Str("browser_url", tsk.BrowserAccessURL).
-				Str("romanization_style", tsk.RomanizationStyle).
-				Msg("Configured Subtitle Provider")
-		}
-		
-		// Selective Transliteration
-		if req.SelectedFeatures["selectiveTransliteration"] {
-			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Selective)
-
-			// Get selective transliteration specific options
-			featureOpts, ok := req.Options.Options["selectiveTransliteration"]
-			if ok {
-				if tokenizeOutput, ok := featureOpts["tokenizeOutput"]; ok {
-					if tokenize, ok := tokenizeOutput.(bool); ok {
-						tsk.TokenizeSelectiveTranslit = tokenize
-					} else {
-						// Default to true if not a boolean
-						tsk.TokenizeSelectiveTranslit = true
-					}
-				} else {
-					// Default to true if not specified (matching UI default)
-					tsk.TokenizeSelectiveTranslit = true
-				}
-
-				// Add TokenizedSelective type if tokenization is enabled
-				if tsk.TokenizeSelectiveTranslit {
-					tsk.TranslitTypes = append(tsk.TranslitTypes, core.TokenizedSelective)
-				}
-
-				if kanjiThreshold, ok := featureOpts["kanjiFrequencyThreshold"]; ok {
-					if threshold, ok := kanjiThreshold.(float64); ok {
-						tsk.KanjiThreshold = int(threshold)
-					}
-				}
-
-				tsk.Handler.ZeroLog().Debug().
-					Interface("selective_transliteration_options", featureOpts).
-					Int("kanji_threshold", tsk.KanjiThreshold).
-					Bool("tokenized_selective", tsk.TokenizeSelectiveTranslit).
-					Msg("Configured Selective Transliteration")
-			} else {
-				// No options found, use defaults
-				tsk.TokenizeSelectiveTranslit = true
-				tsk.TranslitTypes = append(tsk.TranslitTypes, core.TokenizedSelective)
-			}
-		}
-		
-		// Subtitle Romanization
-		if req.SelectedFeatures["subtitleRomanization"] {
-			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Romanize)
-			tsk.Handler.ZeroLog().Debug().Msg("Subtitle Romanization enabled")
-		}
-		
-		// Subtitle Tokenization
-		if req.SelectedFeatures["subtitleTokenization"] {
-			tsk.TranslitTypes = append(tsk.TranslitTypes, core.Tokenize)
-			tsk.Handler.ZeroLog().Debug().Msg("Subtitle Tokenization enabled")
-		}
-	}
-
-
-	if req.SelectedFeatures["dubtitles"] {
-		featureOpts, ok := req.Options.Options["dubtitles"]
-		if !ok {
-			tsk.Handler.Log(core.Error, core.AbortTask, "dubtitles options not found")
-			return
-		}
-		
-		tsk.Mode = core.Subs2Dubs
-		
-		if padTiming, ok := featureOpts["padTiming"]; ok {
-			if padding, ok := padTiming.(float64); ok {
-				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
-			}
-		}
-		
-		if stt, ok := featureOpts["stt"]; ok {
-			if sttStr, ok := stt.(string); ok {
-				tsk.STT = sttStr
-			}
-		}
-		
-		if sttTimeout, ok := featureOpts["sttTimeout"]; ok {
-			if timeout, ok := sttTimeout.(float64); ok {
-				tsk.TimeoutSTT = int(timeout)
-			}
-		}
-		
-		if initialPrompt, ok := featureOpts["initialPrompt"]; ok {
-			if prompt, ok := initialPrompt.(string); ok {
-				tsk.InitialPrompt = prompt
-			}
-		}
-
-		tsk.Handler.ZeroLog().Debug().
-			Interface("dubtitles_options", featureOpts).
-			Msg("Configured Dubtitles")
-	}
-	
-
-	if req.SelectedFeatures["subs2cards"] {
-		featureOpts, ok := req.Options.Options["subs2cards"]
-		if !ok {
-			tsk.Handler.Log(core.Error, core.AbortTask, "subs2cards options not found")
-			return
-		}
-		
-		tsk.Mode = core.Subs2Cards
-		
-		if padTiming, ok := featureOpts["padTiming"]; ok {
-			if padding, ok := padTiming.(float64); ok {
-				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
-			}
-		}
-		
-		if screenshotWidth, ok := featureOpts["screenshotWidth"]; ok {
-			if width, ok := screenshotWidth.(float64); ok {
-				media.MaxWidth = int(width)
-			}
-		}
-		
-		if screenshotHeight, ok := featureOpts["screenshotHeight"]; ok {
-			if height, ok := screenshotHeight.(float64); ok {
-				media.MaxHeight = int(height)
-			}
-		}
-
-		tsk.Handler.ZeroLog().Debug().
-			Interface("subs2cards_options", featureOpts).
-			Msg("Configured Subs2Cards")
-	}
-
-	if req.SelectedFeatures["condensedAudio"] {
-		featureOpts, ok := req.Options.Options["condensedAudio"]
-		if !ok {
+		} else {
 			tsk.Handler.Log(core.Error, core.AbortTask, "condensedAudio options not found")
 			return
 		}
 		
-		// For condensedAudio, we need to set a specific mode if it's the only feature
-		// or keep the existing mode if combined with other features
-		if tsk.Mode == 0 {
-			tsk.Mode = core.Subs2Cards // Use Subs2Cards mode as base for condensed audio processing
+		// Set options from voiceEnhancing
+		if featureOpts, ok := req.Options.Options["voiceEnhancing"]; ok {
+			if sepLib, ok := featureOpts["sepLib"]; ok {
+				if sepLibStr, ok := sepLib.(string); ok {
+					tsk.SeparationLib = sepLibStr
+				}
+			}
+			
+			if voiceBoost, ok := featureOpts["voiceBoost"]; ok {
+				if boost, ok := voiceBoost.(float64); ok {
+					tsk.VoiceBoost = boost
+				}
+			}
+			
+			if originalBoost, ok := featureOpts["originalBoost"]; ok {
+				if boost, ok := originalBoost.(float64); ok {
+					tsk.OriginalBoost = boost
+				}
+			}
+			
+			if limiter, ok := featureOpts["limiter"]; ok {
+				if limit, ok := limiter.(float64); ok {
+					tsk.Limiter = limit
+				}
+			}
+		} else {
+			tsk.Handler.Log(core.Error, core.AbortTask, "voiceEnhancing options not found")
+			return
 		}
 		
-		// Always set the flag for condensed audio
-		tsk.WantCondensedAudio = true
+		tsk.Handler.ZeroLog().Debug().
+			Bool("condensedAudio", true).
+			Bool("voiceEnhancing", true).
+			Msg("Configured special case: condensedAudio + voiceEnhancing")
+	} else {
+		// Normal feature processing flow for all other combinations
 		
-		if padTiming, ok := featureOpts["padTiming"]; ok {
-			if padding, ok := padTiming.(float64); ok {
-				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+		// Initialize subtitle processing options:
+		// Configure based on selected features starting from the most specific,
+		// restricted processing mode to the most general, multipurpose in order to
+		// have the correct tsk.Mode at the end to pass on downstream.
+		
+		if req.SelectedFeatures["voiceEnhancing"] {
+			featureOpts, ok := req.Options.Options["voiceEnhancing"]
+			if !ok {
+				tsk.Handler.Log(core.Error, core.AbortTask, "voiceEnhancing options not found")
+				return
+			}
+			
+			tsk.Mode = core.Enhance
+			
+			if sepLib, ok := featureOpts["sepLib"]; ok {
+				if sepLibStr, ok := sepLib.(string); ok {
+					tsk.SeparationLib = sepLibStr
+				}
+			}
+			
+			if voiceBoost, ok := featureOpts["voiceBoost"]; ok {
+				if boost, ok := voiceBoost.(float64); ok {
+					tsk.VoiceBoost = boost
+				}
+			}
+			
+			if originalBoost, ok := featureOpts["originalBoost"]; ok {
+				if boost, ok := originalBoost.(float64); ok {
+					tsk.OriginalBoost = boost
+				}
+			}
+			
+			if limiter, ok := featureOpts["limiter"]; ok {
+				if limit, ok := limiter.(float64); ok {
+					tsk.Limiter = limit
+				}
+			}
+
+			tsk.Handler.ZeroLog().Debug().
+				Interface("voice_enhancing_options", featureOpts).
+				Msg("Configured Voice Enhancing")
+		}
+		
+		// We'll capture all transliteration-related features first
+		var subtitleFeatures []string
+		if req.SelectedFeatures["subtitleRomanization"] {
+			subtitleFeatures = append(subtitleFeatures, "subtitleRomanization")
+		}
+		if req.SelectedFeatures["selectiveTransliteration"] {
+			subtitleFeatures = append(subtitleFeatures, "selectiveTransliteration")
+		}
+		if req.SelectedFeatures["subtitleTokenization"] {
+			subtitleFeatures = append(subtitleFeatures, "subtitleTokenization")
+		}
+		
+		// If any subtitle feature is selected, set up the transliteration mode
+		if len(subtitleFeatures) > 0 {
+			tsk.Mode = core.Translit
+			tsk.WantTranslit = true
+			
+			// Initialize TranslitTypes to ensure we know which outputs to generate
+			tsk.TranslitTypes = []core.TranslitType{}
+			
+			// Process common provider settings from subtitleRomanization
+			// (or from other features if romanization isn't selected)
+			var providerFeature string
+			if req.SelectedFeatures["subtitleRomanization"] {
+				providerFeature = "subtitleRomanization"
+			} else if req.SelectedFeatures["subtitleTokenization"] {
+				providerFeature = "subtitleTokenization"
+			} else if req.SelectedFeatures["selectiveTransliteration"] {
+				providerFeature = "selectiveTransliteration"
+			}
+			
+			if providerFeature != "" {
+				featureOpts, ok := req.Options.Options[providerFeature]
+				if !ok {
+					tsk.Handler.Log(core.Error, core.AbortTask, providerFeature + " options not found")
+					return
+				}
+				
+				// Process common provider settings
+				if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
+					if recreate, ok := dockerRecreate.(bool); ok {
+						tsk.DockerRecreate = recreate
+					}
+				}
+				
+				if browserAccessURL, ok := featureOpts["browserAccessURL"]; ok {
+					if url, ok := browserAccessURL.(string); ok {
+						tsk.BrowserAccessURL = url
+					}
+				}
+				
+				if style, ok := featureOpts["style"]; ok {
+					if styleStr, ok := style.(string); ok {
+						tsk.RomanizationStyle = styleStr
+					}
+				}
+				
+				if provider, ok := featureOpts["provider"]; ok {
+					// Provider info is captured in the style selection for romanization
+					tsk.Handler.ZeroLog().Debug().Interface("provider", provider).Msg("Provider info")
+				}
+				
+				tsk.Handler.ZeroLog().Debug().
+					Interface("subtitle_provider_options", featureOpts).
+					Bool("docker_recreate", tsk.DockerRecreate).
+					Str("browser_url", tsk.BrowserAccessURL).
+					Str("romanization_style", tsk.RomanizationStyle).
+					Msg("Configured Subtitle Provider")
+			}
+			
+			// Selective Transliteration
+			if req.SelectedFeatures["selectiveTransliteration"] {
+				tsk.TranslitTypes = append(tsk.TranslitTypes, core.Selective)
+
+				// Get selective transliteration specific options
+				featureOpts, ok := req.Options.Options["selectiveTransliteration"]
+				if ok {
+					if tokenizeOutput, ok := featureOpts["tokenizeOutput"]; ok {
+						if tokenize, ok := tokenizeOutput.(bool); ok {
+							tsk.TokenizeSelectiveTranslit = tokenize
+						} else {
+							// Default to true if not a boolean
+							tsk.TokenizeSelectiveTranslit = true
+						}
+					} else {
+						// Default to true if not specified (matching UI default)
+						tsk.TokenizeSelectiveTranslit = true
+					}
+
+					// Add TokenizedSelective type if tokenization is enabled
+					if tsk.TokenizeSelectiveTranslit {
+						tsk.TranslitTypes = append(tsk.TranslitTypes, core.TokenizedSelective)
+					}
+
+					if kanjiThreshold, ok := featureOpts["kanjiFrequencyThreshold"]; ok {
+						if threshold, ok := kanjiThreshold.(float64); ok {
+							tsk.KanjiThreshold = int(threshold)
+						}
+					}
+
+					tsk.Handler.ZeroLog().Debug().
+						Interface("selective_transliteration_options", featureOpts).
+						Int("kanji_threshold", tsk.KanjiThreshold).
+						Bool("tokenized_selective", tsk.TokenizeSelectiveTranslit).
+						Msg("Configured Selective Transliteration")
+				} else {
+					// No options found, use defaults
+					tsk.TokenizeSelectiveTranslit = true
+					tsk.TranslitTypes = append(tsk.TranslitTypes, core.TokenizedSelective)
+				}
+			}
+			
+			// Subtitle Romanization
+			if req.SelectedFeatures["subtitleRomanization"] {
+				tsk.TranslitTypes = append(tsk.TranslitTypes, core.Romanize)
+				tsk.Handler.ZeroLog().Debug().Msg("Subtitle Romanization enabled")
+			}
+			
+			// Subtitle Tokenization
+			if req.SelectedFeatures["subtitleTokenization"] {
+				tsk.TranslitTypes = append(tsk.TranslitTypes, core.Tokenize)
+				tsk.Handler.ZeroLog().Debug().Msg("Subtitle Tokenization enabled")
 			}
 		}
 
-		tsk.Handler.ZeroLog().Debug().
-			Interface("condensedAudio_options", featureOpts).
-			Msg("Configured Condensed Audio")
+
+		if req.SelectedFeatures["dubtitles"] {
+			featureOpts, ok := req.Options.Options["dubtitles"]
+			if !ok {
+				tsk.Handler.Log(core.Error, core.AbortTask, "dubtitles options not found")
+				return
+			}
+			
+			tsk.Mode = core.Subs2Dubs
+			
+			if padTiming, ok := featureOpts["padTiming"]; ok {
+				if padding, ok := padTiming.(float64); ok {
+					tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+				}
+			}
+			
+			if stt, ok := featureOpts["stt"]; ok {
+				if sttStr, ok := stt.(string); ok {
+					tsk.STT = sttStr
+				}
+			}
+			
+			if sttTimeout, ok := featureOpts["sttTimeout"]; ok {
+				if timeout, ok := sttTimeout.(float64); ok {
+					tsk.TimeoutSTT = int(timeout)
+				}
+			}
+			
+			if initialPrompt, ok := featureOpts["initialPrompt"]; ok {
+				if prompt, ok := initialPrompt.(string); ok {
+					tsk.InitialPrompt = prompt
+				}
+			}
+
+			tsk.Handler.ZeroLog().Debug().
+				Interface("dubtitles_options", featureOpts).
+				Msg("Configured Dubtitles")
+		}
+		
+
+		if req.SelectedFeatures["subs2cards"] {
+			featureOpts, ok := req.Options.Options["subs2cards"]
+			if !ok {
+				tsk.Handler.Log(core.Error, core.AbortTask, "subs2cards options not found")
+				return
+			}
+			
+			tsk.Mode = core.Subs2Cards
+			
+			if padTiming, ok := featureOpts["padTiming"]; ok {
+				if padding, ok := padTiming.(float64); ok {
+					tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+				}
+			}
+			
+			if screenshotWidth, ok := featureOpts["screenshotWidth"]; ok {
+				if width, ok := screenshotWidth.(float64); ok {
+					media.MaxWidth = int(width)
+				}
+			}
+			
+			if screenshotHeight, ok := featureOpts["screenshotHeight"]; ok {
+				if height, ok := screenshotHeight.(float64); ok {
+					media.MaxHeight = int(height)
+				}
+			}
+
+			tsk.Handler.ZeroLog().Debug().
+				Interface("subs2cards_options", featureOpts).
+				Msg("Configured Subs2Cards")
+		}
+
+		if req.SelectedFeatures["condensedAudio"] {
+			featureOpts, ok := req.Options.Options["condensedAudio"]
+			if !ok {
+				tsk.Handler.Log(core.Error, core.AbortTask, "condensedAudio options not found")
+				return
+			}
+			
+			// For condensedAudio, we need to set a specific mode if it's the only feature
+			// or keep the existing mode if combined with other features
+			if tsk.Mode == 0 {
+				tsk.Mode = core.Condense // Use Condense mode for condensed audio processing
+			}
+			
+			// Always set the flag for condensed audio
+			tsk.WantCondensedAudio = true
+			
+			if padTiming, ok := featureOpts["padTiming"]; ok {
+				if padding, ok := padTiming.(float64); ok {
+					tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+				}
+			}
+
+			tsk.Handler.ZeroLog().Debug().
+				Interface("condensedAudio_options", featureOpts).
+				Msg("Configured Condensed Audio")
+		}
 	}
 }
 

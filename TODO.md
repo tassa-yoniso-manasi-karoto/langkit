@@ -9,6 +9,8 @@ SVG animations: rework state transitions
 - condensed audio 
   - CHECK IT
   - support Condensed Audio summaries
+  
+- add tlit in TSV/CSV
 
 - guarantee all settings in Settings panel work
 

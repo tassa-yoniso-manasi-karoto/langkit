@@ -191,7 +191,7 @@ goodEnd:
 				// Ensure MediaPrefix is set properly for Translit mode with condensed audio
 					if tsk.TargSubFile == "" {
 						// This is a critical error - we need TargSubFile for outputBase
-						procErr = tsk.Handler.Log(Error, AbortTask, "Cannot generate condensed audio for Translit mode: TargSubFile is not set, cannot determine output base.")
+						procErr = tsk.Handler.Log(Error, AbortTask, "Cannot generate condensed audio: TargSubFile is not set, cannot determine output base.")
 						if procErr != nil { 
 							return procErr // Abort this task
 						}
