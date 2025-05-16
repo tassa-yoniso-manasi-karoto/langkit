@@ -6,9 +6,14 @@ SVG animations: rework state transitions
   - single Browser Access URL declaration
   - make currenlty running browser download known in the GUI
 
-- condensed audio 
-  - CHECK IT
-  - support Condensed Audio summaries
+- condensed audio: CHECK IT
+
+- support Condensed Audio summaries:
+  - Implement API Key Handling: Integrate pkg/llms/registry.go with internal/config/settings.go to securely load and use API keys for OpenAI, LangChain (if it wraps specific key-based models), and OpenRouter.
+  - Implement One LLM Provider Fully: Start with pkg/llms/openai.go. Implement the Complete method to make actual API calls to OpenAI using their Go SDK. This will serve as a template for other providers.
+  - Refine summary.PrepareSubtitlesForSummary: Test with various subtitle formats and content to ensure the text fed to the LLM is clean and effective. Consider maximum input length for LLMs.
+  - Integrate media.AddMetadataToAudio: Ensure this works reliably across different audio players with the "lyrics" tag. (MP3/AAC differences)
+  - Develop GUI Components: Create UI elements for the user to enable summarization and choose provider/model.
   
 - add tlit in TSV/CSV
 

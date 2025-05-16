@@ -2,12 +2,35 @@ package llms
 
 import (
 	"sync"
+	
+	"github.com/rs/zerolog"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 )
 
 var (
 	defaultClient     *Client
 	defaultClientOnce sync.Once
+	logger            zerolog.Logger
 )
+
+// Initialize sets up the LLM system with a logger
+func Initialize(l zerolog.Logger) {
+	logger = l.With().Str("component", "llms").Logger()
+	
+	// Register API keys from settings
+	settings, err := config.LoadSettings()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to load settings for LLM providers")
+	} else {
+		// Load API keys
+		LoadAPIKeysFromSettings(settings)
+	}
+	
+	// Ensure LLM client is initialized
+	GetDefaultClient()
+	
+	logger.Info().Msg("LLM client system initialized")
+}
 
 // GetDefaultClient returns the default LLM client instance
 func GetDefaultClient() *Client {
@@ -17,38 +40,85 @@ func GetDefaultClient() *Client {
 	return defaultClient
 }
 
+// LoadAPIKeysFromSettings loads API keys from app settings into the LLM API key store
+func LoadAPIKeysFromSettings(settings config.Settings) {
+	// Store API keys for LLM providers
+	APIKeys.Store("openai", settings.APIKeys.OpenAI)
+	APIKeys.Store("openrouter", settings.APIKeys.OpenRouter)
+	APIKeys.Store("google", settings.APIKeys.Google)
+	
+	if logger.Debug().Enabled() {
+		// Log which providers have valid API keys (without revealing the keys)
+		providers := []string{"openai", "openrouter", "google"}
+		for _, provider := range providers {
+			logger.Debug().
+				Str("provider", provider).
+				Bool("has_key", APIKeys.Has(provider)).
+				Msg("LLM provider API key status")
+		}
+	}
+}
+
 // RegisterDefaultProviders initializes and registers all default providers
-// based on environment/configuration settings
+// based on configuration settings
 func RegisterDefaultProviders() {
 	client := GetDefaultClient()
+	providersRegistered := 0
 	
-	// Register OpenAI provider if configured
-	if apiKey := getConfigValue("OPENAI_API_KEY"); apiKey != "" {
-		client.RegisterProvider(NewOpenAIProvider(apiKey))
+	// Register OpenAI provider if API key is available
+	if APIKeys.Has("openai") {
+		apiKey := APIKeys.Get("openai")
+		provider := NewOpenAIProvider(apiKey)
+		client.RegisterProvider(provider)
+		providersRegistered++
+		
+		// Set as default if first provider
+		if providersRegistered == 1 {
+			client.SetDefaultProvider("openai")
+		}
+		
+		if logger.Debug().Enabled() {
+			logger.Debug().
+				Str("provider", "openai").
+				Int("models", len(provider.GetAvailableModels())).
+				Msg("Registered OpenAI provider")
+		}
 	}
 	
-	// Register LangChain provider if configured
+	// Register LangChain provider if enabled
 	// This would depend on your LangChain Go implementation
-	if isConfigEnabled("ENABLE_LANGCHAIN") {
-		client.RegisterProvider(NewLangChainProvider())
+	provider := NewLangChainProvider()
+	if provider != nil {
+		client.RegisterProvider(provider)
+		providersRegistered++
+		
+		if logger.Debug().Enabled() {
+			logger.Debug().
+				Str("provider", "langchain").
+				Int("models", len(provider.GetAvailableModels())).
+				Msg("Registered LangChain provider")
+		}
 	}
 	
-	// Register OpenRouter provider if configured
-	if apiKey := getConfigValue("OPENROUTER_API_KEY"); apiKey != "" {
-		client.RegisterProvider(NewOpenRouterProvider(apiKey))
+	// Register OpenRouter provider if API key is available
+	if APIKeys.Has("openrouter") {
+		apiKey := APIKeys.Get("openrouter")
+		provider := NewOpenRouterProvider(apiKey)
+		client.RegisterProvider(provider)
+		providersRegistered++
+		
+		if logger.Debug().Enabled() {
+			logger.Debug().
+				Str("provider", "openrouter").
+				Int("models", len(provider.GetAvailableModels())).
+				Msg("Registered OpenRouter provider")
+		}
 	}
-}
-
-// Helper to get config values - replace with your actual config system
-func getConfigValue(key string) string {
-	// This is a placeholder - implement with your real config system
-	// e.g. return os.Getenv(key) or config.GetString(key)
-	return ""
-}
-
-// Helper to check if a feature is enabled
-func isConfigEnabled(key string) bool {
-	// This is a placeholder - implement with your real config system
-	// e.g. return config.GetBool(key)
-	return false
+	
+	// Log total providers registered
+	if logger.Info().Enabled() {
+		logger.Info().
+			Int("count", providersRegistered).
+			Msg("LLM providers registered")
+	}
 }
