@@ -1,7 +1,7 @@
 SVG animations: rework state transitions
 
 - 🤯 make consistent progress bars between GUI and CLI
-  
+
 - go-rod
   - single Browser Access URL declaration
   - make currenlty running browser download known in the GUI
@@ -11,6 +11,9 @@ SVG animations: rework state transitions
   - support Condensed Audio summaries
 
 - guarantee all settings in Settings panel work
+
+
+
 
 - add strategic frontend logging for prod
 

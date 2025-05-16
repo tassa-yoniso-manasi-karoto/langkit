@@ -677,7 +677,7 @@ func (tsk *Task) processAudioEnhancement(ctx context.Context) *ProcessingError {
 		if err := tsk.enhance(ctx); err != nil {
 			return err
 		}
-	} else if tsk.Mode == Enhance {
+	} else if tsk.Mode == Enhance || (tsk.Mode == Condense && tsk.WantEnhancedTrack) {
 		return tsk.Handler.LogErr(fmt.Errorf("tsk.SeparationLib is empty"),
 			AbortAllTasks, "No separation API to isolate the voice's audio was specified.")
 	}

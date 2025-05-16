@@ -171,6 +171,7 @@ func initCommandsWithSettings() {
 	RootCmd.AddCommand(subs2dubsCmd)
 	RootCmd.AddCommand(subs2cardsCmd)
 	RootCmd.AddCommand(translitCmd)
+	RootCmd.AddCommand(condenseCmd)
 }
 
 func initConfig() {

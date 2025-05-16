@@ -366,6 +366,7 @@ func (tsk *Task) applyCLIFlags(cmd *cobra.Command) {
 		"stt-dub":     &tsk.WantDubs,
 		"translit":    &tsk.WantTranslit,
 		"merge":       &tsk.MergeOutputFiles,
+		"enhance":     &tsk.WantEnhancedTrack,
 	}
 	
 	// Special case for "offset" which needs conversion to time.Duration
