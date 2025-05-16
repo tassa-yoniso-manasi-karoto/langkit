@@ -35,7 +35,9 @@ type RunFunc func(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args 
 func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		tsk := core.NewTask(core.NewCLIHandler(ctx))
+		handler := core.NewCLIHandler(ctx)
+		tsk := core.NewTask(handler)
+		core.InitLLM(handler) // FIXME reflect later about where and when to run this, and how to update it
 		defer func() {
 			if r := recover(); r != nil {
 				exitOnError(tsk, fmt.Errorf("panic: %v", r))
@@ -185,6 +187,8 @@ func initConfig() {
 		"ASSEMBLYAI_API_KEY": "api_keys.assemblyai",
 		"ELEVENLABS_API_KEY": "api_keys.elevenlabs",
 		"OPENAI_API_KEY": "api_keys.openai",
+		"OPENROUTER_API_KEY": "api_keys.openrouter",
+		"GOOGLE_API_KEY": "api_keys.google",
 	}
 
 	for env, conf := range envBindings {

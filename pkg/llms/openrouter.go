@@ -15,6 +15,9 @@ type OpenRouterProvider struct {
 // NewOpenRouterProvider creates a new OpenRouter provider
 func NewOpenRouterProvider(apiKey string) *OpenRouterProvider {
 	if apiKey == "" {
+		if logger.Debug().Enabled() {
+			logger.Debug().Msg("Empty API key provided to OpenRouter provider")
+		}
 		return nil
 	}
 	

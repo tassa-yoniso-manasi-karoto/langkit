@@ -90,6 +90,9 @@ func (a *App) domReady(ctx context.Context) {
 		runtime.WindowMaximise(ctx)
 	}
 	
+	// Initialize LLM system
+	core.InitLLM(handler)
+	
 	a.logger.Info().Msg("Application initialization complete")
 }
 

@@ -16,6 +16,9 @@ type OpenAIProvider struct {
 // NewOpenAIProvider creates a new OpenAI provider with the given API key
 func NewOpenAIProvider(apiKey string) *OpenAIProvider {
 	if apiKey == "" {
+		if logger.Debug().Enabled() {
+			logger.Debug().Msg("Empty API key provided to OpenAI provider")
+		}
 		return nil
 	}
 	

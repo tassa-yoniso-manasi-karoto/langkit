@@ -30,6 +30,8 @@ type Settings struct {
 		AssemblyAI string `json:"assemblyAI" mapstructure:"assemblyai"`
 		ElevenLabs string `json:"elevenLabs" mapstructure:"elevenlabs"`
 		OpenAI     string `json:"openAI" mapstructure:"openai"`
+		OpenRouter string `json:"openRouter" mapstructure:"openrouter"`
+		Google     string `json:"google" mapstructure:"google"`
 	} `json:"apiKeys" mapstructure:"api_keys"`
 	TargetLanguage         string `json:"targetLanguage" mapstructure:"target_language"`
 	NativeLanguages        string `json:"nativeLanguages" mapstructure:"native_languages"`
@@ -95,6 +97,8 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("api_keys.assemblyai", "")
 	viper.SetDefault("api_keys.elevenlabs", "")
 	viper.SetDefault("api_keys.openai", "")
+	viper.SetDefault("api_keys.openrouter", "")
+	viper.SetDefault("api_keys.google", "")
 
 	viper.SetDefault("target_language", "")
 	viper.SetDefault("native_languages", "en,en-US")
@@ -146,6 +150,8 @@ func SaveSettings(settings Settings) error {
 		"ASSEMBLYAI_API_KEY": settings.APIKeys.AssemblyAI,
 		"ELEVENLABS_API_KEY": settings.APIKeys.ElevenLabs,
 		"OPENAI_API_KEY":     settings.APIKeys.OpenAI,
+		"OPENROUTER_API_KEY": settings.APIKeys.OpenRouter,
+		"GOOGLE_API_KEY":     settings.APIKeys.Google,
 	}
 
 	// For each API key, only save to config if it's not the same as the environment variable
@@ -205,7 +211,7 @@ func LoadSettings() (Settings, error) {
 
 // Apply API keys from config or environment
 func (settings Settings) LoadKeys() {
-	providers := []string{"replicate", "assemblyai", "elevenlabs", "openai"}
+	providers := []string{"replicate", "assemblyai", "elevenlabs", "openai", "openrouter", "google"}
 
 	for idx, name := range providers {
 		var key string
@@ -218,6 +224,10 @@ func (settings Settings) LoadKeys() {
 			key = settings.APIKeys.ElevenLabs
 		case 3:
 			key = settings.APIKeys.OpenAI
+		case 4:
+			key = settings.APIKeys.OpenRouter
+		case 5:
+			key = settings.APIKeys.Google
 		}
 		if s := os.Getenv(strings.ToUpper(name) + "_API_KEY"); s != "" {
 			key = s
