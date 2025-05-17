@@ -12,15 +12,20 @@ type ModelInfo struct {
 
 // CompletionRequest contains parameters for a completion request
 type CompletionRequest struct {
-	Prompt        string   // The main prompt or user input
-	MaxTokens     int      // Maximum tokens to generate
-	Temperature   float64  // Controls randomness (0.0-1.0)
-	TopP          float64  // Nucleus sampling parameter
-	StopSequences []string // Sequences to stop generation
-	User          string   // Optional user identifier for billing/monitoring
-	SystemPrompt  string   // System-level instruction prompt
-	Model         string   // Model ID to use
-	Stream        bool     // Whether to stream the response
+	Prompt           string   // The main prompt or user input
+	MaxTokens        int      // Maximum tokens to generate
+	Temperature      float64  // Controls randomness (0.0-1.0)
+	TopP             float64  // Nucleus sampling parameter
+	StopSequences    []string // Sequences to stop generation
+	User             string   // Optional user identifier for billing/monitoring
+	SystemPrompt     string   // System-level instruction prompt
+	Model            string   // Model ID to use
+	Stream           bool     // Whether to stream the response
+	IncludeUsage     bool     // (New) For streaming, whether to request usage stats in the final chunk
+	N                int64    // (New) How many chat completion choices to generate
+	FrequencyPenalty float64  // (New) Penalize based on existing frequency
+	PresencePenalty  float64  // (New) Penalize based on presence so far
+	Seed             int64    // (New) For deterministic sampling if supported
 }
 
 // CompletionResponse contains the response from a completion request
