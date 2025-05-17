@@ -10,17 +10,17 @@ import (
 var (
 	defaultClient     *Client
 	defaultClientOnce sync.Once
-	logger            zerolog.Logger
+	Logger            zerolog.Logger // Package-level logger for use by providers
 )
 
 // Initialize sets up the LLM system with a logger
 func Initialize(l zerolog.Logger) {
-	logger = l.With().Str("component", "llms").Logger()
+	Logger = l.With().Str("component", "llms").Logger()
 	
 	// Register API keys from settings
 	settings, err := config.LoadSettings()
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to load settings for LLM providers")
+		Logger.Error().Err(err).Msg("Failed to load settings for LLM providers")
 	} else {
 		// Load API keys
 		LoadAPIKeysFromSettings(settings)
@@ -29,7 +29,7 @@ func Initialize(l zerolog.Logger) {
 	// Ensure LLM client is initialized
 	GetDefaultClient()
 	
-	logger.Info().Msg("LLM client system initialized")
+	Logger.Info().Msg("LLM client system initialized")
 }
 
 // GetDefaultClient returns the default LLM client instance
@@ -47,11 +47,11 @@ func LoadAPIKeysFromSettings(settings config.Settings) {
 	APIKeys.Store("openrouter", settings.APIKeys.OpenRouter)
 	APIKeys.Store("google", settings.APIKeys.Google)
 	
-	if logger.Debug().Enabled() {
+	if Logger.Debug().Enabled() {
 		// Log which providers have valid API keys (without revealing the keys)
 		providers := []string{"openai", "openrouter", "google"}
 		for _, provider := range providers {
-			logger.Debug().
+			Logger.Debug().
 				Str("provider", provider).
 				Bool("has_key", APIKeys.Has(provider)).
 				Msg("LLM provider API key status")
@@ -77,8 +77,8 @@ func RegisterDefaultProviders() {
 			client.SetDefaultProvider("openai")
 		}
 		
-		if logger.Debug().Enabled() {
-			logger.Debug().
+		if Logger.Debug().Enabled() {
+			Logger.Debug().
 				Str("provider", "openai").
 				Int("models", len(provider.GetAvailableModels())).
 				Msg("Registered OpenAI provider")
@@ -92,8 +92,8 @@ func RegisterDefaultProviders() {
 		client.RegisterProvider(provider)
 		providersRegistered++
 		
-		if logger.Debug().Enabled() {
-			logger.Debug().
+		if Logger.Debug().Enabled() {
+			Logger.Debug().
 				Str("provider", "langchain").
 				Int("models", len(provider.GetAvailableModels())).
 				Msg("Registered LangChain provider")
@@ -107,8 +107,8 @@ func RegisterDefaultProviders() {
 		client.RegisterProvider(provider)
 		providersRegistered++
 		
-		if logger.Debug().Enabled() {
-			logger.Debug().
+		if Logger.Debug().Enabled() {
+			Logger.Debug().
 				Str("provider", "openrouter").
 				Int("models", len(provider.GetAvailableModels())).
 				Msg("Registered OpenRouter provider")
@@ -116,8 +116,8 @@ func RegisterDefaultProviders() {
 	}
 	
 	// Log total providers registered
-	if logger.Info().Enabled() {
-		logger.Info().
+	if Logger.Info().Enabled() {
+		Logger.Info().
 			Int("count", providersRegistered).
 			Msg("LLM providers registered")
 	}

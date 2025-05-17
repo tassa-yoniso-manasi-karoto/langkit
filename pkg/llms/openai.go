@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	
+	// Using package-level Logger from registry.go
 )
 
 // OpenAIProvider implements the Provider interface for OpenAI
@@ -16,8 +18,8 @@ type OpenAIProvider struct {
 // NewOpenAIProvider creates a new OpenAI provider with the given API key
 func NewOpenAIProvider(apiKey string) *OpenAIProvider {
 	if apiKey == "" {
-		if logger.Debug().Enabled() {
-			logger.Debug().Msg("Empty API key provided to OpenAI provider")
+		if Logger.Debug().Enabled() {
+			Logger.Debug().Msg("Empty API key provided to OpenAI provider")
 		}
 		return nil
 	}
