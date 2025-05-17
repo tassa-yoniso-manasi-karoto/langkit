@@ -3,6 +3,8 @@ package llms
 import (
 	"context"
 	"errors"
+	
+	// Using package-level Logger from registry.go
 )
 
 // OpenRouterProvider implements the Provider interface for OpenRouter
@@ -15,8 +17,8 @@ type OpenRouterProvider struct {
 // NewOpenRouterProvider creates a new OpenRouter provider
 func NewOpenRouterProvider(apiKey string) *OpenRouterProvider {
 	if apiKey == "" {
-		if logger.Debug().Enabled() {
-			logger.Debug().Msg("Empty API key provided to OpenRouter provider")
+		if Logger.Debug().Enabled() {
+			Logger.Debug().Msg("Empty API key provided to OpenRouter provider")
 		}
 		return nil
 	}
