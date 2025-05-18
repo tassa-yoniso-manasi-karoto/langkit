@@ -11,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	gollm_client "github.com/teilomillet/gollm" // Alias to avoid collision
+	"github.com/rs/zerolog"
+	"github.com/teilomillet/gollm"
 	gollm_config "github.com/teilomillet/gollm/config"
 	gollm_llm "github.com/teilomillet/gollm/llm"
 )
@@ -20,7 +21,7 @@ import (
 // leveraging the teilomillet/gollm library for completions and making
 // direct API calls for model listing.
 type OpenRouterProvider struct {
-	gollmInstance gollm_client.LLM // Instance of the gollm library's LLM
+	gollmInstance gollm.LLM // Instance of the gollm library's LLM
 	apiKey        string
 	defaultModel  string
 	models        []ModelInfo // Cached list of available models
@@ -39,18 +40,19 @@ func NewOpenRouterProvider(apiKey string) *OpenRouterProvider {
 
 	defaultOpenRouterModel := "openrouter/auto"
 
-	gollmLogLevel := gollm_config.LogLevelWarn
+	gollmLogLevel := gollm.LogLevelWarn
 	currentLogLevel := Logger.GetLevel()
+
 	switch currentLogLevel {
-	case LogLevelDebug:
-		gollmLogLevel = gollm_config.LogLevelDebug
-	case LogLevelInfo:
-		gollmLogLevel = gollm_config.LogLevelInfo
-	case LogLevelError:
-		gollmLogLevel = gollm_config.LogLevelError
+	case zerolog.DebugLevel:
+		gollmLogLevel = gollm.LogLevelDebug
+	case zerolog.InfoLevel: 
+		gollmLogLevel = gollm.LogLevelInfo
+	case zerolog.ErrorLevel:
+		gollmLogLevel = gollm.LogLevelError
 	}
 
-	llmInstance, err := gollm_client.NewLLM(
+	llmInstance, err := gollm.NewLLM(
 		gollm_config.SetProvider("openrouter"),
 		gollm_config.SetAPIKey(apiKey),
 		gollm_config.SetModel(defaultOpenRouterModel),
@@ -286,7 +288,7 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, request CompletionReq
 		// promptOpts = append(promptOpts, gollm_llm.WithSystemPrompt(request.SystemPrompt, gollm_llm.CacheTypeEphemeral))
 	}
 
-	gollmPrompt := gollm_client.NewPrompt(request.Prompt, promptOpts...)
+	gollmPrompt := gollm.NewPrompt(request.Prompt, promptOpts...)
 
 	if request.Stream {
 		// For streaming, gollm's SetOption("stream", true) is usually how it's enabled.

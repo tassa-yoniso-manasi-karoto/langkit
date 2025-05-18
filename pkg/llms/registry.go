@@ -85,21 +85,6 @@ func RegisterDefaultProviders() {
 		}
 	}
 	
-	// Register LangChain provider if enabled
-	// This would depend on your LangChain Go implementation
-	provider := NewLangChainProvider()
-	if provider != nil {
-		client.RegisterProvider(provider)
-		providersRegistered++
-		
-		if Logger.Debug().Enabled() {
-			Logger.Debug().
-				Str("provider", "langchain").
-				Int("models", len(provider.GetAvailableModels())).
-				Msg("Registered LangChain provider")
-		}
-	}
-	
 	// Register OpenRouter provider if API key is available
 	if APIKeys.Has("openrouter") {
 		apiKey := APIKeys.Get("openrouter")

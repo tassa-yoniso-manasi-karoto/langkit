@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/api/iterator"
 	"google.golang.org/genai"
 )
 
