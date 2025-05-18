@@ -17,6 +17,13 @@ import (
 	gollm_llm "github.com/teilomillet/gollm/llm"
 )
 
+/* NOTE ON GOLLM:
+gollm provide direct support for Google and OpenAI's models but it doesn't rely
+on their official SDK so I chose to use gollm only for OpenRouter support and
+use official SDKs whenever possible.
+*/
+
+
 // OpenRouterProvider implements the Provider interface for OpenRouter,
 // leveraging the teilomillet/gollm library for completions and making
 // direct API calls for model listing.
