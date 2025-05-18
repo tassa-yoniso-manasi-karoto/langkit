@@ -10,7 +10,6 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/packages/param"
 	"github.com/openai/openai-go/shared"
 )
 
@@ -33,7 +32,7 @@ func NewOpenAIProvider(apiKey string) *OpenAIProvider {
 	client := openai.NewClient(option.WithAPIKey(apiKey))
 
 	provider := &OpenAIProvider{
-		client: client,
+		client: &client,
 		apiKey: apiKey,
 	}
 	return provider
@@ -85,19 +84,19 @@ func (p *OpenAIProvider) GetAvailableModels() []ModelInfo {
 		// Note: MaxTokens here refers to the context window, not necessarily max output tokens.
 		// The actual max output tokens can be less and is often controlled by a separate parameter.
 		switch shared.ChatModel(model.ID) { // Use shared.ChatModel for comparison with constants
-		case shared.ChatModelGPT4o, openai.ChatModelGPT4o: // openai.ChatModelGPT4o is from responses, shared.ChatModel is from shared
+		case shared.ChatModelGPT4o: // GPT-4o model
 			maxTokens = 128000
 			capabilities = append(capabilities, "chat", "vision", "summarization", "reasoning")
-		case shared.ChatModelGPT4oMini, openai.ChatModelGPT4oMini:
+		case shared.ChatModelGPT4oMini: // GPT-4o Mini model
 			maxTokens = 128000 // Typically shares context window with larger variant
 			capabilities = append(capabilities, "chat", "vision", "summarization", "reasoning")
-		case shared.ChatModelGPT4Turbo, openai.ChatModelGPT4Turbo:
+		case shared.ChatModelGPT4Turbo: // GPT-4 Turbo model
 			maxTokens = 128000
 			capabilities = append(capabilities, "chat", "vision", "summarization", "reasoning")
-		case shared.ChatModelGPT4, openai.ChatModelGPT4:
+		case shared.ChatModelGPT4: // GPT-4 base model
 			maxTokens = 8192 // Or 32768 for -32k variants, but List API doesn't distinguish well
 			capabilities = append(capabilities, "chat", "vision", "summarization", "reasoning")
-		case shared.ChatModelGPT3_5Turbo, openai.ChatModelGPT3_5Turbo: // Covers variants like -0125
+		case shared.ChatModelGPT3_5Turbo: // Covers variants like -0125
 			maxTokens = 16385
 			capabilities = append(capabilities, "chat", "summarization")
 		default:
@@ -167,78 +166,74 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 	}
 
 	if request.MaxTokens > 0 {
-		chatReqParams.MaxTokens = param.NewOptInt(int64(request.MaxTokens))
+		chatReqParams.MaxTokens = openai.Int(int64(request.MaxTokens))
 	}
 	// Temperature can be 0, so check if it's explicitly set (assuming 0 is a valid unset value for our llms.CompletionRequest)
 	// OpenAI default is 1. If our request.Temperature is 0 and meant "not set", we should not send it.
 	// For simplicity, if Temperature is provided (even 0), we send it.
 	// A more robust llms.CompletionRequest might use *float64 for Temperature.
 	if request.Temperature >= 0 && request.Temperature <= 2 { // OpenAI range is 0 to 2
-		chatReqParams.Temperature = param.NewOptFloat(request.Temperature)
+		chatReqParams.Temperature = openai.Float(request.Temperature)
 	}
 	if request.TopP > 0 && request.TopP <= 1 { // OpenAI range is 0 to 1
-		chatReqParams.TopP = param.NewOptFloat(request.TopP)
+		chatReqParams.TopP = openai.Float(request.TopP)
 	}
 	if request.N > 0 {
-		chatReqParams.N = param.NewOptInt(int64(request.N))
+		chatReqParams.N = openai.Int(int64(request.N))
 	}
 	if request.FrequencyPenalty != 0 { // Range -2.0 to 2.0
-		chatReqParams.FrequencyPenalty = param.NewOptFloat(request.FrequencyPenalty)
+		chatReqParams.FrequencyPenalty = openai.Float(request.FrequencyPenalty)
 	}
 	if request.PresencePenalty != 0 { // Range -2.0 to 2.0
-		chatReqParams.PresencePenalty = param.NewOptFloat(request.PresencePenalty)
+		chatReqParams.PresencePenalty = openai.Float(request.PresencePenalty)
 	}
 	if request.Seed != 0 { // Assuming 0 means not set for our llms.CompletionRequest
-		chatReqParams.Seed = param.NewOptInt(int64(request.Seed))
+		chatReqParams.Seed = openai.Int(int64(request.Seed))
 	}
 
 	if len(request.StopSequences) > 0 {
 		if len(request.StopSequences) == 1 {
-			chatReqParams.Stop = openai.NewChatCompletionStopString(request.StopSequences[0])
+			chatReqParams.Stop.OfString = openai.String(request.StopSequences[0])
 		} else {
-			chatReqParams.Stop = openai.NewChatCompletionStopArray(request.StopSequences)
+			chatReqParams.Stop.OfChatCompletionNewsStopArray = request.StopSequences
 		}
 	}
 	if request.User != "" {
-		chatReqParams.User = param.NewOpt(request.User)
+		chatReqParams.User = openai.String(request.User)
 	}
 
 	if request.Stream {
 		if request.IncludeUsage {
 			chatReqParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{
-				IncludeUsage: param.NewOpt(true),
+				IncludeUsage: openai.Bool(true),
 			}
 		}
 		Logger.Debug().Interface("params", chatReqParams).Msg("Requesting streaming chat completion from OpenAI.")
-		stream, err := p.client.Chat.Completions.NewStreaming(ctx, chatReqParams)
-		if err != nil {
-			var apiErr *openai.Error
-			if errors.As(err, &apiErr) {
-				Logger.Error().Str("type", apiErr.Type).Str("code", fmt.Sprintf("%v", apiErr.Code)).Str("param", apiErr.Param).Msg("OpenAI API error during streaming request")
-			}
-			return CompletionResponse{}, fmt.Errorf("failed to start streaming chat completion: %w", err)
-		}
+		stream := p.client.Chat.Completions.NewStreaming(ctx, chatReqParams)
+		// No error checking needed as NewStreaming doesn't return an error
 		defer stream.Close()
 
 		var fullText strings.Builder
 		var finalResponse CompletionResponse
 		var lastChunk openai.ChatCompletionChunk // To get usage from the very last chunk
 
-		for {
-			chunk, err := stream.Recv()
-			if errors.Is(err, io.EOF) {
-				Logger.Debug().Msg("Stream finished.")
-				break
-			}
-			if err != nil {
-				Logger.Error().Err(err).Msg("Error receiving stream chunk")
-				return CompletionResponse{}, fmt.Errorf("stream error: %w", err)
-			}
+		for stream.Next() {
+			chunk := stream.Current()
 			lastChunk = chunk // Keep track of the last chunk for potential usage data
 			if len(chunk.Choices) > 0 {
-				fullText.WriteString(chunk.Choices[0].Delta.Content)
+				// Content might be absent in some chunks
+				if chunk.Choices[0].Delta.JSON.Content.IsPresent() {
+					fullText.WriteString(chunk.Choices[0].Delta.Content)
+				}
 			}
 		}
+		
+		if err := stream.Err(); err != nil {
+			Logger.Error().Err(err).Msg("Error receiving stream chunk")
+			return CompletionResponse{}, fmt.Errorf("stream error: %w", err)
+		}
+		
+		Logger.Debug().Msg("Stream finished.")
 
 		finalResponse.Text = fullText.String()
 		if len(lastChunk.Choices) > 0 { // FinishReason comes from the last choice in the last content-bearing chunk
@@ -248,7 +243,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 		finalResponse.Provider = p.GetName()
 
 		// Usage is typically in the very last event if requested via StreamOptions
-		if lastChunk.Usage.IsPresent() {
+		if lastChunk.JSON.Usage.IsPresent() {
 			finalResponse.Usage = TokenUsage{
 				PromptTokens:     int(lastChunk.Usage.PromptTokens),
 				CompletionTokens: int(lastChunk.Usage.CompletionTokens),
@@ -276,7 +271,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 
 		choice := resp.Choices[0]
 		var usage TokenUsage
-		if resp.Usage.IsPresent() {
+		if resp.JSON.Usage.IsPresent() {
 			usage.PromptTokens = int(resp.Usage.PromptTokens)
 			usage.CompletionTokens = int(resp.Usage.CompletionTokens)
 			usage.TotalTokens = int(resp.Usage.TotalTokens)
