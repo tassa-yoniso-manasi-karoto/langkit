@@ -3,9 +3,10 @@ package summary
 import (
 	"context"
 	"fmt"
-	// "strconv" // No longer needed here
 	"strings"
 
+	"github.com/rs/zerolog"
+	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
 
@@ -42,7 +43,7 @@ func (p *BaseProvider) GetName() string {
 func (p *BaseProvider) GetSupportedModels() []llms.ModelInfo {
 	provider, ok := p.llmClient.GetProvider(p.llmProvider)
 	if !ok {
-		if logger.GetLevel() <= llms.LogLevelError { 
+		if logger.GetLevel() <= zerolog.ErrorLevel { 
 			logger.Error().Str("provider_name", p.llmProvider).Msg("Underlying LLM provider not found in BaseProvider.GetSupportedModels")
 		}
 		return nil

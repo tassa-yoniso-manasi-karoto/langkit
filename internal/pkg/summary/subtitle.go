@@ -3,14 +3,9 @@ package summary
 import (
 	"regexp"
 	"strings"
-	// "unicode" // Not strictly needed for the simplified cleaning
 
 	"github.com/asticode/go-astisub"
-	"github.com/rs/zerolog"
 )
-
-// Package-level logger, to be initialized by summary.Initialize()
-var logger zerolog.Logger 
 
 const (
 	maxInputCharsForLLMWarning = 300000 

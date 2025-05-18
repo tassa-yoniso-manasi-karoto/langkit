@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
@@ -45,7 +46,7 @@ func (s *Service) GetProvider(llmProviderName string) (Provider, bool) {
 
 // ListProviders (definition remains the same)
 func (s *Service) ListProviders() []Provider {
-	providersList := make([]string, 0, len(s.providers))
+	providersList := make([]Provider, 0, len(s.providers))
 	for _, provider := range s.providers {
 		providersList = append(providersList, provider)
 	}

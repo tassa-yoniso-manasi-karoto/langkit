@@ -17,6 +17,7 @@ import (
 // If you have a central logging setup, use that.
 // For now, this will use the one from pkg/llms, assuming it's exported or accessible.
 var logger zerolog.Logger
+var FFmpegPath string
 
 func init() {
 	// A basic initialization for the logger.
@@ -156,7 +157,6 @@ func addLyricsToM4A(filePath, lyricsText string) error {
 }
 
 // runFFmpegCommand executes an FFmpeg command.
-// Assumes media.FFmpegPath is set.
 func runFFmpegCommand(args ...string) error {
 	// Prepend -loglevel error to reduce verbosity, unless already specified.
 	hasLogLevel := false
@@ -174,8 +174,8 @@ func runFFmpegCommand(args ...string) error {
 	finalArgs = append(finalArgs, "-hide_banner") // Suppress version banner
 
 	logger.Debug().Strs("ffmpeg_args", finalArgs).Msg("Executing FFmpeg command")
-
-	cmd := exec.Command(FFmpegPath, finalArgs...) // FFmpegPath from media package
+	
+	cmd := exec.Command(FFmpegPath, finalArgs...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr // Capture stderr for error reporting
 
