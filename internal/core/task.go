@@ -120,9 +120,13 @@ type Task struct {
 	WantEnhancedTrack    bool // Used when Condense mode should also create an enhanced track
 	
 	// Summary options for condensed audio
-	WantSummary        bool   // Whether to generate a summary for condensed audio
-	SummaryProvider    string // LLM provider to use for summarization
-	SummaryModel       string // Model to use within the provider
+	WantSummary         bool   // Whether to generate a summary for condensed audio
+	SummaryProvider     string // LLM provider to use for summarization (e.g., "openai", "google-gemini")
+	SummaryModel        string // Model to use within the provider (e.g., "gpt-4o", "models/gemini-1.5-pro-latest")
+	SummaryOutputLang   string // Desired language for the summary output (e.g., "en", "fr", user's NativeLang)
+	SummaryMaxLength    int    // Approximate max length in words for the summary
+	SummaryTemperature  float64// Temperature for summary generation (-1 for default)
+	SummaryCustomPrompt string // User-provided custom prompt for summarization
 	
 	// Audio track options
 	TargetChan           int // TODO rename TargetChanNum

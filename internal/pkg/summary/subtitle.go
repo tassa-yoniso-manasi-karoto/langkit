@@ -1,127 +1,81 @@
 package summary
 
 import (
+	"regexp"
 	"strings"
-	"unicode"
-	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
+	// "unicode" // Not strictly needed for the simplified cleaning
+
+	"github.com/asticode/go-astisub"
+	"github.com/rs/zerolog"
 )
 
-// PrepareSubtitlesForSummary converts subtitle items to a format suitable for summarization
-func PrepareSubtitlesForSummary(subtitles *subs.Subtitles) string {
-	if subtitles == nil || len(subtitles.Items) == 0 {
+// Package-level logger, to be initialized by summary.Initialize()
+var logger zerolog.Logger 
+
+const (
+	maxInputCharsForLLMWarning = 300000 
+)
+
+// PrepareSubtitlesForSummary converts astisub.Subtitles items to a single
+// coherent string suitable for LLM summarization, retaining speaker labels and CC noise.
+// Returns:
+//   - concatenatedText: The prepared string of subtitle content.
+func PrepareSubtitlesForSummary(originalSubtitles *astisub.Subtitles) (concatenatedText string) {
+	if originalSubtitles == nil || len(originalSubtitles.Items) == 0 {
 		return ""
 	}
-	
+
 	var builder strings.Builder
-	
-	// Process all items
-	for i, item := range subtitles.Items {
-		text := item.String()
-		if text == "" {
+
+	for _, item := range originalSubtitles.Items {
+		itemText := item.String() 
+		if itemText == "" {
 			continue
 		}
-		
-		// Clean and normalize the text
-		text = cleanSubtitleText(text)
-		
-		// Add to builder with proper spacing
-		if i > 0 && !endsWithPunctuation(builder.String()) {
-			builder.WriteString(". ")
-		} else if i > 0 {
-			builder.WriteString(" ")
+
+		cleanedItemText := cleanSubtitleTextForLLMSummary(itemText)
+		if cleanedItemText == "" {
+			continue
 		}
-		
-		builder.WriteString(text)
+
+		if builder.Len() > 0 {
+			builder.WriteString("\n")
+		}
+		builder.WriteString(cleanedItemText)
 	}
-	
-	return builder.String()
+
+	finalText := builder.String()
+
+	if len(finalText) > maxInputCharsForLLMWarning {
+		logger.Warn().Int("char_count", len(finalText)).
+			Msg("Prepared subtitle text is very long. Summarization might be slow, costly, or exceed LLM context limits.")
+	}
+
+	return strings.TrimSpace(finalText)
 }
 
-// cleanSubtitleText removes artifacts and normalizes text
-func cleanSubtitleText(text string) string {
-	// Remove HTML tags (simple approach)
-	text = strings.ReplaceAll(text, "<i>", "")
-	text = strings.ReplaceAll(text, "</i>", "")
-	text = strings.ReplaceAll(text, "<b>", "")
-	text = strings.ReplaceAll(text, "</b>", "")
-	
-	// Replace newlines with spaces
-	text = strings.ReplaceAll(text, "\n", " ")
-	
-	// Remove multiple spaces
-	for strings.Contains(text, "  ") {
-		text = strings.ReplaceAll(text, "  ", " ")
+// cleanSubtitleTextForLLMSummary (definition remains the same as previously provided)
+var (
+	simpleStylingTagRegex = regexp.MustCompile(`</?(i|b|u|font)(\s+[^>]*)?>`)
+	tabToSpaceRegex       = regexp.MustCompile(`\t+`)
+	multipleSpacesRegex   = regexp.MustCompile(` {2,}`) 
+	leadingTrailingNewlinesRegex = regexp.MustCompile(`^\s*\n|\n\s*$`)
+	lineWhitespaceRegex = regexp.MustCompile(`^[ \t]+|[ \t]+$`)
+)
+
+func cleanSubtitleTextForLLMSummary(text string) string {
+	text = simpleStylingTagRegex.ReplaceAllString(text, "")
+	text = tabToSpaceRegex.ReplaceAllString(text, " ")
+	lines := strings.Split(text, "\n")
+	cleanedLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmedLine := lineWhitespaceRegex.ReplaceAllString(line, "")
+		normalizedLine := multipleSpacesRegex.ReplaceAllString(trimmedLine, " ")
+		if normalizedLine != "" { 
+			cleanedLines = append(cleanedLines, normalizedLine)
+		}
 	}
-	
+	text = strings.Join(cleanedLines, "\n")
+	text = leadingTrailingNewlinesRegex.ReplaceAllString(text, "")
 	return strings.TrimSpace(text)
-}
-
-// endsWithPunctuation checks if the string ends with a punctuation mark
-func endsWithPunctuation(s string) bool {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return false
-	}
-	
-	lastChar := rune(s[len(s)-1])
-	return strings.ContainsRune(".!?,:;", lastChar)
-}
-
-// GetCharacterList attempts to extract character names from subtitles
-func GetCharacterList(subtitles *subs.Subtitles) []string {
-	if subtitles == nil || len(subtitles.Items) == 0 {
-		return nil
-	}
-	
-	// Map to store potential character names and their occurrence count
-	characterMap := make(map[string]int)
-	
-	for _, item := range subtitles.Items {
-		text := item.String()
-		
-		// Look for patterns like "CHARACTER:" or "CHARACTER :"
-		if parts := strings.Split(text, ":"); len(parts) > 1 {
-			potential := strings.TrimSpace(parts[0])
-			
-			// Simple heuristic: all uppercase or title case, not too long
-			if (isAllUpper(potential) || isTitleCase(potential)) && len(potential) < 30 {
-				characterMap[potential]++
-			}
-		}
-	}
-	
-	// Filter to characters with multiple occurrences
-	var characters []string
-	for char, count := range characterMap {
-		if count >= 2 {
-			characters = append(characters, char)
-		}
-	}
-	
-	return characters
-}
-
-// isAllUpper checks if a string is all uppercase
-func isAllUpper(s string) bool {
-	for _, r := range s {
-		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
-			return false
-		}
-	}
-	return true
-}
-
-// isTitleCase checks if a string is in title case
-func isTitleCase(s string) bool {
-	words := strings.Fields(s)
-	for _, word := range words {
-		if len(word) > 0 {
-			first := rune(word[0])
-			if !unicode.IsUpper(first) {
-				return false
-			}
-		}
-	}
-	return true
 }

@@ -136,6 +136,7 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 		}
 	}
 	
+	// FIXME AI SLOP TO CLEAN UP:
 	// Check if ONLY condensedAudio and voiceEnhancing features are selected
 	isOnlyCondensedAndEnhance := false
 	if len(req.SelectedFeatures) == 2 && 
@@ -199,7 +200,7 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 	} else {
 		// Normal feature processing flow for all other combinations
 		
-		// Initialize subtitle processing options:
+		// Initialize subtitle processing options: waterfall approach:
 		// Configure based on selected features starting from the most specific,
 		// restricted processing mode to the most general, multipurpose in order to
 		// have the correct tsk.Mode at the end to pass on downstream.
@@ -240,6 +241,88 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 			tsk.Handler.ZeroLog().Debug().
 				Interface("voice_enhancing_options", featureOpts).
 				Msg("Configured Voice Enhancing")
+		}
+
+
+		if req.SelectedFeatures["condensedAudio"] {
+			featureOpts, ok := req.Options.Options["condensedAudio"]
+			if !ok {
+				tsk.Handler.Log(core.Error, core.AbortTask, "condensedAudio options not found")
+				return
+			}
+
+			if tsk.Mode == 0 {
+				tsk.Mode = core.Condense
+			}
+			tsk.WantCondensedAudio = true
+
+			if padTiming, ok := featureOpts["padTiming"]; ok {
+				if padding, ok := padTiming.(float64); ok {
+					tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+				}
+			}
+
+			// Handle summary options if present
+			if enableSummary, ok := featureOpts["enableSummary"].(bool); ok && enableSummary {
+				tsk.WantSummary = true
+
+				if provider, ok := featureOpts["summaryProvider"].(string); ok && provider != "" {
+					tsk.SummaryProvider = provider
+				} else {
+					tsk.SummaryProvider = "openai" // Default provider
+				}
+
+				if model, ok := featureOpts["summaryModel"].(string); ok && model != "" {
+					tsk.SummaryModel = model
+				} else {
+					// Default model should ideally be provider-specific or a general high-quality one
+					// This might need adjustment based on the selected provider.
+					// For now, a common OpenAI model.
+					tsk.SummaryModel = "gpt-4o"
+				}
+
+				if outLang, ok := featureOpts["summaryOutputLanguage"].(string); ok && outLang != "" {
+					tsk.SummaryOutputLang = outLang
+				} else {
+					// Default to user's native language if available, otherwise empty (LLM decides)
+					if tsk.NativeLang != nil && tsk.NativeLang.IsValid() {
+						// Assuming NativeLang has a method to get a suitable language code/name
+						tsk.SummaryOutputLang = tsk.NativeLang.String() // Or .Google(), .ISO639_1(), etc.
+					} else {
+						tsk.SummaryOutputLang = ""
+					}
+				}
+
+				if maxLength, ok := featureOpts["summaryMaxLength"].(float64); ok && maxLength > 0 {
+					tsk.SummaryMaxLength = int(maxLength)
+				} else {
+					tsk.SummaryMaxLength = 300 // Default from summary.Options
+				}
+
+				if temp, ok := featureOpts["summaryTemperature"].(float64); temp >= 0 && temp <= 2.0 { // Common LLM temp range
+					tsk.SummaryTemperature = temp
+				} else {
+					tsk.SummaryTemperature = -1 // Use -1 to signify LLM default
+				}
+
+				if customPrompt, ok := featureOpts["summaryCustomPrompt"].(string); ok && customPrompt != "" {
+					tsk.SummaryCustomPrompt = customPrompt
+				}
+
+				tsk.Handler.ZeroLog().Debug().
+					Bool("enableSummary", true).
+					Str("provider", tsk.SummaryProvider).
+					Str("model", tsk.SummaryModel).
+					Str("outputLang", tsk.SummaryOutputLang).
+					Int("maxLength", tsk.SummaryMaxLength).
+					Float64("temperature", tsk.SummaryTemperature).
+					Bool("hasCustomPrompt", tsk.SummaryCustomPrompt != "").
+					Msg("Configured summary generation for condensed audio")
+			}
+
+			tsk.Handler.ZeroLog().Debug().
+				Interface("condensedAudio_options", featureOpts).
+				Msg("Configured Condensed Audio")
 		}
 		
 		// We'll capture all transliteration-related features first
@@ -437,58 +520,6 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 			tsk.Handler.ZeroLog().Debug().
 				Interface("subs2cards_options", featureOpts).
 				Msg("Configured Subs2Cards")
-		}
-
-		if req.SelectedFeatures["condensedAudio"] {
-			featureOpts, ok := req.Options.Options["condensedAudio"]
-			if !ok {
-				tsk.Handler.Log(core.Error, core.AbortTask, "condensedAudio options not found")
-				return
-			}
-			
-			// For condensedAudio, we need to set a specific mode if it's the only feature
-			// or keep the existing mode if combined with other features
-			if tsk.Mode == 0 {
-				tsk.Mode = core.Condense // Use Condense mode for condensed audio processing
-			}
-			
-			// Always set the flag for condensed audio
-			tsk.WantCondensedAudio = true
-			
-			if padTiming, ok := featureOpts["padTiming"]; ok {
-				if padding, ok := padTiming.(float64); ok {
-					tsk.Offset = time.Duration(int(padding)) * time.Millisecond
-				}
-			}
-			
-			// Handle summary options if present
-			if enableSummary, ok := featureOpts["enableSummary"].(bool); ok && enableSummary {
-				tsk.WantSummary = true
-				
-				// Set the provider
-				if provider, ok := featureOpts["summaryProvider"].(string); ok && provider != "" {
-					tsk.SummaryProvider = provider
-				} else {
-					tsk.SummaryProvider = "openai" // Default provider
-				}
-				
-				// Set the model
-				if model, ok := featureOpts["summaryModel"].(string); ok && model != "" {
-					tsk.SummaryModel = model
-				} else {
-					tsk.SummaryModel = "gpt-3.5-turbo" // Default model
-				}
-				
-				tsk.Handler.ZeroLog().Debug().
-					Bool("enableSummary", true).
-					Str("provider", tsk.SummaryProvider).
-					Str("model", tsk.SummaryModel).
-					Msg("Configured summary generation for condensed audio")
-			}
-
-			tsk.Handler.ZeroLog().Debug().
-				Interface("condensedAudio_options", featureOpts).
-				Msg("Configured Condensed Audio")
 		}
 	}
 }

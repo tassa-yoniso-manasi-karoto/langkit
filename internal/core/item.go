@@ -9,15 +9,16 @@ import (
 	"path/filepath"
 	"io/fs"
 	"errors"
-	"context"
+	"context" 
+	"time"
 
-	//astisub "github.com/asticode/go-astisub"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/asticode/go-astisub" 
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary" 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
-	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
@@ -290,62 +291,75 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 		tsk.Handler.ZeroLog().Info().
 			Str("provider", tsk.SummaryProvider).
 			Str("model", tsk.SummaryModel).
-			Msg("Generating media summary for condensed audio...")
-		
-		// Import would be needed at the top of the file:
-		// "github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
-		
-		// Create options for the summary
-		// In a real implementation, this would use the summary package:
-		/*
-		options := summary.Options{
-			Provider:          tsk.SummaryProvider,
-			Model:             tsk.SummaryModel,
-			MaxLength:         500,  // Default, could be configurable
-			Temperature:       0.7,  // Default, could be configurable
-			Style:             "brief",
-			IncludeCharacters: true,
-			IncludePlot:       true,
+			Msg("Attempting to generate media summary for condensed audio...")
+
+		var astiSubs *astisub.Subtitles
+		if tsk.TargSubs.Subtitles != nil {
+			astiSubs = tsk.TargSubs.Subtitles // FIXME change this at some point because using this will likely cause LLM to be provided with the 'trimmed' close captions!
 		}
-		
-		// Prepare subtitles for summarization
-		subtitleText := summary.PrepareSubtitlesForSummary(tsk.TargSubs)
-		
-		if subtitleText != "" {
-			// Generate the summary
-			ctx := context.Background()
-			summaryText, err := summary.GetDefaultService().GenerateSummary(ctx, subtitleText, options)
-			
-			if err != nil {
-				tsk.Handler.ZeroLog().Error().Err(err).
-					Msg("Failed to generate summary for condensed audio")
-				// Don't fail the whole task if summary generation fails
-			} else {
-				// Add summary to audio file metadata using the lyrics tag
-				// (commonly supported in audio players for displaying text)
-				err = media.AddMetadataToAudio(out, "lyrics", summaryText)
+
+		if astiSubs != nil {
+			subtitleTextForLLM := summary.PrepareSubtitlesForSummary(astiSubs) // Only returns text now
+
+			if subtitleTextForLLM != "" {
+				inputLangName := ""
+				if tsk.Targ != nil && tsk.Targ.Language != nil {
+					inputLangName = tsk.Targ.Language.Name // e.g., "Japanese"
+				}
+
+				outputLangName := ""
+				if tsk.NativeLang != nil && tsk.NativeLang.Language != nil {
+					outputLangName = tsk.NativeLang.Language.Name // e.g., "English"
+				}
+
+
+				summaryOpts := summary.Options{
+					Provider:          tsk.SummaryProvider,
+					Model:             tsk.SummaryModel,
+					OutputLanguage:    outputLangName,       // Use English name of native lang
+					MaxLength:         tsk.SummaryMaxLength,   
+					Temperature:       tsk.SummaryTemperature, 
+					CustomPrompt:      tsk.SummaryCustomPrompt,
+					// InputLanguageHint is no longer in summary.Options
+				}
+				
+				ctxSummarize, cancelSummarize := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancelSummarize()
+
+				// Pass inputLangName to the service's GenerateSummary method
+				summaryText, err := summary.GetDefaultService().GenerateSummary(ctxSummarize, subtitleTextForLLM, inputLangName, summaryOpts)
+
 				if err != nil {
 					tsk.Handler.ZeroLog().Error().Err(err).
-						Msg("Failed to add summary to condensed audio metadata")
+						Msg("Failed to generate summary for condensed audio")
 				} else {
-					tsk.Handler.ZeroLog().Info().
-						Msg("Summary added to condensed audio file metadata")
+					if summaryText != "" {
+						err = media.AddMetadataToAudio(out, "lyrics", summaryText) 
+						if err != nil {
+							tsk.Handler.ZeroLog().Error().Err(err).
+								Msg("Failed to add summary to condensed audio metadata")
+						} else {
+							tsk.Handler.ZeroLog().Info().
+								Msg("Summary successfully generated and added to condensed audio file metadata")
+						}
+					} else {
+						tsk.Handler.ZeroLog().Info().
+							Msg("Summary generation resulted in empty text, not adding to metadata.")
+					}
 				}
+			} else {
+				tsk.Handler.ZeroLog().Warn().
+					Msg("No subtitle text available for summarization after preparation")
 			}
 		} else {
 			tsk.Handler.ZeroLog().Warn().
-				Msg("No subtitle text available for summarization")
+				Msg("Underlying astisub.Subtitles not available from tsk.TargSubs for summarization")
 		}
-		*/
-		
-		// Placeholder until the summary package is fully integrated
-		tsk.Handler.ZeroLog().Info().Msg("Summary generation will be implemented when the summary package is integrated")
 	}
-	
+
 	tsk.Handler.ZeroLog().Info().
 		Str("outputFile", out).
 		Msg("Successfully created condensed audio file")
-	
 	return nil
 }
 

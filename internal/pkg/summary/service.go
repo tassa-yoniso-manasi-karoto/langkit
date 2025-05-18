@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-	
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
 
@@ -16,13 +15,13 @@ var (
 	ErrInvalidOptions   = errors.New("invalid summary options")
 )
 
-// Service handles generating summaries
+// Service (definition remains the same)
 type Service struct {
 	llmClient *llms.Client
-	providers map[string]Provider
+	providers map[string]Provider 
 }
 
-// NewService creates a new summary service
+// NewService (definition remains the same)
 func NewService(llmClient *llms.Client) *Service {
 	return &Service{
 		llmClient: llmClient,
@@ -30,7 +29,7 @@ func NewService(llmClient *llms.Client) *Service {
 	}
 }
 
-// RegisterProvider adds a provider to the service
+// RegisterProvider (definition remains the same)
 func (s *Service) RegisterProvider(provider Provider) {
 	if provider == nil {
 		return
@@ -38,124 +37,105 @@ func (s *Service) RegisterProvider(provider Provider) {
 	s.providers[provider.GetName()] = provider
 }
 
-// GetProvider returns a provider by name
-func (s *Service) GetProvider(name string) (Provider, bool) {
-	provider, ok := s.providers[name]
+// GetProvider (definition remains the same)
+func (s *Service) GetProvider(llmProviderName string) (Provider, bool) {
+	provider, ok := s.providers[llmProviderName]
 	return provider, ok
 }
 
-// ListProviders returns all registered providers
+// ListProviders (definition remains the same)
 func (s *Service) ListProviders() []Provider {
-	providers := make([]Provider, 0, len(s.providers))
+	providersList := make([]string, 0, len(s.providers))
 	for _, provider := range s.providers {
-		providers = append(providers, provider)
+		providersList = append(providersList, provider)
 	}
-	return providers
+	return providersList
 }
 
-// GetAvailableModels returns all available models across providers
+// GetAvailableModels (definition remains the same)
 func (s *Service) GetAvailableModels() []llms.ModelInfo {
-	var models []llms.ModelInfo
-	
+	var allModels []llms.ModelInfo
 	for _, provider := range s.providers {
-		models = append(models, provider.GetSupportedModels()...)
+		models := provider.GetSupportedModels()
+		if models != nil {
+			allModels = append(allModels, models...)
+		}
 	}
-	
-	return models
+	return allModels
 }
 
-// GetModelsForProvider returns models for a specific provider
-func (s *Service) GetModelsForProvider(providerName string) ([]llms.ModelInfo, error) {
-	provider, ok := s.GetProvider(providerName)
+// GetModelsForProvider (definition remains the same)
+func (s *Service) GetModelsForProvider(llmProviderName string) ([]llms.ModelInfo, error) {
+	provider, ok := s.GetProvider(llmProviderName)
 	if !ok {
-		return nil, ErrProviderNotFound
+		return nil, fmt.Errorf("summary functionality for LLM provider '%s' not found: %w", llmProviderName, ErrProviderNotFound)
 	}
-	
 	return provider.GetSupportedModels(), nil
 }
 
-// GenerateSummary generates a summary using the specified provider and model
-func (s *Service) GenerateSummary(ctx context.Context, text string, options Options) (string, error) {
-	if text == "" {
-		return "", fmt.Errorf("empty text to summarize: %w", ErrInvalidOptions)
+// GenerateSummary generates a summary using the specified provider and model.
+// subtitleText is the already prepared text from subtitles.
+// inputLanguageName is the English name of the subtitle's language.
+// options includes other parameters like OutputLanguage, Model, Provider, etc.
+func (s *Service) GenerateSummary(ctx context.Context, subtitleText string, inputLanguageName string, options Options) (string, error) {
+	if subtitleText == "" {
+		return "", fmt.Errorf("empty text provided to summarize: %w", ErrInvalidOptions)
 	}
-	
 	if options.Provider == "" {
-		return "", fmt.Errorf("provider is required: %w", ErrProviderNotFound)
+		return "", fmt.Errorf("LLM provider name is required in summary options: %w", ErrInvalidOptions)
 	}
-	
-	provider, ok := s.GetProvider(options.Provider)
+	if options.Model == "" {
+		return "", fmt.Errorf("LLM model name is required in summary options: %w", ErrInvalidOptions)
+	}
+
+	summaryProvider, ok := s.GetProvider(options.Provider)
 	if !ok {
-		// Try direct access through LLM client
-		directProvider, directOk := s.llmClient.GetProvider(options.Provider)
-		if !directOk {
-			return "", fmt.Errorf("provider '%s' not found: %w", options.Provider, ErrProviderNotFound)
+		_, llmProviderExists := s.llmClient.GetProvider(options.Provider)
+		if !llmProviderExists {
+			return "", fmt.Errorf("LLM provider '%s' not found for summary generation: %w", options.Provider, ErrProviderNotFound)
 		}
-		
-		// Create a default summary provider wrapping the LLM provider
-		provider = &DefaultSummaryProvider{
+		logger.Debug().Str("llm_provider", options.Provider).Msg("No specific summary provider registered, using DefaultSummaryProvider wrapper.")
+		summaryProvider = &DefaultSummaryProvider{ 
 			BaseProvider: NewBaseProvider(s.llmClient, options.Provider),
 		}
 	}
 	
-	// Check if model is supported
-	modelSupported := false
-	for _, model := range provider.GetSupportedModels() {
-		if model.ID == options.Model {
-			modelSupported = true
-			break
-		}
-	}
-	
-	if !modelSupported && options.Model != "" {
-		return "", fmt.Errorf("model '%s' not supported by provider '%s': %w", 
-			options.Model, options.Provider, ErrModelNotFound)
-	}
-	
-	// Generate the summary
-	summary, err := provider.Generate(ctx, text, options)
+	summary, err := summaryProvider.Generate(ctx, subtitleText, inputLanguageName, options)
 	if err != nil {
-		return "", fmt.Errorf("summary generation failed: %w", err)
+		return "", fmt.Errorf("summary generation failed via provider '%s': %w", options.Provider, err)
 	}
-	
+
 	return summary, nil
 }
 
-// DefaultSummaryProvider is a basic provider that uses LLM directly
+// DefaultSummaryProvider is a basic provider that uses an llms.Provider directly
 type DefaultSummaryProvider struct {
-	BaseProvider
+	BaseProvider 
 }
 
-// Generate creates a summary from text
-func (p *DefaultSummaryProvider) Generate(ctx context.Context, text string, options Options) (string, error) {
-	prompt := GeneratePrompt(text, options)
-	
-	// Set system prompt for context
-	systemPrompt := "You are an expert summarizer. Your task is to create accurate, " +
-		"well-structured summaries of content. Focus on capturing the key points, " +
-		"main ideas, and essential information while maintaining the original meaning and tone."
-	
-	// Create completion request
-	request := llms.CompletionRequest{
-		Prompt:       prompt,
-		MaxTokens:    calculateMaxTokens(options.MaxLength),
-		Temperature:  options.Temperature,
-		Model:        options.Model,
-		SystemPrompt: systemPrompt,
+// Generate creates a summary from text using the embedded llms.Provider
+func (p *DefaultSummaryProvider) Generate(ctx context.Context, subtitleText string, inputLanguageName string, options Options) (string, error) {
+	finalPrompt := GeneratePrompt(subtitleText, inputLanguageName, options)
+
+	llmRequest := llms.CompletionRequest{
+		Prompt:           finalPrompt,
+		Model:            options.Model,
+		MaxTokens:        options.MaxLength * 2, // Heuristic for generation length
+		Temperature:      options.Temperature,
 	}
-	
-	// Get completion from LLM
-	response, err := p.llmClient.Complete(ctx, p.llmProvider, request)
+	if llmRequest.Temperature < 0 { // Indicates use LLM default
+		llmRequest.Temperature = 0.7 // A common default if our internal default is negative
+	}
+
+	llmProviderInstance, ok := p.llmClient.GetProvider(p.GetName())
+	if !ok {
+		return "", fmt.Errorf("underlying LLM provider '%s' not found for DefaultSummaryProvider", p.GetName())
+	}
+
+	response, err := llmProviderInstance.Complete(ctx, llmRequest)
 	if err != nil {
 		return "", err
 	}
-	
-	return strings.TrimSpace(response.Text), nil
-}
 
-// calculateMaxTokens estimates token count based on word length
-func calculateMaxTokens(maxWords int) int {
-	// Average words per token is around 0.75, so multiply by 4/3
-	// Add 20% buffer
-	return int(float64(maxWords) * 1.33 * 1.2)
+	return strings.TrimSpace(response.Text), nil
 }

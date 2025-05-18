@@ -3,30 +3,29 @@ package summary
 import (
 	"context"
 	"fmt"
-	"strconv"
-	
+	// "strconv" // No longer needed here
+	"strings"
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
 
 // Provider defines the interface for generating summaries
 type Provider interface {
-	// Generate a summary from text
-	Generate(ctx context.Context, text string, options Options) (string, error)
-	
-	// Get the name of the provider
+	// Generate creates a summary from the given subtitleText using the provided options.
+	// The subtitleText is already prepared.
+	// inputLanguageName is the English name of the subtitle's language (e.g., "Japanese").
+	Generate(ctx context.Context, subtitleText string, inputLanguageName string, options Options) (string, error)
 	GetName() string
-	
-	// Get supported models
 	GetSupportedModels() []llms.ModelInfo
 }
 
-// BaseProvider implements common functionality for summary providers
+// BaseProvider (definition remains the same)
 type BaseProvider struct {
 	llmClient   *llms.Client
-	llmProvider string
+	llmProvider string 
 }
 
-// NewBaseProvider creates a new base provider
+// NewBaseProvider (definition remains the same)
 func NewBaseProvider(llmClient *llms.Client, providerName string) BaseProvider {
 	return BaseProvider{
 		llmClient:   llmClient,
@@ -34,62 +33,53 @@ func NewBaseProvider(llmClient *llms.Client, providerName string) BaseProvider {
 	}
 }
 
-// GetName returns the provider name
+// GetName (definition remains the same)
 func (p *BaseProvider) GetName() string {
 	return p.llmProvider
 }
 
-// GetSupportedModels returns supported models for this provider
+// GetSupportedModels (definition remains the same)
 func (p *BaseProvider) GetSupportedModels() []llms.ModelInfo {
 	provider, ok := p.llmClient.GetProvider(p.llmProvider)
 	if !ok {
+		if logger.GetLevel() <= llms.LogLevelError { 
+			logger.Error().Str("provider_name", p.llmProvider).Msg("Underlying LLM provider not found in BaseProvider.GetSupportedModels")
+		}
 		return nil
 	}
-	
 	return provider.GetAvailableModels()
 }
 
-// GeneratePrompt creates a prompt for the model based on options
-func GeneratePrompt(text string, options Options) string {
-	var prompt string
-	
-	if options.Style == "brief" {
-		prompt = "Create a concise summary of the following content."
-	} else if options.Style == "detailed" {
-		prompt = "Provide a comprehensive summary of the following content."
-	} else if options.Style == "character-focused" {
-		prompt = "Create a summary focused on the main characters in the following content."
+// GeneratePrompt creates a prompt for the model based on options.
+// If options.CustomPrompt is set, it's used directly, and subtitleText is appended.
+// inputLanguageName is the English name of the subtitle's language (e.g., "Japanese").
+func GeneratePrompt(subtitleText string, inputLanguageName string, options Options) string {
+	if options.CustomPrompt != "" {
+		return options.CustomPrompt + "\n\n--- Subtitle Content ---\n" + subtitleText
+	}
+
+	var prompt strings.Builder
+	// FIXME improve
+	prompt.WriteString("Please generate a summary for the following subtitle content.")
+
+	if inputLanguageName != "" {
+		prompt.WriteString(fmt.Sprintf(" The content is in %s.", inputLanguageName))
+	}
+
+	if options.OutputLanguage != "" {
+		prompt.WriteString(fmt.Sprintf(" The summary should be written in %s.", options.OutputLanguage))
 	} else {
-		prompt = "Summarize the following content."
+		prompt.WriteString(" Write the summary in English, or if the original content's language is clearly discernible and not English, summarize in that original language.")
 	}
-	
-	prompt += " The summary should be about " + 
-		strconv.Itoa(options.MaxLength) + 
-		" words. "
-	
-	if options.IncludeCharacters {
-		prompt += "Include mention of key characters. "
+
+	if options.MaxLength > 0 {
+		prompt.WriteString(fmt.Sprintf(" Aim for a summary of approximately %d words.", options.MaxLength))
 	}
-	
-	if options.IncludePlot {
-		prompt += "Focus on the main plot points and narrative arc. "
-	}
-	
-	if options.IncludeThemes {
-		prompt += "Include analysis of major themes and motifs. "
-	}
-	
-	if options.ToneStyle == "analytical" {
-		prompt += "Use an analytical tone. "
-	} else if options.ToneStyle == "casual" {
-		prompt += "Use a casual, conversational tone. "
-	}
-	
-	if options.Language != "" {
-		prompt += fmt.Sprintf("Provide the summary in %s. ", options.Language)
-	}
-	
-	prompt += "\n\nContent to summarize:\n" + text
-	
-	return prompt
+
+	prompt.WriteString(" Focus on the main plot points and key events to provide a coherent overview of the content.")
+
+	prompt.WriteString("\n\n--- Subtitle Content to Summarize ---\n")
+	prompt.WriteString(subtitleText)
+
+	return prompt.String()
 }

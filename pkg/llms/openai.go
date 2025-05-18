@@ -10,9 +10,8 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/param"
+	"github.com/openai/openai-go/packages/param"
 	"github.com/openai/openai-go/shared"
-	"github.com/openai/openai-go/ssestream"
 )
 
 // OpenAIProvider implements the Provider interface for OpenAI
@@ -103,19 +102,19 @@ func (p *OpenAIProvider) GetAvailableModels() []ModelInfo {
 			capabilities = append(capabilities, "chat", "summarization")
 		default:
 			// Generic fallback for other models
-			if strings.Contains(model.ID, "gpt-4")) {
+			if strings.Contains(model.ID, "gpt-4") {
 				maxTokens = 8192 // Generic GPT-4
 				capabilities = append(capabilities, "chat", "summarization")
-			} else if strings.Contains(model.ID, "gpt-3.5")) {
+			} else if strings.Contains(model.ID, "gpt-3.5") {
 				maxTokens = 4096 // Older GPT-3.5 or generic
 				capabilities = append(capabilities, "chat", "summarization")
-			} else if strings.Contains(model.ID, "text-embedding")) {
+			} else if strings.Contains(model.ID, "text-embedding") {
 				maxTokens = 8191 // Common for ada-002
 				capabilities = []string{"embedding"}
-			} else if strings.Contains(model.ID, "dall-e")) {
+			} else if strings.Contains(model.ID, "dall-e") {
 				maxTokens = 0 // Not applicable
 				capabilities = []string{"image-generation"}
-			} else if strings.Contains(model.ID, "whisper")) {
+			} else if strings.Contains(model.ID, "whisper") {
 				maxTokens = 0 // Not applicable
 				capabilities = []string{"audio-transcription"}
 			} else {
