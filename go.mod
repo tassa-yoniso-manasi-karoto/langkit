@@ -8,6 +8,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/asticode/go-astisub v0.32.0
 	github.com/barbashov/iso639-3 v1.0.0
+	github.com/bogem/id3v2 v1.2.0
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/failsafe-go/failsafe-go v0.6.9

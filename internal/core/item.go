@@ -16,10 +16,12 @@ import (
 	"github.com/gookit/color"
 	"github.com/asticode/go-astisub" 
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary" 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
 )
 
 // ProcessedItem represents the exported information of a single subtitle item.
@@ -62,6 +64,8 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	// Only extract OGG audio if needed (for Subs2Cards or if STT is enabled)
 	// For Condense mode, we don't need OGG audio for TSV output
 	var audiofile string
+	var errWAV error
+
 	if tsk.Mode != Condense && (tsk.Mode == Subs2Cards || tsk.STT != "") {
 		var err error
 		audiofile, err = media.ExtractAudio("ogg", tsk.UseAudiotrack,
@@ -73,23 +77,20 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	}
 	
 	// Extract WAV for condensed audio if needed
-	// This is always required for Condense mode or when WantCondensedAudio is true
 	if tsk.Mode == Condense || tsk.WantCondensedAudio {
-		var errWAV error // Declare error variable for WAV extraction
 		_, errWAV = media.ExtractAudio("wav", tsk.UseAudiotrack,
 			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
-				tsk.MediaSourceFile, tsk.MediaPrefix, false)
+			tsk.MediaSourceFile, tsk.MediaPrefix, false)
 		if errWAV != nil && !errors.Is(errWAV, fs.ErrExist) {
 			tsk.Handler.ZeroLog().Error().Err(errWAV).Msg("can't extract wav audio")
 		}
-		
-		// Add this specifically for Condense mode to update AlreadyDone based on WAV
-		if tsk.Mode == Condense && errors.Is(errWAV, fs.ErrExist) {
-			item.AlreadyDone = true
-			tsk.Handler.ZeroLog().Trace().
-				Int("idx", indexedSub.Index).
-				Msgf("Item marked AlreadyDone for Condense mode due to existing WAV segment.")
-		}
+	}
+
+	if tsk.Mode == Condense && errors.Is(errWAV, fs.ErrExist) {
+		item.AlreadyDone = true
+		tsk.Handler.ZeroLog().Trace().
+			Int("idx", indexedSub.Index).
+			Msgf("Item marked AlreadyDone for Condense mode due to existing WAV segment.")
 	}
 	
 	// Images are only needed for Subs2Cards mode
@@ -194,139 +195,142 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 
 
 func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
-	// Define output file path
-	out := fmt.Sprint(tsk.MediaPrefix, ".", suffix, ".ogg")
-	
-	// Check if output file already exists
+	out := fmt.Sprintf("%s.%s.ogg", tsk.MediaPrefix, suffix)
+
 	if _, err := os.Stat(out); err == nil {
 		tsk.Handler.ZeroLog().Info().
 			Str("outFile", out).
 			Msg("Condensed audio file already exists, skipping creation")
+		if tsk.WantSummary {
+			tsk.Handler.ZeroLog().Info().Msg("Summary was requested, but condensed audio file already exists. Summary will not be added to existing file in this run.")
+		}
 		return nil
 	}
-	
-	// Find all WAV files that we need to concatenate
+
 	wavPattern := tsk.MediaPrefix + "_*.wav"
 	wavFiles, err := filepath.Glob(wavPattern)
 	if err != nil {
-		err = fmt.Errorf("failed to find WAV files: %w", err)
+		err = fmt.Errorf("failed to find WAV files with pattern '%s': %w", wavPattern, err)
 		tsk.Handler.ZeroLog().Error().Err(err).
 			Str("pattern", wavPattern).
-			Str("mediaOutputDir", tsk.mediaOutputDir()).
-			Msg("Error searching for .wav files")
+			Msg("Error searching for .wav files for concatenation")
 		return err
 	}
 
-	// Ensure we have files to process
 	if len(wavFiles) == 0 {
-		err = fmt.Errorf("no WAV files found to create condensed audio")
+		err = fmt.Errorf("no WAV files found with pattern '%s' to create condensed audio", wavPattern)
 		tsk.Handler.ZeroLog().Warn().
 			Str("pattern", wavPattern).
-			Str("mediaOutputDir", tsk.mediaOutputDir()).
-			Msg("No .wav files found for creating condensed audio")
+			Msg("No .wav files found for creating condensed audio. Condensed audio will not be created.")
 		return err
 	}
-	
+
 	tsk.Handler.ZeroLog().Info().
 		Int("fileCount", len(wavFiles)).
 		Str("outputFile", out).
 		Msg("Creating condensed audio file from WAV segments")
-	
-	// Generate the concat list for ffmpeg
+
 	concatFile, err := media.CreateConcatFile(wavFiles)
 	if err != nil {
-		err = fmt.Errorf("failed to create concatenation file: %w", err)
+		err = fmt.Errorf("failed to create concatenation file for FFmpeg: %w", err)
 		tsk.Handler.ZeroLog().Error().Err(err).
 			Msg("Error creating temporary concat file for FFmpeg")
 		return err
 	}
 	defer os.Remove(concatFile)
 
-	// Temporary WAV file path
-	tempWavFile := tsk.MediaPrefix + ".wav"
-	
-	// Run FFmpeg to concatenate and create the intermediate WAV file
+	tempWavFile := tsk.MediaPrefix + ".concatenated.wav"
+
 	if err := media.RunFFmpegConcat(concatFile, tempWavFile); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).
 			Str("concatFile", concatFile).
 			Str("outputWav", tempWavFile).
 			Msg("Failed to concatenate WAV files")
+		_ = os.Remove(tempWavFile)
 		return err
 	}
+	defer os.Remove(tempWavFile)
 
-	// Convert WAV to OPUS/OGG using FFmpeg
 	if err := media.RunFFmpegConvert(tempWavFile, out); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).
 			Str("inputWav", tempWavFile).
 			Str("outputOgg", out).
 			Msg("Failed to convert WAV to OGG")
+		_ = os.Remove(out)
 		return err
 	}
-	
-	// Clean up intermediate WAV file
-	if err := os.Remove(tempWavFile); err != nil {
-		tsk.Handler.ZeroLog().Warn().
-			Str("file", tempWavFile).
-			Err(err).
-			Msg("Failed to remove temporary WAV file")
-	}
-	
-	// Clean up individual WAV segment files if configured to do so
-	if tsk.IntermediaryFileMode != "keep" {
+
+	if tsk.IntermediaryFileMode != config.KeepIntermediaryFiles {
+		tsk.Handler.ZeroLog().Debug().
+			Str("mode", string(tsk.IntermediaryFileMode)).
+			Int("count", len(wavFiles)).
+			Msg("Removing WAV segment files after creating condensed audio...")
+		removedCount := 0
 		for _, f := range wavFiles {
 			if err := os.Remove(f); err != nil {
 				tsk.Handler.ZeroLog().Warn().
 					Str("file", f).
 					Err(err).
 					Msg("Failed to remove WAV segment file")
+			} else {
+				removedCount++
 			}
 		}
 		tsk.Handler.ZeroLog().Debug().
-			Int("removedFiles", len(wavFiles)).
-			Msg("Removed WAV segment files after creating condensed audio")
+			Int("removedFiles", removedCount).
+			Msg("Finished removing WAV segment files.")
 	}
-	
+
 	// Generate and add summary to metadata if requested
-	if tsk.WantSummary && tsk.TargSubs != nil && len(tsk.TargSubs.Items) > 0 {
-		tsk.Handler.ZeroLog().Info().
-			Str("provider", tsk.SummaryProvider).
-			Str("model", tsk.SummaryModel).
-			Msg("Attempting to generate media summary for condensed audio...")
+	if tsk.WantSummary {
+		if tsk.TargSubs != nil && tsk.TargSubs.Subtitles != nil && len(tsk.TargSubs.Subtitles.Items) > 0 {
+			tsk.Handler.ZeroLog().Info().
+				Str("provider", tsk.SummaryProvider).
+				Str("model", tsk.SummaryModel).
+				Msg("Attempting to generate media summary for condensed audio...")
 
-		var astiSubs *astisub.Subtitles
-		if tsk.TargSubs.Subtitles != nil {
-			astiSubs = tsk.TargSubs.Subtitles // FIXME change this at some point because using this will likely cause LLM to be provided with the 'trimmed' close captions!
-		}
+			astiSubs := tsk.TargSubs.Subtitles
+			// FIXME: The comment about "trimmed close captions" is still relevant.
+			// If tsk.TargSubs.Subtitles was modified by TrimCC2Dubs in cards.go,
+			// the summary will be based on the trimmed version.
+			// If original is needed, a copy must be made before TrimCC2Dubs.
 
-		if astiSubs != nil {
-			subtitleTextForLLM := summary.PrepareSubtitlesForSummary(astiSubs) // Only returns text now
+			subtitleTextForLLM := summary.PrepareSubtitlesForSummary(astiSubs)
 
 			if subtitleTextForLLM != "" {
 				inputLangName := ""
 				if tsk.Targ != nil && tsk.Targ.Language != nil {
-					inputLangName = tsk.Targ.Language.Name // e.g., "Japanese"
+					inputLangName = tsk.Targ.Language.Name
 				}
 
 				outputLangName := ""
-				if tsk.NativeLang != nil && tsk.NativeLang.Language != nil {
-					outputLangName = tsk.NativeLang.Language.Name // e.g., "English"
-				}
+				summaryLangCodeISO639_2 := "und" // Default to "undetermined"
 
+				if tsk.NativeLang != nil && tsk.NativeLang.Language != nil {
+					outputLangName = tsk.NativeLang.Language.Name
+					if tsk.NativeLang.Language.Part2T != "" {
+						summaryLangCodeISO639_2 = tsk.NativeLang.Language.Part2T
+					} else if tsk.NativeLang.Language.Part2B != "" {
+						summaryLangCodeISO639_2 = tsk.NativeLang.Language.Part2B
+					} else {
+						tsk.Handler.ZeroLog().Warn().Str("lang_name", tsk.NativeLang.Language.Name).Msg("No ISO 639-2 (T or B) code found for native language, USLT language will be 'und'")
+					}
+				} else {
+					tsk.Handler.ZeroLog().Warn().Msg("Native language not set for task, summary output language will be LLM default and USLT language tag will be 'und'")
+				}
 
 				summaryOpts := summary.Options{
-					Provider:          tsk.SummaryProvider,
-					Model:             tsk.SummaryModel,
-					OutputLanguage:    outputLangName,       // Use English name of native lang
-					MaxLength:         tsk.SummaryMaxLength,   
-					Temperature:       tsk.SummaryTemperature, 
-					CustomPrompt:      tsk.SummaryCustomPrompt,
-					// InputLanguageHint is no longer in summary.Options
+					Provider:       tsk.SummaryProvider,
+					Model:          tsk.SummaryModel,
+					OutputLanguage: outputLangName,
+					MaxLength:      tsk.SummaryMaxLength,
+					Temperature:    tsk.SummaryTemperature,
+					CustomPrompt:   tsk.SummaryCustomPrompt,
 				}
-				
-				ctxSummarize, cancelSummarize := context.WithTimeout(context.Background(), 2*time.Minute)
+
+				ctxSummarize, cancelSummarize := context.WithTimeout(context.Background(), 3*time.Minute) // TODO: Make timeout configurable
 				defer cancelSummarize()
 
-				// Pass inputLangName to the service's GenerateSummary method
 				summaryText, err := summary.GetDefaultService().GenerateSummary(ctxSummarize, subtitleTextForLLM, inputLangName, summaryOpts)
 
 				if err != nil {
@@ -334,7 +338,8 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 						Msg("Failed to generate summary for condensed audio")
 				} else {
 					if summaryText != "" {
-						err = media.AddMetadataToAudio(out, "lyrics", summaryText) 
+						// Use the new AddLyricsToAudioFile function
+						err = media.AddLyricsToAudioFile(out, summaryText, summaryLangCodeISO639_2)
 						if err != nil {
 							tsk.Handler.ZeroLog().Error().Err(err).
 								Msg("Failed to add summary to condensed audio metadata")
@@ -353,7 +358,7 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 			}
 		} else {
 			tsk.Handler.ZeroLog().Warn().
-				Msg("Underlying astisub.Subtitles not available from tsk.TargSubs for summarization")
+				Msg("Target subtitles (tsk.TargSubs or tsk.TargSubs.Subtitles) not available for summarization. Skipping summary.")
 		}
 	}
 
