@@ -81,17 +81,18 @@ func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
 	defer cancel()
 
 	var applicableModelInfos []ModelInfo // Store only models suitable for content generation
-	iter := p.client.Models.All(ctx)     // Uses an iterator that handles pagination
-	for {
-		model, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
+	
+	// Use modern iteration with the iter.Seq2 from Gemini SDK
+	modelsIterator := p.client.Models.All(ctx)
+	var err error
+	
+	// Collect models using the iterator function pattern
+	modelsIterator(func(model *genai.Model, e error) bool {
+		if e != nil {
+			err = e
+			return false
 		}
-		if err != nil {
-			Logger.Error().Err(err).Msg("Failed to iterate over Gemini models")
-			return nil // Or return partially fetched models if preferred
-		}
-
+		
 		// Filter for models that support "generateContent"
 		supportsGenerateContent := false
 		rawCapabilities := []string{} // Store all supported actions for potential broader use
@@ -104,7 +105,7 @@ func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
 
 		if !supportsGenerateContent {
 			Logger.Debug().Str("model", model.Name).Msg("Skipping model as it does not support 'generateContent'")
-			continue // Skip models not suitable for text generation
+			return true // Continue iteration
 		}
 
 		// Infer capabilities for llms.ModelInfo based on generateContent support
@@ -119,6 +120,13 @@ func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
 			Capabilities: capabilities,
 			ProviderName: p.GetName(),
 		})
+		
+		return true // Continue iteration
+	})
+	
+	if err != nil {
+		Logger.Error().Err(err).Msg("Failed to iterate over Gemini models")
+		return nil
 	}
 
 	p.models = applicableModelInfos
@@ -160,8 +168,9 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 		genConfig.SystemInstruction = systemInstruction
 	}
 
+	// Set configuration options with proper type conversion
 	if request.MaxTokens > 0 {
-		genConfig.MaxOutputTokens = genai.Ptr(int32(request.MaxTokens))
+		genConfig.MaxOutputTokens = int32(request.MaxTokens)
 	}
 	if request.Temperature >= 0 {
 		genConfig.Temperature = genai.Ptr(float32(request.Temperature))
@@ -170,7 +179,7 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 		genConfig.TopP = genai.Ptr(float32(request.TopP))
 	}
 	if request.N > 0 {
-		genConfig.CandidateCount = genai.Ptr(int32(request.N))
+		genConfig.CandidateCount = int32(request.N)
 	}
 	if request.Seed != 0 {
 		genConfig.Seed = genai.Ptr(int32(request.Seed))
@@ -187,35 +196,40 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 	}
 
 	if request.Stream {
-		Logger.Debug().Str("model", modelID).Interface("config", genConfig).Msg("Requesting streaming content generation from Gemini.")
-		stream := p.client.Models.GenerateContentStream(ctx, modelID, contents, genConfig)
-		// defer stream.Close() // genai.GenerateContentStream does not return a struct with Close()
+		Logger.Debug().Str("model", modelID).Msg("Requesting streaming content generation from Gemini.")
+		streamIterator := p.client.Models.GenerateContentStream(ctx, modelID, contents, genConfig)
 
 		var fullText strings.Builder
 		var finalResponse CompletionResponse
 		var lastResp *genai.GenerateContentResponse
+		var streamErr error
 
-		for {
-			resp, err := stream.Next() // stream is iter.Seq2[*GenerateContentResponse, error]
-			if errors.Is(err, iterator.Done) { // Corrected end-of-stream check
-				Logger.Debug().Msg("Gemini stream finished.")
-				break
-			}
+		// Use the newer iter.Seq2 pattern with a yield function
+		streamIterator(func(resp *genai.GenerateContentResponse, err error) bool {
 			if err != nil {
-				var genaiErr *genai.APIError
-				if errors.As(err, &genaiErr) {
-					Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Gemini API error during streaming")
-				}
-				return CompletionResponse{}, fmt.Errorf("gemini stream error: %w", err)
+				streamErr = err
+				return false // Stop iteration
 			}
+			
 			lastResp = resp
 			if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil {
 				for _, part := range resp.Candidates[0].Content.Parts {
-					if textPart, ok := part.Text(); ok {
-						fullText.WriteString(textPart)
+					// Access the Text field directly since part is a struct with a Text field, not an interface
+					// According to docs, *genai.Part has a Text string field
+					if part.Text != "" {
+						fullText.WriteString(part.Text)
 					}
 				}
 			}
+			return true // Continue iteration
+		})
+
+		if streamErr != nil && streamErr != io.EOF {
+			var genaiErr *genai.APIError
+			if errors.As(streamErr, &genaiErr) {
+				Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Gemini API error during streaming")
+			}
+			return CompletionResponse{}, fmt.Errorf("gemini stream error: %w", streamErr)
 		}
 
 		finalResponse.Text = fullText.String()
@@ -237,7 +251,7 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 		return finalResponse, nil
 
 	} else {
-		Logger.Debug().Str("model", modelID).Interface("config", genConfig).Msg("Requesting non-streaming content generation from Gemini.")
+		Logger.Debug().Str("model", modelID).Msg("Requesting non-streaming content generation from Gemini.")
 		resp, err := p.client.Models.GenerateContent(ctx, modelID, contents, genConfig)
 		if err != nil {
 			var genaiErr *genai.APIError
@@ -253,8 +267,9 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 
 		var responseTextBuilder strings.Builder
 		for _, part := range resp.Candidates[0].Content.Parts {
-			if textPart, ok := part.Text(); ok {
-				responseTextBuilder.WriteString(textPart)
+			// Access the Text field directly
+			if part.Text != "" {
+				responseTextBuilder.WriteString(part.Text)
 			}
 		}
 
