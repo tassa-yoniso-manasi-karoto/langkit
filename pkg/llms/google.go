@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"slices"
 	"time"
 
 	"google.golang.org/genai"
@@ -87,6 +88,7 @@ func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
 	
 	// Collect models using the iterator function pattern
 	modelsIterator(func(model *genai.Model, e error) bool {
+		name := strings.TrimPrefix(model.Name, "models/")
 		if e != nil {
 			err = e
 			return false
@@ -103,8 +105,13 @@ func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
 		}
 
 		if !supportsGenerateContent {
-			Logger.Debug().Str("model", model.Name).Msg("Skipping model as it does not support 'generateContent'")
-			return true // Continue iteration
+			Logger.Debug().Str("model", name).Msg("Skipping model as it does not support 'generateContent'")
+			return true
+		} else if isOutdatedGoogleModel(name) {
+			Logger.Debug().Str("model", name).Msg("Skipping OUTDATED model")
+			return true
+		} else {
+			Logger.Debug().Str("model", name).Msg("Registering model")
 		}
 
 		// Infer capabilities for llms.ModelInfo based on generateContent support
@@ -288,3 +295,20 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 		}, nil
 	}
 }
+
+
+func isOutdatedGoogleModel(name string) bool {
+	blacklist := []string{
+		"learnlm-2.0-flash-experimental",
+		"gemini-exp-1206",
+		"gemini-pro-vision",
+	}
+	if slices.Contains(blacklist, name) ||
+		strings.Contains(name, "gemini-2.0") ||
+			strings.Contains(name, "gemini-1.5") ||
+				strings.Contains(name, "gemini-1.0") {
+		return true
+	}
+	return false
+}
+

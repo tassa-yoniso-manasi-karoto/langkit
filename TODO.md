@@ -13,9 +13,10 @@ SVG animations: rework state transitions
   - ✅ Implement One LLM Provider Fully: Start with pkg/llms/openai.go. Implement the Complete method to make actual API calls to OpenAI using their Go SDK. This will serve as a template for other providers.
   - ✅ Refine summary.PrepareSubtitlesForSummary: Test with various subtitle formats and content to ensure the text fed to the LLM is clean and effective. Consider maximum input length for LLMs.
   - ✅ Integrate media.AddMetadataToAudio: Ensure this works reliably across different audio players with the "lyrics" tag. (MP3/AAC differences)
-  - 🔳 Develop GUI Components: Create UI elements for the user to enable summarization and choose provider/model.
+  - ✅ Develop GUI Components: Create UI elements for the user to enable summarization and choose provider/model.
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
+  - perf issue with queries of GetAvailableModels()
   
 - add tlit in TSV/CSV
 
