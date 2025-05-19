@@ -69,19 +69,23 @@ func RegisterDefaultProviders() {
 	if APIKeys.Has("openai") {
 		apiKey := APIKeys.Get("openai")
 		provider := NewOpenAIProvider(apiKey)
-		client.RegisterProvider(provider)
-		providersRegistered++
-		
-		// Set as default if first provider
-		if providersRegistered == 1 {
-			client.SetDefaultProvider("openai")
-		}
-		
-		if Logger.Debug().Enabled() {
-			Logger.Debug().
-				Str("provider", "openai").
-				Int("models", len(provider.GetAvailableModels())).
-				Msg("Registered OpenAI provider")
+		if provider != nil {
+			client.RegisterProvider(provider)
+			providersRegistered++
+			
+			// Set as default if first provider
+			if providersRegistered == 1 {
+				client.SetDefaultProvider("openai")
+			}
+			
+			if Logger.Debug().Enabled() {
+				Logger.Debug().
+					Str("provider", "openai").
+					Int("models", len(provider.GetAvailableModels())).
+					Msg("Registered OpenAI provider")
+			}
+		} else {
+			Logger.Warn().Str("provider", "openai").Msg("Failed to initialize OpenAI provider (instance is nil)")
 		}
 	}
 	
@@ -89,14 +93,37 @@ func RegisterDefaultProviders() {
 	if APIKeys.Has("openrouter") {
 		apiKey := APIKeys.Get("openrouter")
 		provider := NewOpenRouterProvider(apiKey)
-		client.RegisterProvider(provider)
-		providersRegistered++
-		
-		if Logger.Debug().Enabled() {
-			Logger.Debug().
-				Str("provider", "openrouter").
-				Int("models", len(provider.GetAvailableModels())).
-				Msg("Registered OpenRouter provider")
+		if provider != nil {
+			client.RegisterProvider(provider)
+			providersRegistered++
+			
+			if Logger.Debug().Enabled() {
+				Logger.Debug().
+					Str("provider", "openrouter").
+					Int("models", len(provider.GetAvailableModels())).
+					Msg("Registered OpenRouter provider")
+			}
+		} else {
+			Logger.Warn().Str("provider", "openrouter").Msg("Failed to initialize OpenRouter provider (instance is nil)")
+		}
+	}
+	
+	// Register Google Gemini provider if API key is available
+	if APIKeys.Has("google") {
+		apiKey := APIKeys.Get("google")
+		provider := NewGeminiProvider(apiKey)
+		if provider != nil {
+			client.RegisterProvider(provider)
+			providersRegistered++
+			
+			if Logger.Debug().Enabled() {
+				Logger.Debug().
+					Str("provider", "google-gemini").
+					Int("models", len(provider.GetAvailableModels())).
+					Msg("Registered Google Gemini provider")
+			}
+		} else {
+			Logger.Warn().Str("provider", "google-gemini").Msg("Failed to initialize Google Gemini provider (instance is nil)")
 		}
 	}
 	
