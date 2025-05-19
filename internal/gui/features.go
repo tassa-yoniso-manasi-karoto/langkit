@@ -136,7 +136,9 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 		}
 	}
 	
-	// FIXME AI SLOP TO CLEAN UP:
+	// FIXME AI SLOP TO CLEAN UP: THIS WILL BE COMPLETELY REVISED MANUALLY BY THE USER AT A LATER STAGE,
+	//  AFTER GUI COMPONENT FOR CONDENSED AUDIO ARE READY
+	
 	// Check if ONLY condensedAudio and voiceEnhancing features are selected
 	isOnlyCondensedAndEnhance := false
 	if len(req.SelectedFeatures) == 2 && 
@@ -285,9 +287,9 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 					tsk.SummaryOutputLang = outLang
 				} else {
 					// Default to user's native language if available, otherwise empty (LLM decides)
-					if tsk.NativeLang != nil && tsk.NativeLang.IsValid() {
+					if tsk.Native.Language != nil {
 						// Assuming NativeLang has a method to get a suitable language code/name
-						tsk.SummaryOutputLang = tsk.NativeLang.String() // Or .Google(), .ISO639_1(), etc.
+						tsk.SummaryOutputLang = tsk.Native.String() // Or .Google(), .ISO639_1(), etc.
 					} else {
 						tsk.SummaryOutputLang = ""
 					}
@@ -299,7 +301,7 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 					tsk.SummaryMaxLength = 300 // Default from summary.Options
 				}
 
-				if temp, ok := featureOpts["summaryTemperature"].(float64); temp >= 0 && temp <= 2.0 { // Common LLM temp range
+				if temp, ok := featureOpts["summaryTemperature"].(float64); ok && temp >= 0 && temp <= 2.0 {
 					tsk.SummaryTemperature = temp
 				} else {
 					tsk.SummaryTemperature = -1 // Use -1 to signify LLM default

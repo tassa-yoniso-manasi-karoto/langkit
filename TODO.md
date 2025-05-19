@@ -15,6 +15,7 @@ SVG animations: rework state transitions
   - ✅ Integrate media.AddMetadataToAudio: Ensure this works reliably across different audio players with the "lyrics" tag. (MP3/AAC differences)
   - 🔳 Develop GUI Components: Create UI elements for the user to enable summarization and choose provider/model.
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
+  - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
   
 - add tlit in TSV/CSV
 
@@ -48,7 +49,11 @@ SVG animations: rework state transitions
 
 *future implementations*
 
-- multiple previous subtitle for summarization fully contextualized
+- condensed audio
+  - multiple previous subtitle for summarization fully contextualized (Providing x previous subtitles or their summaries of previous episodes as context)
+  - ENHANCE condensed audio
+
+,
 
 - implement an explicit maxAbortTasks
 - add progressCallback to all providers in translitkit including go-natives

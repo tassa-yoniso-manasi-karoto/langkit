@@ -97,12 +97,54 @@ export const features: FeatureDefinition[] = [
     },
     {
         id: 'condensedAudio',
-        label: 'Condensed Audio',
+        label: 'Make Condensed Audio',
         options: {
-            padTiming: {
+            enableSummary: {
+                type: 'boolean',
+                label: 'Generate Summary',
+                default: false,
+                hovertip: "Generate a summary of the media content and embed it in the audio metadata as lyrics."
+            },
+            summaryProvider: {
+                type: 'dropdown',
+                label: 'Summary Provider',
+                default: '',
+                choices: [],  // Dynamically populated
+                showCondition: "feature.condensedAudio.enableSummary === true"
+            },
+            summaryModel: {
+                type: 'dropdown',
+                label: 'Summary Model',
+                default: '',
+                choices: [],  // Dynamically populated
+                showCondition: "feature.condensedAudio.enableSummary === true"
+            },
+            summaryMaxLength: {
                 type: 'number',
-                label: 'Padding (ms)',
-                default: 250
+                label: 'Approx. Max Summary Length (words)',
+                default: -1,
+                min: -1,
+                max: 1000,
+                showCondition: "feature.condensedAudio.enableSummary === true",
+                hovertip: "Set to -1 to let the LLM decide the length."
+            },
+            summaryTemperature: {
+                type: 'number',
+                label: 'Summary Temperature (0.0 - 2.0)',
+                default: 0.7,
+                min: 0.0,
+                max: 2.0,
+                step: "0.1",
+                showCondition: "feature.condensedAudio.enableSummary === true",
+                hovertip: "Controls randomness of the output. Higher values make output more random, lower values make it more deterministic."
+            },
+            summaryCustomPrompt: {
+                type: 'string',
+                label: 'Custom Summary Prompt (Optional)',
+                default: '',
+                showCondition: "feature.condensedAudio.enableSummary === true",
+                hovertip: "If provided, this prompt will be used directly. The subtitle content will be appended. The backend will not automatically add instructions for output language or input language hints if a custom prompt is used; include these in your custom prompt if needed.",
+                placeholder: "e.g. Create a concise summary of the following media content, focusing on key plot points and main themes."
             }
         },
         dependentFeature: 'dubtitles',
@@ -436,9 +478,52 @@ export interface STTModelsResponse {
   suggested: string;
 }
 
-// Create a store for STT model information
+// Summary Provider and Model interfaces
+export interface SummaryProviderInfo {
+  name: string;
+  displayName: string; 
+  description: string;
+}
+
+export interface SummaryModelInfo {
+  id: string;
+  name: string;
+  description: string;
+  providerName: string;
+}
+
+export interface SummaryProvidersResponse {
+  providers: SummaryProviderInfo[];
+  names: string[];
+  available: boolean;
+  suggested: string;
+}
+
+export interface SummaryModelsResponse {
+  models: SummaryModelInfo[];
+  names: string[];
+  available: boolean;
+  suggested: string;
+}
+
+// Create stores for model information
 import { writable } from 'svelte/store';
 export const sttModelsStore = writable<STTModelsResponse>({
+  models: [],
+  names: [],
+  available: false,
+  suggested: ""
+});
+
+// Create stores for summary provider and model information
+export const summaryProvidersStore = writable<SummaryProvidersResponse>({
+  providers: [],
+  names: [],
+  available: false,
+  suggested: ""
+});
+
+export const summaryModelsStore = writable<SummaryModelsResponse>({
   models: [],
   names: [],
   available: false,
@@ -481,6 +566,36 @@ export function updateSTTModels(sttModels: STTModelsResponse): void {
          const modelInfo = sttModels.find(m => m.name === sttModel);
          return modelInfo && modelInfo.takesInitialPrompt;
        })()`;
+  }
+}
+
+// Update feature model with available summary providers
+export function updateSummaryProviders(providers: SummaryProvidersResponse): void {
+  // Always update the store with all providers
+  summaryProvidersStore.set(providers);
+  
+  // Update choices for the summaryProvider dropdown
+  updateFeatureChoices('condensedAudio', 'summaryProvider', providers.names, providers.suggested);
+  
+  // Update the default value to be the suggested provider or the first in the list
+  const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
+  if (condensedAudioFeature && condensedAudioFeature.options.summaryProvider && providers.names.length > 0) {
+    condensedAudioFeature.options.summaryProvider.default = providers.suggested || providers.names[0];
+  }
+}
+
+// Update feature model with available summary models for a provider
+export function updateSummaryModels(models: SummaryModelsResponse): void {
+  // Always update the store with all models
+  summaryModelsStore.set(models);
+  
+  // Update choices for the summaryModel dropdown
+  updateFeatureChoices('condensedAudio', 'summaryModel', models.names, models.suggested);
+  
+  // Update the default value to be the suggested model or the first in the list
+  const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
+  if (condensedAudioFeature && condensedAudioFeature.options.summaryModel && models.names.length > 0) {
+    condensedAudioFeature.options.summaryModel.default = models.suggested || models.names[0];
   }
 }
 

@@ -3,7 +3,9 @@ package gui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"strings"
 	"time"
 	
 	"github.com/rs/zerolog"
@@ -13,6 +15,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
 )
 
 var handler *core.GUIHandler
@@ -317,6 +320,158 @@ func (a *App) RecordWasmState(stateJson string) {
 		if errMsg, ok := lastError["message"].(string); ok {
 			a.logger.Error().Str("source", "wasm").Msg(errMsg)
 		}
+	}
+}
+
+// GetAvailableSummaryProviders returns a list of available LLM providers for summarization
+func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
+	a.logger.Debug().Msg("Fetching available summary providers")
+	
+	// Get the summary service
+	summaryService := summary.GetDefaultService()
+	if summaryService == nil {
+		err := fmt.Errorf("summary service not initialized")
+		a.logger.Error().Err(err).Msg("Failed to get summary providers")
+		return nil, err
+	}
+	
+	// Get the list of providers
+	providers := summaryService.ListProviders()
+	
+	// Create the response structure
+	response := map[string]interface{}{
+		"providers": []map[string]string{},
+		"names":     []string{},
+		"available": len(providers) > 0,
+		"suggested": "",
+	}
+	
+	// Add provider details
+	providersList := make([]map[string]string, 0, len(providers))
+	namesList := make([]string, 0, len(providers))
+	
+	for _, provider := range providers {
+		providerName := provider.GetName()
+		namesList = append(namesList, providerName)
+		
+		providerInfo := map[string]string{
+			"name":        providerName,
+			"displayName": displayNameForProvider(providerName),
+			"description": descriptionForProvider(providerName),
+		}
+		providersList = append(providersList, providerInfo)
+	}
+	
+	response["providers"] = providersList
+	response["names"] = namesList
+	
+	// Set suggested provider (OpenAI is a good default if available)
+	for _, name := range namesList {
+		if name == "openai" {
+			response["suggested"] = "openai"
+			break
+		}
+	}
+	
+	// If no suggested provider yet and there's at least one available, use the first one
+	if response["suggested"] == "" && len(namesList) > 0 {
+		response["suggested"] = namesList[0]
+	}
+	
+	return response, nil
+}
+
+// GetAvailableSummaryModels returns a list of available models for a specified provider
+func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interface{}, error) {
+	a.logger.Debug().Str("provider", providerName).Msg("Fetching available summary models")
+	
+	// Get the summary service
+	summaryService := summary.GetDefaultService()
+	if summaryService == nil {
+		err := fmt.Errorf("summary service not initialized")
+		a.logger.Error().Err(err).Msg("Failed to get summary models")
+		return nil, err
+	}
+	
+	// Get models for the specified provider
+	models, err := summaryService.GetModelsForProvider(providerName)
+	if err != nil {
+		a.logger.Error().Err(err).Str("provider", providerName).Msg("Failed to get models for provider")
+		return nil, err
+	}
+	
+	// Create the response structure
+	response := map[string]interface{}{
+		"models":    []map[string]interface{}{},
+		"names":     []string{},
+		"available": len(models) > 0,
+		"suggested": "",
+	}
+	
+	// Add model details
+	modelsList := make([]map[string]interface{}, 0, len(models))
+	namesList := make([]string, 0, len(models))
+	
+	for _, model := range models {
+		namesList = append(namesList, model.ID)
+		
+		modelInfo := map[string]interface{}{
+			"id":          model.ID,
+			"name":        model.Name,
+			"description": model.Description,
+			"providerName": model.ProviderName,
+		}
+		modelsList = append(modelsList, modelInfo)
+		
+		// Look for GPT-4o or Claude models to set as suggested
+		if response["suggested"] == "" {
+			if strings.Contains(strings.ToLower(model.ID), "gpt-4o") ||
+				strings.Contains(strings.ToLower(model.ID), "claude-3") {
+				response["suggested"] = model.ID
+			}
+		}
+	}
+	
+	response["models"] = modelsList
+	response["names"] = namesList
+	
+	// If no suggested model yet and there's at least one available, use the first one
+	if response["suggested"] == "" && len(namesList) > 0 {
+		response["suggested"] = namesList[0]
+	}
+	
+	return response, nil
+}
+
+// Helper function to provide friendly display names for providers
+func displayNameForProvider(providerName string) string {
+	switch providerName {
+	case "openai":
+		return "OpenAI"
+	case "openrouter":
+		return "OpenRouter"
+	case "google":
+		return "Google AI"
+	default:
+		// Capitalize first letter and return
+		if len(providerName) > 0 {
+			return strings.ToUpper(providerName[:1]) + providerName[1:]
+		}
+		return providerName
+	}
+}
+
+// Helper function to provide descriptions for providers
+func descriptionForProvider(providerName string) string {
+	switch providerName {
+	case "openai":
+		return "OpenAI's GPT models including GPT-4o"
+	case "openrouter":
+		return "Access to multiple LLM providers through OpenRouter"
+	case "google":
+		return "Google's Gemini models"
+	default:
+		return "LLM provider for summarization"
 	}
 }
 

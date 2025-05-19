@@ -14,6 +14,10 @@
         createDefaultOptions, 
         providerGithubUrls, 
         providersRequiringTokens,
+        updateSummaryProviders,
+        updateSummaryModels,
+        summaryProvidersStore,
+        summaryModelsStore,
         type RomanizationScheme 
     } from '../lib/featureModel';
     import { 
@@ -26,7 +30,9 @@
         ValidateLanguageTag, 
         CheckMediaLanguageTags,
         NeedsTokenization,
-        GetAvailableSTTModelsForUI
+        GetAvailableSTTModelsForUI,
+        GetAvailableSummaryProviders,
+        GetAvailableSummaryModels
     } from '../../wailsjs/go/gui/App';
     
     import FeatureCard from './FeatureCard.svelte';
@@ -81,6 +87,12 @@
     let currentSTTModels = { models: [], names: [], available: false, suggested: "" };
     let sttModelsUnsubscribe: () => void;
     
+    // Same for summary providers and models
+    let currentSummaryProviders = { providers: [], names: [], available: false, suggested: "" };
+    let currentSummaryModels = { models: [], names: [], available: false, suggested: "" };
+    let summaryProvidersUnsubscribe: () => void;
+    let summaryModelsUnsubscribe: () => void;
+    
     const dispatch = createEventDispatcher();
     
     /**
@@ -109,6 +121,94 @@
             validationError = 'Validation failed';
         } finally {
             isChecking = false;
+        }
+    }
+    
+    /**
+     * Fetch available summary providers from the backend
+     */
+    async function fetchSummaryProviders() {
+        logger.trace('featureSelector', 'Fetching available summary providers');
+        try {
+            const summaryProviders = await GetAvailableSummaryProviders();
+            
+            // Update feature models and store
+            updateSummaryProviders(summaryProviders);
+            
+            if (!summaryProviders.available) {
+                // Handle case where no providers are available
+                errorStore.addError({
+                    id: 'no-summary-providers',
+                    message: 'No summary providers available. Check API keys in settings.',
+                    severity: 'warning',
+                    action: {
+                        label: 'Open Settings',
+                        handler: () => {
+                            showSettings.set(true);
+                        }
+                    }
+                });
+            } else {
+                // If the error was previously shown and providers are now available, remove it
+                errorStore.removeError('no-summary-providers');
+            }
+            
+            // Update the local state
+            currentSummaryProviders = summaryProviders;
+            
+            // If there's a suggested provider, fetch its models
+            if (summaryProviders.suggested) {
+                await fetchSummaryModels(summaryProviders.suggested);
+            }
+            
+            return summaryProviders;
+        } catch (error) {
+            logger.error('featureSelector', 'Failed to load summary providers', { error });
+            return { providers: [], names: [], available: false, suggested: "" };
+        }
+    }
+    
+    /**
+     * Fetch available models for a specified summary provider
+     */
+    async function fetchSummaryModels(providerName: string) {
+        if (!providerName) {
+            logger.warn('featureSelector', 'Cannot fetch summary models: No provider specified');
+            return { models: [], names: [], available: false, suggested: "" };
+        }
+        
+        logger.trace('featureSelector', `Fetching available summary models for provider: ${providerName}`);
+        try {
+            const summaryModels = await GetAvailableSummaryModels(providerName);
+            
+            // Update feature models and store
+            updateSummaryModels(summaryModels);
+            
+            if (!summaryModels.available) {
+                // Handle case where no models are available
+                errorStore.addError({
+                    id: 'no-summary-models',
+                    message: `No summary models available for ${providerName}. Check API keys in settings.`,
+                    severity: 'warning',
+                    action: {
+                        label: 'Open Settings',
+                        handler: () => {
+                            showSettings.set(true);
+                        }
+                    }
+                });
+            } else {
+                // If the error was previously shown and models are now available, remove it
+                errorStore.removeError('no-summary-models');
+            }
+            
+            // Update the local state
+            currentSummaryModels = summaryModels;
+            
+            return summaryModels;
+        } catch (error) {
+            logger.error('featureSelector', `Failed to load summary models for provider: ${providerName}`, { error });
+            return { models: [], names: [], available: false, suggested: "" };
         }
     }
     
@@ -706,6 +806,33 @@
         }
         
         dispatch('optionsChange', currentFeatureOptions);
+        
+        // Special case for summary provider changes - fetch models for the new provider
+        if (featureId === 'condensedAudio' && optionId === 'summaryProvider') {
+            logger.debug('featureSelector', `Summary provider changed: ${value}`);
+            
+            // Fetch models for the selected provider if it's a non-empty string
+            if (value && typeof value === 'string') {
+                fetchSummaryModels(value).then(models => {
+                    logger.debug('featureSelector', `Loaded ${models.names.length} models for provider ${value}`);
+                    
+                    // If the current selected model isn't in the new models list, update it
+                    if (currentFeatureOptions?.condensedAudio?.summaryModel && 
+                        !models.names.includes(currentFeatureOptions.condensedAudio.summaryModel)) {
+                        currentFeatureOptions.condensedAudio.summaryModel = models.suggested || (models.names[0] || '');
+                        
+                        // Notify parent of the model change
+                        dispatch('optionChange', {
+                            featureId: 'condensedAudio',
+                            optionId: 'summaryModel',
+                            value: currentFeatureOptions.condensedAudio.summaryModel
+                        });
+                    }
+                }).catch(error => {
+                    logger.error('featureSelector', `Failed to load models for provider ${value}`, { error });
+                });
+            }
+        }
     }
     
     function shouldShowFeature(featureDef: any): boolean {
@@ -1047,8 +1174,18 @@
     let errorStoreUnsubscribe: () => void;
     
     onMount(async () => {
+        // Subscribe to STT models store
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
             currentSTTModels = value;
+        });
+        
+        // Subscribe to summary providers and models stores
+        summaryProvidersUnsubscribe = summaryProvidersStore.subscribe(value => {
+            currentSummaryProviders = value;
+        });
+        
+        summaryModelsUnsubscribe = summaryModelsStore.subscribe(value => {
+            currentSummaryModels = value;
         });
         
         logger.trace('featureSelector', "FeatureSelector mounting - loading data...");
@@ -1082,8 +1219,44 @@
                     !sttModels.names.includes(currentFeatureOptions.dubtitles.stt)) {
                     currentFeatureOptions.dubtitles.stt = sttModels.suggested;
                 }
+                
+                // Fetch summary providers after STT models
+                await fetchSummaryProviders();
             } catch (error) {
                 logger.error('featureSelector', 'Failed to load STT models', { error });
+            }
+            
+            // Load summary providers
+            try {
+                const summaryProviders = await fetchSummaryProviders();
+                
+                if (!summaryProviders.available) {
+                    // Handle case where no providers are available
+                    errorStore.addError({
+                        id: 'no-summary-providers',
+                        message: 'No summary providers available. Check API keys in settings.',
+                        severity: 'warning',
+                        action: {
+                            label: 'Open Settings',
+                            handler: () => {
+                                showSettings.set(true);
+                            }
+                        }
+                    });
+                }
+                
+                // If condensedAudio has a provider selected that's not available, update it
+                if (currentFeatureOptions?.condensedAudio?.summaryProvider && 
+                    !summaryProviders.names.includes(currentFeatureOptions.condensedAudio.summaryProvider)) {
+                    currentFeatureOptions.condensedAudio.summaryProvider = summaryProviders.suggested;
+                    
+                    // Also fetch models for the suggested provider
+                    if (summaryProviders.suggested) {
+                        await fetchSummaryModels(summaryProviders.suggested);
+                    }
+                }
+            } catch (error) {
+                logger.error('featureSelector', 'Failed to load summary providers', { error });
             }
             
             // Initialize canonical feature order from feature definitions
@@ -1186,14 +1359,28 @@
     onDestroy(() => {
         logger.trace('featureSelector', 'FeatureSelector unmounting, cleaning up errors');
        
+        // Clean up store subscriptions
         if (sttModelsUnsubscribe) {
             sttModelsUnsubscribe();
+        }
+        
+        if (summaryProvidersUnsubscribe) {
+            summaryProvidersUnsubscribe();
+        }
+        
+        if (summaryModelsUnsubscribe) {
+            summaryModelsUnsubscribe();
         }
         
         // Clean up error store subscription
         if (errorStoreUnsubscribe) {
             errorStoreUnsubscribe();
         }
+        
+        // Clean up any error messages we created
+        errorStore.removeError('no-stt-models');
+        errorStore.removeError('no-summary-providers');
+        errorStore.removeError('no-summary-models');
         
         // Clear legacy errors
         errorStore.removeError('docker-required');

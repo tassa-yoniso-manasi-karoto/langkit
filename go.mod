@@ -34,7 +34,6 @@ require (
 	github.com/teilomillet/gollm v0.1.9
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.10.0
-	google.golang.org/api v0.215.0
 	google.golang.org/genai v1.5.0
 )
 
