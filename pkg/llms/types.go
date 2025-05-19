@@ -1,13 +1,16 @@
 package llms
 
+import "time"
+
 // ModelInfo contains metadata about a model
 type ModelInfo struct {
-	ID           string   // Unique identifier for the model
-	Name         string   // Display name for the model
-	Description  string   // Brief description of the model
-	MaxTokens    int      // Maximum context length supported
-	Capabilities []string // Capabilities like "summarization", "creative", etc.
-	ProviderName string   // The provider this model belongs to
+	ID           string     // Unique identifier for the model
+	Name         string     // Display name for the model
+	Description  string     // Brief description of the model
+	MaxTokens    int        // Maximum context length supported
+	Capabilities []string   // Capabilities like "summarization", "creative", etc.
+	ProviderName string     // The provider this model belongs to
+	ReleaseDate  time.Time  // Release date of the model
 }
 
 // CompletionRequest contains parameters for a completion request
