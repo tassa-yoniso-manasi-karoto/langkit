@@ -9,19 +9,17 @@ import (
 	"path/filepath"
 	"io/fs"
 	"errors"
-	"context" 
-	"time"
+	"context"
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	"github.com/asticode/go-astisub" 
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary" 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
 )
 
 // ProcessedItem represents the exported information of a single subtitle item.
@@ -299,21 +297,21 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 
 			if subtitleTextForLLM != "" {
 				inputLangName := ""
-				if tsk.Targ != nil && tsk.Targ.Language != nil {
+				if tsk.Targ.Language != nil {
 					inputLangName = tsk.Targ.Language.Name
 				}
 
 				outputLangName := ""
 				summaryLangCodeISO639_2 := "und" // Default to "undetermined"
 
-				if tsk.NativeLang != nil && tsk.NativeLang.Language != nil {
-					outputLangName = tsk.NativeLang.Language.Name
-					if tsk.NativeLang.Language.Part2T != "" {
-						summaryLangCodeISO639_2 = tsk.NativeLang.Language.Part2T
-					} else if tsk.NativeLang.Language.Part2B != "" {
-						summaryLangCodeISO639_2 = tsk.NativeLang.Language.Part2B
+				if tsk.Native.Language != nil {
+					outputLangName = tsk.Native.Language.Name
+					if tsk.Native.Language.Part2T != "" {
+						summaryLangCodeISO639_2 = tsk.Native.Language.Part2T
+					} else if tsk.Native.Language.Part2B != "" {
+						summaryLangCodeISO639_2 = tsk.Native.Language.Part2B
 					} else {
-						tsk.Handler.ZeroLog().Warn().Str("lang_name", tsk.NativeLang.Language.Name).Msg("No ISO 639-2 (T or B) code found for native language, USLT language will be 'und'")
+						tsk.Handler.ZeroLog().Warn().Str("lang_name", tsk.Native.Language.Name).Msg("No ISO 639-2 (T or B) code found for native language, USLT language will be 'und'")
 					}
 				} else {
 					tsk.Handler.ZeroLog().Warn().Msg("Native language not set for task, summary output language will be LLM default and USLT language tag will be 'und'")
@@ -339,7 +337,7 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 				} else {
 					if summaryText != "" {
 						// Use the new AddLyricsToAudioFile function
-						err = media.AddLyricsToAudioFile(out, summaryText, summaryLangCodeISO639_2)
+						err = metadata.AddLyricsToAudioFile(out, summaryText, summaryLangCodeISO639_2)
 						if err != nil {
 							tsk.Handler.ZeroLog().Error().Err(err).
 								Msg("Failed to add summary to condensed audio metadata")

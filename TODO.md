@@ -48,6 +48,8 @@ SVG animations: rework state transitions
 
 *future implementations*
 
+- multiple previous subtitle for summarization fully contextualized
+
 - implement an explicit maxAbortTasks
 - add progressCallback to all providers in translitkit including go-natives
 

@@ -14,6 +14,7 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
@@ -246,6 +247,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		switch bin {
 		case "ffmpeg":
 			media.FFmpegPath = dest
+			metadata.FFmpegPath = dest
 		case "mediainfo":
 			MediainfoPath = dest
 		}
