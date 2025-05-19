@@ -9,6 +9,8 @@ type Settings = {
         assemblyAI: string;
         elevenLabs: string;
         openAI: string;
+        openRouter: string;
+        google: string;
     };
     targetLanguage: string;
     nativeLanguages: string;
@@ -47,7 +49,9 @@ const initSettings: Settings = {
         replicate: '',
         assemblyAI: '',
         elevenLabs: '',
-        openAI: ''
+        openAI: '',
+        openRouter: '',
+        google: ''
     },
     targetLanguage: '',
     nativeLanguages: 'en, en-US',
