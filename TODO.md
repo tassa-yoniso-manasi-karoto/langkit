@@ -18,7 +18,6 @@ SVG animations: rework state transitions
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
   - perf issue with queries of GetAvailableModels()
   - separate & dedicated open router FREE provider
-  - sort open router by popularity this week
   - "Custom Summary Prompt" → should have bigger field like Initial Prompt
 .
 
@@ -33,8 +32,11 @@ SVG animations: rework state transitions
 
 - guarantee all settings in Settings panel work
 .
+
 - make env API key are heeded in GUI mode
 
+.
+- welcome component w/ checks for binary needed
 
 - add strategic frontend logging for prod
 .

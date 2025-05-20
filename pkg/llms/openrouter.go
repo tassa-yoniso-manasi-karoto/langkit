@@ -15,6 +15,7 @@ import (
 
 	"github.com/openai/openai-go/packages/ssestream"
 	"github.com/revrost/go-openrouter"
+	"github.com/rs/zerolog"
 )
 
 // OpenRouterProvider implements the Provider interface for OpenRouter.
@@ -39,7 +40,7 @@ func NewOpenRouterProvider(apiKey string) *OpenRouterProvider {
 
 	officialClient := openrouter.NewClient(apiKey)
 	httpClient := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 	defaultModel := "openrouter/auto"
 
@@ -59,7 +60,7 @@ func (p *OpenRouterProvider) GetName() string {
 
 // GetDescription returns the provider's description
 func (p *OpenRouterProvider) GetDescription() string {
-	return "OpenRouter: Access to multiple LLMs. Uses revrost/go-openrouter and direct HTTP for streaming."
+	return "OpenRouter: Access to multiple LLMs. Models sorted by weekly popularity."
 }
 
 // RequiresAPIKey indicates if the provider needs an API key
@@ -67,7 +68,7 @@ func (p *OpenRouterProvider) RequiresAPIKey() bool {
 	return true
 }
 
-// Structs for parsing OpenRouter /models response
+// Structs for parsing OpenRouter /models response (official endpoint)
 type OpenRouterModelArchitecture struct {
 	InputModalities  []string `json:"input_modalities"`
 	OutputModalities []string `json:"output_modalities"`
@@ -92,9 +93,9 @@ type OpenRouterPricing struct {
 	InternalReasoning string `json:"internal_reasoning,omitempty"`
 }
 
-type OpenRouterModelData struct {
-	ID                  string                       `json:"id"`
-	Name                string                       `json:"name"`
+type OpenRouterOfficialModelData struct {
+	ID                  string                       `json:"id"`    // This is the ID to use for API calls (e.g., "openai/gpt-4o-mini")
+	Name                string                       `json:"name"`  // This is the full display name (e.g., "OpenAI: GPT-4o-mini")
 	Created             float64                      `json:"created"`
 	Description         string                       `json:"description"`
 	Architecture        OpenRouterModelArchitecture  `json:"architecture"`
@@ -106,11 +107,29 @@ type OpenRouterModelData struct {
 	SupportedParameters []string                     `json:"supported_parameters,omitempty"`
 }
 
-type OpenRouterModelsResponse struct {
-	Data []OpenRouterModelData `json:"data"`
+type OpenRouterOfficialModelsResponse struct {
+	Data []OpenRouterOfficialModelData `json:"data"`
 }
 
-// GetAvailableModels fetches and returns a list of available models from OpenRouter.
+// Structs for parsing OpenRouter /frontend/models/find?order=top-weekly response
+type OpenRouterPopularityModelData struct {
+	Slug          string    `json:"slug"` // This is an ID, often matches official ID.
+	Name          string    `json:"name"` // This is the full display name, used for matching.
+	ContextLength int       `json:"context_length"`
+	// ... other fields from the provided JSON, but we primarily need 'name' for ordering.
+}
+
+type OpenRouterPopularityResponseData struct {
+	Models []OpenRouterPopularityModelData `json:"models"`
+}
+
+type OpenRouterPopularityResponse struct {
+	Data OpenRouterPopularityResponseData `json:"data"`
+}
+
+// GetAvailableModels fetches models from the official OpenRouter endpoint,
+// then attempts to fetch a popularity-ordered list from an alternative endpoint
+// and re-sorts the official list accordingly using the 'Name' field for matching.
 func (p *OpenRouterProvider) GetAvailableModels() []ModelInfo {
 	if !p.isInitialized {
 		Logger.Warn().Msg("OpenRouterProvider not initialized in GetAvailableModels")
@@ -119,6 +138,7 @@ func (p *OpenRouterProvider) GetAvailableModels() []ModelInfo {
 
 	p.modelsMu.RLock()
 	if len(p.models) > 0 {
+		Logger.Trace().Msg("Returning cached OpenRouter models.")
 		p.modelsMu.RUnlock()
 		return p.models
 	}
@@ -127,45 +147,35 @@ func (p *OpenRouterProvider) GetAvailableModels() []ModelInfo {
 	p.modelsMu.Lock()
 	defer p.modelsMu.Unlock()
 	if len(p.models) > 0 {
+		Logger.Trace().Msg("Returning cached OpenRouter models (double check).")
 		return p.models
 	}
 
-	Logger.Debug().Msg("Fetching available models from OpenRouter API (https://openrouter.ai/api/v1/models)...")
-
-	req, err := http.NewRequest("GET", "https://openrouter.ai/api/v1/models", nil)
+	Logger.Debug().Msg("Fetching official model list from OpenRouter API (v1/models)...")
+	officialAPIURL := "https://openrouter.ai/api/v1/models"
+	officialModelsData, err := p.fetchOpenRouterEndpoint(officialAPIURL)
 	if err != nil {
-		Logger.Error().Err(err).Msg("Failed to create request for OpenRouter models")
-		return nil
+		Logger.Error().Err(err).Msg("Failed to fetch or parse official OpenRouter models list.")
+		return nil // Critical failure if official list can't be fetched
 	}
 
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		Logger.Error().Err(err).Msg("Failed to fetch OpenRouter models")
+	var officialModelsResp OpenRouterOfficialModelsResponse
+	if err := json.Unmarshal(officialModelsData, &officialModelsResp); err != nil {
+		Logger.Error().Err(err).Str("url", officialAPIURL).Msg("Failed to unmarshal official OpenRouter models response")
 		return nil
 	}
-	defer resp.Body.Close()
+	Logger.Trace().Int("official_model_count_raw", len(officialModelsResp.Data)).Msg("Fetched official models")
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		Logger.Error().Int("status_code", resp.StatusCode).Str("body", string(bodyBytes)).Msg("Failed to fetch OpenRouter models: non-200 status")
-		return nil
-	}
+	// Fetch popularity-ordered list (names)
+	popularModelNames := p.fetchPopularModelNames() // Helper function
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		Logger.Error().Err(err).Msg("Failed to read response body from OpenRouter models")
-		return nil
-	}
-
-	var openRouterResp OpenRouterModelsResponse
-	if err := json.Unmarshal(body, &openRouterResp); err != nil {
-		Logger.Error().Err(err).Msg("Failed to unmarshal OpenRouter models response")
-		return nil
-	}
-
+	// Transform official models into llms.ModelInfo
 	var modelInfos []ModelInfo
-	for _, orModel := range openRouterResp.Data {
-		capabilities := []string{}
+	officialModelNameMap := make(map[string]OpenRouterOfficialModelData) // For quick lookup by name
+
+	for _, orModel := range officialModelsResp.Data {
+		officialModelNameMap[orModel.Name] = orModel // Store by full name
+
 		canGenerateText := false
 		for _, outMod := range orModel.Architecture.OutputModalities {
 			if strings.ToLower(outMod) == "text" {
@@ -173,12 +183,12 @@ func (p *OpenRouterProvider) GetAvailableModels() []ModelInfo {
 				break
 			}
 		}
-
 		if !canGenerateText {
+			Logger.Trace().Str("model_id", orModel.ID).Str("model_name", orModel.Name).Msg("Skipping non-text generating model")
 			continue
 		}
-		capabilities = append(capabilities, "text-generation", "chat")
 
+		capabilities := []string{"text-generation", "chat"}
 		for _, inMod := range orModel.Architecture.InputModalities {
 			if strings.ToLower(inMod) == "image" {
 				capabilities = append(capabilities, "vision")
@@ -198,8 +208,8 @@ func (p *OpenRouterProvider) GetAvailableModels() []ModelInfo {
 		releaseDate := time.Unix(int64(orModel.Created), 0)
 
 		modelInfos = append(modelInfos, ModelInfo{
-			ID:            orModel.ID,
-			Name:          orModel.Name,
+			ID:            orModel.ID,   // Use the official ID for API calls
+			Name:          orModel.Name, // Use the official Name for display and matching popularity
 			Description:   orModel.Description,
 			MaxTokens:     contextLength,
 			Capabilities:  uniqueStrings(capabilities),
@@ -207,31 +217,146 @@ func (p *OpenRouterProvider) GetAvailableModels() []ModelInfo {
 			ReleaseDate:   releaseDate,
 		})
 	}
-
-	sort.SliceStable(modelInfos, func(i, j int) bool {
-		if !modelInfos[i].ReleaseDate.Equal(modelInfos[j].ReleaseDate) {
-			return modelInfos[i].ReleaseDate.After(modelInfos[j].ReleaseDate)
+	Logger.Trace().Int("text_gen_model_count", len(modelInfos)).Msg("Transformed official models to ModelInfo")
+	if Logger.GetLevel() <= zerolog.TraceLevel {
+		var initialModelNames []string
+		for _, mi := range modelInfos {
+			initialModelNames = append(initialModelNames, mi.Name)
 		}
-		return modelInfos[i].ID < modelInfos[j].ID
-	})
+		Logger.Trace().Strs("initial_model_names_preview", initialModelNames[:min(10, len(initialModelNames))]).Msg("Preview of ModelInfo names before popularity sort")
+	}
+
+
+	// Re-sort modelInfos based on popularity if available
+	if len(popularModelNames) > 0 {
+		popularityRank := make(map[string]int)
+		for i, name := range popularModelNames {
+			popularityRank[name] = i
+		}
+		Logger.Trace().Int("popular_model_name_count", len(popularModelNames)).Int("rank_map_size", len(popularityRank)).Msg("Popularity rank map created using model names")
+		
+		foundInPopular := 0
+		notFoundInPopular := 0
+
+		sort.SliceStable(modelInfos, func(i, j int) bool {
+			nameI := modelInfos[i].Name
+			nameJ := modelInfos[j].Name
+			rankI, inPopI := popularityRank[nameI]
+			rankJ, inPopJ := popularityRank[nameJ]
+
+			if inPopI && inPopJ {
+				return rankI < rankJ // Sort by popularity rank (lower index is better)
+			}
+			if inPopI { // Popular models always come before non-popular ones
+				return true
+			}
+			if inPopJ { // Popular models always come before non-popular ones
+				return false
+			}
+			// If neither is in the popularity list, maintain their original relative order.
+			// SliceStable preserves this.
+			return false
+		})
+
+		// Log how many models from the official list were found in the popular list
+		for _, mi := range modelInfos {
+			if _, ok := popularityRank[mi.Name]; ok {
+				foundInPopular++
+			} else {
+				notFoundInPopular++
+			}
+		}
+		Logger.Trace().Int("found_in_popular_list", foundInPopular).Int("not_found_in_popular_list", notFoundInPopular).Msg("Matching official models against popular list")
+		Logger.Debug().Msg("Sorted OpenRouter models by weekly popularity (using Name for matching).")
+
+	} else {
+		Logger.Warn().Msg("Popularity list for OpenRouter models was empty or failed to fetch. Falling back to sorting by release date only.")
+		sort.SliceStable(modelInfos, func(i, j int) bool {
+			if !modelInfos[i].ReleaseDate.Equal(modelInfos[j].ReleaseDate) {
+				return modelInfos[i].ReleaseDate.After(modelInfos[j].ReleaseDate)
+			}
+			return modelInfos[i].ID < modelInfos[j].ID // Use ID as secondary sort for release date
+		})
+		Logger.Debug().Msg("Sorted OpenRouter models by release date.")
+	}
+	
+	if Logger.GetLevel() <= zerolog.TraceLevel {
+		sortedNames := make([]string, 0, len(modelInfos))
+		for _, mi := range modelInfos {
+			sortedNames = append(sortedNames, mi.Name + " (ID: " + mi.ID + ")")
+		}
+		Logger.Trace().Strs("final_sorted_model_names_preview", sortedNames[:min(10, len(sortedNames))]).Msg("Preview of final sorted model names and IDs")
+	}
 
 	p.models = modelInfos
-	Logger.Debug().Int("count", len(p.models)).Msg("Successfully fetched, filtered, and cached OpenRouter models.")
+	Logger.Debug().Int("final_model_count", len(p.models)).Msg("Successfully fetched, filtered, and cached OpenRouter models.")
 	return p.models
 }
 
-// StreamDelta defines the structure of the 'delta' field in an OpenRouter stream chunk.
-// This is based on OpenAI's typical stream delta.
+// fetchOpenRouterEndpoint is a helper to fetch and read body from an OpenRouter endpoint.
+func (p *OpenRouterProvider) fetchOpenRouterEndpoint(url string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request for %s: %w", url, err)
+	}
+	// No auth needed for public model listings typically
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("fetching %s returned status %d: %s", url, resp.StatusCode, string(bodyBytes))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body from %s: %w", url, err)
+	}
+	return body, nil
+}
+
+
+// fetchPopularModelNames fetches the list of model names ordered by popularity.
+func (p *OpenRouterProvider) fetchPopularModelNames() []string {
+	Logger.Trace().Msg("Fetching popular model order from OpenRouter frontend API (find?order=top-weekly)...")
+	popularityAPIURL := "https://openrouter.ai/api/frontend/models/find?order=top-weekly"
+	
+	bodyPopular, err := p.fetchOpenRouterEndpoint(popularityAPIURL)
+	if err != nil {
+		Logger.Warn().Err(err).Msg("Failed to fetch popular model list from frontend API.")
+		return nil
+	}
+
+	var popularModelsResp OpenRouterPopularityResponse
+	if err := json.Unmarshal(bodyPopular, &popularModelsResp); err != nil {
+		Logger.Error().Err(err).Str("url", popularityAPIURL).Str("body_snippet", string(bodyPopular[:min(200, len(bodyPopular))])).Msg("Failed to unmarshal popular OpenRouter models response")
+		return nil
+	}
+
+	var popularNames []string
+	if popularModelsResp.Data.Models != nil {
+		for _, model := range popularModelsResp.Data.Models {
+			popularNames = append(popularNames, model.Name) // Use 'Name' for matching
+		}
+	}
+	Logger.Trace().Int("popular_model_name_count", len(popularNames)).Msg("Successfully fetched popular model names.")
+	return popularNames
+}
+
+
 type StreamDelta struct {
 	Content string `json:"content,omitempty"`
 	Role    string `json:"role,omitempty"`
-	// Add other fields like ToolCalls if OpenRouter streams them in delta
 }
 
 // OpenRouterStreamChoice is used for unmarshalling choices from OpenRouter SSE stream
 type OpenRouterStreamChoice struct {
 	Index        int                       `json:"index"`
-	Delta        StreamDelta               `json:"delta"` // Corrected: Use StreamDelta
+	Delta        StreamDelta               `json:"delta"`
 	FinishReason openrouter.FinishReason   `json:"finish_reason,omitempty"`
 	LogProbs     *openrouter.LogProbs      `json:"logprobs,omitempty"`
 }
@@ -242,11 +367,10 @@ type OpenRouterStreamChunk struct {
 	Object  string                   `json:"object"`
 	Created int64                    `json:"created"`
 	Model   string                   `json:"model"`
-	Choices []OpenRouterStreamChoice `json:"choices"` // Corrected: Use OpenRouterStreamChoice
+	Choices []OpenRouterStreamChoice `json:"choices"`
 	Usage   *openrouter.Usage        `json:"usage,omitempty"`
 }
 
-// Complete generates a completion using the OpenRouter provider.
 func (p *OpenRouterProvider) Complete(ctx context.Context, request CompletionRequest) (CompletionResponse, error) {
 	if !p.isInitialized {
 		return CompletionResponse{}, errors.New("openrouter provider not initialized")
@@ -326,19 +450,18 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, request CompletionReq
 		}
 		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
 		httpReq.Header.Set("Content-Type", "application/json")
-		// Optional: Set HTTP-Referer and X-Title if required by OpenRouter or for your tracking
-		// httpReq.Header.Set("HTTP-Referer", "YOUR_SITE_URL_OR_APP_NAME")
-		// httpReq.Header.Set("X-Title", "YOUR_APP_NAME")
+		// httpReq.Header.Set("HTTP-Referer", "YOUR_APP_NAME_OR_URL") 
+		// httpReq.Header.Set("X-Title", "YOUR_APP_NAME") 
+
 
 		resp, err := p.httpClient.Do(httpReq)
 		if err != nil {
 			return CompletionResponse{}, fmt.Errorf("OpenRouter stream HTTP request failed: %w", err)
 		}
-		// Do not defer resp.Body.Close() here, ssestream.NewDecoder takes ownership
 
 		if resp.StatusCode != http.StatusOK {
 			bodyBytes, _ := io.ReadAll(resp.Body)
-			resp.Body.Close() // Close body as ssestream won't be used
+			resp.Body.Close()
 			Logger.Error().Int("status_code", resp.StatusCode).Str("body", string(bodyBytes)).Msg("OpenRouter stream request failed: non-200 status")
 			var apiErr openrouter.APIError
 			if json.Unmarshal(bodyBytes, &apiErr) == nil {
@@ -347,13 +470,13 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, request CompletionReq
 			return CompletionResponse{}, fmt.Errorf("OpenRouter stream API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 		}
 
-		sseDecoder := ssestream.NewDecoder(resp) // Corrected: Pass the *http.Response
+		sseDecoder := ssestream.NewDecoder(resp)
 		stream := ssestream.NewStream[OpenRouterStreamChunk](sseDecoder, nil)
-		defer stream.Close() // This will close the underlying resp.Body via the decoder
+		defer stream.Close()
 
 		var fullText strings.Builder
 		var finalResponse CompletionResponse
-		var lastChunk OpenRouterStreamChunk // To get usage and final model/finish reason
+		var lastChunk OpenRouterStreamChunk
 
 		for stream.Next() {
 			chunk := stream.Current()
@@ -367,7 +490,6 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, request CompletionReq
 
 		if err := stream.Err(); err != nil {
 			Logger.Error().Err(err).Msg("Error receiving stream chunk from OpenRouter")
-			// Check if it's an APIError from the stream
 			var apiErr *openrouter.APIError
 			if errors.As(err, &apiErr) {
 				return CompletionResponse{}, fmt.Errorf("OpenRouter stream API error: %w", apiErr)
@@ -425,4 +547,12 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, request CompletionReq
 			Provider:     p.GetName(),
 		}, nil
 	}
+}
+
+// min helper for slicing log previews
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
