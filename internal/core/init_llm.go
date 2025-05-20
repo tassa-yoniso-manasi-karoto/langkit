@@ -10,9 +10,6 @@ func InitLLM(handler MessageHandler) {
 	// Initialize LLM client system
 	llms.Initialize(*handler.ZeroLog())
 	
-	// Register providers
-	llms.RegisterDefaultProviders()
-	
 	// Initialize summary service (which depends on LLM)
 	summary.Initialize(*handler.ZeroLog())
 	

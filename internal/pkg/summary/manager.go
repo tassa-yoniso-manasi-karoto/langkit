@@ -20,11 +20,6 @@ var (
 func Initialize(log zerolog.Logger) {
 	logger = log.With().Str("component", "summary").Logger() // Initialize package-level logger
 
-	// Ensure the llms.Client is initialized and default providers are registered
-	// This might be done elsewhere at app startup, but good to ensure here too.
-	// llms.Initialize(logger) // If llms package also has an Initialize function
-	// llms.RegisterDefaultProviders() // This should load API keys and register llms.Providers
-
 	// Initialize and get the default summary service
 	GetDefaultService()
 
@@ -36,13 +31,6 @@ func Initialize(log zerolog.Logger) {
 func GetDefaultService() *Service {
 	defaultServiceOnce.Do(func() {
 		llmClient := llms.GetDefaultClient() // Get the initialized LLM client
-		
-		// Ensure LLM providers are registered (might be redundant if Initialize does it, but safe)
-		// This step is crucial as it loads API keys and makes llms.Providers available.
-		// If llms.Initialize and llms.RegisterDefaultProviders are not called before this,
-		// llmClient.ListProviders() might be empty.
-		// Consider if llms.Initialize should be a prerequisite call before summary.Initialize.
-		// For now, let's assume llms.RegisterDefaultProviders has been called.
 
 		defaultService = NewService(llmClient)
 
