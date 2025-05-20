@@ -21,9 +21,7 @@ SVG animations: rework state transitions
 .
 
 - add tlit in TSV/CSV
-.
 
-- scale up of feature card should be animated not instant
 .
 
 - remove assemblyAI
@@ -32,10 +30,10 @@ SVG animations: rework state transitions
 - guarantee all settings in Settings panel work
 .
 
-- make env API key are heeded in GUI mode
+- can you make sure env set API keys are heeded in GUI mode?
 
 .
-- welcome component w/ checks for binary needed
+- welcome.svelte component w/ checks for binary needed
 
 - add strategic frontend logging for prod
 .

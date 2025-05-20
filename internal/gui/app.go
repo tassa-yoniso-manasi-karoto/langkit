@@ -9,6 +9,7 @@ import (
 	"time"
 	
 	"github.com/rs/zerolog"
+	"github.com/spf13/viper"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
@@ -41,6 +42,32 @@ func NewApp() *App {
 	}
 }
 
+func (a *App) bindEnvironmentVariables() {
+	a.logger.Debug().Msg("Binding environment variables to config")
+	
+	// Set environment prefix and automatic env
+	viper.SetEnvPrefix("LANGKIT")
+	viper.AutomaticEnv()
+	
+	// Bind specific environment variables to their config counterparts
+	envBindings := map[string]string{
+		"REPLICATE_API_KEY":  "api_keys.replicate",
+		"ASSEMBLYAI_API_KEY": "api_keys.assemblyai", 
+		"ELEVENLABS_API_KEY": "api_keys.elevenlabs",
+		"OPENAI_API_KEY":     "api_keys.openai",
+		"OPENROUTER_API_KEY": "api_keys.openrouter",
+		"GOOGLE_API_KEY":     "api_keys.google",
+	}
+
+	for env, conf := range envBindings {
+		if err := viper.BindEnv(conf, env); err != nil {
+			a.logger.Error().Str("env", env).Err(err).Msg("Failed to bind environment variable")
+		} else {
+			a.logger.Debug().Str("env", env).Str("config", conf).Msg("Bound environment variable to config")
+		}
+	}
+}
+
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	
@@ -68,6 +95,9 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) domReady(ctx context.Context) {
 	a.logger.Debug().Msg("DOM ready, initializing settings")
+	
+	// Bind environment variables to config
+	a.bindEnvironmentVariables()
 	
 	if err := config.InitConfig(""); err != nil {
 		a.logger.Error().Err(err).Msg("Failed to initialize config")

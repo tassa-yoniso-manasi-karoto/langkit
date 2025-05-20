@@ -205,8 +205,36 @@ func LoadSettings() (Settings, error) {
 	if err := viper.Unmarshal(&settings); err != nil {
 		return Settings{}, err
 	}
+	
+	// Update settings struct with environment variables
+	applyEnvironmentVariables(&settings)
+	
+	// Load keys into the voice package
 	settings.LoadKeys()
+	
 	return settings, nil
+}
+
+// Apply environment variables directly to settings struct
+func applyEnvironmentVariables(settings *Settings) {
+	if key := os.Getenv("REPLICATE_API_KEY"); key != "" {
+		settings.APIKeys.Replicate = key
+	}
+	if key := os.Getenv("ASSEMBLYAI_API_KEY"); key != "" {
+		settings.APIKeys.AssemblyAI = key
+	}
+	if key := os.Getenv("ELEVENLABS_API_KEY"); key != "" {
+		settings.APIKeys.ElevenLabs = key
+	}
+	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+		settings.APIKeys.OpenAI = key
+	}
+	if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
+		settings.APIKeys.OpenRouter = key
+	}
+	if key := os.Getenv("GOOGLE_API_KEY"); key != "" {
+		settings.APIKeys.Google = key
+	}
 }
 
 // Apply API keys from config or environment
