@@ -17,35 +17,47 @@ SVG animations: rework state transitions
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
   - perf issue with queries of GetAvailableModels()
-  
+  - separate & dedicated open router FREE provider
+  - sort open router by popularity this week
+  - "Custom Summary Prompt" → should have bigger field like Initial Prompt
+.
+
 - add tlit in TSV/CSV
+.
+
+- scale up of feature card should be animated not instant
+.
+
+- remove assemblyAI
+.
 
 - guarantee all settings in Settings panel work
-
-
+.
+- make env API key are heeded in GUI mode
 
 
 - add strategic frontend logging for prod
+.
 
 - remove useless test files
+.
 
 - manual GUI tests
 - manual CLI tests
 - try offline to see if icon / fonts are missing
 
 - try a clean install
-
+.
 
 - fix newlines in builtin documentation
 - Browse / check FIXMEs in codebase
+.
 
 
 
 
 
-
-
-
+<hr>
 
 
 *future implementations*
@@ -63,6 +75,8 @@ SVG animations: rework state transitions
 - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
 
 - word freq lists
+
+<hr>
 
 *might:*
 

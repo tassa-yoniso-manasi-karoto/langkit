@@ -3,6 +3,7 @@
     import { clickOutside } from '../lib/clickOutside';
     import Hovertip from './Hovertip.svelte';
     import Portal from 'svelte-portal/src/Portal.svelte';
+    import { logger } from '../lib/logger';
 
     // Props
     export let options: any[] = [];
@@ -18,6 +19,7 @@
     export let className: string = ""; // Added className prop for consistency
 
     // Internal state
+    let highlightedIndex = -1;
     let isOpen = false;
     let dropdownRef: HTMLDivElement;
     let buttonRef: HTMLButtonElement;
@@ -29,8 +31,10 @@
     // Track the options reference to detect changes - critical fix for reactivity
     let previousOptionsRef = options;
     $: if (options !== previousOptionsRef) {
-        console.log('Dropdown options changed, old:', previousOptionsRef.length, 'new:', options.length);
         previousOptionsRef = options;
+        
+        // Reset active option when options change
+        highlightedIndex = -1;
         
         // Force re-render next time dropdown opens
         if (isOpen) {
@@ -55,6 +59,28 @@
         if (isOpen) {
             hasRenderedOptions = true;
             updateDropdownPosition();
+            
+            // Focus the dropdown container and setup initial highlight
+            setTimeout(() => {
+                if (optionsContainerRef) {
+                    optionsContainerRef.focus();
+                    logger.trace('dropdown', 'Dropdown opened - container focused');
+                    
+                    // Set initial highlighted item - either current value or first item
+                    const findIndex = options.findIndex(option => 
+                        optionKey && typeof option === 'object' 
+                            ? option[optionKey] === value 
+                            : option === value
+                    );
+                    
+                    // Use the found index, or 0 if not found and options exist
+                    highlightedIndex = findIndex >= 0 ? findIndex : (options.length > 0 ? 0 : -1);
+                    logger.trace('dropdown', `Initial highlight index: ${highlightedIndex}`);
+                    
+                    // Apply the highlight visually
+                    updateHighlightedOption(true);
+                }
+            }, 50);
         }
     }
 
@@ -143,8 +169,17 @@
     }
 
     // Event handlers to close dropdown
-    function handleScroll() {
+    function handleScroll(event) {
         if (isOpen) {
+            // Don't close dropdown when scrolling inside the options container
+            if (optionsContainerRef && 
+                (optionsContainerRef.contains(event.target as Node) || 
+                 optionsContainerRef === event.target)) {
+                // Allow scrolling within dropdown
+                return;
+            }
+            
+            // Close for scrolls outside dropdown
             closeDropdown();
         }
     }
@@ -154,15 +189,207 @@
             closeDropdown();
         }
     }
+    
+    // Simple keydown handler - navigation is fully handled by global keydown handler
+    function handleKeydown(event: KeyboardEvent) {
+        // When dropdown is closed, handle opening keys
+        if (!isOpen) {
+            if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+                event.preventDefault();
+                toggleDropdown();
+            }
+            return;
+        }
+        
+        // For open dropdown, just prevent default for navigation keys
+        // The actual navigation is handled by the global handler
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
+            event.key === 'Enter' || event.key === ' ' ||
+            event.key === 'Home' || event.key === 'End' ||
+            event.key === 'PageUp' || event.key === 'PageDown') {
+            event.preventDefault();
+        }
+    }
+    
+    // Update the highlighted option in the UI
+    function updateHighlightedOption(forceScroll = false) {
+        if (!optionsContainerRef || highlightedIndex < 0) return;
+        
+        // Make sure dropdown is fully rendered
+        if (!isOpen || !hasRenderedOptions) return;
+        
+        const optionElements = Array.from(optionsContainerRef.querySelectorAll('[role="option"]'));
+        if (!optionElements.length) {
+            logger.trace('dropdown', 'No option elements found');
+            return;
+        }
+        
+        logger.trace('dropdown', `Updating highlighted option: ${highlightedIndex}, total options: ${optionElements.length}`);
+        
+        // Ensure the highlighted index is valid
+        if (highlightedIndex >= optionElements.length) {
+            highlightedIndex = optionElements.length - 1;
+            logger.trace('dropdown', `Adjusted highlightedIndex to ${highlightedIndex}`);
+        }
+        
+        // Get the target element to highlight
+        const targetElement = optionElements[highlightedIndex];
+        
+        // Update all elements - remove highlighting from all, then add to the target
+        optionElements.forEach((element) => {
+            element.classList.remove('keyboard-highlighted');
+            element.removeAttribute('data-highlighted');
+            // Add a clear visual marker that this item isn't selected
+            element.style.backgroundColor = '';
+            element.style.color = '';
+            element.style.fontWeight = '';
+        });
+        
+        // Apply highlighting to the target element
+        if (targetElement) {
+            logger.trace('dropdown', `Highlighting option: ${targetElement.textContent?.trim()}`);
+            
+            // Add CSS class for styling
+            targetElement.classList.add('keyboard-highlighted');
+            
+            // Add data attribute for ARIA
+            targetElement.setAttribute('data-highlighted', 'true');
+            
+            // Apply direct styles using theme variables
+            targetElement.style.backgroundColor = 'hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5)';
+            targetElement.style.color = 'white';
+            targetElement.style.fontWeight = 'bold';
+            
+            // Ensure the highlighted option is visible by scrolling to it
+            if (forceScroll) {
+                // Use a small delay to ensure the DOM has updated
+                setTimeout(() => {
+                    targetElement.scrollIntoView({ 
+                        block: 'nearest',
+                        behavior: 'smooth'
+                    });
+                }, 10);
+            }
+        }
+        
+        // Update aria-activedescendant on the listbox
+        if (optionsContainerRef) {
+            optionsContainerRef.setAttribute('aria-activedescendant', `option-${highlightedIndex}`);
+        }
+    }
+    
+    // Reset highlighted state when dropdown opens/closes
+    function resetHighlight() {
+        highlightedIndex = -1;
+        if (optionsContainerRef) {
+            const optionElements = optionsContainerRef.querySelectorAll('[role="option"]');
+            optionElements.forEach(opt => {
+                opt.removeAttribute('data-highlighted');
+                opt.classList.remove('keyboard-highlighted');
+            });
+        }
+    }
 
     onMount(() => {
         // Add listeners for events that should close the dropdown
-        window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+        // Must NOT use passive: true for scroll event to allow checking the target element
+        window.addEventListener('scroll', handleScroll, { passive: false, capture: true });
         window.addEventListener('resize', handleResize);
+        
+        // Global keydown handler to ensure keyboard navigation always works
+        // regardless of which element has focus
+        const handleGlobalKeydown = (e: KeyboardEvent) => {
+            if (!isOpen) return;
+            
+            // Handle all navigation keys
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || 
+                e.key === 'Enter' || e.key === 'Escape' || 
+                e.key === 'Home' || e.key === 'End' ||
+                e.key === 'PageUp' || e.key === 'PageDown') {
+                
+                // ALWAYS capture these keydown events when dropdown is open
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (options.length === 0) return;
+                
+                // Calculate the jump size for PageUp/PageDown (approximately 10 items)
+                const pageJumpSize = 10;
+                
+                // Handle navigation keys
+                if (e.key === 'ArrowDown') {
+                    // Move highlight down by 1
+                    if (highlightedIndex === -1) {
+                        highlightedIndex = 0;
+                    } else {
+                        highlightedIndex = (highlightedIndex + 1) % options.length;
+                    }
+                    logger.trace('dropdown', `ArrowDown: New index ${highlightedIndex}`);
+                    updateHighlightedOption(true);
+                    
+                } else if (e.key === 'ArrowUp') {
+                    // Move highlight up by 1
+                    if (highlightedIndex === -1) {
+                        highlightedIndex = options.length - 1;
+                    } else {
+                        highlightedIndex = (highlightedIndex - 1 + options.length) % options.length;
+                    }
+                    logger.trace('dropdown', `ArrowUp: New index ${highlightedIndex}`);
+                    updateHighlightedOption(true);
+                    
+                } else if (e.key === 'PageDown') {
+                    // Move highlight down by pageJumpSize
+                    if (highlightedIndex === -1) {
+                        highlightedIndex = 0;
+                    } else {
+                        // Jump down by pageJumpSize items, but don't go past the end
+                        highlightedIndex = Math.min(highlightedIndex + pageJumpSize, options.length - 1);
+                    }
+                    logger.trace('dropdown', `PageDown: New index ${highlightedIndex}`);
+                    updateHighlightedOption(true);
+                    
+                } else if (e.key === 'PageUp') {
+                    // Move highlight up by pageJumpSize
+                    if (highlightedIndex === -1) {
+                        highlightedIndex = 0;
+                    } else {
+                        // Jump up by pageJumpSize items, but don't go before the start
+                        highlightedIndex = Math.max(highlightedIndex - pageJumpSize, 0);
+                    }
+                    logger.trace('dropdown', `PageUp: New index ${highlightedIndex}`);
+                    updateHighlightedOption(true);
+                    
+                } else if (e.key === 'Enter') {
+                    // Select the currently highlighted option
+                    if (highlightedIndex >= 0 && highlightedIndex < options.length) {
+                        logger.trace('dropdown', `Selecting option: ${highlightedIndex}`);
+                        selectOption(options[highlightedIndex]);
+                    }
+                    
+                } else if (e.key === 'Escape') {
+                    // Close the dropdown
+                    closeDropdown();
+                    buttonRef?.focus();
+                    
+                } else if (e.key === 'Home') {
+                    // Go to the first option
+                    highlightedIndex = 0;
+                    updateHighlightedOption(true);
+                    
+                } else if (e.key === 'End') {
+                    // Go to the last option
+                    highlightedIndex = options.length - 1;
+                    updateHighlightedOption(true);
+                }
+            }
+        };
+        
+        window.addEventListener('keydown', handleGlobalKeydown, { capture: true });
         
         return () => {
             window.removeEventListener('scroll', handleScroll, { capture: true });
             window.removeEventListener('resize', handleResize);
+            window.removeEventListener('keydown', handleGlobalKeydown, { capture: true });
         };
     });
 </script>
@@ -176,7 +403,8 @@
             aria-haspopup="listbox" 
             aria-expanded={isOpen} 
             aria-labelledby={label ? `${label}-label` : undefined} 
-            on:click={toggleDropdown} 
+            on:click={toggleDropdown}
+            on:keydown={handleKeydown}
             {disabled}
         >
             <!-- Fixed-width container for text -->
@@ -200,10 +428,13 @@
     {#if isOpen && hasRenderedOptions}
         <Portal target="body">
             <div 
-                class="dropdown-options fixed max-h-60 overflow-auto focus:outline-none" 
+                class="dropdown-options fixed max-h-60 overflow-auto focus:outline focus:outline-2 focus:outline-primary/50" 
                 bind:this={optionsContainerRef} 
                 role="listbox"
+                aria-activedescendant={highlightedIndex >= 0 ? `option-${highlightedIndex}` : undefined}
                 style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px; width: {dropdownPosition.width}px;"
+                tabindex="0"
+                on:keydown={handleKeydown}
             >
                 {#each options as option, i (optionKey && typeof option === 'object' ? option[optionKey] : i)}
                     {@const isSelected = optionKey && typeof option === 'object' 
@@ -213,12 +444,27 @@
                     {@const tooltipText = getOptionTooltip(option)}
                     {#if tooltipText}
                         <Hovertip message={tooltipText} position="right">
-                            <div slot="trigger" class="cursor-pointer font-semibold text-center truncate" on:click={() => selectOption(option)} role="option" aria-selected={isSelected}>
+                            <div 
+                                slot="trigger" 
+                                class="cursor-pointer font-semibold text-center truncate"
+                                id={`option-${i}`}
+                                on:click={() => selectOption(option)} 
+                                on:mouseover={() => { highlightedIndex = i; updateHighlightedOption(); }}
+                                role="option" 
+                                aria-selected={isSelected}
+                            >
                                 {displayText}
                             </div>
                         </Hovertip>
                     {:else}
-                        <div class="cursor-pointer text-center truncate" on:click={() => selectOption(option)} role="option" aria-selected={isSelected}>
+                        <div 
+                            class="cursor-pointer text-center truncate" 
+                            id={`option-${i}`}
+                            on:click={() => selectOption(option)} 
+                            on:mouseover={() => { highlightedIndex = i; updateHighlightedOption(); }}
+                            role="option" 
+                            aria-selected={isSelected}
+                        >
                             {displayText}
                         </div>
                     {/if}
@@ -298,6 +544,20 @@
     background-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4);
     color: white;
     font-weight: 600;
+  }
+
+  /* Keyboard focus - visual cue for the currently highlighted item */
+  .dropdown-options div[role="option"][data-highlighted="true"],
+  .dropdown-options div[role="option"].keyboard-highlighted {
+    background-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5) !important;
+    outline: 2px solid hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    transform: scale(1.02);
+    transition: all 0.1s ease-in-out;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
   }
 
   /* Hover state - needs to be more visible */
