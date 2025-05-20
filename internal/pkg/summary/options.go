@@ -3,7 +3,7 @@ package summary
 // Options contains configuration for generating summaries
 type Options struct {
 	// Required fields for selecting the LLM
-	Provider string // e.g., "openai", "google-gemini", "openrouter"
+	Provider string // e.g., "openai", "google", "openrouter"
 	Model    string // Model ID e.g., "gpt-4o", "models/gemini-1.5-pro-latest"
 
 	// Core summarization parameters

@@ -17,7 +17,6 @@ SVG animations: rework state transitions
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
   - perf issue with queries of GetAvailableModels()
-  - fix "google" / "google-gemini" naming discrepancies
   - "Custom Summary Prompt" → should have bigger field like Initial Prompt
 .
 

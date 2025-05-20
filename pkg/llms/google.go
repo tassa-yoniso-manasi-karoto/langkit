@@ -12,19 +12,19 @@ import (
 	"google.golang.org/genai"
 )
 
-// GeminiProvider implements the Provider interface for Google Gemini
-type GeminiProvider struct {
+// GoogleProvider implements the Provider interface for Google AI Platform
+type GoogleProvider struct {
 	client *genai.Client // Official Google Gen AI Go client
 	apiKey string
 	models []ModelInfo // Cached list of available models
 }
 
-// NewGeminiProvider creates a new Google Gemini provider with the given API key.
+// NewGoogleProvider creates a new Google AI provider with the given API key.
 // Currently focuses on BackendGeminiAPI.
-func NewGeminiProvider(apiKey string) *GeminiProvider {
+func NewGoogleProvider(apiKey string) *GoogleProvider {
 	if apiKey == "" {
 		if Logger.Debug().Enabled() {
-			Logger.Debug().Msg("Empty API key provided to Gemini provider, cannot initialize.")
+			Logger.Debug().Msg("Empty API key provided to Google provider, cannot initialize.")
 		}
 		return nil
 	}
@@ -42,7 +42,7 @@ func NewGeminiProvider(apiKey string) *GeminiProvider {
 		return nil
 	}
 
-	provider := &GeminiProvider{
+	provider := &GoogleProvider{
 		client: client,
 		apiKey: apiKey,
 	}
@@ -50,25 +50,25 @@ func NewGeminiProvider(apiKey string) *GeminiProvider {
 }
 
 // GetName returns the provider's name
-func (p *GeminiProvider) GetName() string {
-	return "google-gemini"
+func (p *GoogleProvider) GetName() string {
+	return "google"
 }
 
 // GetDescription returns the provider's description
-func (p *GeminiProvider) GetDescription() string {
-	return "Google Gemini API for models like Gemini Pro and Flash"
+func (p *GoogleProvider) GetDescription() string {
+	return "Google AI Platform for models like Gemini Pro and Flash"
 }
 
 // RequiresAPIKey indicates if the provider needs an API key
-func (p *GeminiProvider) RequiresAPIKey() bool {
+func (p *GoogleProvider) RequiresAPIKey() bool {
 	return true
 }
 
 // GetAvailableModels returns the list of available models that support "generateContent".
 // It fetches from the API and caches the result.
-func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
+func (p *GoogleProvider) GetAvailableModels() []ModelInfo {
 	if p.client == nil {
-		Logger.Warn().Msg("Gemini client not initialized in GetAvailableModels")
+		Logger.Warn().Msg("Google client not initialized in GetAvailableModels")
 		return nil
 	}
 
@@ -76,7 +76,7 @@ func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
 		return p.models // Return cached models
 	}
 
-	Logger.Debug().Msg("Fetching available models from Google Gemini API...")
+	Logger.Debug().Msg("Fetching available models from Google AI API...")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // Longer timeout for model listing
 	defer cancel()
 
@@ -131,26 +131,26 @@ func (p *GeminiProvider) GetAvailableModels() []ModelInfo {
 	})
 	
 	if err != nil {
-		Logger.Error().Err(err).Msg("Failed to iterate over Gemini models")
+		Logger.Error().Err(err).Msg("Failed to iterate over Google models")
 		return nil
 	}
 
 	p.models = applicableModelInfos
-	Logger.Debug().Int("count", len(p.models)).Msg("Successfully fetched and cached applicable Google Gemini models.")
+	Logger.Debug().Int("count", len(p.models)).Msg("Successfully fetched and cached applicable Google AI models.")
 	return p.models
 }
 
 // Complete generates a completion from the prompt
-func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest) (CompletionResponse, error) {
+func (p *GoogleProvider) Complete(ctx context.Context, request CompletionRequest) (CompletionResponse, error) {
 	if p.client == nil {
-		return CompletionResponse{}, errors.New("gemini client not initialized")
+		return CompletionResponse{}, errors.New("google client not initialized")
 	}
 	if p.apiKey == "" {
-		return CompletionResponse{}, errors.New("gemini provider not initialized: missing API key")
+		return CompletionResponse{}, errors.New("google provider not initialized: missing API key")
 	}
 
 	if request.Prompt == "" {
-		return CompletionResponse{}, fmt.Errorf("%w: prompt cannot be empty for Gemini", ErrInvalidRequest)
+		return CompletionResponse{}, fmt.Errorf("%w: prompt cannot be empty for Google", ErrInvalidRequest)
 	}
 
 	modelID := request.Model
@@ -158,7 +158,7 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 		// Default to a capable and recent model that supports generateContent
 		// Ensure this default is one that would pass the GetAvailableModels filter
 		modelID = "models/gemini-2.5-flash-latest"
-		Logger.Debug().Str("model", modelID).Msg("No model specified in request, using default Gemini model.")
+		Logger.Debug().Str("model", modelID).Msg("No model specified in request, using default Google model.")
 	}
 
 	// Construct content parts
@@ -202,7 +202,7 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 	}
 
 	if request.Stream {
-		Logger.Debug().Str("model", modelID).Msg("Requesting streaming content generation from Gemini.")
+		Logger.Debug().Str("model", modelID).Msg("Requesting streaming content generation from Google.")
 		streamIterator := p.client.Models.GenerateContentStream(ctx, modelID, contents, genConfig)
 
 		var fullText strings.Builder
@@ -233,9 +233,9 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 		if streamErr != nil && streamErr != io.EOF {
 			var genaiErr *genai.APIError
 			if errors.As(streamErr, &genaiErr) {
-				Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Gemini API error during streaming")
+				Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Google API error during streaming")
 			}
-			return CompletionResponse{}, fmt.Errorf("gemini stream error: %w", streamErr)
+			return CompletionResponse{}, fmt.Errorf("google stream error: %w", streamErr)
 		}
 
 		finalResponse.Text = fullText.String()
@@ -252,23 +252,23 @@ func (p *GeminiProvider) Complete(ctx context.Context, request CompletionRequest
 				TotalTokens:      int(lastResp.UsageMetadata.TotalTokenCount),
 			}
 		} else {
-			Logger.Debug().Msg("Usage data not present in the final Gemini stream response.")
+			Logger.Debug().Msg("Usage data not present in the final Google stream response.")
 		}
 		return finalResponse, nil
 
 	} else {
-		Logger.Debug().Str("model", modelID).Msg("Requesting non-streaming content generation from Gemini.")
+		Logger.Debug().Str("model", modelID).Msg("Requesting non-streaming content generation from Google.")
 		resp, err := p.client.Models.GenerateContent(ctx, modelID, contents, genConfig)
 		if err != nil {
 			var genaiErr *genai.APIError
 			if errors.As(err, &genaiErr) {
-				Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Gemini API error")
+				Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Google API error")
 			}
-			return CompletionResponse{}, fmt.Errorf("gemini content generation failed: %w", err)
+			return CompletionResponse{}, fmt.Errorf("google content generation failed: %w", err)
 		}
 
 		if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
-			return CompletionResponse{}, errors.New("no content returned from Gemini completion")
+			return CompletionResponse{}, errors.New("no content returned from Google completion")
 		}
 
 		var responseTextBuilder strings.Builder
@@ -311,4 +311,3 @@ func isOutdatedGoogleModel(name string) bool {
 	}
 	return false
 }
-

@@ -47,10 +47,10 @@ func GetDefaultClient() *Client {
 func LoadAPIKeysFromSettings(settings config.Settings) {
 	APIKeys.Store("openai", settings.APIKeys.OpenAI)
 	APIKeys.Store("openrouter", settings.APIKeys.OpenRouter) // Master OpenRouter key
-	APIKeys.Store("google-gemini", settings.APIKeys.Google)   // Key for Gemini
+	APIKeys.Store("google", settings.APIKeys.Google)   // Key for Google AI
 
 	if Logger.Debug().Enabled() {
-		providersToCheck := []string{"openai", "openrouter", "google-gemini"}
+		providersToCheck := []string{"openai", "openrouter", "google"}
 		for _, provider := range providersToCheck {
 			Logger.Debug().
 				Str("provider", provider).
@@ -97,19 +97,19 @@ func RegisterDefaultProviders() {
 		}
 	}
 
-	// --- Google Gemini Provider ---
-	if APIKeys.Has("google-gemini") {
-		apiKey := APIKeys.Get("google-gemini")
-		googleProviderInstance := NewGeminiProvider(apiKey) // Corrected: NewGeminiProvider
+	// --- Google AI Provider ---
+	if APIKeys.Has("google") {
+		apiKey := APIKeys.Get("google")
+		googleProviderInstance := NewGoogleProvider(apiKey)
 		if googleProviderInstance != nil {
 			client.RegisterProvider(googleProviderInstance)
 			providersRegisteredCount++
 			Logger.Debug().
 				Str("provider", googleProviderInstance.GetName()).
 				Int("models", len(googleProviderInstance.GetAvailableModels())).
-				Msg("Registered Google Gemini provider")
+				Msg("Registered Google AI provider")
 		} else {
-			Logger.Warn().Str("provider", "google-gemini").Msg("Failed to initialize Google Gemini provider.")
+			Logger.Warn().Str("provider", "google").Msg("Failed to initialize Google provider.")
 		}
 	}
 
@@ -158,9 +158,9 @@ func RegisterDefaultProviders() {
 	} else if _, ok := client.GetProvider("openrouter"); ok {
 		client.SetDefaultProvider("openrouter")
 		Logger.Info().Msg("Set 'openrouter' (Paid/Standard) as default LLM provider.")
-	} else if _, ok := client.GetProvider("google-gemini"); ok {
-		client.SetDefaultProvider("google-gemini")
-		Logger.Info().Msg("Set 'google-gemini' as default LLM provider.")
+	} else if _, ok := client.GetProvider("google"); ok {
+		client.SetDefaultProvider("google")
+		Logger.Info().Msg("Set 'google' as default LLM provider.")
 	} else if len(client.ListProviders()) > 0 {
 		firstProvider := client.ListProviders()[0].GetName()
 		client.SetDefaultProvider(firstProvider)

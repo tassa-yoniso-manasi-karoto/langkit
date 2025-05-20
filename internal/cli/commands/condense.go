@@ -37,7 +37,7 @@ func init() {
 
 	// Flags for summary generation
 	condenseCmd.PersistentFlags().Bool("summary", false, "Generate a summary and add it to condensed audio metadata")
-	condenseCmd.PersistentFlags().String("summary-provider", "", "LLM provider for summary (e.g., openai, google-gemini, openrouter)")
+	condenseCmd.PersistentFlags().String("summary-provider", "", "LLM provider for summary (e.g., openai, google, openrouter)")
 	condenseCmd.PersistentFlags().String("summary-model", "", "LLM model for summary (e.g., gpt-4o, models/gemini-1.5-pro-latest)")
 	condenseCmd.PersistentFlags().String("summary-custom-prompt", "", "Custom prompt for summarization. Subtitle text will be appended.")
 	condenseCmd.PersistentFlags().Int("summary-max-words", 300, "Approximate target maximum word count for the summary")
