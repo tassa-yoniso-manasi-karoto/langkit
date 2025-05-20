@@ -573,8 +573,8 @@
 </script>
 
 <div class="feature-card bg-white/5 rounded-lg
-           transition-all duration-300 ease-out transform ripple
-           relative {enabled ? '' : 'overflow-hidden'}
+           relative {enabled ? '' : 'overflow-hidden'} 
+           ripple
            {isFeatureDisabled ? 'disabled opacity-50 cursor-not-allowed' : ''}"
      class:shadow-glow-strong={enabled && !anyFeatureSelected}
      class:shadow-glow={enabled}
