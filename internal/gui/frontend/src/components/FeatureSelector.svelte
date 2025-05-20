@@ -168,6 +168,9 @@
         }
     }
     
+    // Store a mapping of provider -> models to avoid race conditions
+    let providerModelsMap: Record<string, string[]> = {};
+    
     /**
      * Fetch available models for a specified summary provider
      */
@@ -177,12 +180,56 @@
             return { models: [], names: [], available: false, suggested: "" };
         }
         
-        logger.trace('featureSelector', `Fetching available summary models for provider: ${providerName}`);
+        logger.debug('featureSelector', `Fetching available summary models for provider: ${providerName}`);
         try {
+            // Starting fetch
+            const fetchStartTime = Date.now();
             const summaryModels = await GetAvailableSummaryModels(providerName);
+            logger.debug('featureSelector', `Received models for ${providerName} after ${Date.now() - fetchStartTime}ms`, {
+                modelCount: summaryModels.names.length,
+                firstThree: summaryModels.names.slice(0, 3)
+            });
             
-            // Update feature models and store
-            updateSummaryModels(summaryModels);
+            // IMPORTANT: Store models in our provider-specific map
+            providerModelsMap[providerName] = [...summaryModels.names];
+            
+            // Only update the UI if this is still the current provider
+            // This fixes the race condition where multiple providers' models are being fetched
+            const currentProvider = currentFeatureOptions?.condensedAudio?.summaryProvider;
+            if (currentProvider === providerName) {
+                logger.debug('featureSelector', `Updating UI for current provider: ${providerName}`);
+                
+                // Update feature models and store with provider context
+                updateSummaryModels(summaryModels, providerName);
+                
+                // Get the feature definition for condensed audio to directly update the dropdown
+                const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
+                if (condensedAudioFeature && condensedAudioFeature.options.summaryModel) {
+                    // Directly update the choices with the models for THIS provider
+                    condensedAudioFeature.options.summaryModel.choices = [...summaryModels.names];
+                    
+                    // Update the selected model if needed
+                    if (summaryModels.names.length > 0 && 
+                        (!currentFeatureOptions.condensedAudio.summaryModel || 
+                         !summaryModels.names.includes(currentFeatureOptions.condensedAudio.summaryModel))) {
+                        const newModel = summaryModels.suggested || summaryModels.names[0];
+                        currentFeatureOptions.condensedAudio.summaryModel = newModel;
+                        
+                        // Notify parent of the model change
+                        dispatch('optionChange', {
+                            featureId: 'condensedAudio',
+                            optionId: 'summaryModel',
+                            value: newModel
+                        });
+                    }
+                    
+                    // Force the options object to be seen as a new reference to trigger reactivity
+                    condensedAudioFeature.options = {...condensedAudioFeature.options};
+                    currentFeatureOptions = {...currentFeatureOptions};
+                }
+            } else {
+                logger.debug('featureSelector', `Ignoring models for ${providerName} because current provider is ${currentProvider}`);
+            }
             
             if (!summaryModels.available) {
                 // Handle case where no models are available
@@ -809,28 +856,56 @@
         
         // Special case for summary provider changes - fetch models for the new provider
         if (featureId === 'condensedAudio' && optionId === 'summaryProvider') {
-            logger.debug('featureSelector', `Summary provider changed: ${value}`);
+            const newProvider = value;
+            logger.debug('featureSelector', `Summary provider changed to: ${newProvider}`);
             
             // Fetch models for the selected provider if it's a non-empty string
-            if (value && typeof value === 'string') {
-                fetchSummaryModels(value).then(models => {
-                    logger.debug('featureSelector', `Loaded ${models.names.length} models for provider ${value}`);
+            if (newProvider && typeof newProvider === 'string') {
+                // Get the feature definition for condensed audio
+                const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
+                if (condensedAudioFeature && condensedAudioFeature.options.summaryModel) {
+                    // Clear the current model selection
+                    currentFeatureOptions.condensedAudio.summaryModel = '';
                     
-                    // If the current selected model isn't in the new models list, update it
-                    if (currentFeatureOptions?.condensedAudio?.summaryModel && 
-                        !models.names.includes(currentFeatureOptions.condensedAudio.summaryModel)) {
-                        currentFeatureOptions.condensedAudio.summaryModel = models.suggested || (models.names[0] || '');
-                        
-                        // Notify parent of the model change
-                        dispatch('optionChange', {
-                            featureId: 'condensedAudio',
-                            optionId: 'summaryModel',
-                            value: currentFeatureOptions.condensedAudio.summaryModel
+                    // Check if we already have models for this provider in our map
+                    if (providerModelsMap[newProvider] && providerModelsMap[newProvider].length > 0) {
+                        logger.debug('featureSelector', `Using cached models for ${newProvider}`, { 
+                            modelCount: providerModelsMap[newProvider].length,
+                            firstThree: providerModelsMap[newProvider].slice(0, 3)
                         });
+                        
+                        // We already have models for this provider - use them immediately
+                        condensedAudioFeature.options.summaryModel.choices = [...providerModelsMap[newProvider]];
+                        
+                        // Select a default model
+                        if (providerModelsMap[newProvider].length > 0) {
+                            currentFeatureOptions.condensedAudio.summaryModel = providerModelsMap[newProvider][0];
+                            
+                            // Notify parent of the model change
+                            dispatch('optionChange', {
+                                featureId: 'condensedAudio',
+                                optionId: 'summaryModel',
+                                value: currentFeatureOptions.condensedAudio.summaryModel
+                            });
+                        }
+                        
+                        // Force options to be seen as a new reference for reactivity
+                        condensedAudioFeature.options = {...condensedAudioFeature.options};
+                        currentFeatureOptions = {...currentFeatureOptions};
+                    } else {
+                        // We don't have models for this provider yet - clear the list 
+                        condensedAudioFeature.options.summaryModel.choices = [];
+                        
+                        // Force options to be seen as a new reference for reactivity
+                        condensedAudioFeature.options = {...condensedAudioFeature.options};
                     }
-                }).catch(error => {
-                    logger.error('featureSelector', `Failed to load models for provider ${value}`, { error });
-                });
+                    
+                    // Always force current feature options to update
+                    currentFeatureOptions = {...currentFeatureOptions};
+                }
+                
+                // Fetch models for this provider (will update the UI when done if it's still the current provider)
+                fetchSummaryModels(newProvider);
             }
         }
     }

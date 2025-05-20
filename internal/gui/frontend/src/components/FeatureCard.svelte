@@ -926,13 +926,26 @@
                                             on:change={(e) => handleDropdownChange(optionId, e.detail)}
                                             label={optionDef.label}
                                         />
-                                    {:else if optionDef.type === 'dropdown'}
+                                    {:else if optionDef.type === 'dropdown' && optionId === 'summaryModel' && feature.id === 'condensedAudio'}
+                                        <!-- Special handling for summary model dropdown with double-keyed reactivity -->
+                                        {#key [optionDef.choices, options.summaryProvider]}
                                         <Dropdown
                                             options={optionDef.choices || []}
                                             value={options[optionId]}
                                             on:change={(e) => handleDropdownChange(optionId, e.detail)}
                                             label={optionDef.label}
                                         />
+                                        {/key}
+                                    {:else if optionDef.type === 'dropdown'}
+                                        <!-- Standard dropdown for other options -->
+                                        {#key optionDef.choices}
+                                        <Dropdown
+                                            options={optionDef.choices || []}
+                                            value={options[optionId]}
+                                            on:change={(e) => handleDropdownChange(optionId, e.detail)}
+                                            label={optionDef.label}
+                                        />
+                                        {/key}
                                     {:else if optionDef.type === 'string'}
                                         {#if optionId === 'initialPrompt'}
                                             <textarea

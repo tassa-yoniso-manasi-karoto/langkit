@@ -25,6 +25,29 @@
     let hasRenderedOptions = false;
     let dropdownPosition = { top: 0, left: 0, width: 0 };
     const dispatch = createEventDispatcher();
+    
+    // Track the options reference to detect changes - critical fix for reactivity
+    let previousOptionsRef = options;
+    $: if (options !== previousOptionsRef) {
+        console.log('Dropdown options changed, old:', previousOptionsRef.length, 'new:', options.length);
+        previousOptionsRef = options;
+        
+        // Force re-render next time dropdown opens
+        if (isOpen) {
+            // If dropdown is open, update immediately
+            updateDropdownPosition();
+            // Force reflow
+            if (optionsContainerRef) {
+                optionsContainerRef.style.display = 'none';
+                setTimeout(() => {
+                    if (optionsContainerRef) optionsContainerRef.style.display = '';
+                }, 0);
+            }
+        } else {
+            // Reset flag to ensure next open causes a fresh render
+            hasRenderedOptions = false;
+        }
+    }
 
     function toggleDropdown() {
         if (disabled) return;

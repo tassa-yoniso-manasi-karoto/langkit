@@ -530,6 +530,15 @@ export const summaryModelsStore = writable<SummaryModelsResponse>({
   suggested: ""
 });
 
+// Create a combined store for provider+models to ensure reactivity
+export const summarySelectionStore = writable({
+  provider: "",
+  model: "",
+  providers: [] as string[],
+  models: [] as string[],
+  modelsMap: {} as Record<string, string[]> // Provider -> models mapping
+});
+
 // Function to update choices for a specific feature option
 export function updateFeatureChoices(featureId: string, optionId: string, choices: string[], suggested?: string): void {
   const feature = features.find(f => f.id === featureId);
@@ -581,22 +590,30 @@ export function updateSummaryProviders(providers: SummaryProvidersResponse): voi
   const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
   if (condensedAudioFeature && condensedAudioFeature.options.summaryProvider && providers.names.length > 0) {
     condensedAudioFeature.options.summaryProvider.default = providers.suggested || providers.names[0];
+    
+    // Create a new reference for the choices array to ensure reactivity
+    condensedAudioFeature.options.summaryProvider.choices = [...providers.names];
+    
+    // Force the options object to be seen as a new reference to trigger reactivity
+    condensedAudioFeature.options = {...condensedAudioFeature.options};
   }
 }
 
 // Update feature model with available summary models for a provider
-export function updateSummaryModels(models: SummaryModelsResponse): void {
+export function updateSummaryModels(models: SummaryModelsResponse, forProvider?: string): void {
   // Always update the store with all models
   summaryModelsStore.set(models);
   
-  // Update choices for the summaryModel dropdown
-  updateFeatureChoices('condensedAudio', 'summaryModel', models.names, models.suggested);
+  // Since we now handle the dropdown options update directly in FeatureSelector.svelte
+  // based on the providerModelsMap, this function mainly just updates the store.
   
-  // Update the default value to be the suggested model or the first in the list
-  const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
-  if (condensedAudioFeature && condensedAudioFeature.options.summaryModel && models.names.length > 0) {
-    condensedAudioFeature.options.summaryModel.default = models.suggested || models.names[0];
+  // If we have a specific provider, we can log it for debugging
+  if (forProvider) {
+    console.log(`[featureModel] Updated models store for provider: ${forProvider}, models: ${models.names.length}`);
   }
+  
+  // Note: We no longer update condensedAudioFeature.options.summaryModel.choices here
+  // because that's now handled in the FeatureSelector component with provider awareness
 }
 
 // Helper to format display text (camelCase to Title Case)
