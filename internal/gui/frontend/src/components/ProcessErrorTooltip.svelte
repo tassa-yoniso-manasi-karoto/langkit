@@ -61,8 +61,8 @@
     <div
         class="fixed transform -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none"
         style="left: {position.x}px; top: {position.y}px;"
-        in:fade={{ duration: 280, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }}
-        out:fade={{ duration: 180, easing: (t) => t * t }}
+        in:fade={{ duration: 300, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }}
+        out:fade={{ duration: 300, easing: (t) => t * (2-t) }}
     >
         <div class="backdrop-blur-md bg-tooltip-bg/60 bg-gradient-to-br from-primary/30 to-secondary/20 text-white border border-primary/20 rounded-lg p-4 min-w-[280px] max-w-[400px] transition-all duration-200 font-sans shadow-lg shadow-primary/20 pointer-events-auto">
             <div class="text-sm font-medium mb-3 text-gray-300 flex items-center gap-2">
@@ -77,7 +77,8 @@
                 {#each groupedErrors[0]?.errors || [] as error (error.id)}
                     <li class="bg-error-card-bg/60 backdrop-blur-sm border border-secondary/30 rounded-md p-3 mb-3 transition-all duration-200 cursor-pointer relative hover:bg-error-card-hover/70 shadow-md hover:shadow-secondary/20"
                         on:click={handleErrorClick(error)}
-                        in:slide|local={{ duration: 150 }}
+                        in:slide|local={{ duration: 200, easing: (t) => t * (2-t) }}
+                        out:slide|local={{ duration: 150, easing: (t) => t * t }}
                         animate:flip={{ duration: 200 }}>
                         <div class="flex items-center gap-2">
                             <span class="material-icons text-[18px] text-secondary">
