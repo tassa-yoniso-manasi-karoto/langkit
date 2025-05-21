@@ -130,7 +130,7 @@ type OpenRouterPopularityResponse struct {
 // GetAvailableModels fetches models from the official OpenRouter endpoint,
 // then attempts to fetch a popularity-ordered list from an alternative endpoint
 // and re-sorts the official list accordingly using the 'Name' field for matching.
-func (p *OpenRouterProvider) GetAvailableModels() []ModelInfo {
+func (p *OpenRouterProvider) GetAvailableModels(ctx context.Context) []ModelInfo {
 	if !p.isInitialized {
 		Logger.Warn().Msg("OpenRouterProvider not initialized in GetAvailableModels")
 		return nil

@@ -39,7 +39,7 @@ func (p *BaseProvider) GetName() string {
 	return p.llmProvider
 }
 
-// GetSupportedModels (definition remains the same)
+// GetSupportedModels returns the list of models supported by this provider
 func (p *BaseProvider) GetSupportedModels() []llms.ModelInfo {
 	provider, ok := p.llmClient.GetProvider(p.llmProvider)
 	if !ok {
@@ -48,7 +48,7 @@ func (p *BaseProvider) GetSupportedModels() []llms.ModelInfo {
 		}
 		return nil
 	}
-	return provider.GetAvailableModels()
+	return provider.GetAvailableModels(context.Background())
 }
 
 // GeneratePrompt creates a prompt for the model based on options.

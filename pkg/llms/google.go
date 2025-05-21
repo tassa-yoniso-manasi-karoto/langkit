@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"slices"
 	"time"
 
 	"google.golang.org/genai"
@@ -66,7 +65,7 @@ func (p *GoogleProvider) RequiresAPIKey() bool {
 
 // GetAvailableModels returns the list of available models that support "generateContent".
 // It fetches from the API and caches the result.
-func (p *GoogleProvider) GetAvailableModels() []ModelInfo {
+func (p *GoogleProvider) GetAvailableModels(ctx context.Context) []ModelInfo {
 	if p.client == nil {
 		Logger.Warn().Msg("Google client not initialized in GetAvailableModels")
 		return nil
@@ -77,13 +76,14 @@ func (p *GoogleProvider) GetAvailableModels() []ModelInfo {
 	}
 
 	Logger.Debug().Msg("Fetching available models from Google AI API...")
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // Longer timeout for model listing
+	// Create a new context with timeout or use the provided one
+	fetchCtx, cancel := context.WithTimeout(ctx, 60*time.Second) // Longer timeout for model listing
 	defer cancel()
 
 	var applicableModelInfos []ModelInfo // Store only models suitable for content generation
 	
 	// Use modern iteration with the iter.Seq2 from Gemini SDK
-	modelsIterator := p.client.Models.All(ctx)
+	modelsIterator := p.client.Models.All(fetchCtx)
 	var err error
 	
 	// Collect models using the iterator function pattern
@@ -249,65 +249,92 @@ func (p *GoogleProvider) Complete(ctx context.Context, request CompletionRequest
 			finalResponse.Usage = TokenUsage{
 				PromptTokens:     int(lastResp.UsageMetadata.PromptTokenCount),
 				CompletionTokens: int(lastResp.UsageMetadata.CandidatesTokenCount),
-				TotalTokens:      int(lastResp.UsageMetadata.TotalTokenCount),
+				TotalTokens:      int(lastResp.UsageMetadata.PromptTokenCount + lastResp.UsageMetadata.CandidatesTokenCount),
 			}
-		} else {
-			Logger.Debug().Msg("Usage data not present in the final Google stream response.")
 		}
-		return finalResponse, nil
 
+		return finalResponse, nil
 	} else {
-		Logger.Debug().Str("model", modelID).Msg("Requesting non-streaming content generation from Google.")
+		Logger.Debug().Str("model", modelID).Msg("Requesting content generation from Google.")
+		
 		resp, err := p.client.Models.GenerateContent(ctx, modelID, contents, genConfig)
 		if err != nil {
 			var genaiErr *genai.APIError
 			if errors.As(err, &genaiErr) {
 				Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Google API error")
 			}
-			return CompletionResponse{}, fmt.Errorf("google content generation failed: %w", err)
+			return CompletionResponse{}, fmt.Errorf("google content generation: %w", err)
 		}
 
 		if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
-			return CompletionResponse{}, errors.New("no content returned from Google completion")
+			return CompletionResponse{}, errors.New("google returned empty response content")
 		}
 
-		var responseTextBuilder strings.Builder
+		var fullText strings.Builder
 		for _, part := range resp.Candidates[0].Content.Parts {
-			// Access the Text field directly
 			if part.Text != "" {
-				responseTextBuilder.WriteString(part.Text)
+				fullText.WriteString(part.Text)
 			}
 		}
 
-		var usage TokenUsage
-		if resp.UsageMetadata != nil {
-			usage.PromptTokens = int(resp.UsageMetadata.PromptTokenCount)
-			usage.CompletionTokens = int(resp.UsageMetadata.CandidatesTokenCount)
-			usage.TotalTokens = int(resp.UsageMetadata.TotalTokenCount)
-		}
-
-		return CompletionResponse{
-			Text:         responseTextBuilder.String(),
+		response := CompletionResponse{
+			Text:         fullText.String(),
 			FinishReason: string(resp.Candidates[0].FinishReason),
-			Usage:        usage,
 			Model:        modelID,
 			Provider:     p.GetName(),
-		}, nil
+		}
+
+		if resp.UsageMetadata != nil {
+			response.Usage = TokenUsage{
+				PromptTokens:     int(resp.UsageMetadata.PromptTokenCount),
+				CompletionTokens: int(resp.UsageMetadata.CandidatesTokenCount),
+				TotalTokens:      int(resp.UsageMetadata.PromptTokenCount + resp.UsageMetadata.CandidatesTokenCount),
+			}
+		}
+
+		return response, nil
 	}
 }
 
-
+// isOutdatedGoogleModel returns true if the model is outdated or an older preview
 func isOutdatedGoogleModel(name string) bool {
-	blacklist := []string{
-		"learnlm-2.0-flash-experimental",
-		"gemini-exp-1206",
-		"gemini-pro-vision",
-	}
-	if slices.Contains(blacklist, name) ||
-		strings.Contains(name, "gemini-2.0") ||
-			strings.Contains(name, "gemini-1.5") ||
-				strings.Contains(name, "gemini-1.0") {
+	// If name has a specific date embedded, it's a dated snapshot, which may become outdated
+	if strings.Contains(name, "-20") { // e.g., gemini-1.0-pro-20231115
 		return true
 	}
+	
+	// Explicitly outdated model series
+	outdatedModels := []string{
+		"palm", // All PaLM models are outdated
+		"text-bison",
+		"embedding-gecko",
+		"gemini-1.0", // First generation Gemini, now superseded
+		"gemini-pro",
+		"gemini-ultra", // Original naming
+		"gemini-1.5-", // These are now replaced by 2.5 family
+	}
+	
+	// Check if model name contains any of the outdated model strings
+	for _, outdated := range outdatedModels {
+		if strings.Contains(name, outdated) {
+			return true
+		}
+	}
+	
+	// Include older "preview" variants but allow newer preview models
+	if strings.Contains(name, "preview") && 
+	   (strings.Contains(name, "gemini-1.0") || strings.Contains(name, "gemini-1.5")) {
+		return true
+	}
+	
+	// Special case checks for specific models
+	// Add more specific checks here if needed
+	
+	// If no outdated patterns match, it's likely current
 	return false
+}
+
+// Ptr returns a pointer to the provided value (for SDK options)
+func Ptr[T any](v T) *T {
+	return &v
 }

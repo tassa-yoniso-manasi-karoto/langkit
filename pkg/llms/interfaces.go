@@ -16,7 +16,8 @@ type Provider interface {
 	RequiresAPIKey() bool
 	
 	// GetAvailableModels returns the list of available models
-	GetAvailableModels() []ModelInfo
+	// Uses context for potential cancellation during model fetching
+	GetAvailableModels(ctx context.Context) []ModelInfo
 	
 	// Complete generates a completion from the prompt
 	Complete(ctx context.Context, request CompletionRequest) (CompletionResponse, error)

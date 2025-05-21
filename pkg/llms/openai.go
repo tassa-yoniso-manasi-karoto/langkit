@@ -142,7 +142,7 @@ func isAllowedOpenAIModel(modelID string) bool {
 
 // GetAvailableModels returns the list of allowed text generation/chat models,
 // sorted by release date (most recent first).
-func (p *OpenAIProvider) GetAvailableModels() []ModelInfo {
+func (p *OpenAIProvider) GetAvailableModels(ctx context.Context) []ModelInfo {
 	p.modelsMu.RLock()
 	if len(p.models) > 0 {
 		p.modelsMu.RUnlock()

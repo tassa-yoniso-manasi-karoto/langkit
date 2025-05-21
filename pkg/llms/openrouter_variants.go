@@ -35,8 +35,8 @@ func (p *OpenRouterFreeProvider) RequiresAPIKey() bool {
 }
 
 // GetAvailableModels returns free models from the master OpenRouter provider.
-func (p *OpenRouterFreeProvider) GetAvailableModels() []ModelInfo {
-	allModels := p.masterProvider.GetAvailableModels() // Get all models (cached by master)
+func (p *OpenRouterFreeProvider) GetAvailableModels(ctx context.Context) []ModelInfo {
+	allModels := p.masterProvider.GetAvailableModels(ctx) // Get all models (cached by master)
 	var freeModels []ModelInfo
 
 	for _, model := range allModels {
@@ -97,8 +97,8 @@ func (p *OpenRouterPaidProvider) RequiresAPIKey() bool {
 }
 
 // GetAvailableModels returns non-free models from the master OpenRouter provider.
-func (p *OpenRouterPaidProvider) GetAvailableModels() []ModelInfo {
-	allModels := p.masterProvider.GetAvailableModels() // Get all models (cached by master)
+func (p *OpenRouterPaidProvider) GetAvailableModels(ctx context.Context) []ModelInfo {
+	allModels := p.masterProvider.GetAvailableModels(ctx) // Get all models (cached by master)
 	var paidModels []ModelInfo
 
 	for _, model := range allModels {

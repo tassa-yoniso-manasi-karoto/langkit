@@ -17,16 +17,18 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
 
 var handler *core.GUIHandler
 var appThrottler *batch.AdaptiveEventThrottler
 
 type App struct {
-	ctx		context.Context
-	procCancel	context.CancelFunc
-	throttler   *batch.AdaptiveEventThrottler
-	logger      *zerolog.Logger
+	ctx		     context.Context
+	procCancel	 context.CancelFunc
+	throttler    *batch.AdaptiveEventThrottler
+	logger       *zerolog.Logger
+	llmRegistry  *llms.Registry  // LLM Registry for async provider management
 }
 
 func NewApp() *App {
@@ -99,20 +101,18 @@ func (a *App) domReady(ctx context.Context) {
 	// Bind environment variables to config
 	a.bindEnvironmentVariables()
 	
+	// Load settings
+	settings, err := config.LoadSettings()
+	if err != nil {
+		a.logger.Error().Err(err).Msg("Failed to load settings")
+	}
+	
 	if err := config.InitConfig(""); err != nil {
 		a.logger.Error().Err(err).Msg("Failed to initialize config")
 		runtime.LogError(ctx, "Failed to initialize config: "+err.Error())
 		return
 	}
-
-	// Load settings and emit to frontend
-	settings, err := config.LoadSettings()
-	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to load settings")
-		runtime.LogError(ctx, "Failed to load settings: "+err.Error())
-		return
-	}
-
+	
 	// Update throttler settings from config
 	a.updateThrottlerSettings(settings)
 
@@ -123,8 +123,9 @@ func (a *App) domReady(ctx context.Context) {
 		runtime.WindowMaximise(ctx)
 	}
 	
-	// Initialize LLM system
-	core.InitLLM(handler)
+	// Initialize LLM system with async registry
+	a.llmRegistry = core.InitLLM(handler, a.ctx)
+	a.logger.Info().Msg("LLM registry initialized")
 	
 	a.logger.Info().Msg("Application initialization complete")
 }
@@ -353,16 +354,99 @@ func (a *App) RecordWasmState(stateJson string) {
 	}
 }
 
+// GetInitialLLMState returns the current state of LLM providers
+func (a *App) GetInitialLLMState() (map[string]interface{}, error) {
+	a.logger.Debug().Msg("Getting initial LLM state")
+	
+	if a.llmRegistry == nil {
+		err := fmt.Errorf("LLM registry not initialized")
+		a.logger.Error().Err(err).Msg("Failed to get LLM state")
+		return map[string]interface{}{
+			"globalState": "error",
+			"message":     "LLM registry not initialized",
+		}, err
+	}
+	
+	// Get the current state snapshot
+	stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
+	
+	// Convert to map for JSON serialization
+	response := map[string]interface{}{
+		"globalState":     stateSnapshot.GlobalState.String(),
+		"timestamp":       stateSnapshot.Timestamp,
+		"message":         stateSnapshot.Message,
+		"providerStates":  make(map[string]interface{}),
+	}
+	
+	// Convert provider states to serializable format
+	providerStates := make(map[string]interface{})
+	for name, state := range stateSnapshot.ProviderStatesSnapshot {
+		providerState := map[string]interface{}{
+			"status":       state.Status,
+			"lastUpdated":  state.LastUpdated,
+			"modelCount":   len(state.Models),
+		}
+		
+		if state.Error != nil {
+			providerState["error"] = state.Error.Error()
+		}
+		
+		providerStates[name] = providerState
+	}
+	
+	response["providerStates"] = providerStates
+	
+	return response, nil
+}
+
 // GetAvailableSummaryProviders returns a list of available LLM providers for summarization
 func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Fetching available summary providers")
+	
+	// First check LLM registry state
+	if a.llmRegistry == nil {
+		a.logger.Warn().Msg("LLM registry not initialized")
+		return map[string]interface{}{
+			"providers": []map[string]string{},
+			"names":     []string{},
+			"available": false,
+			"suggested": "",
+			"status":    "registry_not_initialized",
+			"message":   "LLM registry not initialized yet",
+		}, nil
+	}
+	
+	stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
+	
+	// If registry is not ready, return appropriate status
+	if stateSnapshot.GlobalState != llms.GSReady {
+		a.logger.Info().
+			Str("global_state", stateSnapshot.GlobalState.String()).
+			Msg("LLM registry not ready yet")
+			
+		return map[string]interface{}{
+			"providers": []map[string]string{},
+			"names":     []string{},
+			"available": false,
+			"suggested": "",
+			"status":    stateSnapshot.GlobalState.String(),
+			"message":   "LLM providers are still initializing",
+		}, nil
+	}
 	
 	// Get the summary service
 	summaryService := summary.GetDefaultService()
 	if summaryService == nil {
 		err := fmt.Errorf("summary service not initialized")
 		a.logger.Error().Err(err).Msg("Failed to get summary providers")
-		return nil, err
+		return map[string]interface{}{
+			"providers": []map[string]string{},
+			"names":     []string{},
+			"available": false,
+			"suggested": "",
+			"status":    "summary_service_not_initialized",
+			"message":   "Summary service not initialized yet",
+		}, nil
 	}
 	
 	// Get the list of providers
@@ -374,6 +458,7 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 		"names":     []string{},
 		"available": len(providers) > 0,
 		"suggested": "",
+		"status":    "ready",
 	}
 	
 	// Add provider details
@@ -389,6 +474,15 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 			"displayName": displayNameForProvider(providerName),
 			"description": descriptionForProvider(providerName),
 		}
+		
+		// Add status information from provider states if available
+		if providerState, exists := stateSnapshot.ProviderStatesSnapshot[providerName]; exists {
+			providerInfo["status"] = providerState.Status
+			if providerState.Status == "error" && providerState.Error != nil {
+				providerInfo["error"] = providerState.Error.Error()
+			}
+		}
+		
 		providersList = append(providersList, providerInfo)
 	}
 	
@@ -415,6 +509,42 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interface{}, error) {
 	a.logger.Debug().Str("provider", providerName).Msg("Fetching available summary models")
 	
+	// First check LLM registry state
+	if a.llmRegistry != nil {
+		stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
+		
+		// If registry is not ready, return appropriate status
+		if stateSnapshot.GlobalState != llms.GSReady {
+			return map[string]interface{}{
+				"models":    []map[string]interface{}{},
+				"names":     []string{},
+				"available": false,
+				"suggested": "",
+				"status":    stateSnapshot.GlobalState.String(),
+				"message":   "LLM providers are still initializing",
+			}, nil
+		}
+		
+		// If this specific provider is in error state, return that info
+		if providerState, exists := stateSnapshot.ProviderStatesSnapshot[providerName]; exists {
+			if providerState.Status == "error" {
+				errMsg := "Provider initialization failed"
+				if providerState.Error != nil {
+					errMsg = providerState.Error.Error()
+				}
+				
+				return map[string]interface{}{
+					"models":    []map[string]interface{}{},
+					"names":     []string{},
+					"available": false,
+					"suggested": "",
+					"status":    "error",
+					"message":   errMsg,
+				}, nil
+			}
+		}
+	}
+	
 	// Get the summary service
 	summaryService := summary.GetDefaultService()
 	if summaryService == nil {
@@ -436,6 +566,7 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 		"names":     []string{},
 		"available": len(models) > 0,
 		"suggested": "",
+		"status":    "ready",
 	}
 	
 	// Add model details
@@ -522,12 +653,20 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	// Small delay to allow frontend to respond with state
 	time.Sleep(100 * time.Millisecond)
 	
+	// Properly shut down the LLM registry
+	if a.llmRegistry != nil {
+		a.logger.Info().Msg("Application closing, shutting down LLM registry")
+		core.ShutdownLLM(handler)
+		a.llmRegistry = nil
+	}
+	
 	// Properly shut down the throttler
 	if a.throttler != nil {
 		a.logger.Info().Msg("Application closing, shutting down throttler")
 		a.throttler.Shutdown()
 		a.throttler = nil
 	}
+	
 	return false
 }
 

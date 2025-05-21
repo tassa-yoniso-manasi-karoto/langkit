@@ -13,10 +13,28 @@ func (a *App) LoadSettings() (config.Settings, error) {
 	return config.LoadSettings()
 }
 
+// SaveSettings saves the user settings and updates components that depend on settings
 func (a *App) SaveSettings(settings config.Settings) error {
-	return config.SaveSettings(settings)
+	a.logger.Debug().Msg("Saving settings")
+	
+	// Save the settings to disk
+	err := config.SaveSettings(settings)
+	if err != nil {
+		a.logger.Error().Err(err).Msg("Failed to save settings")
+		return err
+	}
+	
+	// Update throttler settings
+	a.updateThrottlerSettings(settings)
+	
+	// Trigger registry update with new settings if available
+	if a.llmRegistry != nil {
+		a.logger.Info().Msg("Triggering LLM registry update with new settings")
+		a.llmRegistry.TriggerUpdate(settings)
+	}
+	
+	return nil
 }
-
 
 
 type STTModelUIInfo struct {

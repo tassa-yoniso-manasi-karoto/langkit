@@ -43,19 +43,19 @@ func (c *Client) RegisterProvider(provider Provider) {
 }
 
 // SetDefaultProvider sets the default provider
-func (c *Client) SetDefaultProvider(name string) error {
+func (c *Client) SetDefaultProvider(name string) bool {
 	c.mu.RLock()
 	_, exists := c.providers[name]
 	c.mu.RUnlock()
 	
 	if !exists {
-		return ErrProviderNotFound
+		return false
 	}
 	
 	c.mu.Lock()
 	c.defaultProvider = name
 	c.mu.Unlock()
-	return nil
+	return true
 }
 
 // GetProvider returns a provider by name
@@ -84,6 +84,14 @@ func (c *Client) GetDefaultProvider() (Provider, error) {
 	return provider, nil
 }
 
+// GetDefaultProviderName returns the name of the default provider
+func (c *Client) GetDefaultProviderName() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	
+	return c.defaultProvider
+}
+
 // ListProviders returns all registered providers
 func (c *Client) ListProviders() []Provider {
 	c.mu.RLock()
@@ -95,6 +103,19 @@ func (c *Client) ListProviders() []Provider {
 	}
 	
 	return providers
+}
+
+// ListProviderNames returns the names of all registered providers
+func (c *Client) ListProviderNames() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	
+	names := make([]string, 0, len(c.providers))
+	for name := range c.providers {
+		names = append(names, name)
+	}
+	
+	return names
 }
 
 // Complete generates a completion using the specified provider and model

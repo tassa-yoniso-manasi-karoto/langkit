@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
@@ -16,10 +17,11 @@ var (
 	ErrInvalidOptions   = errors.New("invalid summary options")
 )
 
-// Service (definition remains the same)
+// Service handles generating summaries using LLM providers
 type Service struct {
 	llmClient *llms.Client
-	providers map[string]Provider 
+	providers map[string]Provider
+	mu        sync.RWMutex  // For thread-safe access to providers map
 }
 
 // NewService (definition remains the same)
@@ -30,22 +32,40 @@ func NewService(llmClient *llms.Client) *Service {
 	}
 }
 
-// RegisterProvider (definition remains the same)
+// RegisterProvider adds a provider to the service
 func (s *Service) RegisterProvider(provider Provider) {
 	if provider == nil {
 		return
 	}
+	
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
 	s.providers[provider.GetName()] = provider
 }
 
-// GetProvider (definition remains the same)
+// ClearProviders removes all registered providers
+func (s *Service) ClearProviders() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	s.providers = make(map[string]Provider)
+}
+
+// GetProvider returns a provider by name
 func (s *Service) GetProvider(llmProviderName string) (Provider, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
 	provider, ok := s.providers[llmProviderName]
 	return provider, ok
 }
 
-// ListProviders (definition remains the same)
+// ListProviders returns all registered providers
 func (s *Service) ListProviders() []Provider {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
 	providersList := make([]Provider, 0, len(s.providers))
 	for _, provider := range s.providers {
 		providersList = append(providersList, provider)
@@ -53,8 +73,11 @@ func (s *Service) ListProviders() []Provider {
 	return providersList
 }
 
-// GetAvailableModels (definition remains the same)
+// GetAvailableModels returns all available models across providers
 func (s *Service) GetAvailableModels() []llms.ModelInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
 	var allModels []llms.ModelInfo
 	for _, provider := range s.providers {
 		models := provider.GetSupportedModels()

@@ -10,10 +10,12 @@ SVG animations: rework state transitions
 
 - support Condensed Audio summaries:
   - perf issue with queries of GetAvailableModels()
+  - write documentation
   
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
   - "Custom Summary Prompt" → should have bigger field like Initial Prompt
+  - dropdown for desired output format (mp3 / aac / opus)
 .
 
 - add tlit in TSV/CSV

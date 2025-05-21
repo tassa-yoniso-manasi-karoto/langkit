@@ -37,7 +37,7 @@ func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 		ctx := context.Background()
 		handler := core.NewCLIHandler(ctx)
 		tsk := core.NewTask(handler)
-		core.InitLLM(handler) // FIXME reflect later about where and when to run this, and how to update it
+		core.InitLLM(handler, ctx)
 		defer func() {
 			if r := recover(); r != nil {
 				exitOnError(tsk, fmt.Errorf("panic: %v", r))
