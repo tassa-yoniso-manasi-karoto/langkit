@@ -136,8 +136,8 @@
 {#if isVisible}
     <Portal target="body">
         <div
-            class="fixed transform -translate-x-1/2 -translate-y-full z-[1000] transition-opacity duration-300 ease-in-out {visible ? 'opacity-100' : 'opacity-0'}"
-            style="left: {position.x}px; top: {position.y}px; transform: translate(-50%, -100%) translateY({visible ? '0' : '-10px'});"
+            class="fixed transform -translate-x-1/2 -translate-y-full transition-opacity duration-300 ease-in-out {visible ? 'opacity-100' : 'opacity-0'}"
+            style="left: {position.x}px; top: {position.y}px; transform: translate(-50%, -100%) translateY({visible ? '0' : '-10px'}); z-index: var(--z-index-log-viewer-notification);"
         >
             <!-- Dynamic background and border based on error type -->
             <div class="backdrop-blur-md 

@@ -31,6 +31,7 @@
     
     /* Z-index orchestration */
     --z-index-quick-access: 10;
+    --z-index-log-viewer-notification: 40;
     --z-index-settings-modal: 50;
     --z-index-dropdown: 9000;
     --z-index-hovertip: 9998;
