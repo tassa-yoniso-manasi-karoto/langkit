@@ -194,7 +194,6 @@
         const providerFormatMap: Record<string, string> = {
             'openai': 'OpenAI',
             'replicate': 'Replicate',
-            'assemblyai': 'AssemblyAI',
             'elevenlabs': 'ElevenLabs'
         };
         

@@ -89,8 +89,6 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
 			provider = NewWhisperProvider()
 		case "incredibly-fast-whisper":
 			provider = NewFastWhisperProvider()
-		case "universal-1":
-			provider = &AssemblyAIProvider{}
 		case "gpt-4o-transcribe":
 			provider = NewOpenAIProvider("gpt-4o-transcribe")
 		case "gpt-4o-mini-transcribe":
@@ -118,8 +116,6 @@ func (f *ProviderFactory) GetSpeechToTextProviderWithAliases(name string) (Speec
 		normalizedName = "whisper"
 	case "fast", "ifw":
 		normalizedName = "incredibly-fast-whisper"
-	case "u1":
-		normalizedName = "universal-1"
 	case "4o":
 		normalizedName = "gpt-4o-transcribe"
 	case "4o-mini":

@@ -27,7 +27,6 @@ const (
 type Settings struct {
 	APIKeys struct {
 		Replicate  string `json:"replicate" mapstructure:"replicate"`
-		AssemblyAI string `json:"assemblyAI" mapstructure:"assemblyai"`
 		ElevenLabs string `json:"elevenLabs" mapstructure:"elevenlabs"`
 		OpenAI     string `json:"openAI" mapstructure:"openai"`
 		OpenRouter string `json:"openRouter" mapstructure:"openrouter"`
@@ -94,7 +93,6 @@ func InitConfig(customPath string) error {
 	}
 
 	viper.SetDefault("api_keys.replicate", "")
-	viper.SetDefault("api_keys.assemblyai", "")
 	viper.SetDefault("api_keys.elevenlabs", "")
 	viper.SetDefault("api_keys.openai", "")
 	viper.SetDefault("api_keys.openrouter", "")
@@ -147,7 +145,6 @@ func SaveSettings(settings Settings) error {
 	// Define API key environment variables and their corresponding settings fields
 	apiKeyEnvMap := map[string]string{
 		"REPLICATE_API_KEY":  settings.APIKeys.Replicate,
-		"ASSEMBLYAI_API_KEY": settings.APIKeys.AssemblyAI,
 		"ELEVENLABS_API_KEY": settings.APIKeys.ElevenLabs,
 		"OPENAI_API_KEY":     settings.APIKeys.OpenAI,
 		"OPENROUTER_API_KEY": settings.APIKeys.OpenRouter,
@@ -220,9 +217,6 @@ func applyEnvironmentVariables(settings *Settings) {
 	if key := os.Getenv("REPLICATE_API_KEY"); key != "" {
 		settings.APIKeys.Replicate = key
 	}
-	if key := os.Getenv("ASSEMBLYAI_API_KEY"); key != "" {
-		settings.APIKeys.AssemblyAI = key
-	}
 	if key := os.Getenv("ELEVENLABS_API_KEY"); key != "" {
 		settings.APIKeys.ElevenLabs = key
 	}
@@ -239,7 +233,7 @@ func applyEnvironmentVariables(settings *Settings) {
 
 // Apply API keys from config or environment
 func (settings Settings) LoadKeys() {
-	providers := []string{"replicate", "assemblyai", "elevenlabs", "openai", "openrouter", "google"}
+	providers := []string{"replicate", "elevenlabs", "openai", "openrouter", "google"}
 
 	for idx, name := range providers {
 		var key string
@@ -247,14 +241,12 @@ func (settings Settings) LoadKeys() {
 		case 0:
 			key = settings.APIKeys.Replicate
 		case 1:
-			key = settings.APIKeys.AssemblyAI
-		case 2:
 			key = settings.APIKeys.ElevenLabs
-		case 3:
+		case 2:
 			key = settings.APIKeys.OpenAI
-		case 4:
+		case 3:
 			key = settings.APIKeys.OpenRouter
-		case 5:
+		case 4:
 			key = settings.APIKeys.Google
 		}
 		if s := os.Getenv(strings.ToUpper(name) + "_API_KEY"); s != "" {

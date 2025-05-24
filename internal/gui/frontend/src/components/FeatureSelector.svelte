@@ -718,7 +718,6 @@
         const providerKeyMapping: Record<string, string> = {
             'replicate': 'replicate',
             'openai': 'openAI',
-            'assemblyai': 'assemblyAI',
             'elevenlabs': 'elevenLabs'
         };
         

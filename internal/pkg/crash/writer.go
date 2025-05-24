@@ -235,8 +235,10 @@ func writeReportContent(
 	fmt.Fprintln(w, "========")
 	sanitizedSettings := settings
 	sanitizedSettings.APIKeys.Replicate = MaskAPIKey(settings.APIKeys.Replicate)
-	sanitizedSettings.APIKeys.AssemblyAI = MaskAPIKey(settings.APIKeys.AssemblyAI)
 	sanitizedSettings.APIKeys.ElevenLabs = MaskAPIKey(settings.APIKeys.ElevenLabs)
+	sanitizedSettings.APIKeys.OpenAI = MaskAPIKey(settings.APIKeys.OpenAI)
+	sanitizedSettings.APIKeys.OpenRouter = MaskAPIKey(settings.APIKeys.OpenRouter)
+	sanitizedSettings.APIKeys.Google = MaskAPIKey(settings.APIKeys.Google)
 	fmt.Fprintln(w, pp.Sprint(sanitizedSettings))
 
 	// 10. Log history
@@ -262,7 +264,6 @@ func writeReportContent(
 		fmt.Fprintln(w, "Requests originate from:", country)
 	}
 	checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
-	checkEndpointConnectivity(w, "https://www.assemblyai.com/", "AssemblyAI")
 	checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
 	DockerNslookupCheck(w, "example.com")
 	fmt.Fprint(w, "\n")

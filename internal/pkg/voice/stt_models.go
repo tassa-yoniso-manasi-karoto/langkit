@@ -66,13 +66,6 @@ func GetAllSTTModels() []STTModelInfo {
             IsDepreciated:      true,
             TakesInitialPrompt: false,
         },
-        {
-            Name:               "universal-1",
-            DisplayName:        "Universal-1",
-            Description:        "AssemblyAI's speech recognition model",
-            ProviderName:       "assemblyai",
-            TakesInitialPrompt: false,
-        },
     }
     
     // Check API key availability for each model

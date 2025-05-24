@@ -184,7 +184,6 @@ func initConfig() {
 	// Bind specific environment variables to their config counterparts
 	envBindings := map[string]string{
 		"REPLICATE_API_KEY": "api_keys.replicate",
-		"ASSEMBLYAI_API_KEY": "api_keys.assemblyai",
 		"ELEVENLABS_API_KEY": "api_keys.elevenlabs",
 		"OPENAI_API_KEY": "api_keys.openai",
 		"OPENROUTER_API_KEY": "api_keys.openrouter",

@@ -26,7 +26,6 @@ import (
 	
 	replicate "github.com/replicate/replicate-go"
 	
-	aai "github.com/AssemblyAI/assemblyai-go-sdk"
 )
 
 var (
@@ -35,7 +34,6 @@ var (
 
 func init() {
 	APIKeys.Store("elevenlabs", "")
-	APIKeys.Store("assemblyai", "")
 	APIKeys.Store("replicate", "")
 	APIKeys.Store("openai", "")
 }
@@ -179,75 +177,6 @@ func (p *ElevenLabsSTTProvider) TranscribeAudio(ctx context.Context, audioFile, 
 	}
 
 	return transcription, nil
-}
-
-// AssemblyAIProvider implements SpeechToTextProvider using the AssemblyAI API
-type AssemblyAIProvider struct{}
-
-// GetName returns the provider name
-func (p *AssemblyAIProvider) GetName() string {
-	return "assemblyai"
-}
-
-// IsAvailable checks if the AssemblyAI API is available
-func (p *AssemblyAIProvider) IsAvailable() bool {
-	apiKeyValue, found := APIKeys.Load("assemblyai")
-	if !found {
-		return false
-	}
-	APIKey, ok := apiKeyValue.(string)
-	return ok && APIKey != ""
-}
-
-// TranscribeAudio converts audio to text using AssemblyAI
-func (p *AssemblyAIProvider) TranscribeAudio(ctx context.Context, audioFile, language, _ string, maxTry, timeout int) (string, error) {
-	// Verify API key
-	apiKeyValue, found := APIKeys.Load("assemblyai")
-	if !found {
-		return "", fmt.Errorf("No AssemblyAI API key was provided")
-	}
-	APIKey, ok := apiKeyValue.(string)
-	if !ok || APIKey == "" {
-		return "", fmt.Errorf("Invalid AssemblyAI API key format")
-	}
-	client := aai.NewClient(APIKey)
-
-	// Open the audio file
-	f, err := os.Open(audioFile)
-	if err != nil {
-		return "", fmt.Errorf("Couldn't open audio file: %w", err)
-	}
-	defer f.Close()
-
-	// Setup transcription parameters
-	params := &aai.TranscriptOptionalParams{
-		LanguageCode: aai.TranscriptLanguageCode(language),
-		SpeechModel:  aai.SpeechModelBest,
-	}
-
-	// Build retry policy for transcription attempts
-	policy := buildRetryPolicy[aai.Transcript](maxTry)
-
-	// Execute the transcription with the retry policy
-	transcript, err := failsafe.Get(func() (aai.Transcript, error) {
-		// Create a new timeout context for this attempt
-		attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-		defer cancel()
-
-		// Reset file pointer to the beginning for each attempt
-		if _, err := f.Seek(0, 0); err != nil {
-			return aai.Transcript{}, err
-		}
-
-		// Attempt to transcribe the audio
-		return client.Transcripts.TranscribeFromReader(attemptCtx, f, params)
-	}, policy)
-	if err != nil {
-		return "", fmt.Errorf("Failed Universal-1 prediction after %d attempts: %w", maxTry, err)
-	}
-
-	// Return the transcription text
-	return *transcript.Text, nil
 }
 
 type initRunT = func(input replicate.PredictionInput) replicate.PredictionInput
