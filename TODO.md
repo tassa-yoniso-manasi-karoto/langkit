@@ -8,16 +8,13 @@ SVG animations: rework state transitions
 
 - condensed audio: CHECK IT
 
+- FIX LOGGER.TS
+
 - support Condensed Audio summaries:
-  - perf issue with queries of GetAvailableModels()
-  
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
   - "Custom Summary Prompt" → should have bigger field like Initial Prompt
   - dropdown for desired output format (mp3 / aac / opus)
-.
-
-- fix logger.ts
 
 .
 - add tlit in TSV/CSV
@@ -28,9 +25,6 @@ SVG animations: rework state transitions
 .
 
 - guarantee all settings in Settings panel work
-
-.
-- ProcessErrorTooltip should have a fade in / out
 
 .
 - welcome.svelte component w/ checks for binary needed

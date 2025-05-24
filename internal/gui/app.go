@@ -204,89 +204,128 @@ func (a *App) GetWebSocketPort() (int, error) {
 }
 
 
+
 // BackendLoggerBatch handles batched log entries from the frontend
 func (a *App) BackendLoggerBatch(component string, logsJson string) {
-    // Validate input size
-    if len(logsJson) > 1024*1024 { // 1MB max batch size
-        a.logger.Error().
-            Str("component", component).
-            Int("size", len(logsJson)).
-            Msg("Rejected oversized log batch")
-        return
-    }
-    
-    var logEntries []map[string]interface{}
-    
-    if err := json.Unmarshal([]byte(logsJson), &logEntries); err != nil {
-        a.logger.Error().
-            Err(err).
-            Str("component", component).
-            Msg("Failed to parse frontend log batch")
-        return
-    }
-    
-    a.logger.Debug().
-        Str("component", component).
-        Int("count", len(logEntries)).
-        Msg("Processing frontend log batch")
-    
-    // Process each log entry
-    for _, logEntry := range logEntries {
-        // Map frontend log levels to zerolog levels
-        level := zerolog.InfoLevel
-        if levelVal, ok := logEntry["level"].(float64); ok {
-            switch int(levelVal) {
-            case -1: // TRACE
-                level = zerolog.TraceLevel
-            case 0: // DEBUG
-                level = zerolog.DebugLevel
-            case 1: // INFO
-                level = zerolog.InfoLevel
-            case 2: // WARN
-                level = zerolog.WarnLevel
-            case 3, 4: // ERROR, CRITICAL
-                level = zerolog.ErrorLevel
-            }
-        }
-        
-        // Extract fields for structured logging
-        fields := map[string]interface{}{
-            "frontend": true,
-            "component": component,
-        }
-        
-        // Extract context information
-        if context, ok := logEntry["context"].(map[string]interface{}); ok {
-            for k, v := range context {
-                fields["fe_"+k] = v
-            }
-        }
-        
-        // Add operation if present
-        if operation, ok := logEntry["operation"].(string); ok {
-            fields["operation"] = operation
-        }
-        
-        // Add session ID if present
-        if sessionId, ok := logEntry["sessionId"].(string); ok {
-            fields["sessionId"] = sessionId
-        }
-        
-        // Get message
-        message := "Frontend log"
-        if msg, ok := logEntry["message"].(string); ok {
-            message = msg
-        }
-        
-        // Log through the handler or directly to zerolog
-        event := a.logger.WithLevel(level)
-        
-        // Add fields
-        event = event.Fields(fields)
-        
-        // Log the message
-        event.Msg(message)
-    }
+	// Validate input size
+	if len(logsJson) > 1024*1024 { // 1MB max batch size
+		a.logger.Error().
+			Str("component", component).
+			Int("size", len(logsJson)).
+			Msg("Rejected oversized log batch")
+		return
+	}
+
+	var logEntries []map[string]interface{}
+
+	if err := json.Unmarshal([]byte(logsJson), &logEntries); err != nil {
+		a.logger.Error().
+			Err(err).
+			Str("component", component).
+			Msg("Failed to parse frontend log batch")
+		return
+	}
+
+	// Only log batch processing for actual batches (more than 1 entry)
+	if len(logEntries) > 1 {
+		a.logger.Debug().
+			Str("component", component).
+			Int("count", len(logEntries)).
+			Msg("Processing frontend log batch")
+	}
+
+	// Process each log entry
+	for _, logEntry := range logEntries {
+		a.processLogEntry(component, logEntry)
+	}
+}
+
+// BackendLogger receives and processes individual log entries from the frontend
+func (a *App) BackendLogger(component string, logJson string) {
+	// Validate input size
+	if len(logJson) > 100*1024 { // 100KB max for individual log
+		a.logger.Error().
+			Str("component", component).
+			Int("size", len(logJson)).
+			Msg("Rejected oversized log entry")
+		return
+	}
+
+	var logEntry map[string]interface{}
+
+	if err := json.Unmarshal([]byte(logJson), &logEntry); err != nil {
+		a.logger.Error().
+			Err(err).
+			Str("component", component).
+			Msg("Failed to parse frontend log entry")
+		return
+	}
+
+	// Process the single log entry using the same logic as batch processing
+	a.processLogEntry(component, logEntry)
+}
+
+// processLogEntry handles the common logic for processing a single log entry
+func (a *App) processLogEntry(component string, logEntry map[string]interface{}) {
+	// Map frontend log levels to zerolog levels
+	level := zerolog.InfoLevel
+	if levelVal, ok := logEntry["lvl"].(float64); ok {
+		switch int(levelVal) {
+		case -1: // TRACE
+			level = zerolog.TraceLevel
+		case 0: // DEBUG
+			level = zerolog.DebugLevel
+		case 1: // INFO
+			level = zerolog.InfoLevel
+		case 2: // WARN
+			level = zerolog.WarnLevel
+		case 3, 4: // ERROR, CRITICAL
+			level = zerolog.ErrorLevel
+		case 5: // FATAL
+			level = zerolog.FatalLevel
+		}
+	}
+	
+	fields := map[string]interface{}{}
+
+	// Extract component from log entry, fallback to function parameter
+	if comp, ok := logEntry["comp"].(string); ok {
+		fields["component"] = comp
+	} else {
+		fields["component"] = component
+	}
+
+	// Extract context information
+	if context, ok := logEntry["ctx"].(map[string]interface{}); ok {
+		for k, v := range context {
+			fields["fe_"+k] = v
+		}
+	}
+
+	// Add operation if present
+	if operation, ok := logEntry["op"].(string); ok {
+		fields["operation"] = operation
+	}
+
+	// Add session ID if present
+	if sessionId, ok := logEntry["sid"].(string); ok {
+		fields["sessionId"] = sessionId
+	}
+
+	// Get message and prepend FRONT: prefix
+	message := "FRONT: "
+	if msg, ok := logEntry["msg"].(string); ok {
+		message += msg
+	}
+
+	// Log through the handler or directly to zerolog
+	event := a.logger.WithLevel(level)
+
+	// Add fields
+	event = event.Fields(fields)
+
+	// Log the message
+	event.Msg(message)
 }
 
 // RecordWasmLog receives and processes WebAssembly log entries from the frontend

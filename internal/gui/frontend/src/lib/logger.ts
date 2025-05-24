@@ -488,8 +488,8 @@ export class Logger {
             if (eCopy.ctx) {
                 eCopy.ctx = this._sanitizeCtx(eCopy.ctx);
             }
-            // Send individual log as a single-element batch to BackendLoggerBatch
-            (window as any).go.gui.App.BackendLoggerBatch(e.comp, JSON.stringify([eCopy]));
+            // Send individual log to BackendLogger
+            (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(eCopy));
         } catch (err) {
             console.error("Failed to relay log to backend:", err);
             if (e.lvl >= Lvl.ERROR) {
@@ -520,10 +520,10 @@ export class Logger {
             (window as any).go.gui.App.BackendLoggerBatch(component, JSON.stringify(sanEntries));
         } catch (err) {
             console.error("Failed to relay batch to backend:", err);
-            // Try to send logs individually in separate batches
+            // Try to send logs individually
             try {
                 for (const e of sanEntries) {
-                    (window as any).go.gui.App.BackendLoggerBatch(e.comp || component, JSON.stringify([e]));
+                    (window as any).go.gui.App.BackendLogger(e.comp || component, JSON.stringify(e));
                 }
             } catch (individualErr) {
                 console.error("Failed individual log fallback:", individualErr);
@@ -557,8 +557,8 @@ export class Logger {
                 const { entry: e, retries: r } = item;
                 if (r < this._cfg.batConf.retries) {
                     try {
-                        // Use BackendLoggerBatch with a single-element array
-                        (window as any).go.gui.App.BackendLoggerBatch(e.comp, JSON.stringify([e]));
+                        // Use BackendLogger for individual log
+                        (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(e));
                     } catch (err) {
                         this._retryQ.push({ entry: e, retries: r + 1 });
                         await new Promise(resolve => setTimeout(resolve, this._cfg.batConf.retryDelay));

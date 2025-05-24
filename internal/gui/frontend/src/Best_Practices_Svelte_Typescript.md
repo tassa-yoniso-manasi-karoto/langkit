@@ -1,57 +1,93 @@
 # Svelte with TypeScript: Best Practices Guide
 
-This document outlines specific best practices for developing robust applications with Svelte and TypeScript, based on real-world experience addressing performance issues, memory leaks, reactivity challenges, and UI inconsistencies.
+This document outlines specific best practices for developing robust applications with Svelte and TypeScript, covering both Svelte 4 and Svelte 5 patterns. Based on real-world experience addressing performance issues, memory leaks, reactivity challenges, and UI inconsistencies.
+
+## Table of Contents
+1. [Preventing Data Races](#1-preventing-data-races)
+2. [Avoiding Circular Dependencies](#2-avoiding-circular-dependencies)
+3. [Managing Reactivity](#3-managing-reactivity)
+4. [Mitigating Memory Leaks](#4-mitigating-memory-leaks)
+5. [Optimizing for Performance](#5-optimizing-for-performance)
+6. [GUI-Specific Patterns](#6-gui-specific-patterns)
+7. [Understanding Prop Reactivity Patterns](#7-understanding-prop-reactivity-patterns)
+8. [Architecture Design Principles](#8-architecture-design-principles)
+9. [Reactivity Boundaries and Edge Cases](#9-reactivity-boundaries-and-edge-cases)
+10. [Svelte 5 Migration Patterns](#10-svelte-5-migration-patterns)
 
 ## 1. Preventing Data Races
 
 ### DO:
 - **✅ Implement version tracking for async operations**
   ```typescript
+  // Svelte 4
   let currentProcessId = 0;
   async function processData(data) {
     const processId = ++currentProcessId;
-    // Async processing...
+    const result = await fetchData(data);
     if (processId !== currentProcessId) return; // Abandon if newer process started
-    // Continue with updates...
+    updateUI(result);
+  }
+  
+  // Svelte 5
+  let currentProcessId = $state(0);
+  async function processData(data) {
+    const processId = ++currentProcessId;
+    const result = await fetchData(data);
+    if (processId !== currentProcessId) return;
+    updateUI(result);
   }
   ```
 
 - **✅ Use single points of truth for state**
   ```typescript
-  // Store is source of truth, UI reads from store
-  const value = featureGroupStore.getGroupOption(groupId, optionId);
-  // User actions update store, not local state directly
-  function handleChange(newValue) {
-    featureGroupStore.setGroupOption(groupId, optionId, newValue);
-  }
+  // Svelte 4 - Store is source of truth
+  import { writable, derived } from 'svelte/store';
+  const mainStore = writable({ value: 0 });
+  const derivedValue = derived(mainStore, $store => $store.value * 2);
+  
+  // Svelte 5 - Direct state management
+  let mainState = $state({ value: 0 });
+  let derivedValue = $derived(mainState.value * 2);
   ```
 
 - **✅ Track readiness state for async initialization**
   ```typescript
+  // Svelte 4
   let isInitialized = false;
   let isLoading = true;
-  let error = null;
+  let error: Error | null = null;
   
-  async function initialize() {
-    isLoading = true;
-    error = null;
-    try {
-      await loadData();
-      isInitialized = true;
-    } catch (e) {
-      error = e;
-    } finally {
-      isLoading = false;
-    }
-  }
+  // Svelte 5 with better type safety
+  type LoadingState = 
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'success'; data: unknown }
+    | { status: 'error'; error: Error };
+    
+  let loadingState = $state<LoadingState>({ status: 'idle' });
   ```
 
-- **✅ Validate current state before applying updates**
+- **✅ Use AbortController for cancellable operations**
   ```typescript
-  function applyChanges(newValue) {
-    const currentState = get(store);
-    if (currentState.version !== expectedVersion) return;
-    // Apply changes...
+  // Enhanced pattern for both Svelte 4 & 5
+  class AsyncOperation<T> {
+    private controller?: AbortController;
+    
+    async execute(fn: (signal: AbortSignal) => Promise<T>): Promise<T | null> {
+      this.cancel();
+      this.controller = new AbortController();
+      
+      try {
+        return await fn(this.controller.signal);
+      } catch (error) {
+        if (error.name === 'AbortError') return null;
+        throw error;
+      }
+    }
+    
+    cancel() {
+      this.controller?.abort();
+    }
   }
   ```
 
@@ -99,61 +135,58 @@ This document outlines specific best practices for developing robust application
 ### DO:
 - **✅ Establish clear unidirectional data flow**
   ```typescript
-  // Store → Component → User action → Store
-  const options = derived(store, $store => $store.options);
-  function handleUserInput(value) {
-    dispatch('update', { value });
+  // Svelte 4 - Traditional approach
+  // Parent → Store → Child → Events → Parent
+  
+  // Svelte 5 - Cleaner with runes
+  class FeatureState {
+    value = $state(0);
+    derived = $derived(this.value * 2);
+    
+    updateValue(newValue: number) {
+      this.value = newValue;
+    }
   }
   ```
 
 - **✅ Use flags to guard against circular updates**
   ```typescript
-  let updatingFromStore = false;
-  
-  // In store subscription
-  storeValue.subscribe(newValue => {
-    updatingFromStore = true;
-    localValue = newValue;
-    setTimeout(() => { updatingFromStore = false; }, 0);
-  });
-  
-  // In user input handler
-  function handleInput(value) {
-    if (updatingFromStore) return; // Skip if from store
-    dispatch('update', { value });
-  }
-  ```
-
-- **✅ Choose either binding OR events, not both**
-  ```svelte
-  <!-- GOOD: Event-based approach -->
-  <select value={value} on:change={e => handleSelect(e.target.value)}>
-    {#each options as option}
-      <option value={option.value}>{option.label}</option>
-    {/each}
-  </select>
-  
-  <!-- OR: Binding approach -->
-  <select bind:value>
-    {#each options as option}
-      <option value={option.value}>{option.label}</option>
-    {/each}
-  </select>
-  ```
-
-- **✅ Implement safe and explicit event handlers**
-  ```typescript
-  function handleChange(e) {
-    const newValue = e.target.value;
-    // Record old value before change
-    const oldValue = currentValue;
-    currentValue = newValue;
+  // Pattern works for both Svelte 4 & 5
+  class UpdateGuard {
+    private updating = false;
     
-    // Only dispatch if actually changed
-    if (oldValue !== newValue) {
-      dispatch('change', { oldValue, newValue });
+    async safeUpdate(fn: () => void | Promise<void>) {
+      if (this.updating) return;
+      this.updating = true;
+      
+      try {
+        await fn();
+      } finally {
+        this.updating = false;
+      }
     }
   }
+  ```
+
+- **✅ Implement proper event delegation**
+  ```svelte
+  <!-- Svelte 4 & 5 compatible pattern -->
+  <div on:click={handleClick}>
+    {#each items as item}
+      <button data-action="select" data-id={item.id}>
+        {item.name}
+      </button>
+    {/each}
+  </div>
+  
+  <script>
+    function handleClick(event) {
+      const target = event.target as HTMLElement;
+      if (target.dataset.action === 'select') {
+        selectItem(target.dataset.id);
+      }
+    }
+  </script>
   ```
 
 ### DON'T:
@@ -201,91 +234,79 @@ This document outlines specific best practices for developing robust application
 ## 3. Managing Reactivity
 
 ### DO:
-- **✅ Prefer $store syntax for reactive store values**
-  ```svelte
-  <script>
-    import { myStore } from './stores';
-    
-    // Reactively updates when store changes
-    $: doubledValue = $myStore * 2;
-  </script>
+- **✅ Understand Svelte's reactivity boundaries**
+  ```typescript
+  // Svelte 4 - Compile-time reactivity
+  let obj = { count: 0, nested: { value: 1 } };
   
-  <div>{doubledValue}</div>
-  ```
-
-- **✅ Use proper reactive assignments for nested objects**
-  ```typescript
-  // To trigger reactivity when modifying nested properties
-  function updateNestedProperty(id, value) {
-    items = items.map(item => 
-      item.id === id 
-        ? { ...item, value } 
-        : item
-    );
-  }
-  ```
-
-- **✅ Make component state changes explicit**
-  ```typescript
-  function handleModelChange(modelName) {
-    // Explicitly update related state
-    selectedModel = modelName;
-    
-    // Force error message refresh
-    errorCheckCounter++;
-    
-    // Trigger side effects in a clear way
-    validateProviderApiKey(modelName);
-  }
-  ```
-
-- **✅ Assign to tracked variables to trigger reactivity**
-  ```typescript
-  // Changing property won't trigger reactivity
-  function badUpdate() {
-    obj.count += 1; // Won't trigger reactivity!
-  }
+  // ✅ Tracked (assignment)
+  obj = { ...obj, count: 1 };
+  obj.count = 1; // Top-level property only!
   
-  // Reassign whole object to trigger reactivity
-  function goodUpdate() {
-    obj = { ...obj, count: obj.count + 1 };
-  }
+  // ❌ Not tracked (nested mutation)
+  obj.nested.value = 2;
+  
+  // Svelte 5 - Runtime reactivity with Proxies
+  let obj = $state({ count: 0, nested: { value: 1 } });
+  
+  // ✅ All tracked!
+  obj.count = 1;
+  obj.nested.value = 2;
+  obj.nested.newProp = 3;
+  ```
+
+- **✅ Use proper patterns for imported values**
+  ```typescript
+  // Svelte 4 - Imports aren't reactive
+  import { features } from './config';
+  
+  // ❌ Won't update
+  $: selected = features.find(f => f.active);
+  
+  // ✅ Solution 1: Use stores
+  import { featuresStore } from './config';
+  $: selected = $featuresStore.find(f => f.active);
+  
+  // ✅ Solution 2: Local reactive copy
+  let features = [...importedFeatures];
+  
+  // ✅ Solution 3: Force update
+  features.push(newItem);
+  features = features;
+  
+  // Svelte 5 - Use $state in config
+  // config.js
+  export const features = $state([...]);
+  
+  // component.svelte
+  import { features } from './config';
+  // Now it's reactive!
+  ```
+
+- **✅ Handle array/object mutations correctly**
+  ```typescript
+  // Svelte 4 patterns
+  // Arrays
+  items = [...items, newItem]; // ✅ Reassignment
+  items = items.filter(i => i.id !== id); // ✅
+  items.push(newItem); items = items; // ✅ Force update
+  
+  // Objects  
+  user = { ...user, name: 'New' }; // ✅
+  Object.assign(user, updates); user = user; // ✅
+  
+  // Svelte 5 - Just mutate!
+  let items = $state([]);
+  items.push(newItem); // ✅ Automatically reactive
+  
+  let user = $state({ name: '' });
+  user.name = 'New'; // ✅ Automatically reactive
   ```
 
 ### DON'T:
 - **❌ Mix reactive and imperative updates**
-  ```typescript
-  // BAD: Mixing styles
-  $: total = items.reduce((sum, item) => sum + item.value, 0);
-  
-  function addItem(item) {
-    items.push(item); // Imperative update won't trigger reactivity
-    // Should be: items = [...items, item];
-  }
-  ```
-
-- **❌ Rely on object mutation to trigger updates**
-  ```typescript
-  // BAD: Mutation
-  function updateCounter() {
-    state.counter++; // Won't trigger reactivity
-  }
-  
-  // GOOD: Assignment
-  function updateCounter() {
-    state = { ...state, counter: state.counter + 1 };
-  }
-  ```
-
+- **❌ Rely on object mutation to trigger updates (Svelte 4)**
 - **❌ Use get(store) within reactive statements**
-  ```typescript
-  // BAD: Not reactive
-  $: result = calculate(get(myStore));
-  
-  // GOOD: Reactive
-  $: result = calculate($myStore);
-  ```
-
 - **❌ Create side effects in reactive declarations without guards**
   ```typescript
   // BAD: Side effect without guard
@@ -305,69 +326,115 @@ This document outlines specific best practices for developing robust application
 ## 4. Mitigating Memory Leaks
 
 ### DO:
-- **✅ Clean up ALL subscriptions in onDestroy**
+- **✅ Create a comprehensive cleanup registry**
   ```typescript
-  let unsubscribe;
+  // Works for both Svelte 4 & 5
+  class CleanupManager {
+    private cleanups: Array<() => void> = [];
+    
+    register(cleanup: () => void): void {
+      this.cleanups.push(cleanup);
+    }
+    
+    registerTimeout(id: ReturnType<typeof setTimeout>): void {
+      this.register(() => clearTimeout(id));
+    }
+    
+    registerInterval(id: ReturnType<typeof setInterval>): void {
+      this.register(() => clearInterval(id));
+    }
+    
+    registerAbortController(controller: AbortController): void {
+      this.register(() => controller.abort());
+    }
+    
+    cleanup(): void {
+      this.cleanups.forEach(fn => fn());
+      this.cleanups = [];
+    }
+  }
+  
+  // Usage
+  const cleanup = new CleanupManager();
   
   onMount(() => {
-    unsubscribe = store.subscribe(value => {
-      // Handle update
+    const id = setInterval(() => {}, 1000);
+    cleanup.registerInterval(id);
+    
+    const controller = new AbortController();
+    cleanup.registerAbortController(controller);
+  });
+  
+  onDestroy(() => cleanup.cleanup());
+  ```
+
+- **✅ Use WeakMap/WeakSet for DOM references**
+  ```typescript
+  // Prevents memory leaks with DOM elements
+  const elementMetadata = new WeakMap<HTMLElement, Metadata>();
+  const observedElements = new WeakSet<HTMLElement>();
+  
+  function trackElement(element: HTMLElement, data: Metadata) {
+    elementMetadata.set(element, data);
+    observedElements.add(element);
+    // No cleanup needed - garbage collected automatically
+  }
+  ```
+
+### DON'T:
+- **❌ Create DOM elements just for side effects**
+- **❌ Forget to remove event listeners**
+- **❌ Keep references to DOM elements after destruction**
+- **❌ Use closures that capture component state without cleanup**
+
+## 5. Optimizing for Performance
+
+### DO:
+- **✅ Use CSS containment for complex components**
+  ```svelte
+  <div class="complex-component">
+    <!-- Content -->
+  </div>
+  
+  <style>
+    .complex-component {
+      contain: layout style paint;
+      content-visibility: auto;
+    }
+  </style>
+  ```
+
+- **✅ Implement virtual scrolling for large lists**
+  ```typescript
+  // Svelte 5 pattern with signals
+  class VirtualList<T> {
+    items = $state<T[]>([]);
+    scrollTop = $state(0);
+    itemHeight = 50;
+    containerHeight = 600;
+    
+    visibleItems = $derived(() => {
+      const start = Math.floor(this.scrollTop / this.itemHeight);
+      const end = start + Math.ceil(this.containerHeight / this.itemHeight);
+      return this.items.slice(start, end + 1).map((item, i) => ({
+        item,
+        y: (start + i) * this.itemHeight
+      }));
     });
-  });
-  
-  onDestroy(() => {
-    if (unsubscribe) unsubscribe();
-  });
-  ```
-
-- **✅ Track and clear ALL timeouts**
-  ```typescript
-  let timeoutId = null;
-  
-  function delayedUpdate() {
-    // Clear existing timeout
-    if (timeoutId !== null) clearTimeout(timeoutId);
-    
-    timeoutId = setTimeout(() => {
-      // Update logic
-      timeoutId = null;
-    }, 100);
   }
-  
-  onDestroy(() => {
-    if (timeoutId !== null) clearTimeout(timeoutId);
-  });
   ```
 
-- **✅ Use a cleanup registry for multiple resources**
+- **✅ Use intersection observer for lazy loading**
   ```typescript
-  const cleanupFunctions = [];
-  
-  function registerCleanup(fn) {
-    cleanupFunctions.push(fn);
-  }
-  
-  onMount(() => {
-    const intervalId = setInterval(() => {
-      // Periodically check something
-    }, 1000);
+  // Reusable action for both Svelte 4 & 5
+  export function lazyLoad(node: HTMLElement, callback: () => void) {
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        callback();
+        observer.disconnect();
+      }
+    });
     
-    registerCleanup(() => clearInterval(intervalId));
-    
-    // Register more cleanup functions as needed
-  });
-  
-  onDestroy(() => {
-    // Clean up all registered resources
-    cleanupFunctions.forEach(cleanup => cleanup());
-  });
-  ```
-
-- **✅ Use action functions for DOM-related cleanup**
-  ```typescript
-  // Create a reusable action
-  function addResizeObserver(node, callback) {
-    const observer = new ResizeObserver(callback);
     observer.observe(node);
     
     return {
@@ -376,149 +443,10 @@ This document outlines specific best practices for developing robust application
       }
     };
   }
-  
-  // Use in component
-  <div use:addResizeObserver={handleResize}>
-    Resizable content
-  </div>
   ```
 
 ### DON'T:
-- **❌ Create DOM elements just for side effects**
-  ```svelte
-  <!-- BAD: Creates DOM elements on every render -->
-  <div style="display:none;">
-    {console.log('Debug info:', someExpensiveCalculation())}
-  </div>
-  ```
-
-- **❌ Forget to remove event listeners in animations**
-  ```typescript
-  // BAD: Missing cleanup
-  function animateElement() {
-    element.addEventListener('transitionend', () => {
-      // Transition complete
-    });
-    element.style.opacity = 0;
-  }
-  ```
-
-- **❌ Keep references to DOM elements after component destruction**
-  ```typescript
-  // BAD: Global reference that outlives component
-  let elementRefs = [];
-  
-  onMount(() => {
-    // Adding to global array
-    elementRefs.push(myElement);
-  });
-  
-  // No cleanup to remove reference when component is destroyed
-  // Should add: onDestroy(() => { elementRefs = elementRefs.filter(el => el !== myElement); })
-  ```
-
-- **❌ Use closure variables that capture component state without cleanup**
-  ```typescript
-  // BAD: Closure captures component state
-  const handleExternalEvent = (event) => {
-    // References component state
-    updateComponentState(event.detail);
-  };
-  
-  onMount(() => {
-    window.addEventListener('external-event', handleExternalEvent);
-    // Missing cleanup
-  });
-  ```
-
-## 5. Optimizing for Performance
-
-### DO:
-
-- **✅ Batch store updates**
-  ```typescript
-  // Better than multiple individual updates
-  function updateRelatedOptions(values) {
-    store.update(state => {
-      const newState = { ...state };
-      // Apply all updates at once
-      Object.entries(values).forEach(([key, value]) => {
-        newState[key] = value;
-      });
-      return newState;
-    });
-  }
-  ```
-
-- **✅ Use dynamic display to avoid unnecessary rendering**
-  ```svelte
-  <!-- Only render expensive component when needed -->
-  {#if showComponent}
-    <ExpensiveComponent />
-  {/if}
-  ```
-
-- **✅ Optimize renders during window minimization**
-  ```typescript
-  // Check window state
-  async function checkWindowState() {
-    const minimized = await WindowIsMinimised();
-    
-    if (minimized !== isWindowMinimized) {
-      isWindowMinimized = minimized;
-      
-      // Reduce animations and processing if minimized
-      if (minimized) {
-        showGlow = false;
-        updateInterval = 100; // 10fps
-      } else {
-        showGlow = settings.enableGlow;
-        updateInterval = 16; // 60fps
-      }
-    }
-  }
-  
-  // Set up interval check
-  onMount(() => {
-    windowCheckInterval = setInterval(checkWindowState, 2000);
-  });
-  
-  onDestroy(() => {
-    clearInterval(windowCheckInterval);
-  });
-  ```
-
-- **✅ Use requestAnimationFrame for smooth visual updates**
-  ```typescript
-  function updateVisuals() {
-    // Schedule visual update for next frame
-    requestAnimationFrame(() => {
-      // Update DOM
-      element.style.transform = `translateX(${position}px)`;
-      
-      // Continue animation if needed
-      if (animating) {
-        updateVisuals();
-      }
-    });
-  }
-  ```
-
-### DON'T:
-- **❌ Subscribe to the entire store when only specific values are needed**
-  ```typescript
-  // BAD: Processing all store changes
-  store.subscribe(state => {
-    // Component only needs state.user but processes all changes
-  });
-  
-  // GOOD: Use derived stores
-  const userData = derived(store, $store => $store.user);
-  userData.subscribe(user => {
-    // Only processes user changes
-  });
-  ```
-
+- **❌ Subscribe to entire store when only specific values needed**
 - **❌ Create new closures in render loops**
   ```svelte
   <!-- BAD: Creates new function on every render -->
@@ -537,579 +465,562 @@ This document outlines specific best practices for developing robust application
   ```
 
 - **❌ Perform DOM measurements in render loops**
-  ```typescript
-  // BAD: Causes layout thrashing
-  function updateLayout() {
-    items.forEach(item => {
-      // Forced layout recalculation on each iteration
-      const width = item.element.offsetWidth;
-      item.element.style.height = `${width / 2}px`;
-    });
-  }
-  
-  // GOOD: Batch reads, then writes
-  function updateLayout() {
-    // Read phase
-    const measurements = items.map(item => ({
-      element: item.element,
-      width: item.element.offsetWidth
-    }));
-    
-    // Write phase
-    measurements.forEach(item => {
-      item.element.style.height = `${item.width / 2}px`;
-    });
-  }
-  ```
-
-- **❌ Use synchronous operations in animation/transition callbacks**
-  ```typescript
-  // BAD: Potentially blocking main thread during animation
-  function onTransitionEnd() {
-    // Expensive synchronous operation
-    const result = heavyComputation();
-    updateUI(result);
-  }
-  
-  // GOOD: Defer heavy work
-  function onTransitionEnd() {
-    // Schedule work for next idle period
-    setTimeout(() => {
-      const result = heavyComputation();
-      updateUI(result);
-    }, 0);
-  }
-  ```
+- **❌ Use synchronous operations in animation callbacks**
 
 ## 6. GUI-Specific Patterns
 
 ### DO:
-- **✅ Implement proper error visualization hierarchies**
+- **✅ Implement proper focus management with TypeScript**
   ```typescript
-  // Define error severity and display priority
-  const ERROR_PRIORITY = {
-    critical: 0,
-    warning: 1,
-    info: 2
-  };
+  interface FocusContext {
+    trapFocus(container: HTMLElement): void;
+    releaseFocus(): void;
+  }
   
-  function getHighestPriorityError() {
-    return errors.sort((a, b) => 
-      ERROR_PRIORITY[a.severity] - ERROR_PRIORITY[b.severity]
-    )[0];
+  class FocusManager implements FocusContext {
+    private stack: HTMLElement[] = [];
+    private previousFocus: HTMLElement | null = null;
+    
+    trapFocus(container: HTMLElement): void {
+      this.previousFocus = document.activeElement as HTMLElement;
+      this.stack.push(container);
+      
+      const focusableElements = container.querySelectorAll<HTMLElement>(
+        'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      container.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key !== 'Tab') return;
+        
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      });
+      
+      firstElement?.focus();
+    }
+    
+    releaseFocus(): void {
+      this.stack.pop();
+      this.previousFocus?.focus();
+    }
   }
   ```
 
-- **✅ Use error tokens instead of messages for consistency**
+- **✅ Create type-safe error boundaries**
   ```typescript
-  // Define error tokens
-  const ERROR_TOKENS = {
-    MISSING_API_KEY: 'error.missing_api_key',
-    INVALID_FORMAT: 'error.invalid_format'
-  };
+  // Svelte 5 with error boundaries
+  interface ErrorBoundaryState {
+    error: Error | null;
+    errorInfo: { componentStack: string } | null;
+  }
   
-  // Add structured error
-  errorStore.addError({
-    id: 'provider-check',
-    token: ERROR_TOKENS.MISSING_API_KEY,
-    provider: 'openai',
-    severity: 'critical'
-  });
-  
-  // Render with consistent formatting
-  <span>{formatError($errorStore.find(e => e.id === 'provider-check'))}</span>
-  ```
-
-- **✅ Centralize focus management**
-  ```typescript
-  // Focus manager for modals and dialogs
-  const focusManager = {
-    previousFocus: null,
+  class ErrorBoundary {
+    state = $state<ErrorBoundaryState>({ error: null, errorInfo: null });
     
-    captureFocus(element) {
-      this.previousFocus = document.activeElement;
-      element.focus();
-    },
-    
-    returnFocus() {
-      if (this.previousFocus && typeof this.previousFocus.focus === 'function') {
-        this.previousFocus.focus();
-      }
+    static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+      return { error };
     }
-  };
-  
-  // Using in component
-  onMount(() => {
-    focusManager.captureFocus(dialogElement);
-  });
-  
-  onDestroy(() => {
-    focusManager.returnFocus();
-  });
-  ```
-
-- **✅ Implement progressive enhancement for component loading**
-  ```svelte
-  <script>
-    // State to track component loading
-    let componentsLoaded = {
-      core: false,
-      features: false,
-      settings: false
-    };
     
-    onMount(() => {
-      // Load core immediately
-      componentsLoaded.core = true;
-      
-      // Defer loading features
-      setTimeout(() => {
-        componentsLoaded.features = true;
-      }, 100);
-      
-      // Defer loading settings
-      setTimeout(() => {
-        componentsLoaded.settings = true;
-      }, 200);
-    });
-  </script>
-  
-  <!-- Show core UI immediately -->
-  {#if componentsLoaded.core}
-    <CoreInterface />
-  {:else}
-    <LoadingPlaceholder />
-  {/if}
-  
-  <!-- Progressively load other components -->
-  {#if componentsLoaded.features}
-    <FeatureSelector />
-  {/if}
+    componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
+      console.error('Error caught by boundary:', error, errorInfo);
+      this.state.errorInfo = errorInfo;
+    }
+    
+    reset() {
+      this.state = { error: null, errorInfo: null };
+    }
+  }
   ```
 
 ### DON'T:
 - **❌ Mix form validation with UI state**
-  ```typescript
-  // BAD: Mixing validation and UI state
-  function validateForm() {
-    if (!nameInput.value) {
-      nameInput.classList.add('error');
-      errorMessage.textContent = 'Name is required';
-      return false;
-    }
-    // More validation...
-  }
-  
-  // GOOD: Separate validation from UI
-  function validateForm() {
-    const errors = {};
-    
-    if (!nameInput.value) {
-      errors.name = 'Name is required';
-    }
-    // More validation...
-    
-    return { valid: Object.keys(errors).length === 0, errors };
-  }
-  
-  // Then update UI separately
-  function updateUIWithValidation(validationResult) {
-    if (validationResult.errors.name) {
-      nameInput.classList.add('error');
-      nameErrorMessage.textContent = validationResult.errors.name;
-    }
-  }
-  ```
-
 - **❌ Create deep component hierarchies with prop drilling**
-  ```svelte
-  <!-- BAD: Deep prop drilling -->
-  <App {settings} {user} {theme} {preferences} />
-    <Dashboard {settings} {user} {theme} />
-      <Panel {settings} {theme} />
-        <Widget {theme} />
-  
-  <!-- GOOD: Use context or stores -->
-  <App>
-    <Dashboard />
-      <Panel />
-        <Widget />
-  </App>
-  
-  <!-- In Widget.svelte -->
-  <script>
-    import { getContext } from 'svelte';
-    const theme = getContext('theme');
-  </script>
-  ```
-
-- **❌ Overuse of modals and popups without proper management**
-  ```typescript
-  // BAD: Creating modals ad-hoc without management
-  function showErrorModal() {
-    // Create without tracking
-    const modal = document.createElement('div');
-    modal.innerHTML = '<div class="modal">Error occurred!</div>';
-    document.body.appendChild(modal);
-  }
-  
-  // GOOD: Use a modal manager
-  function showErrorModal() {
-    modalManager.show('error', {
-      message: 'Error occurred!',
-      onClose: () => {
-        // Handle cleanup
-      }
-    });
-  }
-  ```
-
+- **❌ Overuse modals without proper management**
 - **❌ Directly manipulate DOM in response to prop changes**
-  ```typescript
-  // BAD: Direct DOM manipulation in response to prop
-  $: if (isVisible) {
-    // Direct DOM manipulation
-    element.classList.add('visible');
-  } else {
-    element.classList.remove('visible');
-  }
-  
-  // GOOD: Use Svelte binding
-  <div class:visible={isVisible}>Content</div>
-  ```
 
 ## 7. Understanding Prop Reactivity Patterns
 
-This section completes the best practices guide by addressing the critical issue of prop reactivity patterns in Svelte - a unique aspect of the framework that differs significantly from React or Vue and can lead to subtle bugs if not properly understood and handled.
-
-### Background: Svelte's Prop Reactivity Model
-
-Svelte intentionally doesn't automatically watch props for changes after initial component creation. This design choice:
-- Optimizes performance by avoiding unnecessary watchers
-- Creates a predictable reactivity model based on assignments
-- Enables more efficient compile-time optimizations
-- Reduces runtime overhead compared to frameworks with dirty-checking
-
-This can create reactivity blindspots where child components don't update when parent data changes.
-
 ### DO:
-- **✅ Use {#key} directive to force component recreation for critical UI elements**
-  ```svelte
-  <!-- Force recreation when value or related dependencies change -->
-  {#key `${value}-${dependencyA}-${dependencyB}`}
-    <ChildComponent {value} />
-  {/key}
+- **✅ Use explicit reactivity contracts**
+  ```typescript
+  // Svelte 4 - Make reactivity explicit
+  interface ReactiveProps {
+    value: number;
+    onChange?: (value: number) => void;
+    // Explicit reactive binding
+    bindTo?: { subscribe: Readable<number>['subscribe'] };
+  }
+  
+  // Svelte 5 - Props are reactive by default
+  interface Props {
+    value: number;
+    onChange?: (value: number) => void;
+  }
+  
+  let { value, onChange }: Props = $props();
   ```
 
-- **✅ Implement direct store subscriptions for shared state**
+- **✅ Handle prop updates appropriately per version**
   ```svelte
+  <!-- Svelte 4: Props don't auto-update deeply -->
   <script>
-    // In child component
-    export let storeBinding = null; // {groupId, optionId}
-    export let value;
+    export let config;
     
-    // Internal state that stays updated
-    let internalValue = value;
-    let unsubscribe;
+    // Won't update when parent's config.theme changes
+    $: theme = config.theme;
     
-    onMount(() => {
-      // Subscribe directly to store if binding provided
-      if (storeBinding?.groupId && storeBinding?.optionId) {
-        const optionStore = featureGroupStore.createOptionSubscription(
-          storeBinding.groupId, storeBinding.optionId
-        );
-        
-        unsubscribe = optionStore.subscribe(newValue => {
-          if (newValue !== undefined && newValue !== internalValue) {
-            internalValue = newValue; // Local state stays updated
-          }
-        });
-      }
-    });
-    
-    onDestroy(() => {
-      if (unsubscribe) unsubscribe();
-    });
-    
-    // Make display values reactive to BOTH props and internal state
-    $: displayValue = internalValue ?? value;
+    // Solution: Use key block
+  </script>
+  
+  <!-- Svelte 5: Props are reactive -->
+  <script>
+    let { config } = $props();
+    // Automatically updates!
+    $: theme = config.theme;
   </script>
   ```
 
-- **✅ Use combined approach for complex dependency scenarios**
-  ```svelte
-  <!-- Parent component -->
-  {#if optionId === 'provider'}
-    <!-- Special case with complex dependencies -->
-    {#key `provider-${storeValue}-${dependentStyleValue}`}
-      <Dropdown
-        value={storeValue}
-        storeBinding={{ groupId, optionId }}
-        options={availableOptions}
-      />
-    {/key}
-  {:else}
-    <!-- Standard case with store binding -->
-    <Dropdown
-      value={storeValue}
-      storeBinding={{ groupId, optionId }}
-      options={availableOptions}
-    />
-  {/if}
-  ```
-
-- **✅ Choose approach based on update frequency and complexity**
-  ```typescript
-  // Decision guide for component updates
-  function chooseUpdateStrategy(component) {
-    if (component.updateFrequency === 'high') {
-      // High-frequency changes: Avoid recreation, use store subscription
-      return 'store-subscription';
-    } else if (component.hasDependencies) {
-      // Complex dependencies: Combined approach
-      return 'combined';
-    } else if (component.needsReset) {
-      // Component needs clean slate: Key directive
-      return 'key-directive';
-    } else {
-      // Default case: Simple props
-      return 'standard-props';
-    }
-  }
-  ```
-
 ### DON'T:
-- **❌ Assume props will automatically update like in React or Vue**
-  ```svelte
-  <!-- BAD: Assuming child will update when myProp changes -->
-  <ChildComponent myProp={dynamicValue} />
-  
-  <!-- GOOD: Force update with key directive if needed -->
-  {#key dynamicValue}
-    <ChildComponent myProp={dynamicValue} />
-  {/key}
-  ```
-
+- **❌ Assume props automatically update in Svelte 4**
 - **❌ Overuse key directives without performance consideration**
-  ```svelte
-  <!-- BAD: Unnecessary recreation for every iteration -->
-  {#each items as item}
-    {#key item.id}
-      <ItemComponent {item} />
-    {/key}
-  {/each}
-  
-  <!-- GOOD: Only use key when truly needed -->
-  {#each items as item (item.id)}
-    <ItemComponent {item} />
-  {/each}
-  ```
-
-- **❌ Mix prop updates and store updates without coordination**
-  ```typescript
-  // BAD: Uncoordinated updates from multiple sources
-  function updateComponent() {
-    // Direct prop update
-    component.prop = newValue;
-    
-    // Simultaneous store update that affects same component
-    store.update(state => ({
-      ...state,
-      value: newValue
-    }));
-  }
-  
-  // GOOD: Coordinated update through single source
-  function updateComponent() {
-    // Update store only, component reads from store
-    store.update(state => ({
-      ...state,
-      value: newValue
-    }));
-  }
-  ```
-
 - **❌ Create component update cycles with bidirectional bindings**
-  ```svelte
-  <!-- BAD: Creating update cycles -->
-  <ParentComponent bind:value={parentValue}>
-    <ChildComponent bind:value={parentValue} />
-  </ParentComponent>
-  
-  <!-- GOOD: Unidirectional flow -->
-  <ParentComponent {value} on:change={e => parentValue = e.detail}>
-    <ChildComponent {value} on:change />
-  </ParentComponent>
-  ```
-
-### Performance Implications:
-
-**Component Recreation (Key Directive)**
-- **Pros**: Guarantees fresh state, simpler mental model
-- **Cons**: More expensive, potential flickering, loses component state
-
-**Store Subscriptions**
-- **Pros**: More efficient for frequently changing values, maintains component state
-- **Cons**: More complex implementation, potential memory leaks if not cleaned up
-
-**Combined Approach**
-- **Pros**: Handles complex dependencies, more reliable updates
-- **Cons**: Highest implementation complexity, requires careful coordination
 
 ## 8. Architecture Design Principles
-
-This section outlines architectural best practices for Svelte applications based on lessons learned from complex feature implementation experiences. These principles focus on organizing your application for maintainability, predictability, and performance.
 
 ### State Management Architecture
 
 #### DO:
-- **✅ Centralize shared state, decentralize UI state**
+- **✅ Design type-safe stores with clear interfaces**
+  ```typescript
+  // Svelte 4 - Type-safe store factory
+  interface StoreFactory {
+    <T>(initial: T, validator?: (value: T) => boolean): Writable<T> & {
+      reset(): void;
+      validate(): boolean;
+    };
+  }
   
-  Maintain a clear separation between global application state and component-specific UI state. Only state that needs to be shared across components or persisted should be in stores. Local component state should remain local.
+  // Svelte 5 - Class-based state with built-in reactivity
+  class DomainStore<T> {
+    private _value = $state<T>();
+    private _history = $state<T[]>([]);
+    
+    get value() { return this._value; }
+    set value(v: T) {
+      this._history.push(this._value);
+      this._value = v;
+    }
+    
+    undo() {
+      const prev = this._history.pop();
+      if (prev !== undefined) this._value = prev;
+    }
+  }
+  ```
 
-- **✅ Design stores around domain concepts, not components**
-  
-  Organize stores based on logical domains of your application (users, settings, features) rather than mirroring your component structure. This creates a more intuitive mental model and prevents tight coupling between your UI and state management.
-
-- **✅ Establish clear data ownership boundaries**
-  
-  Every piece of state should have exactly one owner (either a store or a component). Avoid duplicating state across multiple components or stores, which leads to synchronization issues and bugs.
-
-- **✅ Implement intelligent derivation over redundant state**
-  
-  When data needs to be transformed or filtered, use derived stores rather than creating new state. This ensures that derived data stays in sync with its source without manual management.
-
-#### DON'T:
-- **❌ Create hybrid state management approaches**
-  
-  Don't mix different state management patterns inconsistently. Choose either component props, context, or stores for a given type of state and be consistent. Hybrid approaches lead to unpredictable behavior.
-
-- **❌ Store UI-only state in global stores**
-  
-  Modal visibility, form input values, and hover states rarely need to be globally accessible. Keep this state local to components unless explicitly needed elsewhere.
-
-- **❌ Create circular state dependencies**
-  
-  Avoid situations where Store A depends on Store B which depends on Store A. These circular dependencies create difficult-to-debug update cycles and race conditions.
+- **✅ Implement proper state machines**
+  ```typescript
+  // Type-safe state machine pattern
+  type State = 'idle' | 'loading' | 'success' | 'error';
+  type Event = 
+    | { type: 'FETCH' }
+    | { type: 'SUCCESS'; data: unknown }
+    | { type: 'ERROR'; error: Error };
+    
+  class StateMachine {
+    state = $state<State>('idle');
+    
+    transition(event: Event) {
+      switch (this.state) {
+        case 'idle':
+          if (event.type === 'FETCH') this.state = 'loading';
+          break;
+        case 'loading':
+          if (event.type === 'SUCCESS') this.state = 'success';
+          if (event.type === 'ERROR') this.state = 'error';
+          break;
+      }
+    }
+  }
+  ```
 
 ### Component Organization
 
 #### DO:
-- **✅ Create clear component responsibility layers**
+- **✅ Create clear component contracts with TypeScript**
+  ```typescript
+  // Svelte 5 - Comprehensive component interface
+  interface ComponentProps {
+    // Required props
+    id: string;
+    value: number;
+    
+    // Optional with defaults
+    label?: string;
+    disabled?: boolean;
+    
+    // Callbacks
+    onChange?: (value: number) => void;
+    onFocus?: (event: FocusEvent) => void;
+    
+    // Slots
+    children?: Snippet;
+    header?: Snippet<[{ title: string }]>;
+  }
   
-  Design your components with distinct responsibilities: container components manage state and logic, presentation components handle rendering and events, and utility components provide reusable functionality.
+  // Usage in component
+  let {
+    id,
+    value,
+    label = 'Default Label',
+    disabled = false,
+    onChange,
+    onFocus,
+    children,
+    header
+  }: ComponentProps = $props();
+  ```
 
-- **✅ Design components as independent units with explicit contracts**
+## 9. Reactivity Boundaries and Edge Cases
+
+### Understanding Reactivity Boundaries
+
+**Definition**: A reactivity boundary is the scope within which Svelte tracks and responds to state changes. Understanding these boundaries is crucial for predictable behavior.
+
+### Compile-Time vs Runtime Boundaries (Svelte 4 vs 5)
+
+```typescript
+// Svelte 4 - Compile-time boundaries
+function createCounter() {
+  let count = 0; // Not reactive outside component!
+  return {
+    increment: () => count++,
+    get value() { return count; }
+  };
+}
+
+// Svelte 5 - Runtime boundaries with runes
+function createCounter() {
+  let count = $state(0); // Reactive anywhere!
+  return {
+    increment: () => count++,
+    get value() { return count; }
+  };
+}
+```
+
+### Module vs Instance Boundaries
+
+```svelte
+<script context="module">
+  // Svelte 4 & 5 - Module context
+  // Shared across ALL component instances
+  // NOT reactive - runs once at module load
+  let sharedState = 0; // Changes won't trigger updates
   
-  Components should clearly define their API through props, events, and slots. A component should be understandable and usable without needing to know its internal implementation.
+  // Svelte 5 - Can use $state.frozen for shared immutable
+  const sharedConfig = $state.frozen({
+    apiUrl: 'https://api.example.com'
+  });
+</script>
 
-- **✅ Favor composition over inheritance or extension**
+<script>
+  // Instance context - reactive
+  let instanceState = 0; // Svelte 4
+  let instanceState = $state(0); // Svelte 5
+</script>
+```
+
+### Store Subscription Boundaries
+
+```typescript
+// Svelte 4 - Subscription boundary gotchas
+import { writable, get } from 'svelte/store';
+
+const store = writable(0);
+
+// ❌ Outside reactive context - won't update
+const value = get(store); 
+
+// ✅ Inside reactive context
+$: reactiveValue = $store;
+
+// ⚠️ Manual subscription - must clean up!
+const unsubscribe = store.subscribe(value => {
+  console.log(value);
+});
+onDestroy(unsubscribe);
+```
+
+### Component Lifecycle Boundaries
+
+```typescript
+// Lifecycle functions must be called during component initialization
+onMount(() => {
+  // ✅ Valid
+});
+
+// ❌ Invalid - conditional lifecycle
+if (condition) {
+  onMount(() => {}); // Error!
+}
+
+// ✅ Conditional logic inside lifecycle
+onMount(() => {
+  if (condition) {
+    // Do something
+  }
+});
+```
+
+### Async Operation Boundaries
+
+```typescript
+// Svelte 4 & 5 - Async reactivity boundaries
+let data = null;
+
+// ❌ Async in reactive statement creates issues
+$: loadData(id); // Returns promise, not data
+
+// ✅ Proper async handling
+$: if (id) {
+  loadData(id).then(result => {
+    data = result; // Trigger update after async
+  });
+}
+
+// Svelte 5 - Better with effects
+$effect(() => {
+  loadData(id).then(result => {
+    data = result;
+  });
+});
+```
+
+### Cross-Component Boundaries
+
+```typescript
+// Parent-Child boundary patterns
+
+// Svelte 4 - Props don't cross boundaries reactively
+// Parent
+let config = { theme: 'dark' };
+config.theme = 'light'; // Child won't see this change!
+
+// Solution: Reassign or use stores
+config = { ...config, theme: 'light' };
+
+// Svelte 5 - Props are reactive across boundaries
+let config = $state({ theme: 'dark' });
+config.theme = 'light'; // Child updates automatically!
+```
+
+### Event Handler Boundaries
+
+```typescript
+// Event handlers create closure boundaries
+let count = $state(0);
+
+function createHandler() {
+  // Captures current value of count
+  return () => {
+    console.log(count); // Always logs value at creation time
+  };
+}
+
+// Better: Access current value in handler
+function handleClick() {
+  console.log(count); // Always current value
+}
+```
+
+## 10. Svelte 5 Migration Patterns
+
+### Core Migration Strategies
+
+#### State Migration
+```typescript
+// Svelte 4
+let count = 0;
+let items = [];
+let user = { name: '', email: '' };
+
+// Svelte 5
+let count = $state(0);
+let items = $state<Item[]>([]);
+let user = $state({ name: '', email: '' });
+```
+
+#### Reactive Statements to Derivations
+```typescript
+// Svelte 4
+$: doubled = count * 2;
+$: filtered = items.filter(item => item.active);
+$: fullName = `${user.firstName} ${user.lastName}`;
+
+// Svelte 5
+let doubled = $derived(count * 2);
+let filtered = $derived(items.filter(item => item.active));
+let fullName = $derived(`${user.firstName} ${user.lastName}`);
+```
+
+#### Side Effects Migration
+```typescript
+// Svelte 4
+$: if (count > 10) {
+  console.log('Count exceeded 10');
+  localStorage.setItem('highCount', count);
+}
+
+// Svelte 5
+$effect(() => {
+  if (count > 10) {
+    console.log('Count exceeded 10');
+    localStorage.setItem('highCount', count);
+  }
+});
+```
+
+#### Props Migration
+```typescript
+// Svelte 4
+export let value;
+export let optional = 'default';
+
+// Svelte 5
+let { value, optional = 'default' } = $props<{
+  value: string;
+  optional?: string;
+}>();
+```
+
+#### Store Migration Strategy
+```typescript
+// Gradual migration approach
+// Step 1: Keep stores for shared state
+import { userStore } from './stores';
+
+// Step 2: Create parallel rune-based state
+class UserState {
+  user = $state<User | null>(null);
+  loading = $state(false);
   
-  Build complex UIs by composing smaller, focused components rather than creating deeply nested component hierarchies or component extension patterns.
+  async login(credentials: Credentials) {
+    this.loading = true;
+    try {
+      this.user = await api.login(credentials);
+    } finally {
+      this.loading = false;
+    }
+  }
+}
 
-- **✅ Implement feature-based organization for large applications**
+// Step 3: Gradually migrate components
+// Can use both patterns during migration
+```
+
+### Advanced Migration Patterns
+
+#### Custom Store to Rune Pattern
+```typescript
+// Svelte 4 custom store
+function createCounter() {
+  const { subscribe, set, update } = writable(0);
   
-  Group related components by feature or domain rather than by component type. This improves discoverability and helps maintain logical boundaries.
+  return {
+    subscribe,
+    increment: () => update(n => n + 1),
+    reset: () => set(0)
+  };
+}
 
-#### DON'T:
-- **❌ Create monolithic components with multiple responsibilities**
+// Svelte 5 equivalent
+class Counter {
+  value = $state(0);
   
-  Avoid components that manage state, handle business logic, perform validation, and render complex UI. These become difficult to test, reuse, and maintain.
-
-- **❌ Allow components to access parent or sibling state directly**
+  increment() {
+    this.value++;
+  }
   
-  Components should not reach outside their boundaries to access or modify state. Use props, events, and stores for communication instead.
+  reset() {
+    this.value = 0;
+  }
+}
+```
 
-- **❌ Design components with hidden external dependencies**
-  
-  A component that silently expects certain context providers or store structures to exist is brittle. Make all dependencies explicit.
+#### Context Migration
+```typescript
+// Svelte 4
+import { setContext, getContext } from 'svelte';
 
-### Communication Patterns
+// Parent
+setContext('user', userData);
 
-#### DO:
-- **✅ Establish unidirectional data flow throughout your application**
-  
-  Data should flow down through props and events should flow up. This creates a predictable mental model that makes the application easier to reason about.
+// Child
+const user = getContext('user');
 
-- **✅ Separate reading from writing in your API design**
-  
-  Split your interfaces into read operations (getting values) and write operations (updating values). This clarifies intent and prevents accidental modifications.
+// Svelte 5 - Same API, but can use with runes
+// Parent
+const userState = new UserState();
+setContext('user', userState);
 
-- **✅ Design communication based on component purpose, not proximity**
-  
-  Choose communication patterns based on what components need to accomplish, not just how they're positioned in the tree. Sometimes distant components need direct communication paths.
+// Child
+const userState = getContext<UserState>('user');
+// Now userState.user is reactive!
+```
 
-- **✅ Create explicit coordination points for complex interactions**
-  
-  When multiple components need to interact in complex ways, create a dedicated coordination layer (manager, controller, or specialized store) rather than direct component-to-component communication.
+### Performance Considerations
 
-#### DON'T:
-- **❌ Create bidirectional update loops**
-  
-  Avoid situations where Component A updates Component B which then updates Component A. These create infinite loops and unpredictable state.
+#### When to Migrate
 
-- **❌ Mix different communication paradigms without clear boundaries**
-  
-  Don't mix message passing, event dispatch, and direct method calls inconsistently. Create clear boundaries where different paradigms are used.
+**Migrate to Svelte 5 when:**
+- You need deep reactivity without boilerplate
+- Working with complex nested state
+- Building new features from scratch
+- Performance isn't ultra-critical (games, animations)
 
-- **❌ Rely on implicit communication through DOM structure**
-  
-  Don't use parent-child DOM relationships to create implicit communication paths. Make all communication explicit through props, events, or stores.
+**Stay with Svelte 4 when:**
+- Application is stable and working well
+- You have extensive test coverage for current behavior
+- Performance is absolutely critical
+- Team needs time to learn new patterns
 
-### Application Structure Recommendations
+#### Hybrid Approach
+```typescript
+// You can use both patterns during migration
+// Svelte 4 stores for shared state
+import { userStore } from './stores';
 
-#### DO:
-- **✅ Create explicit initialization sequences**
-  
-  Define clear application startup processes that handle asynchronous data loading, authentication, and configuration in a coordinated way.
+// Svelte 5 runes for new component state
+let localState = $state({ 
+  isEditing: false,
+  tempValue: ''
+});
 
-- **✅ Separate domain logic from UI components**
-  
-  Extract business logic, validation, and transformation into separate service modules that components can import and use.
+// They can work together
+$: currentUser = $userStore;
+$effect(() => {
+  if (currentUser) {
+    localState.tempValue = currentUser.name;
+  }
+});
+```
 
-- **✅ Design for progressive enhancement and selective loading**
-  
-  Structure your application to load and initialize in phases, delivering core functionality quickly and enhancing progressively.
+## Conclusion
 
-- **✅ Implement comprehensive error boundaries**
-  
-  Design your architecture with explicit error handling at key boundaries. Components should fail gracefully without crashing the entire application.
+This guide represents battle-tested patterns for building robust Svelte applications. Key takeaways:
 
-#### DON'T:
-- **❌ Create deep component hierarchies with fragile dependencies**
-  
-  Avoid deep nesting of components where changes to a parent component can easily break children deep in the tree.
+1. **Understand reactivity boundaries** - Know what Svelte can and cannot track
+2. **Choose the right pattern for your Svelte version** - Svelte 4 and 5 have different strengths
+3. **Prioritize explicit over implicit** - Clear data flow prevents bugs
+4. **Design for maintainability** - Consistent patterns trump clever optimizations
+5. **Measure before optimizing** - Not all performance optimizations are necessary
 
-- **❌ Assume synchronous initialization across the application**
-  
-  Don't design your application with the assumption that all data will be available at once. Handle asynchronous loading and partial state explicitly.
-
-- **❌ Allow cross-cutting concerns to spread throughout components**
-  
-  Concerns like logging, analytics, permissions, and error handling should be abstracted into services rather than duplicated across components.
-
-### Lessons from Real-World Application Development
-
-Our experience developing complex feature systems yielded several key insights:
-
-1. **Simplicity Trumps Cleverness**
-   
-   When we replaced our three-tiered reactivity strategy with a single consistent approach, bugs decreased and maintainability improved. Prefer straightforward solutions over complex ones, even if they seem less elegant.
-
-2. **State Centralization Requires Discipline**
-   
-   While centralizing shared state is beneficial, it requires clear rules about what belongs in stores versus component state. Without these boundaries, stores become bloated and components lose autonomy.
-
-3. **Reactivity Boundary Clarity Is Essential**
-   
-   Every component and store should have clearly defined reactivity boundaries: what triggers updates, which values are derived, and how changes propagate. Without this clarity, changes cause unpredictable cascading updates.
-
-4. **UI-Domain Separation Improves Flexibility**
-   
-   When we separated our domain logic (option relationships, validation) from UI components, both became simpler and more reusable. Domain rules belonged in stores or services, UI rendering in components.
-
-5. **Consistent Patterns Enable Collaboration**
-   
-   Teams benefit from consistent architectural patterns more than perfectly optimized ones. When developers can make reliable assumptions about how components communicate and state flows, productivity increases dramatically.
-
-By applying these architectural principles, you can create Svelte applications that are more maintainable, predictable, and resilient to change.

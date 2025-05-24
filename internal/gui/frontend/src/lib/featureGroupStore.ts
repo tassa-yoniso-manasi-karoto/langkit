@@ -496,8 +496,7 @@ function createFeatureGroupStore() {
             // Get the group this option belongs to
             const groupId = this.getGroupForOption(optionId);
             if (!groupId) {
-                logger.warn('store/featureGroupStore', `Option ${optionId} is not registered with any group`);
-                return true; // Default to showing if not registered
+                return true;
             }
             
             // Check if this feature is the topmost in the option's group
