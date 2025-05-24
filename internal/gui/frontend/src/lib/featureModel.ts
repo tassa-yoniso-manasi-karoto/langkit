@@ -101,7 +101,7 @@ export const features: FeatureDefinition[] = [
         options: {
             enableSummary: {
                 type: 'boolean',
-                label: 'Generate Summary',
+                label: 'Generate Summary with LLM',
                 default: false,
                 hovertip: "Generate a summary of the media content and embed it in the audio metadata as lyrics."
             },
@@ -130,7 +130,7 @@ export const features: FeatureDefinition[] = [
             },
             summaryTemperature: {
                 type: 'number',
-                label: 'Summary Temperature (0.0 - 2.0)',
+                label: 'Summary Temperature',
                 default: 0.7,
                 min: 0.0,
                 max: 2.0,
@@ -140,15 +140,12 @@ export const features: FeatureDefinition[] = [
             },
             summaryCustomPrompt: {
                 type: 'string',
-                label: 'Custom Summary Prompt (Optional)',
+                label: 'Override(!!) Default Prompt',
                 default: '',
                 showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
-                hovertip: "If provided, this prompt will be used directly. The subtitle content will be appended. The backend will not automatically add instructions for output language or input language hints if a custom prompt is used; include these in your custom prompt if needed.",
-                placeholder: "e.g. Create a concise summary of the following media content, focusing on key plot points and main themes."
+                hovertip: "IF PROVIDED, your custom prompt will be used directly with the subtitle content appended after your custom prompt.\n\nLangkit will not automatically add instructions for output language or input language hints if a custom prompt is used; include these in your custom prompt if needed.\n\nUse this option at your own risk!",
             }
-        },
-        dependentFeature: 'dubtitles',
-        dependencyMessage: "Dubtitles will be used as a source for condensed audio when both features are enabled"
+        }
     },
     {
         id: 'dubtitles',

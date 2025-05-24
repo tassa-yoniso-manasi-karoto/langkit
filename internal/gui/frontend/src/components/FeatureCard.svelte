@@ -1063,7 +1063,29 @@
                                                 rows="3"
                                                 maxlength="850"
                                                 placeholder={optionDef.placeholder}
-                                                on:input={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
+                                                on:input={() =>
+                                                    dispatch('optionChange', {
+                                                        featureId: feature.id,
+                                                        optionId,
+                                                        value: options[optionId]
+                                                    })
+                                                }
+                                            />
+                                        {:else if optionId === 'summaryCustomPrompt'}
+                                            <textarea
+                                                bind:value={options[optionId]}
+                                                class="w-full bg-sky-dark/50 border-2 border-primary/30 rounded-md px-3 py-2 text-sm font-medium
+                                                    focus:border-primary focus:ring-2 focus:ring-primary/30 hover:border-primary/50 focus:outline-none
+                                                    transition-all duration-200 placeholder:text-gray-500"
+                                                rows="3"
+                                                placeholder={optionDef.placeholder}
+                                                on:input={() =>
+                                                    dispatch('optionChange', {
+                                                        featureId: feature.id,
+                                                        optionId,
+                                                        value: options[optionId]
+                                                    })
+                                                }
                                             />
                                         {:else}
                                             <TextInput

@@ -19,15 +19,13 @@ SVG animations: rework state transitions
 
 .
 
-- remove assemblyAI
-.
-
 - guarantee all settings in Settings panel work
   - implement intermediary file mode
 
 .
 - welcome.svelte component w/ checks for binary needed
 
+.
 - add strategic frontend logging for prod
 .
 
