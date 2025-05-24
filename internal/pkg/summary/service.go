@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -67,9 +68,28 @@ func (s *Service) ListProviders() []Provider {
 	defer s.mu.RUnlock()
 	
 	providersList := make([]Provider, 0, len(s.providers))
-	for _, provider := range s.providers {
+	
+	// First, add openrouter-free if it exists (prioritize free option)
+	if provider, exists := s.providers["openrouter-free"]; exists {
 		providersList = append(providersList, provider)
 	}
+	
+	// Then add all other providers in alphabetical order for consistency
+	var otherProviders []string
+	for name := range s.providers {
+		if name != "openrouter-free" {
+			otherProviders = append(otherProviders, name)
+		}
+	}
+	
+	// Sort the other providers alphabetically
+	sort.Strings(otherProviders)
+	
+	// Add the sorted providers
+	for _, name := range otherProviders {
+		providersList = append(providersList, s.providers[name])
+	}
+	
 	return providersList
 }
 

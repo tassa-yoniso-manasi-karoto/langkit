@@ -1289,11 +1289,47 @@
             // Update initialization flag (include 'updating' state)
             isLLMInitializing = !state || state.globalState === 'initializing' || state.globalState === 'uninitialized' || state.globalState === 'updating';
             
-            // When LLM system becomes ready, fetch providers
+            // When LLM system becomes ready, fetch providers and prefetch all models
             if (state?.globalState === 'ready' && !currentSummaryProviders.available) {
                 logger.debug('featureSelector', 'LLM system ready, fetching providers');
-                fetchSummaryProviders().then((providers) => {
+                fetchSummaryProviders().then(async (providers) => {
                     logger.debug('featureSelector', `Providers fetched: ${providers.names.length} available`);
+                    
+                    // Prefetch models for ALL providers to avoid delays when user selects
+                    if (providers.available && providers.names.length > 0) {
+                        logger.debug('featureSelector', 'Prefetching models for all providers...');
+                        
+                        // Fetch models for all providers in parallel
+                        const modelFetchPromises = providers.names.map(providerName => {
+                            logger.debug('featureSelector', `Prefetching models for provider: ${providerName}`);
+                            return fetchSummaryModels(providerName).catch(error => {
+                                logger.error('featureSelector', `Failed to prefetch models for ${providerName}:`, error);
+                                return null;
+                            });
+                        });
+                        
+                        await Promise.all(modelFetchPromises);
+                        logger.debug('featureSelector', 'All provider models prefetched');
+                    }
+                    
+                    // Set default provider selection to the suggested one (now prioritizes openrouter-free)
+                    if (providers.suggested && currentFeatureOptions?.condensedAudio) {
+                        currentFeatureOptions.condensedAudio.summaryProvider = providers.suggested;
+                        logger.debug('featureSelector', `Set default provider to: ${providers.suggested}`);
+                        
+                        // Also set the default model for the suggested provider if available
+                        if (providerModelsMap[providers.suggested] && providerModelsMap[providers.suggested].length > 0) {
+                            currentFeatureOptions.condensedAudio.summaryModel = providerModelsMap[providers.suggested][0];
+                            logger.debug('featureSelector', `Set default model to: ${currentFeatureOptions.condensedAudio.summaryModel}`);
+                            
+                            // Update the model dropdown choices
+                            const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
+                            if (condensedAudioFeature && condensedAudioFeature.options.summaryModel) {
+                                condensedAudioFeature.options.summaryModel.choices = [...providerModelsMap[providers.suggested]];
+                            }
+                        }
+                    }
+                    
                     // Force reactivity update to refresh dropdowns
                     currentFeatureOptions = {...currentFeatureOptions};
                     // Also refresh the reactive features array

@@ -545,15 +545,16 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 	response["providers"] = providersList
 	response["names"] = namesList
 	
-	// Set suggested provider (OpenAI is a good default if available)
+	// Set suggested provider - prioritize openrouter-free only
+	// First check for openrouter-free
 	for _, name := range namesList {
-		if name == "openai" {
-			response["suggested"] = "openai"
+		if name == "openrouter-free" {
+			response["suggested"] = "openrouter-free"
 			break
 		}
 	}
 	
-	// If no suggested provider yet and there's at least one available, use the first one
+	// If no openrouter-free and there's at least one available, use the first one
 	if response["suggested"] == "" && len(namesList) > 0 {
 		response["suggested"] = namesList[0]
 	}
