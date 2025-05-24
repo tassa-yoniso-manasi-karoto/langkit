@@ -180,10 +180,6 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 
 	r.mu.Lock()
 	r.logger.Trace().Msg("performFullInitialization: Acquired main mutex for final client setup and global state.")
-	defer func() {
-		r.mu.Unlock()
-		r.logger.Trace().Msg("performFullInitialization: Released main mutex after final client setup and global state.")
-	}()
 
 	readyProvidersCount := 0
 	var actualRegisteredProviders []string
@@ -270,6 +266,11 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 		r.logger.Info().Msg("performFullInitialization: No LLM providers configured. Registry initialization phase complete (effectively Ready but empty).")
 	}
 
+	// Release mutex before notifications to prevent deadlock
+	r.mu.Unlock()
+	r.logger.Trace().Msg("performFullInitialization: Released main mutex after final client setup and global state.")
+
+	// Now safe to call functions that need to acquire locks
 	r.notifyStateChange("All provider initialization attempts complete.", "")
 	r.signalReady()
 	r.logger.Trace().Msg("performFullInitialization: Finished.")
@@ -346,9 +347,13 @@ func (r *Registry) updateProviderState(providerName, status string, err error, m
 	r.mu.Lock()
 	r.logger.Trace().Str("provider", providerName).Str("new_status", status).Msg("updateProviderState: Acquired mutex.")
 
+	errorStr := ""
+	if err != nil {
+		errorStr = err.Error()
+	}
 	state := ProviderState{
 		Status:      status,
-		Error:       err,
+		Error:       errorStr,
 		LastUpdated: time.Now(),
 		Models:      models,
 	}

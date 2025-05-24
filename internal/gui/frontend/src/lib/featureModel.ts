@@ -110,14 +110,14 @@ export const features: FeatureDefinition[] = [
                 label: 'Summary Provider',
                 default: '',
                 choices: [],  // Dynamically populated
-                showCondition: "feature.condensedAudio.enableSummary === true"
+                showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true"
             },
             summaryModel: {
                 type: 'dropdown',
                 label: 'Summary Model',
                 default: '',
                 choices: [],  // Dynamically populated
-                showCondition: "feature.condensedAudio.enableSummary === true"
+                showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true"
             },
             summaryMaxLength: {
                 type: 'number',
@@ -125,7 +125,7 @@ export const features: FeatureDefinition[] = [
                 default: -1,
                 min: -1,
                 max: 1000,
-                showCondition: "feature.condensedAudio.enableSummary === true",
+                showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
                 hovertip: "Set to -1 to let the LLM decide the length."
             },
             summaryTemperature: {
@@ -135,14 +135,14 @@ export const features: FeatureDefinition[] = [
                 min: 0.0,
                 max: 2.0,
                 step: "0.1",
-                showCondition: "feature.condensedAudio.enableSummary === true",
+                showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
                 hovertip: "Controls randomness of the output. Higher values make output more random, lower values make it more deterministic."
             },
             summaryCustomPrompt: {
                 type: 'string',
                 label: 'Custom Summary Prompt (Optional)',
                 default: '',
-                showCondition: "feature.condensedAudio.enableSummary === true",
+                showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
                 hovertip: "If provided, this prompt will be used directly. The subtitle content will be appended. The backend will not automatically add instructions for output language or input language hints if a custom prompt is used; include these in your custom prompt if needed.",
                 placeholder: "e.g. Create a concise summary of the following media content, focusing on key plot points and main themes."
             }

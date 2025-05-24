@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings } from '../lib/stores';
+    import { settings, llmStateStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
@@ -39,6 +39,12 @@
     let currentSettings;
     const unsubscribeSettings = settings.subscribe(value => {
         currentSettings = value;
+    });
+    
+    // Store current LLM state
+    let currentLLMState;
+    const unsubscribeLLMState = llmStateStore.subscribe(value => {
+        currentLLMState = value;
     });
     
     // Show when in dev mode or developer mode is enabled
@@ -119,11 +125,32 @@
         activeTab = id;
     }
     
+    // LLM state control functions
+    function forceLLMState(state: 'initializing' | 'ready' | 'error' | 'updating') {
+        const mockStateChange = {
+            timestamp: new Date().toISOString(),
+            globalState: state,
+            providerStatesSnapshot: {},
+            message: state === 'error' ? 'Debug: Forced error state' : `Debug: Forced ${state} state`
+        };
+        
+        llmStateStore.set(mockStateChange);
+        logger.debug('devDashboard', `Forced LLM state to: ${state}`);
+    }
+    
+    function resetLLMState() {
+        // Clear any debug forced state by setting a null/empty state
+        // The WebSocket will then update with the real state
+        llmStateStore.set(null);
+        logger.debug('devDashboard', 'Reset LLM state to real backend state');
+    }
+    
     // Clean up event listeners on destroy
     onDestroy(() => {
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
         unsubscribeSettings();
+        unsubscribeLLMState();
     });
     
     // Keep dashboard in viewport when window is resized
@@ -338,6 +365,54 @@
                                 </div>
                             </div>
 
+                            <!-- LLM State Control section -->
+                            <div class="control-section mb-4">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">LLM State Control</h5>
+                                <div class="text-xs text-gray-400 mb-2">
+                                    Current state: <span class="font-mono text-primary">{currentLLMState?.globalState || 'unknown'}</span>
+                                    {#if currentLLMState?.message?.startsWith('Debug: Forced')}
+                                        <span class="text-purple-400 ml-2">(debug mode)</span>
+                                    {:else if currentLLMState}
+                                        <span class="text-green-400 ml-2">(real state)</span>
+                                    {/if}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceLLMState('initializing')}
+                                    >
+                                        Force Initializing
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceLLMState('updating')}
+                                    >
+                                        Force Updating
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceLLMState('ready')}
+                                    >
+                                        Force Ready
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceLLMState('error')}
+                                    >
+                                        Force Error
+                                    </button>
+                                    <button
+                                        class="control-button reset-button"
+                                        on:click={() => resetLLMState()}
+                                    >
+                                        Reset to Real State
+                                    </button>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-2">
+                                    Note: These are client-side only for UI testing
+                                </div>
+                            </div>
+
                             <div class="debug-controls">
                                 <button class="debug-button">
                                     Reset All Settings
@@ -526,6 +601,17 @@
         background: hsla(215, 20%, 30%, 0.9);
         border-color: hsla(215, 30%, 50%, 0.4);
         box-shadow: 0 0 4px rgba(159, 110, 247, 0.3);
+    }
+    
+    .reset-button {
+        background: hsla(130, 20%, 20%, 0.9);
+        border-color: hsla(130, 30%, 40%, 0.4);
+    }
+    
+    .reset-button:hover {
+        background: hsla(130, 20%, 30%, 0.9);
+        border-color: hsla(130, 30%, 50%, 0.4);
+        box-shadow: 0 0 4px rgba(104, 231, 150, 0.3);
     }
 
     .control-section {

@@ -16,6 +16,7 @@ require (
 	github.com/failsafe-go/failsafe-go v0.6.9
 	github.com/google/go-cmp v0.7.0
 	github.com/gookit/color v1.5.4
+	github.com/gorilla/websocket v1.5.3
 	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/klauspost/compress v1.17.11
 	github.com/ncruces/zenity v0.10.14
@@ -134,7 +135,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

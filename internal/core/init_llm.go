@@ -9,9 +9,14 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// StateChangeNotifier is an interface for broadcasting LLM state changes
+type StateChangeNotifier interface {
+	BroadcastStateChange(change llms.StateChange)
+}
+
 // InitLLM initializes the LLM subsystem and related components
 // It sets up the Registry but doesn't block on initialization
-func InitLLM(handler MessageHandler, wailsContext context.Context) *llms.Registry {
+func InitLLM(handler MessageHandler, wailsContext context.Context, notifier StateChangeNotifier) *llms.Registry {
 	// No longer need the old initialization method as Registry handles everything
 	
 	// Load settings
@@ -23,15 +28,20 @@ func InitLLM(handler MessageHandler, wailsContext context.Context) *llms.Registr
 	
 	// Create and start the registry
 	notifierFunc := func(change llms.StateChange) {
-		// Emit Wails events with the state change
+		// Broadcast via WebSocket
+		if notifier != nil {
+			notifier.BroadcastStateChange(change)
+		}
+		
+		// Also emit Wails events for backward compatibility
 		if wailsContext != nil {
 			runtime.EventsEmit(wailsContext, "llm:statechange", change)
-			
-			handler.ZeroLog().Debug().
-				Str("global_state", change.GlobalState.String()).
-				Str("message", change.Message).
-				Msg("LLM state change emitted")
 		}
+		
+		handler.ZeroLog().Debug().
+			Str("global_state", change.GlobalState.String()).
+			Str("message", change.Message).
+			Msg("LLM state change emitted")
 	}
 	
 	registry := llms.NewRegistry(settings, *handler.ZeroLog(), notifierFunc)

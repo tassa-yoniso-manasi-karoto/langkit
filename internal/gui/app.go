@@ -29,6 +29,7 @@ type App struct {
 	throttler    *batch.AdaptiveEventThrottler
 	logger       *zerolog.Logger
 	llmRegistry  *llms.Registry  // LLM Registry for async provider management
+	wsServer     *WebSocketServer // WebSocket server for state updates
 }
 
 func NewApp() *App {
@@ -93,6 +94,14 @@ func (a *App) startup(ctx context.Context) {
 	handler = core.NewGUIHandler(ctx, a.throttler)
 	
 	a.logger.Debug().Msg("Event throttler initialized")
+	
+	// Create WebSocket server for LLM state updates
+	wsServer, err := NewWebSocketServer(*a.logger)
+	if err != nil {
+		a.logger.Fatal().Err(err).Msg("Failed to create WebSocket server")
+	}
+	a.wsServer = wsServer
+	a.logger.Info().Int("port", wsServer.GetPort()).Msg("WebSocket server created")
 }
 
 func (a *App) domReady(ctx context.Context) {
@@ -123,8 +132,8 @@ func (a *App) domReady(ctx context.Context) {
 		runtime.WindowMaximise(ctx)
 	}
 	
-	// Initialize LLM system with async registry
-	a.llmRegistry = core.InitLLM(handler, a.ctx)
+	// Initialize LLM system with async registry and WebSocket server
+	a.llmRegistry = core.InitLLM(handler, a.ctx, a.wsServer)
 	a.logger.Info().Msg("LLM registry initialized")
 	
 	a.logger.Info().Msg("Application initialization complete")
@@ -184,6 +193,14 @@ func (a *App) GetEventThrottlingStatus() map[string]interface{} {
 	}
 	
 	return a.throttler.GetStatus()
+}
+
+// GetWebSocketPort returns the port the WebSocket server is listening on
+func (a *App) GetWebSocketPort() (int, error) {
+	if a.wsServer == nil {
+		return 0, fmt.Errorf("WebSocket server not initialized")
+	}
+	return a.wsServer.GetPort(), nil
 }
 
 
@@ -387,8 +404,8 @@ func (a *App) GetInitialLLMState() (map[string]interface{}, error) {
 			"modelCount":   len(state.Models),
 		}
 		
-		if state.Error != nil {
-			providerState["error"] = state.Error.Error()
+		if state.Error != "" {
+			providerState["error"] = state.Error
 		}
 		
 		providerStates[name] = providerState
@@ -478,8 +495,8 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 		// Add status information from provider states if available
 		if providerState, exists := stateSnapshot.ProviderStatesSnapshot[providerName]; exists {
 			providerInfo["status"] = providerState.Status
-			if providerState.Status == "error" && providerState.Error != nil {
-				providerInfo["error"] = providerState.Error.Error()
+			if providerState.Status == "error" && providerState.Error != "" {
+				providerInfo["error"] = providerState.Error
 			}
 		}
 		
@@ -529,8 +546,8 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 		if providerState, exists := stateSnapshot.ProviderStatesSnapshot[providerName]; exists {
 			if providerState.Status == "error" {
 				errMsg := "Provider initialization failed"
-				if providerState.Error != nil {
-					errMsg = providerState.Error.Error()
+				if providerState.Error != "" {
+					errMsg = providerState.Error
 				}
 				
 				return map[string]interface{}{
@@ -660,6 +677,15 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 		a.llmRegistry = nil
 	}
 	
+	// Properly shut down the WebSocket server
+	if a.wsServer != nil {
+		a.logger.Info().Msg("Application closing, shutting down WebSocket server")
+		if err := a.wsServer.Shutdown(); err != nil {
+			a.logger.Error().Err(err).Msg("Failed to shutdown WebSocket server")
+		}
+		a.wsServer = nil
+	}
+	
 	// Properly shut down the throttler
 	if a.throttler != nil {
 		a.logger.Info().Msg("Application closing, shutting down throttler")
@@ -668,6 +694,81 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	}
 	
 	return false
+}
+
+// GenerateSummary generates a summary using the specified options
+func (a *App) GenerateSummary(text string, inputLanguage string, options map[string]interface{}) (string, error) {
+	a.logger.Debug().
+		Str("input_language", inputLanguage).
+		Int("text_length", len(text)).
+		Msg("Generating summary")
+
+	// First check if LLM registry is ready
+	if a.llmRegistry == nil {
+		return "", fmt.Errorf("LLM registry not initialized")
+	}
+
+	stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
+	if stateSnapshot.GlobalState != llms.GSReady {
+		return "", fmt.Errorf("LLM providers not ready (current state: %s)", stateSnapshot.GlobalState.String())
+	}
+
+	// Convert map options to typed struct
+	summaryOpts := summary.DefaultOptions()
+	
+	if provider, ok := options["provider"].(string); ok && provider != "" {
+		summaryOpts.Provider = provider
+	} else {
+		return "", fmt.Errorf("provider is required")
+	}
+	
+	if model, ok := options["model"].(string); ok && model != "" {
+		summaryOpts.Model = model
+	} else {
+		return "", fmt.Errorf("model is required")
+	}
+	
+	if outputLang, ok := options["outputLanguage"].(string); ok {
+		summaryOpts.OutputLanguage = outputLang
+	}
+	
+	if maxLength, ok := options["maxLength"].(float64); ok && maxLength > 0 {
+		summaryOpts.MaxLength = int(maxLength)
+	}
+	
+	if temperature, ok := options["temperature"].(float64); ok && temperature >= 0 {
+		summaryOpts.Temperature = temperature
+	}
+	
+	if customPrompt, ok := options["customPrompt"].(string); ok {
+		summaryOpts.CustomPrompt = customPrompt
+	}
+
+	// Generate the summary
+	summaryService := summary.GetDefaultService()
+	if summaryService == nil {
+		return "", fmt.Errorf("summary service not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	result, err := summaryService.GenerateSummary(ctx, text, inputLanguage, summaryOpts)
+	if err != nil {
+		a.logger.Error().Err(err).
+			Str("provider", summaryOpts.Provider).
+			Str("model", summaryOpts.Model).
+			Msg("Summary generation failed")
+		return "", fmt.Errorf("failed to generate summary: %w", err)
+	}
+
+	a.logger.Info().
+		Str("provider", summaryOpts.Provider).
+		Str("model", summaryOpts.Model).
+		Int("result_length", len(result)).
+		Msg("Summary generated successfully")
+
+	return result, nil
 }
 
 // shutdown is called at application termination

@@ -1,10 +1,11 @@
 <script lang="ts">
     import { get } from 'svelte/store';
     import { createEventDispatcher, onMount, onDestroy, tick, afterUpdate } from 'svelte';
+    import { fade } from 'svelte/transition';
     
     import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
-    import { showSettings } from '../lib/stores';
+    import { showSettings, llmStateStore, type LLMStateChange } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
     
@@ -79,9 +80,60 @@
     let currentSTTModels = { models: [], names: [], available: false, suggested: "" };
     let sttModelsUnsubscribe: () => void;
     
+    // LLM state tracking for summary options
+    let llmState: LLMStateChange | null = null;
+    let llmStateUnsubscribe: () => void;
+    
+    // Debug override state
+    let debugLLMState: string | null = null;
+    
+    // Check for debug override in LLM state message
+    $: {
+        if (!llmState) {
+            // If state is null/undefined, no debug override
+            debugLLMState = null;
+        } else if (llmState.message?.startsWith('Debug: Forced')) {
+            debugLLMState = llmState.globalState;
+        } else {
+            debugLLMState = null;
+        }
+    }
+    
+    // Reactive computations for LLM state (respecting debug override)
+    $: isLLMReady = debugLLMState ? debugLLMState === 'ready' : llmState?.globalState === 'ready';
+    $: isLLMInitializing = debugLLMState 
+        ? (debugLLMState === 'initializing' || debugLLMState === 'uninitialized')
+        : (llmState?.globalState === 'initializing' || llmState?.globalState === 'uninitialized' || llmState?.globalState === 'updating');
+    $: isLLMError = debugLLMState ? debugLLMState === 'error' : llmState?.globalState === 'error';
+    $: llmErrorMessage = isLLMError ? (llmState?.message || 'LLM system error') : null;
+    
     onMount(() => {
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
             currentSTTModels = value;
+        });
+        
+        // Subscribe to LLM state for summary options
+        llmStateUnsubscribe = llmStateStore.subscribe(state => {
+            llmState = state;
+            logger.trace('featureCard', `LLM state update in FeatureCard ${feature.id}:`, state?.globalState);
+            
+            // Add error to error store when LLM fails (only for condensedAudio feature)
+            if (feature.id === 'condensedAudio' && state?.globalState === 'error') {
+                errorStore.addError({
+                    id: 'llm-initialization-failed',
+                    message: state.message || 'LLM system failed to initialize. Check your API keys in settings.',
+                    severity: 'error',
+                    action: {
+                        label: 'Open Settings',
+                        handler: () => {
+                            showSettings.set(true);
+                        }
+                    }
+                });
+            } else if (feature.id === 'condensedAudio' && state?.globalState === 'ready') {
+                // Remove error when LLM becomes ready
+                errorStore.removeError('llm-initialization-failed');
+            }
         });
         
         // Initial measurement of the options height if enabled
@@ -93,6 +145,14 @@
     onDestroy(() => {
         if (sttModelsUnsubscribe) {
             sttModelsUnsubscribe();
+        }
+        if (llmStateUnsubscribe) {
+            llmStateUnsubscribe();
+        }
+        
+        // Clean up any LLM errors we may have created
+        if (feature.id === 'condensedAudio') {
+            errorStore.removeError('llm-initialization-failed');
         }
     });
     
@@ -296,7 +356,10 @@
             selectedFeatures: JSON.stringify(selectedFeatures),
             featureId: feature.id,
             isTopmostInGroup: isTopmostInAnyGroup,
-            isTopmostForOption: isTopmostForThisOption
+            isTopmostForOption: isTopmostForThisOption,
+            isLLMReady,
+            isLLMInitializing,
+            isLLMError
         };
         
         const contextHash = JSON.stringify(contextValues);
@@ -322,7 +385,10 @@
             selectedFeatures,
             isTopmostInGroup: isTopmostInAnyGroup,
             isTopmostForOption: isTopmostForThisOption,
-            featureGroupStore // Add store to context
+            featureGroupStore, // Add store to context
+            isLLMReady, // Add LLM state for condition evaluation
+            isLLMInitializing,
+            isLLMError
         };
         
         // Feature options reference for conditions 
@@ -361,6 +427,11 @@
             
             // Use Function constructor to evaluate the expression
             const result = new Function('return ' + prepared)();
+            
+            // Debug logging for condensedAudio feature
+            if (feature.id === 'condensedAudio' && optionId !== 'enableSummary') {
+                logger.trace('featureCard', `Option ${optionId} condition: ${optionDef.showCondition}, result: ${result}, context.isLLMReady: ${context.isLLMReady}`);
+            }
             
             // Cache the result
             optionVisibilityCache.set(cacheKey, result);
@@ -406,10 +477,24 @@
     
     // Mark cache as dirty when dependencies change
     $: {
-        if (feature || options || standardTag || selectedFeatures) {
+        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError) {
             visibleOptionsDirty = true;
         }
     }
+    
+    // Reactive variable for visible options (force recalculation when LLM state changes)
+    $: visibleOptions = (() => {
+        // Dependencies to trigger recalculation
+        const deps = [feature, options, standardTag, selectedFeatures, isLLMReady, isLLMInitializing, isLLMError];
+        const result = getVisibleOptions();
+        if (feature.id === 'condensedAudio') {
+            logger.trace('featureCard', `Visible options for condensedAudio: ${result.length} options, isLLMReady: ${isLLMReady}, debugState: ${debugLLMState}`);
+        }
+        return result;
+    })();
+    
+    // Reactive variable that tracks if feature has visible options
+    $: hasAnyVisibleOptions = visibleOptions.length > 0;
     
     // Get visible options for this feature
     function getVisibleOptions(): string[] {
@@ -453,7 +538,7 @@
     $: {
         if (optionsContainer) {
             // Only animate if there are visible options
-            if (hasVisibleOptions()) {
+            if (hasAnyVisibleOptions) {
                 animating = true;
                 
                 if (enabled) {
@@ -788,7 +873,7 @@
     </div>
     
     <!-- Options drawer with slide animation - only displayed if the feature has visible options -->
-    {#if hasVisibleOptions()}
+    {#if hasAnyVisibleOptions}
     {@const _logVisible = logger.trace('featureCard', 'hasVisibleOptions() returned true')}
     <div
     bind:this={optionsContainer} 
@@ -798,7 +883,9 @@
     >
         <div bind:this={optionsWrapper} class="p-4">
             <div class="options-grid">
-                {#each getVisibleOptions() as optionId}
+                <!-- Conditionally key the entire options list for condensedAudio feature -->
+                {#key feature.id === 'condensedAudio' ? llmState?.globalState : null}
+                {#each visibleOptions as optionId}
                     {@const optionDef = feature.options[optionId]}
                     {@const value = options[optionId]}
                     
@@ -888,7 +975,7 @@
                                             on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
                                         />
                                     {:else if optionDef.type === 'boolean'}
-                                        <!-- Boolean input (unchanged) -->
+                                        <!-- Boolean input (keep centered) -->
                                         <label class="inline-flex items-center cursor-pointer">
                                             <input 
                                                 type="checkbox" 
@@ -926,6 +1013,17 @@
                                             on:change={(e) => handleDropdownChange(optionId, e.detail)}
                                             label={optionDef.label}
                                         />
+                                    {:else if optionDef.type === 'dropdown' && optionId === 'summaryProvider' && feature.id === 'condensedAudio'}
+                                        <!-- Special handling for summary provider dropdown -->
+                                        {#key [optionDef.choices, isLLMReady]}
+                                        <Dropdown
+                                            options={optionDef.choices || []}
+                                            value={options[optionId]}
+                                            on:change={(e) => handleDropdownChange(optionId, e.detail)}
+                                            label={optionDef.label}
+                                            disabled={!isLLMReady}
+                                        />
+                                        {/key}
                                     {:else if optionDef.type === 'dropdown' && optionId === 'summaryModel' && feature.id === 'condensedAudio'}
                                         <!-- Special handling for summary model dropdown with double-keyed reactivity -->
                                         {#key [optionDef.choices, options.summaryProvider]}
@@ -934,6 +1032,7 @@
                                             value={options[optionId]}
                                             on:change={(e) => handleDropdownChange(optionId, e.detail)}
                                             label={optionDef.label}
+                                            disabled={!isLLMReady}
                                         />
                                         {/key}
                                     {:else if optionDef.type === 'dropdown'}
@@ -944,6 +1043,7 @@
                                             value={options[optionId]}
                                             on:change={(e) => handleDropdownChange(optionId, e.detail)}
                                             label={optionDef.label}
+                                            disabled={feature.id === 'condensedAudio' && (optionId === 'summaryProvider' || optionId === 'summaryModel') && !isLLMReady}
                                         />
                                         {/key}
                                     {:else if optionDef.type === 'string'}
@@ -978,6 +1078,69 @@
                         </div>
                     {/if}
                 {/each}
+                {/key}
+                
+                <!-- LLM Loading indicator card for condensedAudio feature -->
+                {#if feature.id === 'condensedAudio' && options.enableSummary && (isLLMInitializing || isLLMError)}
+                    <div class="mt-3 w-full" transition:fade={{ duration: 300 }}>
+                        {#if debugLLMState}
+                            <div class="text-xs text-purple-400 mb-2 flex items-center gap-1" transition:fade={{ duration: 200 }}>
+                                <span class="material-icons text-xs">bug_report</span>
+                                Debug mode: Forced {debugLLMState} state
+                            </div>
+                        {/if}
+                        {#key llmState?.globalState}
+                        {#if isLLMInitializing}
+                            <div class="bg-primary/10 border border-primary/30 rounded-lg p-4 flex items-center gap-4" transition:fade={{ duration: 300 }}>
+                                <!-- Custom spinner SVG (2x bigger) -->
+                                <div class="flex-shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
+                                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                            <path stroke-dasharray="16" stroke-dashoffset="16" d="M12 3c4.97 0 9 4.03 9 9">
+                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.3s" values="16;0"/>
+                                                <animateTransform attributeName="transform" dur="1.5s" repeatCount="indefinite" type="rotate" values="0 12 12;360 12 12"/>
+                                            </path>
+                                            <path stroke-dasharray="64" stroke-dashoffset="64" stroke-opacity="0.3" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="1.2s" values="64;0"/>
+                                            </path>
+                                        </g>
+                                    </svg>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-primary dark:text-primary">
+                                        Initializing LLM Providers
+                                    </div>
+                                    <div class="text-xs text-primary/70 dark:text-primary/70 mt-1">
+                                        Summary options will appear once the language models are ready...
+                                    </div>
+                                </div>
+                            </div>
+                        {:else if isLLMError}
+                            <div class="bg-red-900/20 border border-red-600/30 rounded-lg p-4 flex items-center gap-3" transition:fade={{ duration: 300 }}>
+                                <div class="flex-shrink-0">
+                                    <span class="material-icons text-red-500">error_outline</span>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-red-600 dark:text-red-400">
+                                        LLM Initialization Failed
+                                    </div>
+                                    <div class="text-xs text-red-700 dark:text-red-500 mt-1">
+                                        {llmErrorMessage || 'Unable to initialize language models. Check your API keys in settings.'}
+                                    </div>
+                                </div>
+                            </div>
+                        {/if}
+                        {/key}
+                    </div>
+                {:else if feature.id === 'condensedAudio' && options.enableSummary && debugLLMState === 'ready'}
+                    <!-- Show debug indicator when forcing ready state -->
+                    <div class="mt-3 w-full" transition:fade={{ duration: 300 }}>
+                        <div class="text-xs text-purple-400 flex items-center gap-1" transition:fade={{ duration: 200 }}>
+                            <span class="material-icons text-xs">bug_report</span>
+                            Debug mode: Forced ready state (options shown)
+                        </div>
+                    </div>
+                {/if}
             </div>
         </div>
     </div>

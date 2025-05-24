@@ -37,7 +37,7 @@ func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 		ctx := context.Background()
 		handler := core.NewCLIHandler(ctx)
 		tsk := core.NewTask(handler)
-		core.InitLLM(handler, ctx)
+		core.InitLLM(handler, ctx, nil) // CLI doesn't need WebSocket notifications
 		defer func() {
 			if r := recover(); r != nil {
 				exitOnError(tsk, fmt.Errorf("panic: %v", r))

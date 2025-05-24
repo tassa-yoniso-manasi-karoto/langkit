@@ -22,17 +22,17 @@ func (s GlobalServiceState) String() string {
 
 // ProviderState represents the status of a single LLM provider
 type ProviderState struct {
-	Status      string       // "not_attempted", "initializing_models", "models_loaded", "ready", "error"
-	Error       error        // Error object if Status is "error"
-	Models      []ModelInfo  // Available models for this provider
-	LastUpdated time.Time    // Timestamp of last update
+	Status      string       `json:"status"`      // "not_attempted", "initializing_models", "models_loaded", "ready", "error"
+	Error       string       `json:"error,omitempty"`  // Changed from error to string for JSON serialization
+	Models      []ModelInfo  `json:"models,omitempty"`
+	LastUpdated time.Time    `json:"lastUpdated"`
 }
 
 // StateChange is the event payload sent when provider states change
 type StateChange struct {
-	Timestamp              time.Time
-	GlobalState            GlobalServiceState
-	UpdatedProviderName    string                   // Optional: if specific to one provider
-	ProviderStatesSnapshot map[string]ProviderState // Copy of current providerStates
-	Message                string                   // Optional: details about the change
+	Timestamp              time.Time                    `json:"timestamp"`
+	GlobalState            GlobalServiceState           `json:"globalState"`
+	UpdatedProviderName    string                       `json:"updatedProviderName,omitempty"`
+	ProviderStatesSnapshot map[string]ProviderState     `json:"providerStatesSnapshot"`
+	Message                string                       `json:"message,omitempty"`
 }

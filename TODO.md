@@ -10,7 +10,6 @@ SVG animations: rework state transitions
 
 - support Condensed Audio summaries:
   - perf issue with queries of GetAvailableModels()
-  - write documentation
   
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
@@ -18,6 +17,9 @@ SVG animations: rework state transitions
   - dropdown for desired output format (mp3 / aac / opus)
 .
 
+- fix logger.ts
+
+.
 - add tlit in TSV/CSV
 
 .
@@ -26,9 +28,6 @@ SVG animations: rework state transitions
 .
 
 - guarantee all settings in Settings panel work
-.
-
-- can you make sure env set API keys are heeded in GUI mode?
 
 .
 - ProcessErrorTooltip should have a fade in / out
@@ -58,6 +57,39 @@ SVG animations: rework state transitions
 
 
 
+
+```
+Looking at the logs, this error is not critical but shows a race condition during startup:
+
+  10:41:34 DBG LLM state change emitted global_state=ready
+  10:41:34 DBG Received LLM registry state change component=summary global_state=ready
+  10:41:34 INF LLM registry is ready, updating summary providers component=summary
+  10:41:34 WRN GetClient: Registry not ready. component=llm_registry global_state=updating
+  10:41:34 ERR Failed to get LLM client from registry error="llm registry: system not ready" component=summary
+
+  What's happening:
+  1. LLM registry finishes initialization and becomes "ready"
+  2. Summary service receives the "ready" notification and tries to update providers
+  3. But simultaneously, the frontend saves settings on startup, triggering a registry update 		// FIXME → this is most likely counterAppStart
+  4. By the time summary service calls GetClient(), registry is already back in "updating" state
+
+  Should you be concerned?
+  No, this is not critical:
+  - The summary service will retry when the registry becomes ready again after the update
+  - The system will work correctly once the second initialization completes
+  - It's just inefficient during startup
+
+  The issue:
+  The frontend is triggering a settings save immediately on startup, which causes an unnecessary re-initialization of the already-ready LLM registry.
+
+  This could be optimized by:
+  1. Not triggering settings updates during initial startup if nothing actually changed
+  2. Making the summary service more resilient to temporary registry state changes
+  3. Debouncing settings updates to avoid rapid re-initialization
+
+  For now, you can ignore this error - it's just startup inefficiency, not a functional problem.
+
+```
 
 
 <hr>

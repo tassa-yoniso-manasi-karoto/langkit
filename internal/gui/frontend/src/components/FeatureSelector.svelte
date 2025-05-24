@@ -4,7 +4,8 @@
     import { cubicOut } from 'svelte/easing';
     import { get } from 'svelte/store';
     
-    import { settings, showSettings } from '../lib/stores.ts';
+    import { settings, showSettings, llmStateStore, type LLMStateChange } from '../lib/stores.ts';
+    import { LLMWebSocket } from '../lib/llm-websocket';
     import { updateSTTModels, sttModelsStore } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
     import { logStore } from '../lib/logStore';
@@ -93,6 +94,12 @@
     let summaryProvidersUnsubscribe: () => void;
     let summaryModelsUnsubscribe: () => void;
     
+    // LLM WebSocket and state management
+    let llmWebSocket: LLMWebSocket | null = null;
+    let llmState: LLMStateChange | null = null;
+    let llmStateUnsubscribe: () => void;
+    let isLLMInitializing = true;
+    
     const dispatch = createEventDispatcher();
     
     /**
@@ -161,6 +168,12 @@
                 await fetchSummaryModels(summaryProviders.suggested);
             }
             
+            // Force reactivity update to ensure dropdowns are populated
+            currentFeatureOptions = {...currentFeatureOptions};
+            
+            // IMPORTANT: Update the reactive features array to trigger re-render
+            featuresForRendering = [...features];
+            
             return summaryProviders;
         } catch (error) {
             logger.error('featureSelector', 'Failed to load summary providers', { error });
@@ -226,6 +239,9 @@
                     // Force the options object to be seen as a new reference to trigger reactivity
                     condensedAudioFeature.options = {...condensedAudioFeature.options};
                     currentFeatureOptions = {...currentFeatureOptions};
+                    
+                    // Refresh the reactive features array
+                    featuresForRendering = [...features];
                 }
             } else {
                 logger.debug('featureSelector', `Ignoring models for ${providerName} because current provider is ${currentProvider}`);
@@ -1025,6 +1041,9 @@
         });
     }
     
+    // Force features array to be reactive
+    let featuresForRendering = [...features];
+    
     // Component lifecycle
     // Initialize feature groups
     function initializeFeatureGroups() {
@@ -1263,7 +1282,40 @@
             currentSummaryModels = value;
         });
         
+        // Subscribe to LLM state changes
+        llmStateUnsubscribe = llmStateStore.subscribe(state => {
+            logger.trace('featureSelector', 'LLM state updated:', state?.globalState);
+            llmState = state;
+            
+            // Update initialization flag (include 'updating' state)
+            isLLMInitializing = !state || state.globalState === 'initializing' || state.globalState === 'uninitialized' || state.globalState === 'updating';
+            
+            // When LLM system becomes ready, fetch providers
+            if (state?.globalState === 'ready' && !currentSummaryProviders.available) {
+                logger.debug('featureSelector', 'LLM system ready, fetching providers');
+                fetchSummaryProviders().then((providers) => {
+                    logger.debug('featureSelector', `Providers fetched: ${providers.names.length} available`);
+                    // Force reactivity update to refresh dropdowns
+                    currentFeatureOptions = {...currentFeatureOptions};
+                    // Also refresh the reactive features array
+                    featuresForRendering = [...features];
+                    
+                    // Additional force update for the features array itself
+                    const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
+                    if (condensedAudioFeature) {
+                        logger.debug('featureSelector', 'Current provider choices:', condensedAudioFeature.options.summaryProvider.choices);
+                    }
+                });
+            }
+        });
+        
+        // Connect to WebSocket for real-time LLM state updates
+        logger.trace('featureSelector', 'Connecting to LLM WebSocket...');
+        llmWebSocket = new LLMWebSocket();
+        await llmWebSocket.connect();
+        
         logger.trace('featureSelector', "FeatureSelector mounting - loading data...");
+        logger.trace('featureSelector', `Current LLM state on mount: ${llmState?.globalState}`);
 
         try {
             // Load STT models BEFORE any animation starts
@@ -1295,43 +1347,47 @@
                     currentFeatureOptions.dubtitles.stt = sttModels.suggested;
                 }
                 
-                // Fetch summary providers after STT models
-                await fetchSummaryProviders();
+                // Don't fetch summary providers here - wait for LLM state to be ready
+                // The LLM state subscription will trigger fetchSummaryProviders when ready
             } catch (error) {
                 logger.error('featureSelector', 'Failed to load STT models', { error });
             }
             
-            // Load summary providers
-            try {
-                const summaryProviders = await fetchSummaryProviders();
-                
-                if (!summaryProviders.available) {
-                    // Handle case where no providers are available
-                    errorStore.addError({
-                        id: 'no-summary-providers',
-                        message: 'No summary providers available. Check API keys in settings.',
-                        severity: 'warning',
-                        action: {
-                            label: 'Open Settings',
-                            handler: () => {
-                                showSettings.set(true);
-                            }
-                        }
-                    });
-                }
-                
-                // If condensedAudio has a provider selected that's not available, update it
-                if (currentFeatureOptions?.condensedAudio?.summaryProvider && 
-                    !summaryProviders.names.includes(currentFeatureOptions.condensedAudio.summaryProvider)) {
-                    currentFeatureOptions.condensedAudio.summaryProvider = summaryProviders.suggested;
+            // Only load summary providers if LLM is ready, otherwise wait for state subscription
+            if (llmState?.globalState === 'ready') {
+                try {
+                    const summaryProviders = await fetchSummaryProviders();
                     
-                    // Also fetch models for the suggested provider
-                    if (summaryProviders.suggested) {
-                        await fetchSummaryModels(summaryProviders.suggested);
+                    if (!summaryProviders.available) {
+                        // Handle case where no providers are available
+                        errorStore.addError({
+                            id: 'no-summary-providers',
+                            message: 'No summary providers available. Check API keys in settings.',
+                            severity: 'warning',
+                            action: {
+                                label: 'Open Settings',
+                                handler: () => {
+                                    showSettings.set(true);
+                                }
+                            }
+                        });
                     }
+                    
+                    // If condensedAudio has a provider selected that's not available, update it
+                    if (currentFeatureOptions?.condensedAudio?.summaryProvider && 
+                        !summaryProviders.names.includes(currentFeatureOptions.condensedAudio.summaryProvider)) {
+                        currentFeatureOptions.condensedAudio.summaryProvider = summaryProviders.suggested;
+                        
+                        // Also fetch models for the suggested provider
+                        if (summaryProviders.suggested) {
+                            await fetchSummaryModels(summaryProviders.suggested);
+                        }
+                    }
+                } catch (error) {
+                    logger.error('featureSelector', 'Failed to load summary providers', { error });
                 }
-            } catch (error) {
-                logger.error('featureSelector', 'Failed to load summary providers', { error });
+            } else {
+                logger.trace('featureSelector', 'LLM not ready, skipping summary provider fetch');
             }
             
             // Initialize canonical feature order from feature definitions
@@ -1452,6 +1508,18 @@
             errorStoreUnsubscribe();
         }
         
+        // Clean up LLM state subscription
+        if (llmStateUnsubscribe) {
+            llmStateUnsubscribe();
+        }
+        
+        // Disconnect WebSocket
+        if (llmWebSocket) {
+            logger.trace('featureSelector', 'Disconnecting LLM WebSocket');
+            llmWebSocket.disconnect();
+            llmWebSocket = null;
+        }
+        
         // Clean up any error messages we created
         errorStore.removeError('no-stt-models');
         errorStore.removeError('no-summary-providers');
@@ -1547,7 +1615,7 @@
     <!-- Feature cards container - only rendered after data is fully loaded -->
     <div class="space-y-4 overflow-visible">
         {#if isInitialDataLoaded}
-            {#each features.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
+            {#each featuresForRendering.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
                 <div 
                     in:fly={{ 
                         x: 400,

@@ -4,13 +4,13 @@ import "time"
 
 // ModelInfo contains metadata about a model
 type ModelInfo struct {
-	ID           string     // Unique identifier for the model
-	Name         string     // Display name for the model
-	Description  string     // Brief description of the model
-	MaxTokens    int        // Maximum context length supported
-	Capabilities []string   // Capabilities like "summarization", "creative", etc.
-	ProviderName string     // The provider this model belongs to
-	ReleaseDate  time.Time  // Release date of the model
+	ID           string     `json:"id"`           // Unique identifier for the model
+	Name         string     `json:"name"`         // Display name for the model
+	Description  string     `json:"description"`  // Brief description of the model
+	MaxTokens    int        `json:"maxTokens"`    // Maximum context length supported
+	Capabilities []string   `json:"capabilities"` // Capabilities like "summarization", "creative", etc.
+	ProviderName string     `json:"providerName"` // The provider this model belongs to
+	ReleaseDate  time.Time  `json:"releaseDate"`  // Release date of the model
 }
 
 // CompletionRequest contains parameters for a completion request

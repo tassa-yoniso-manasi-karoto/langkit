@@ -90,3 +90,48 @@ export const showSettings = writable(false);
 
 // Add a reactive store to track when WASM is actively being used
 export const wasmActive = writable<boolean>(false);
+
+// LLM state management types and store
+export interface LLMProviderState {
+    status: 'not_attempted' | 'initializing_models' | 'ready' | 'error';
+    error?: string;
+    models?: Array<{ id: string; name: string }>;
+    lastUpdated: string;
+}
+
+export interface LLMStateChange {
+    timestamp: string;
+    globalState: 'uninitialized' | 'initializing' | 'ready' | 'error' | 'updating';
+    updatedProviderName?: string;
+    providerStatesSnapshot: Record<string, LLMProviderState>;
+    message?: string;
+}
+
+function createLLMStateStore() {
+    const { subscribe, set, update } = writable<LLMStateChange | null>(null);
+    
+    return {
+        subscribe,
+        set,
+        update,
+        
+        // Helper methods
+        isReady: () => {
+            let ready = false;
+            subscribe(state => {
+                ready = state?.globalState === 'ready';
+            })();
+            return ready;
+        },
+        
+        getProviderStatus: (providerName: string): LLMProviderState | null => {
+            let provider = null;
+            subscribe(state => {
+                provider = state?.providerStatesSnapshot[providerName] || null;
+            })();
+            return provider;
+        }
+    };
+}
+
+export const llmStateStore = createLLMStateStore();
