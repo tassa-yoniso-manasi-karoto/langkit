@@ -1597,7 +1597,7 @@
             const currentHeight = logHeights.get(sequence) || 0;
             if (Math.abs(currentHeight - height) > 1) {
                 if (debug && currentHeight > 0 && height > currentHeight * 1.5) {
-                    logger.warn('logViewer', `Height increase detected for log ${sequence}: ${currentHeight}px -> ${height}px`);
+                    logger.trace('logViewer', `Height increase detected for log ${sequence}: ${currentHeight}px -> ${height}px`);
                 }
                 
                 // Update height map

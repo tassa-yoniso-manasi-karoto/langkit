@@ -177,7 +177,9 @@
     $: if (enabled && optionsWrapper && !animating) {
         // Small delay to ensure DOM is updated
         setTimeout(() => {
-            optionsHeight = optionsWrapper.offsetHeight;
+            if (optionsWrapper) {
+                optionsHeight = optionsWrapper.offsetHeight;
+            }
         }, 50);
     }
     
@@ -551,7 +553,9 @@
                             } else {
                                 optionsHeight = 0; // Default height when element doesn't exist
                             }
-                            optionsContainer.style.height = optionsHeight + 'px';
+                            if (optionsContainer) {
+                                optionsContainer.style.height = optionsHeight + 'px';
+                            }
                             
                             // Animation complete
                             setTimeout(() => {
@@ -566,7 +570,9 @@
                     }
                 } else {
                     // Closing animation
-                    optionsContainer.style.height = '0px';
+                    if (optionsContainer) {
+                        optionsContainer.style.height = '0px';
+                    }
                     
                     // Reset topmost status when disabled
                     isTopmostFeatureForAnyGroup = false;
@@ -578,7 +584,9 @@
                 }
             } else {
                 // No options to show, keep container closed
-                optionsContainer.style.height = '0px';
+                if (optionsContainer) {
+                    optionsContainer.style.height = '0px';
+                }
                 animating = false;
             }
         }
