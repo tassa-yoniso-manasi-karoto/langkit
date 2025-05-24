@@ -1,7 +1,7 @@
-<!-- WasmPerformanceDashboard.svelte (Simplified Version) -->
+<!-- WasmPerformanceDashboard.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { getWasmState, resetWasmMetrics, getWasmModule } from '../lib/wasm';
+  import { getWasmState, getWasmModule } from '../lib/wasm';
   import { formatBytes, formatTime } from '../lib/utils';
   import { settings } from '../lib/stores';
   import { get } from 'svelte/store';
@@ -13,7 +13,7 @@
   let memoryUtilizationHistory: {timestamp: number, utilization: number}[] = [];
 
   // Simplified tab structure
-  let selectedTab = 'performance'; // 'performance', 'memory', 'settings'
+  let selectedTab = 'performance'; // 'performance', 'memory'
 
   // Update metrics periodically
   onMount(() => {
@@ -71,6 +71,12 @@
         timestamp: Date.now(),
         utilization
       });
+    }
+  });
+
+  onDestroy(() => {
+    if (updateInterval) {
+      clearInterval(updateInterval);
     }
   });
 
@@ -242,14 +248,15 @@
       // Force Svelte to update the array reference
       memoryUtilizationHistory = [...memoryUtilizationHistory];
     } else {
-      logger.warn('dashboard', 'No memoryUsage available in wasmState');
+      // Only log if WASM is actually enabled
+      const currentSettings = get(settings);
+      if (currentSettings.forceWasmMode === 'enabled' || 
+          (currentSettings.forceWasmMode === 'auto' && wasmState?.enabled)) {
+        logger.warn('dashboard', 'No memoryUsage available in wasmState');
+      }
     }
   }
 
-  function handleResetMetrics() {
-    resetWasmMetrics();
-    updateWasmState();
-  }
 
   // Helper functions for formatting
   function getPerformanceClass(ratio: number): string {
@@ -306,368 +313,136 @@
     }
   }
 
-  // Update settings
-  function updateWasmThreshold(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const newValue = parseInt(input.value, 10);
-
-    if (!isNaN(newValue)) {
-      settings.update($settings => ({
-        ...$settings,
-        wasmSizeThreshold: newValue
-      }));
+  // Helper to get memory values
+  function getMemoryValue(memoryUsage: any, key: string): number {
+    if (!memoryUsage) return 0;
+    const isMap = Object.prototype.toString.call(memoryUsage) === '[object Map]';
+    if (isMap) {
+      return (memoryUsage as Map<string, any>).get(key) || 0;
     }
+    return memoryUsage[key] || 0;
   }
+
+  // Ultra compact formatters
+  function formatCompactBytes(bytes: number): string {
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'K';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + 'M';
+    return (bytes / 1073741824).toFixed(1) + 'G';
+  }
+
+  function formatCompactTime(ms: number): string {
+    if (ms < 1) return ms.toFixed(2) + 'ms';
+    if (ms < 1000) return ms.toFixed(0) + 'ms';
+    return (ms / 1000).toFixed(2) + 's';
+  }
+
 </script>
 
-<div class="bg-gray-800/60 backdrop-blur-sm rounded-lg p-4 shadow-md text-white">
-  <div class="flex items-center justify-between mb-3">
-
-    <!-- Tab Buttons -->
-    <div class="flex gap-2">
+<div class="bg-gray-800/60 text-white text-xs p-2 rounded-sm border border-gray-700/50">
+  <!-- Modern compact header -->
+  <div class="flex items-center gap-2 mb-2">
+    <div class="flex gap-1">
       <button
-        class="px-2 py-1 bg-primary/20 hover:bg-primary/30 text-white text-xs rounded transition-colors"
-        class:bg-primary={selectedTab === 'performance'}
+        class="px-2 py-0.5 rounded-sm transition-colors duration-150 {selectedTab === 'performance' ? 'bg-blue-600 text-white' : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'}"
         on:click={() => selectedTab = 'performance'}
       >
         Performance
       </button>
-
       <button
-        class="px-2 py-1 bg-primary/20 hover:bg-primary/30 text-white text-xs rounded transition-colors"
-        class:bg-primary={selectedTab === 'memory'}
+        class="px-2 py-0.5 rounded-sm transition-colors duration-150 {selectedTab === 'memory' ? 'bg-blue-600 text-white' : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'}"
         on:click={() => selectedTab = 'memory'}
       >
         Memory
       </button>
-
-      <button
-        class="px-2 py-1 bg-primary/20 hover:bg-primary/30 text-white text-xs rounded transition-colors"
-        class:bg-primary={selectedTab === 'settings'}
-        on:click={() => selectedTab = 'settings'}
-      >
-        Settings
-      </button>
-
-      <button
-        class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition-colors"
-        on:click={handleResetMetrics}
-        title="Reset performance metrics and clear chart"
-      >
-        Reset
-      </button>
     </div>
+    <span class="text-gray-500 text-[10px] ml-auto">WASM Monitor</span>
   </div>
 
   <!-- Performance Tab -->
   {#if selectedTab === 'performance'}
-    <div class="grid grid-cols-1 gap-4">
-      <!-- WebAssembly Functions Overview -->
-      <div class="bg-gray-700/70 rounded p-4">
-        <div class="text-sm text-gray-400 mb-4 text-center">WebAssembly Functions</div>
-
-        <div class="grid gap-4">
-          <!-- mergeInsertLogs -->
-          <div class="bg-gray-800/70 rounded p-3">
-            <div class="text-xs text-blue-400 mb-1 font-medium">Log Processing</div>
-            <div class="text-white font-bold mb-0.5">mergeInsertLogs</div>
-            <div class="text-xs text-gray-400">
-              Merges and sorts log arrays with timestamp-based ordering for the log viewer.
-            </div>
-            <div class="mt-2 text-xs flex justify-between">
-              <span class="text-gray-500">Calls: {wasmState?.operationsPerType?.mergeInsertLogs || 0}</span>
-              <span class="text-gray-500">
-                {wasmState.performanceMetrics?.operationTimings?.mergeInsertLogs?.avgTime
-                  ? formatTime(wasmState.performanceMetrics?.operationTimings?.mergeInsertLogs?.avgTime)
-                  : '—'}
-              </span>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Operation Stats -->
-      <div class="bg-gray-700/70 rounded p-4">
-        <div class="text-sm text-gray-400 mb-3 text-center">Function Performance</div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-left text-xs text-gray-500">
-                <th class="pb-3">Function</th>
-                <th class="pb-3 text-center">Calls</th>
-                <th class="pb-3 text-center">Avg. Time</th>
+    <div class="space-y-2">
+      <!-- Function calls table -->
+      <table class="w-full text-[11px]">
+        <thead>
+          <tr class="text-gray-400 border-b border-gray-700/50">
+            <th class="text-left pb-1 font-medium">Function</th>
+            <th class="text-right pb-1 font-medium">Calls</th>
+            <th class="text-right pb-1 font-medium">Avg Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#if wasmState?.operationsPerType && Object.keys(wasmState.operationsPerType).length > 0}
+            {#each Object.entries(wasmState.operationsPerType) as [operation, count]}
+              <tr class="hover:bg-gray-700/30 transition-colors duration-150">
+                <td class="py-0.5 text-gray-300">{operation}</td>
+                <td class="py-0.5 text-right text-gray-200">{count}</td>
+                <td class="py-0.5 text-right text-gray-200">
+                  {wasmState.performanceMetrics?.operationTimings?.[operation]?.avgTime
+                    ? formatCompactTime(wasmState.performanceMetrics.operationTimings[operation].avgTime)
+                    : '—'}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {#if wasmState?.operationsPerType && Object.keys(wasmState.operationsPerType).length > 0}
-                {#each Object.entries(wasmState.operationsPerType) as [operation, count]}
-                  <tr class="border-t border-gray-600/30">
-                    <td class="py-2.5 font-medium">{operation}</td>
-                    <td class="py-2.5 text-center">{count}</td>
-                    <td class="py-2.5 text-center">
-                      {wasmState.performanceMetrics?.operationTimings?.[operation]?.avgTime
-                        ? formatTime(wasmState.performanceMetrics.operationTimings[operation].avgTime)
-                        : '—'}
-                    </td>
-                  </tr>
-                {/each}
-              {:else}
-                <tr>
-                  <td colspan="3" class="py-6 text-center text-gray-500">No operations tracked yet</td>
-                </tr>
-              {/if}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- WebAssembly Info -->
-      <div class="bg-gray-700/70 rounded p-4">
-        <div class="text-sm text-gray-400 mb-2">About WebAssembly Performance</div>
-        <p class="text-xs text-gray-300 mb-3">
-          WebAssembly functions are used to accelerate performance-critical operations in the application:
-        </p>
-        <ul class="text-xs text-gray-300 list-disc pl-5 space-y-1">
-          <li><span class="text-white font-medium">Log Processing</span>: Merging, sorting, and filtering large log arrays</li>
-          <li><span class="text-white font-medium">Virtualization</span>: Efficiently calculating scroll positions for virtual lists</li>
-          <li><span class="text-white font-medium">SIMD Operations</span>: Using dedicated CPU vector instructions for text searching</li>
-        </ul>
-        <p class="text-xs text-gray-300 mt-3">
-          Performance metrics are collected during normal application usage. Use the Reset button
-          to clear collected performance data.
-        </p>
-      </div>
+            {/each}
+          {:else}
+            <tr>
+              <td colspan="3" class="py-2 text-center text-gray-500">No operations recorded</td>
+            </tr>
+          {/if}
+        </tbody>
+      </table>
     </div>
   {/if}
 
   <!-- Memory Tab -->
   {#if selectedTab === 'memory'}
-    <div class="grid grid-cols-1 gap-4">
-      <!-- Simplified Memory Usage Card -->
-      <div class="bg-gray-700/70 rounded p-4">
-        <div class="text-sm text-gray-400 mb-4">WebAssembly Memory</div>
+    <div class="space-y-2">
+      {#if wasmState?.memoryUsage}
+        {@const utilization = getMemoryUtilization(wasmState.memoryUsage)}
+        {@const used = getMemoryValue(wasmState.memoryUsage, 'tracked_bytes') || getMemoryValue(wasmState.memoryUsage, 'used_bytes')}
+        {@const total = getMemoryValue(wasmState.memoryUsage, 'total_bytes')}
+        {@const pages = getMemoryValue(wasmState.memoryUsage, 'current_pages')}
+        {@const allocs = getMemoryValue(wasmState.memoryUsage, 'allocation_count')}
+        
+        <!-- Memory stats grid -->
+        <div class="grid grid-cols-2 gap-2 text-[11px]">
+          <div class="bg-gray-700/30 rounded-sm p-1.5">
+            <div class="text-gray-400 text-[10px]">Used Memory</div>
+            <div class="text-white font-medium">{formatCompactBytes(used)}</div>
+          </div>
+          <div class="bg-gray-700/30 rounded-sm p-1.5">
+            <div class="text-gray-400 text-[10px]">Total Memory</div>
+            <div class="text-white font-medium">{formatCompactBytes(total)}</div>
+          </div>
+          <div class="bg-gray-700/30 rounded-sm p-1.5">
+            <div class="text-gray-400 text-[10px]">Pages</div>
+            <div class="text-white font-medium">{pages}</div>
+          </div>
+          <div class="bg-gray-700/30 rounded-sm p-1.5">
+            <div class="text-gray-400 text-[10px]">Allocations</div>
+            <div class="text-white font-medium">{allocs}</div>
+          </div>
+        </div>
 
-        {#if wasmState?.memoryUsage}
-          <!-- Memory Usage Information -->
-          <div class="flex flex-col">
-            <!-- Primary Memory Stats -->
-            <div class="grid grid-cols-2 gap-8 mb-4">
-              <div>
-                <div class="text-xs text-gray-500 mb-1">Used Memory</div>
-                <div class="text-2xl font-bold text-white">
-                  {#if Object.prototype.toString.call(wasmState.memoryUsage) === '[object Map]'}
-                    {formatBytes((wasmState.memoryUsage as Map<string, any>).get('tracked_bytes') || (wasmState.memoryUsage as Map<string, any>).get('used_bytes') || 0)}
-                  {:else}
-                    {formatBytes(wasmState.memoryUsage.tracked_bytes || wasmState.memoryUsage.used_bytes || wasmState.memoryUsage.used || 0)}
-                  {/if}
-                </div>
-              </div>
-              <div>
-                <div class="text-xs text-gray-500 mb-1">Total Memory</div>
-                <div class="text-2xl font-bold text-white">
-                  {#if Object.prototype.toString.call(wasmState.memoryUsage) === '[object Map]'}
-                    {formatBytes((wasmState.memoryUsage as Map<string, any>).get('total_bytes') || 0)}
-                  {:else}
-                    {formatBytes(wasmState.memoryUsage.total_bytes || wasmState.memoryUsage.total || 0)}
-                  {/if}
-                </div>
-              </div>
+        <!-- Modern utilization bar -->
+        <div class="mt-2">
+          <div class="flex items-center gap-2 text-[11px]">
+            <span class="text-gray-400">Utilization</span>
+            <div class="flex-1 bg-gray-700/50 rounded-sm h-2 overflow-hidden">
+              <div
+                class="h-2 transition-all duration-300"
+                class:bg-emerald-500={utilization < 0.7}
+                class:bg-amber-500={utilization >= 0.7 && utilization < 0.85}
+                class:bg-red-500={utilization >= 0.85}
+                style="width: {utilization * 100}%"
+              ></div>
             </div>
-
-            <!-- Memory usage bar -->
-            <div class="mb-6">
-              {#if wasmState.memoryUsage}
-                {@const utilization = getMemoryUtilization(wasmState.memoryUsage)}
-                <div class="flex justify-between text-xs text-gray-400 mb-1">
-                  <span>Memory Utilization</span>
-                  <span>{Math.round(utilization * 100)}%</span>
-                </div>
-                <div class="w-full bg-gray-600 rounded-full h-3">
-                  <div
-                    class="h-3 rounded-full transition-all duration-500"
-                    class:bg-green-500={utilization < 0.7}
-                    class:bg-yellow-500={utilization >= 0.7 && utilization < 0.85}
-                    class:bg-red-500={utilization >= 0.85}
-                    style="width: {utilization * 100}%"
-                  ></div>
-                </div>
-              {/if}
-            </div>
-
-            <!-- Additional Info -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <div class="text-xs text-gray-500 mb-1">WebAssembly Pages</div>
-                <div class="text-sm font-medium text-white">
-                  {#if Object.prototype.toString.call(wasmState.memoryUsage) === '[object Map]'}
-                    {(wasmState.memoryUsage as Map<string, any>).get('current_pages') || 0}
-                  {:else}
-                    {wasmState.memoryUsage.current_pages || 0}
-                  {/if}
-                  <span class="text-xs text-gray-400">
-                    @ {formatBytes(65536)}/page
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <div class="text-xs text-gray-500 mb-1">Allocation Count</div>
-                <div class="text-sm font-medium text-white">
-                  {#if Object.prototype.toString.call(wasmState.memoryUsage) === '[object Map]'}
-                    {(wasmState.memoryUsage as Map<string, any>).get('allocation_count') || 0}
-                  {:else}
-                    {wasmState.memoryUsage.allocation_count || 0}
-                  {/if}
-                </div>
-              </div>
-            </div>
-          </div>
-        {:else}
-          <div class="flex items-center justify-center h-32 text-gray-400">
-            WebAssembly memory information not available.<br>
-            Try enabling WebAssembly in settings.
-          </div>
-        {/if}
-      </div>
-
-      <!-- Memory Explainer Card -->
-      <div class="bg-gray-700/70 rounded p-4">
-        <div class="text-sm text-gray-400 mb-2">About WebAssembly Memory</div>
-        <p class="text-xs text-gray-300 mb-3">
-          WebAssembly modules have a dedicated memory space that grows as needed. The memory usage shown
-          above reflects the current state of the WASM module's memory:
-        </p>
-        <ul class="text-xs text-gray-300 list-disc pl-5 space-y-1 mb-3">
-          <li><span class="text-white font-medium">Used Memory</span>: Memory currently tracked by the allocator</li>
-          <li><span class="text-white font-medium">Total Memory</span>: Total memory allocated to the WASM module</li>
-          <li><span class="text-white font-medium">Pages</span>: WebAssembly memory is allocated in 64KB pages</li>
-        </ul>
-        <p class="text-xs text-gray-300">
-          WebAssembly memory is automatically managed. The system will grow memory as needed during operations
-          and automatically clean up resources when they're no longer needed.
-        </p>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Settings Tab -->
-  {#if selectedTab === 'settings'}
-    <div class="grid grid-cols-1 gap-4">
-      <!-- WebAssembly Settings -->
-      <div class="bg-gray-700/70 rounded p-4">
-        <div class="text-sm text-gray-400 mb-2">Performance Thresholds</div>
-
-        <!-- WASM Mode -->
-        <div class="mb-4">
-          <label class="text-xs text-gray-400 block mb-1">WebAssembly Mode</label>
-          <select
-            class="w-full p-2 bg-gray-800 text-white text-sm rounded border border-primary/20"
-            bind:value={$settings.forceWasmMode}
-          >
-            <option value="auto">Auto (Based on threshold)</option>
-            <option value="enabled">Always Enabled</option>
-            <option value="disabled">Always Disabled</option>
-          </select>
-          <div class="text-xs text-gray-500 mt-1">
-            Controls when WebAssembly optimization is used
+            <span class="text-white font-medium w-10 text-right">{Math.round(utilization * 100)}%</span>
           </div>
         </div>
-
-        <!-- WASM Threshold -->
-        <div class="mb-4" class:opacity-50={$settings.forceWasmMode !== 'auto'}>
-          <label class="text-xs text-gray-400 block mb-1">
-            WebAssembly Size Threshold:
-            <span class="text-primary ml-1">{$settings.wasmSizeThreshold} logs</span>
-          </label>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-500">100</span>
-            <input
-              type="range"
-              min="100"
-              max="5000"
-              step="100"
-              value={$settings.wasmSizeThreshold}
-              on:change={updateWasmThreshold}
-              disabled={$settings.forceWasmMode !== 'auto'}
-              class="flex-1"
-            />
-            <span class="text-xs text-gray-500">5000</span>
-          </div>
-          <div class="text-xs text-gray-500 mt-1">
-            Use WebAssembly for operations with more than {$settings.wasmSizeThreshold} logs
-          </div>
-        </div>
-
-        <!-- LogViewer Virtualization Threshold -->
-        <div class="mb-4">
-          <label class="text-xs text-gray-400 block mb-1">
-            LogViewer Virtualization Threshold:
-            <span class="text-primary ml-1">{$settings.logViewerVirtualizationThreshold} logs</span>
-          </label>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-500">500</span>
-            <input
-              type="range"
-              min="500"
-              max="10000"
-              step="500"
-              bind:value={$settings.logViewerVirtualizationThreshold}
-              class="flex-1"
-            />
-            <span class="text-xs text-gray-500">10000</span>
-          </div>
-          <div class="text-xs text-gray-500 mt-1">
-            Enable virtualization when log count exceeds this threshold
-          </div>
-        </div>
-      </div>
-
-      <!-- Blacklisted Operations -->
-      {#if wasmState?.blacklistedOperations && wasmState.blacklistedOperations.length > 0}
-        <div class="bg-red-800/30 rounded p-4 border border-red-500/30">
-          <div class="text-sm text-red-300 mb-2">Blacklisted Operations</div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-left text-xs text-gray-500">
-                  <th class="pb-2">Operation</th>
-                  <th class="pb-2">Failures</th>
-                  <th class="pb-2">Retry In</th>
-                  <th class="pb-2">Error</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each wasmState.blacklistedOperations as entry}
-                  {@const now = Date.now()}
-                  <tr class="border-t border-gray-600/30">
-                    <td class="py-2">{entry.operation}</td>
-                    <td class="py-2">{entry.retryCount}x</td>
-                    <td class="py-2">{formatTime(Math.max(0, entry.nextRetryTime - now))}</td>
-                    <td class="py-2 text-xs">{entry.lastError || 'Unknown error'}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {:else}
+        <div class="text-center py-4 text-gray-500">No memory data available</div>
       {/if}
-
-      <!-- Informational Card -->
-      <div class="bg-primary/10 rounded p-4">
-        <div class="text-sm text-primary-300 mb-2">About WebAssembly Optimization</div>
-        <p class="text-xs text-gray-300 mb-2">
-          WebAssembly acceleration provides significant performance improvements for operations
-          with large numbers of logs. The performance benefit increases with log volume:
-        </p>
-        <ul class="text-xs text-gray-300 list-disc pl-5 space-y-1">
-          <li>Small datasets (≤500 logs): 1.2-1.5× faster</li>
-          <li>Medium datasets (500-2,000 logs): 2-3× faster</li>
-          <li>Large datasets (2,000-5,000 logs): 5-7× faster</li>
-          <li>Extra large datasets (>5,000 logs): 8-10× faster</li>
-        </ul>
-      </div>
     </div>
   {/if}
 </div>

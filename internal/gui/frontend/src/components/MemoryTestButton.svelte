@@ -1,4 +1,4 @@
-\<script lang="ts">
+<script lang="ts">
   import { testWasmMemoryAccess } from '../tests/wasm/memory-test';
   import { logger } from '../lib/logger';
 

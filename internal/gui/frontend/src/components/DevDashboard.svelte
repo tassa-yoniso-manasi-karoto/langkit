@@ -262,12 +262,9 @@
                 <!-- Content area -->
                 <div class="dashboard-content">
                     {#if activeTab === 'performance'}
-                        <div transition:fade={{duration: 200}}>
-                            <WasmPerformanceDashboard />
-                        </div>
+                        <WasmPerformanceDashboard />
                     {:else if activeTab === 'state'}
-                        <div transition:fade={{duration: 200}}>
-                            <h4>Application State</h4>
+                        <h4>Application State</h4>
                             
                             <div class="state-section">
                                 <h5 class="text-xs font-semibold mb-2 opacity-80">Counter Values</h5>
@@ -299,10 +296,8 @@
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
                     {:else if activeTab === 'logs'}
-                        <div transition:fade={{duration: 200}}>
-                            <h4>Log Viewer Controls</h4>
+                        <h4>Log Viewer Controls</h4>
 
                             <div class="control-section mb-4">
                                 <h5 class="text-xs font-semibold mb-2 opacity-80">Virtualization</h5>
@@ -347,11 +342,8 @@
                                     </button>
                                 </div>
                             </div>
-
-                        </div>
                     {:else if activeTab === 'debug'}
-                        <div transition:fade={{duration: 200}}>
-                            <h4>Debug Controls</h4>
+                        <h4>Debug Controls</h4>
 
                             <!-- Memory testing section -->
                             <div class="memory-test-section mb-4">
@@ -413,12 +405,6 @@
                                 </div>
                             </div>
 
-                            <div class="debug-controls">
-                                <button class="debug-button">
-                                    Reset All Settings
-                                </button>
-                            </div>
-                        </div>
                     {/if}
                 </div>
             </div>
