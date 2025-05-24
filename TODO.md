@@ -23,6 +23,7 @@ SVG animations: rework state transitions
 .
 
 - guarantee all settings in Settings panel work
+  - implement intermediary file mode
 
 .
 - welcome.svelte component w/ checks for binary needed

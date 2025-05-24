@@ -566,118 +566,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                  </div>
                             </div>
                         </section>
-                            
-                        <!-- API TIMEOUTS SECTION -->
-                        <section class="space-y-6">
-                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
-                                <span class="material-icons text-primary">timer</span>
-                                Timeouts & Retries
-                            </h3>
-                            <!-- Maximum API retries -->
-                            <div class="setting-row">
-                                <div class="setting-label">
-                                    <span>Maximum API retries</span>
-                                    <span class="setting-description">Number of retry attempts for failed API calls</span>
-                                </div>
-                                <div class="setting-control">
-                                    <NumericInput
-                                        bind:value={currentSettings.maxAPIRetries}
-                                        min={1}
-                                        step={1}
-                                        className="w-48 px-3 py-2 hover:border-primary/55
-                                                hover:shadow-input focus:shadow-input-focus
-                                                focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                    />
-                                </div>
-                            </div>
-                            
-                            <!-- Voice separation timeout -->
-                            <div class="setting-row">
-                                <div class="setting-label">
-                                    <span>Voice separation timeout</span>
-                                    <span class="setting-description">Timeout in seconds for voice separation operations (Demucs, Spleeter) - Default: 2100</span>
-                                </div>
-                                <div class="setting-control">
-                                    <NumericInput
-                                        bind:value={currentSettings.timeoutSep}
-                                        min={60}
-                                        max={7200}
-                                        step={60}
-                                        className="w-48 px-3 py-2 hover:border-primary/55
-                                                hover:shadow-input focus:shadow-input-focus
-                                                focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                    />
-                                </div>
-                            </div>
-                            
-                            <!-- Speech-to-text timeout -->
-                            <div class="setting-row">
-                                <div class="setting-label">
-                                    <span>Speech-to-text timeout</span>
-                                    <span class="setting-description">Timeout in seconds for speech-to-text operations per audio segment - Default: 90</span>
-                                </div>
-                                <div class="setting-control">
-                                    <NumericInput
-                                        bind:value={currentSettings.timeoutSTT}
-                                        min={10}
-                                        max={600}
-                                        step={10}
-                                        className="w-48 px-3 py-2 hover:border-primary/55
-                                                hover:shadow-input focus:shadow-input-focus
-                                                focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                    />
-                                </div>
-                            </div>
-                            
-                            <!-- Download timeout -->
-                            <div class="setting-row">
-                                <div class="setting-label">
-                                    <span>Download timeout</span>
-                                    <span class="setting-description">Timeout in seconds for download operations - Default: 600</span>
-                                </div>
-                                <div class="setting-control">
-                                    <NumericInput
-                                        bind:value={currentSettings.timeoutDL}
-                                        min={30}
-                                        max={3600}
-                                        step={30}
-                                        className="w-48 px-3 py-2 hover:border-primary/55
-                                                hover:shadow-input focus:shadow-input-focus
-                                                focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                    />
-                                </div>
-                            </div>
-                        </section>
 
-                        <!-- Worker Pool Settings with improved styling -->
-                        <section class="space-y-6">
-                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
-                                <span class="material-icons text-primary">speed</span>
-                                Worker Pool Settings
-                            </h3>
-                            <div class="setting-row">
-                                <div class="setting-label">
-                                    <span>Maximum Workers</span>
-                                    <span class="setting-description">Number of concurrent worker processes</span>
-                                </div>
-                                <div class="setting-control">
-                                    <NumericInput
-                                        bind:value={currentSettings.maxWorkers}
-                                        min={1}
-                                        step={1}
-                                        className="w-48 px-3 py-2 hover:border-primary/55
-                                                hover:shadow-input focus:shadow-input-focus
-                                                focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                    />
-                                </div>
-                            </div>
-                        </section>
-                        
                         <!-- Intermediary File Handling Settings -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
@@ -883,6 +772,117 @@ import { isDeveloperMode } from '../lib/developerMode';
                                                 focus:border-primary focus:ring-1
                                                 focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
                                         on:change={updateSettings}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+                        
+                        <!-- Worker Pool Settings with improved styling -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">speed</span>
+                                Worker Pool Settings
+                            </h3>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum Workers</span>
+                                    <span class="setting-description">Number of concurrent worker processes</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.maxWorkers}
+                                        min={1}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                        </section>
+                        
+                        <!-- API TIMEOUTS SECTION -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">timer</span>
+                                Timeouts & Retries
+                            </h3>
+                            <!-- Maximum API retries -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum API retries</span>
+                                    <span class="setting-description">Number of retry attempts for failed API calls</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.maxAPIRetries}
+                                        min={1}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Voice separation timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Voice separation timeout</span>
+                                    <span class="setting-description">Timeout in seconds for voice separation operations (Demucs, Spleeter) - Default: 2100</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutSep}
+                                        min={60}
+                                        max={7200}
+                                        step={60}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Speech-to-text timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Speech-to-text timeout</span>
+                                    <span class="setting-description">Timeout in seconds for speech-to-text operations per audio segment - Default: 90</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutSTT}
+                                        min={10}
+                                        max={600}
+                                        step={10}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <!-- Download timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Download timeout</span>
+                                    <span class="setting-description">Timeout in seconds for download operations - Default: 600</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutDL}
+                                        min={30}
+                                        max={3600}
+                                        step={30}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
                                     />
                                 </div>
                             </div>
