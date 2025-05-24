@@ -44,8 +44,7 @@ export const providersRequiringTokens = {
     'whisper': 'replicate',
     'insanely-fast-whisper': 'replicate',
     'demucs': 'replicate',
-    'spleeter': 'replicate',
-    'universal-1': 'assemblyAI'
+    'spleeter': 'replicate'
 };
 
 export const providerGithubUrls = {

@@ -9,9 +9,11 @@ SVG animations: rework state transitions
 - condensed audio: CHECK IT
 
 - support Condensed Audio summaries:
+  - pre-fetch in advance
+  - make openrouter-free default, pre-selected
+
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
-  - "Custom Summary Prompt" → should have bigger field like Initial Prompt
   - dropdown for desired output format (mp3 / aac / opus)
 
 .

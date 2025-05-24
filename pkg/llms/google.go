@@ -88,11 +88,11 @@ func (p *GoogleProvider) GetAvailableModels(ctx context.Context) []ModelInfo {
 	
 	// Collect models using the iterator function pattern
 	modelsIterator(func(model *genai.Model, e error) bool {
-		name := strings.TrimPrefix(model.Name, "models/")
 		if e != nil {
 			err = e
 			return false
 		}
+		name := strings.TrimPrefix(model.Name, "models/")
 		
 		// Filter for models that support "generateContent"
 		supportsGenerateContent := false

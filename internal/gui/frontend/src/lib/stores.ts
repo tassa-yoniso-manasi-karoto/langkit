@@ -6,7 +6,6 @@ type IntermediaryFileMode = 'keep' | 'recompress' | 'delete';
 type Settings = {
     apiKeys: {
         replicate: string;
-        assemblyAI: string;
         elevenLabs: string;
         openAI: string;
         openRouter: string;
@@ -47,7 +46,6 @@ type Settings = {
 const initSettings: Settings = {
     apiKeys: {
         replicate: '',
-        assemblyAI: '',
         elevenLabs: '',
         openAI: '',
         openRouter: '',

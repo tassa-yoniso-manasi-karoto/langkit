@@ -71,7 +71,6 @@ import { isDeveloperMode } from '../lib/developerMode';
     let currentSettings = {
         apiKeys: {
             replicate: '',
-            assemblyAI: '',
             elevenLabs: '',
             openAI: '',
             openRouter: '',
@@ -492,21 +491,6 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 <div class="relative glass-input-container">
                                     <input
                                         type="password"
-                                        bind:value={currentSettings.apiKeys.assemblyAI}
-                                        class="w-full bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
-                                               hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
-                                               focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
-                                               focus:shadow-input-focus transition-all duration-200"
-                                    />
-                                    <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
-                                                 w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
-                                                 text-sm text-primary font-medium">
-                                        AssemblyAI
-                                    </span>
-                                </div>
-                                <div class="relative glass-input-container">
-                                    <input
-                                        type="password"
                                         bind:value={currentSettings.apiKeys.elevenLabs}
                                         class="w-full bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
                                                hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
@@ -724,7 +708,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             <div class="setting-row">
                                 <div class="setting-label">
                                     <span>Enable glow effects</span>
-                                    <span class="setting-description">Adds visual glow effects to UI elements</span>
+                                    <span class="setting-description">Disable it if the UI is laggy</span>
                                 </div>
                                 <div class="setting-control">
                                     <label class="toggle-switch">
@@ -742,7 +726,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             <div class="setting-row">
                                 <div class="setting-label">
                                     <span>Show log viewer by default</span>
-                                    <span class="setting-description">Automatically open log viewer when starting a process</span>
+                                    <span class="setting-description">Always reveal log viewer on start up</span>
                                 </div>
                                 <div class="setting-control">
                                     <label class="toggle-switch">
