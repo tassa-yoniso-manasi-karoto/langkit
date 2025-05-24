@@ -6,12 +6,11 @@ SVG animations: rework state transitions
   - single Browser Access URL declaration
   - make currenlty running browser download known in the GUI
 
+- implement stats in config pkg and move counter* var there
+
 - condensed audio: CHECK IT
 
 - support Condensed Audio summaries:
-  - pre-fetch in advance
-  - make openrouter-free default, pre-selected
-
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
   - dropdown for desired output format (mp3 / aac / opus)

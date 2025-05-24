@@ -27,6 +27,7 @@
   - Stores for state management (errorStore, logStore, progressBarsStore)
 
 ## Code management
+- Do NOT think or write tests without my EXPLICIT COMMAND.
 - IMPORTANT: when writing the commit message each line shouldn't go beyond 80 characters
 - Unless I specifically request it: Do NOT git add / diff / commit and do not git pull
 - Do not write commit messages in the "conventional commit" style i.e. do not prefix with "feat: ", "fix: " or whatnot

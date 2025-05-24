@@ -159,3 +159,56 @@ func (a *App) RefreshSTTModelsAfterSettingsUpdate() STTModelsResponse {
     
     return response
 }
+
+// LoadStatistics loads the statistics data from disk
+func (a *App) LoadStatistics() (map[string]interface{}, error) {
+	stats, err := config.LoadStatistics()
+	if err != nil {
+		a.logger.Error().Err(err).Msg("Failed to load statistics")
+		return nil, err
+	}
+	
+	return stats.GetAll(), nil
+}
+
+// UpdateStatistics performs partial updates to statistics
+func (a *App) UpdateStatistics(updates map[string]interface{}) error {
+	stats, err := config.LoadStatistics()
+	if err != nil {
+		a.logger.Error().Err(err).Msg("Failed to load statistics for update")
+		return err
+	}
+	
+	// Apply the updates
+	stats.Update(updates)
+	
+	// Save back to disk
+	if err := stats.Save(); err != nil {
+		a.logger.Error().Err(err).Msg("Failed to save statistics")
+		return err
+	}
+	
+	a.logger.Debug().Interface("updates", updates).Msg("Statistics updated")
+	return nil
+}
+
+// IncrementStatistic increments a counter statistic and returns the new value
+func (a *App) IncrementStatistic(key string) (int, error) {
+	stats, err := config.LoadStatistics()
+	if err != nil {
+		a.logger.Error().Err(err).Msg("Failed to load statistics for increment")
+		return 0, err
+	}
+	
+	// Increment the counter
+	newValue := stats.IncrementCounter(key)
+	
+	// Save back to disk
+	if err := stats.Save(); err != nil {
+		a.logger.Error().Err(err).Msg("Failed to save statistics after increment")
+		return 0, err
+	}
+	
+	a.logger.Debug().Str("key", key).Int("newValue", newValue).Msg("Statistic incremented")
+	return newValue, nil
+}

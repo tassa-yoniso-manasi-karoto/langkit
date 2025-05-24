@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
@@ -45,6 +45,12 @@
     let currentLLMState;
     const unsubscribeLLMState = llmStateStore.subscribe(value => {
         currentLLMState = value;
+    });
+    
+    // Store current statistics
+    let currentStatistics;
+    const unsubscribeStatistics = statisticsStore.subscribe(value => {
+        currentStatistics = value;
     });
     
     // Show when in dev mode or developer mode is enabled
@@ -151,6 +157,7 @@
         window.removeEventListener('mouseup', handleMouseUp);
         unsubscribeSettings();
         unsubscribeLLMState();
+        unsubscribeStatistics();
     });
     
     // Keep dashboard in viewport when window is resized
@@ -272,12 +279,12 @@
                                     <tbody>
                                         <tr>
                                             <td class="state-key">countAppStart</td>
-                                            <td class="state-value">{currentSettings?.countAppStart || 0}</td>
+                                            <td class="state-value">{currentStatistics?.countAppStart || 0}</td>
                                             <td class="state-description">App launch count</td>
                                         </tr>
                                         <tr>
                                             <td class="state-key">countProcessStart</td>
-                                            <td class="state-value">{currentSettings?.countProcessStart || 0}</td>
+                                            <td class="state-value">{currentStatistics?.countProcessStart || 0}</td>
                                             <td class="state-description">Processing run count</td>
                                         </tr>
                                     </tbody>

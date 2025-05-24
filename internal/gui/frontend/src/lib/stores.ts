@@ -34,8 +34,6 @@ type Settings = {
     convertValues: boolean;   // Make required
     
     // Internal settings (not exposed in UI)
-    countAppStart?: number;
-    countProcessStart?: number;
     hasSeenLogViewerTooltip?: boolean;
     
     // File handling settings
@@ -71,8 +69,6 @@ const initSettings: Settings = {
     logViewerVirtualizationThreshold: 2000, // Default to 2000 logs for virtualization
 
     // Default values for internal settings
-    countAppStart: 0,
-    countProcessStart: 0,
     hasSeenLogViewerTooltip: false,
     // Add defaults for missing properties
     eventThrottling: { enabled: true, minInterval: 0, maxInterval: 250 }, // Default object
@@ -133,3 +129,50 @@ function createLLMStateStore() {
 }
 
 export const llmStateStore = createLLMStateStore();
+
+// Statistics store
+interface Statistics {
+    [key: string]: any; // Flexible key-value structure for statistics
+}
+
+function createStatisticsStore() {
+    const { subscribe, set, update } = writable<Statistics>({});
+    
+    return {
+        subscribe,
+        set,
+        
+        // Update specific statistics without overwriting the entire store
+        updatePartial: (updates: Partial<Statistics>) => {
+            update(stats => ({
+                ...stats,
+                ...updates
+            }));
+        },
+        
+        // Get a specific statistic value
+        get: (key: string): any => {
+            let value: any;
+            subscribe(stats => {
+                value = stats[key];
+            })();
+            return value;
+        },
+        
+        // Increment a counter statistic
+        increment: (key: string): number => {
+            let newValue = 0;
+            update(stats => {
+                const currentValue = typeof stats[key] === 'number' ? stats[key] : 0;
+                newValue = currentValue + 1;
+                return {
+                    ...stats,
+                    [key]: newValue
+                };
+            });
+            return newValue;
+        }
+    };
+}
+
+export const statisticsStore = createStatisticsStore();

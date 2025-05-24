@@ -2,7 +2,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { fade } from 'svelte/transition';
     import Portal from 'svelte-portal/src/Portal.svelte';
-    import { settings } from '../lib/stores';
+    import { settings, statisticsStore } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
 
     // Component props
@@ -30,8 +30,12 @@
 
     // Subscribe to settings
     const unsubscribeSettings = settings.subscribe(val => {
-        countAppStart = val.countAppStart || 0;
         hasSeenTooltip = val.hasSeenLogViewerTooltip || false;
+    });
+    
+    // Subscribe to statistics
+    const unsubscribeStatistics = statisticsStore.subscribe(stats => {
+        countAppStart = stats?.countAppStart || 0;
     });
     
     // Subscribe to logs
@@ -129,6 +133,7 @@
 
     onDestroy(() => {
         unsubscribeSettings();
+        unsubscribeStatistics();
         unsubscribeLogs();
     });
 </script>

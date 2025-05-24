@@ -5,7 +5,7 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { logger } from './lib/logger';
@@ -37,7 +37,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         LoadSettings, 
         SaveSettings, 
         GetCurrentTimestamp,
-        RefreshSTTModelsAfterSettingsUpdate 
+        RefreshSTTModelsAfterSettingsUpdate,
+        LoadStatistics,
+        UpdateStatistics,
+        IncrementStatistic
     } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
     import type { gui } from '../wailsjs/go/models';
@@ -261,15 +264,15 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         if (!currentFeatureOptions || !mediaSource) return;
 
         // Increment process start count
-        settings.update(currentSettings => {
-            return {
-                ...currentSettings,
-                countProcessStart: (currentSettings.countProcessStart || 0) + 1
-            };
-        });
-        
-        // Save updated settings to persist the incremented counter
-        await SaveSettings(get(settings));
+        try {
+            const newCount = await IncrementStatistic('countProcessStart');
+            logger.trace('app', `Process start count incremented to: ${newCount}`);
+            
+            // Update the local store with the new value
+            statisticsStore.updatePartial({ countProcessStart: newCount });
+        } catch (error) {
+            logger.error('app', 'Failed to increment process start statistic', { error });
+        }
 
         processingStartTime = await GetCurrentTimestamp(); // FIXME it seems that Date.now() is UNIX epoch and can provide unix timestamp : Math.floor(Date.now() / 1000)
         logger.trace('app', `Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
@@ -351,24 +354,14 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
         try {
             const loadedSettings = await LoadSettings(); // Use direct import
             
-            // Increment app start count before setting
-            const updatedSettings = {
-                ...get(settings), // Merge with existing settings from store
-                ...loadedSettings,
-                countAppStart: ((loadedSettings as any).countAppStart || 0) + 1 // Use type assertion
-            };
-            
-            settings.set(updatedSettings as any); // Use type assertion until Settings type is fully updated
-            
-            // Save the updated settings to persist the incremented app start counter
-            await SaveSettings(updatedSettings);
+            settings.set(loadedSettings as any); // Use type assertion until Settings type is fully updated
             
             // Initialize showGlow based on enableGlow setting (if not minimized)
             if (!isWindowMinimized) {
-                showGlow = updatedSettings.enableGlow;
+                showGlow = loadedSettings.enableGlow;
             }
-            defaultTargetLanguage = updatedSettings.targetLanguage;
-            showLogViewer = updatedSettings.showLogViewerByDefault;
+            defaultTargetLanguage = loadedSettings.targetLanguage;
+            showLogViewer = loadedSettings.showLogViewerByDefault;
         } catch (error) {
             logger.error('app', "Failed to load settings", { error });
             errorStore.addError({
@@ -381,6 +374,23 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                     handler: () => loadSettings()
                 }
             });
+        }
+    }
+
+    async function loadStatisticsData() {
+        try {
+            // Load statistics from backend
+            const stats = await LoadStatistics();
+            statisticsStore.set(stats);
+            
+            // Increment app start count
+            const newCount = await IncrementStatistic('countAppStart');
+            logger.trace('app', `App start count incremented to: ${newCount}`);
+            
+            // Update the local store with the new value
+            statisticsStore.updatePartial({ countAppStart: newCount });
+        } catch (error) {
+            logger.error('app', "Failed to load statistics", { error });
         }
     }
 
@@ -598,6 +608,9 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             // Load settings before initializing WebAssembly
             await loadSettings(); 
             const $currentSettings = get(settings);
+            
+            // Load statistics data
+            await loadStatisticsData();
             
             // Check if WebAssembly is supported by the browser
             if (!await import('./lib/wasm').then(m => m.isWasmSupported())) {

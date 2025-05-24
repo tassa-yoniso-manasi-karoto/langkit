@@ -1,6 +1,6 @@
 <script>
     import { OpenURL } from '../../wailsjs/go/gui/App';
-    import { settings } from '../lib/stores';
+    import { statisticsStore } from '../lib/stores';
     
     export let version = '';
     export let github_url = 'https://github.com/tassa-yoniso-manasi-karoto/langkit';
@@ -10,7 +10,7 @@
         OpenURL(github_url);
     };
 
-    $: isVisible = ($settings?.countAppStart > 20 && $settings?.countProcessStart > 30) || version === 'dev';
+    $: isVisible = ($statisticsStore?.countAppStart > 20 && $statisticsStore?.countProcessStart > 30) || version === 'dev';
 </script>
 
 {#if isVisible}

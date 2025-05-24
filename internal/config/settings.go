@@ -55,10 +55,6 @@ type Settings struct {
 		MaxInterval int  `json:"maxInterval" mapstructure:"max_interval"` // milliseconds
 	} `json:"eventThrottling" mapstructure:"event_throttling"`
 	
-	// Internal counters
-	CountAppStart    int               `json:"countAppStart" mapstructure:"count_app_start"`
-	CountProcessStart int               `json:"countProcessStart" mapstructure:"count_process_start"`
-	
 	// File handling settings
 	IntermediaryFileMode IntermediaryFileMode `json:"intermediaryFileMode" mapstructure:"intermediary_file_mode"`
 }
@@ -119,10 +115,6 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("event_throttling.min_interval", 0)   // 0ms = no throttle when quiet
 	viper.SetDefault("event_throttling.max_interval", 250) // 250ms max interval
 	
-	// Default counter values
-	viper.SetDefault("count_app_start", 0)
-	viper.SetDefault("count_process_start", 0)
-	
 	// Default intermediary file mode
 	viper.SetDefault("intermediary_file_mode", string(KeepIntermediaryFiles))
 
@@ -180,11 +172,18 @@ func SaveSettings(settings Settings) error {
 	viper.Set("max_log_entries", settings.MaxLogEntries)
 	viper.Set("max_api_retries", settings.MaxAPIRetries)
 	viper.Set("max_workers", settings.MaxWorkers)
+	viper.Set("timeout_sep", settings.TimeoutSep)
+	viper.Set("timeout_stt", settings.TimeoutSTT)
+	viper.Set("timeout_dl", settings.TimeoutDL)
+	viper.Set("log_viewer_virtualization_threshold", settings.LogViewerVirtualizationThreshold)
 
 	// Save event throttling settings
 	viper.Set("event_throttling.enabled", settings.EventThrottling.Enabled)
 	viper.Set("event_throttling.min_interval", settings.EventThrottling.MinInterval)
 	viper.Set("event_throttling.max_interval", settings.EventThrottling.MaxInterval)
+	
+	// Save file handling settings
+	viper.Set("intermediary_file_mode", string(settings.IntermediaryFileMode))
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()
