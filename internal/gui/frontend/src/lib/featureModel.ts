@@ -97,12 +97,20 @@ export const features: FeatureDefinition[] = [
     {
         id: 'condensedAudio',
         label: 'Make Condensed Audio',
+        optionOrder: ['audioFormat', 'enableSummary', 'summaryProvider', 'summaryModel', 'summaryMaxLength', 'summaryTemperature', 'summaryCustomPrompt'],
         options: {
+            audioFormat: {
+                type: 'dropdown',
+                label: 'Audio Format',
+                default: 'MP3',
+                choices: ['MP3', 'AAC', 'Opus']
+            },
             enableSummary: {
                 type: 'boolean',
                 label: 'Generate Summary with LLM',
                 default: false,
-                hovertip: "Generate a summary of the media content and embed it in the audio metadata as lyrics."
+                hovertip: "Generate a summary of the media content and embed it in the audio metadata as lyrics.",
+                showCondition: "feature.condensedAudio.audioFormat !== 'Opus'"
             },
             summaryProvider: {
                 type: 'dropdown',

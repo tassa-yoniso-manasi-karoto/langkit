@@ -6,8 +6,6 @@ SVG animations: rework state transitions
   - single Browser Access URL declaration
   - make currenlty running browser download known in the GUI
 
-- implement stats in config pkg and move counter* var there
-
 - condensed audio: CHECK IT
 
 - support Condensed Audio summaries:

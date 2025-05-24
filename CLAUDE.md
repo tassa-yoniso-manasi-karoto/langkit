@@ -3,6 +3,7 @@
 ## Build Commands
 - Build frontend only: `cd internal/gui/frontend && npm run build`
 - Dev frontend: `cd internal/gui/frontend && npm run dev`
+- Build GO: `go build -o langkit-cli ./cmd/cli`
 
 ## Code Style Guidelines
 - In Svelte / Typescript, the template literals with interpolation (${variable}) break syntax highlighting in my IDE, don't use them and prefer simple string concatenations.

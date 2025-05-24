@@ -262,7 +262,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
 
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
-
+	
         // Increment process start count
         try {
             const newCount = await IncrementStatistic('countProcessStart');
@@ -363,7 +363,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             defaultTargetLanguage = loadedSettings.targetLanguage;
             showLogViewer = loadedSettings.showLogViewerByDefault;
         } catch (error) {
-            logger.error('app', "Failed to load settings", { error });
+            logger.error('app', "Failed to load settings", { error });/*
             errorStore.addError({
                 id: "settings-load-failed",
                 message: "Failed to load settings",
@@ -373,7 +373,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                     label: "Retry",
                     handler: () => loadSettings()
                 }
-            });
+            });*/
         }
     }
 

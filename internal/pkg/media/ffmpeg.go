@@ -113,9 +113,28 @@ func RunFFmpegConcat(concatFile, outputWav string) error {
 	return FFmpeg([]string{"-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
 }
 
-// Converts the WAV file to OGG using FFmpeg
-func RunFFmpegConvert(inputWav, outputOgg string) error {
-	return FFmpeg([]string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "112k", outputOgg}...)
+// Converts the WAV file to specified audio format using FFmpeg
+func RunFFmpegConvert(inputWav, outputFile string) error {
+	// Determine codec and parameters based on file extension
+	ext := strings.ToLower(outputFile[strings.LastIndex(outputFile, ".")+1:])
+	
+	var args []string
+	switch ext {
+	case "mp3":
+		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libmp3lame", "-b:a", "192k", outputFile}
+	case "m4a":
+		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "aac", "-b:a", "192k", outputFile}
+	case "opus":
+		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "128k", outputFile}
+	case "ogg":
+		// Legacy support for OGG container with Opus codec
+		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "112k", outputFile}
+	default:
+		// Default to MP3 if extension is not recognized
+		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libmp3lame", "-b:a", "192k", outputFile}
+	}
+	
+	return FFmpeg(args...)
 }
 
 

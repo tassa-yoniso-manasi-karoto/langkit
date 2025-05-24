@@ -55,7 +55,7 @@ func condense(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []st
 		tsk.TargSubFile = args[1]
 	} else {
 		// If no subtitle file is provided, Autosub will be attempted by tsk.Routing -> tsk.Execute -> tsk.setupSubtitles
-		// The core logic in item.go (ConcatWAVstoOGG) checks if tsk.TargSubs is nil.
+		// The core logic in item.go (ConcatWAVsToAudio) checks if tsk.TargSubs is nil.
 		// If Autosub fails to find a subtitle, tsk.TargSubs will remain nil, and summary/condensed audio (which needs subs) won't proceed.
 		tsk.Handler.ZeroLog().Info().Msg("No subtitle file provided for condense command. Will attempt Autosub.")
 	}

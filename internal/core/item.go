@@ -192,8 +192,21 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 
 
 
-func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
-	out := fmt.Sprintf("%s.%s.ogg", tsk.MediaPrefix, suffix)
+func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
+	// Determine output format and extension
+	var ext string
+	switch tsk.CondensedAudioFmt {
+	case "MP3":
+		ext = "mp3"
+	case "AAC":
+		ext = "m4a" // Using m4a container for AAC
+	case "Opus":
+		ext = "opus"
+	default:
+		ext = "mp3" // Default to MP3 if not specified
+	}
+	
+	out := fmt.Sprintf("%s.%s.%s", tsk.MediaPrefix, suffix, ext)
 
 	if _, err := os.Stat(out); err == nil {
 		tsk.Handler.ZeroLog().Info().
@@ -252,8 +265,9 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 	if err := media.RunFFmpegConvert(tempWavFile, out); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).
 			Str("inputWav", tempWavFile).
-			Str("outputOgg", out).
-			Msg("Failed to convert WAV to OGG")
+			Str("outputFile", out).
+			Str("format", tsk.CondensedAudioFmt).
+			Msg("Failed to convert WAV to target format")
 		_ = os.Remove(out)
 		return err
 	}
@@ -279,8 +293,8 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 			Msg("Finished removing WAV segment files.")
 	}
 
-	// Generate and add summary to metadata if requested
-	if tsk.WantSummary {
+	// Generate and add summary to metadata if requested (not supported for Opus format)
+	if tsk.WantSummary && tsk.CondensedAudioFmt != "Opus" {
 		if tsk.TargSubs != nil && tsk.TargSubs.Subtitles != nil && len(tsk.TargSubs.Subtitles.Items) > 0 {
 			tsk.Handler.ZeroLog().Info().
 				Str("provider", tsk.SummaryProvider).
@@ -358,6 +372,9 @@ func (tsk *Task) ConcatWAVstoOGG(suffix string) error {
 			tsk.Handler.ZeroLog().Warn().
 				Msg("Target subtitles (tsk.TargSubs or tsk.TargSubs.Subtitles) not available for summarization. Skipping summary.")
 		}
+	} else if tsk.WantSummary && tsk.CondensedAudioFmt == "Opus" {
+		tsk.Handler.ZeroLog().Info().
+			Msg("Summary generation is not supported for Opus format. Skipping summary.")
 	}
 
 	tsk.Handler.ZeroLog().Info().

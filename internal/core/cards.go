@@ -225,7 +225,7 @@ goodEnd:
 				
 				// Call concatenation to create the final condensed audio file
 				tsk.Handler.ZeroLog().Info().Msg("Creating condensed audio file (auxiliary output)...")
-				if err := tsk.ConcatWAVstoOGG("CONDENSED"); err != nil {
+				if err := tsk.ConcatWAVsToAudio("CONDENSED"); err != nil {
 					procErr = tsk.Handler.LogErr(err, AbortTask, "Failed to create condensed audio file as part of Translit mode.")
 					if procErr != nil {
 						return procErr // Abort this task

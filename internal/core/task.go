@@ -118,6 +118,7 @@ type Task struct {
 	Offset               time.Duration
 	MaxAPIRetries        int
 	WantCondensedAudio   bool
+	CondensedAudioFmt    string
 	WantEnhancedTrack    bool // Used when Condense mode should also create an enhanced track
 	
 	// Summary options for condensed audio
