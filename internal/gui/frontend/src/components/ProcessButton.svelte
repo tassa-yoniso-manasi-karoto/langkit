@@ -9,6 +9,9 @@
     const dispatch = createEventDispatcher();
 
     export let isProcessing: boolean;
+    
+    // Track previous processing state
+    let prevIsProcessing = isProcessing;
 
     let showTooltip = false;
     let buttonRef: HTMLButtonElement;
@@ -17,7 +20,17 @@
     // Subscribe to the error store to get the current errors.
     let errors = [];
     const unsubscribe = errorStore.subscribe((val) => {
+        const oldErrorCount = errors.length;
         errors = val;
+        
+        // Log error state changes
+        if (oldErrorCount !== errors.length) {
+            logger.trace('ProcessButton', 'Error count changed', { 
+                from: oldErrorCount, 
+                to: errors.length,
+                hasCritical: errors.some(e => e.severity === 'critical')
+            });
+        }
         
         // Auto-update tooltip position based on button position when errors change
         // This ensures tooltip is properly positioned even with deferred loading
@@ -49,6 +62,7 @@
     function handleMouseOver(event: MouseEvent) {
         if (hasAnyErrors) {
             showTooltip = true;
+            logger.trace('ProcessButton', 'Showing error tooltip on hover');
             // First use button position for better initial positioning
             updateTooltipPositionFromButton();
             // Then use mouse position for fine-tuning
@@ -63,29 +77,40 @@
     }
 
     function handleMouseOut() {
+        if (showTooltip) {
+            logger.trace('ProcessButton', 'Hiding error tooltip');
+        }
         showTooltip = false;
     }
 
     function handleClick() {
         // Only block processing when a critical error exists or processing is active.
         if (!hasCriticalErrors && !isProcessing) {
+            logger.info('ProcessButton', 'Process button clicked - starting processing');
             dispatch('process');
         } else {
-            logger.debug('processButton', 'Button click blocked', { hasCriticalErrors, isProcessing });
+            logger.warn('ProcessButton', 'Button click blocked', { 
+                hasCriticalErrors, 
+                isProcessing,
+                criticalErrors: errors.filter(e => e.severity === 'critical').map(e => e.message)
+            });
         }
     }
 
     function handleKeydown(event: KeyboardEvent) {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
+            logger.trace('ProcessButton', 'Keyboard activation', { key: event.key });
             handleClick();
         } else if (event.key === 'Escape' && showTooltip) {
+            logger.trace('ProcessButton', 'Hiding tooltip via Escape key');
             showTooltip = false;
         }
     }
 
     function handleFocus(event: FocusEvent) {
         if (hasAnyErrors) {
+            logger.trace('ProcessButton', 'Showing error tooltip on focus');
             showTooltip = true;
         }
     }
@@ -102,6 +127,8 @@
     }
 
     onMount(() => {
+        logger.trace('ProcessButton', 'Component mounted');
+        
         // Position tooltip initially
         setTimeout(updateTooltipPositionFromButton, 500);
         
@@ -119,8 +146,21 @@
     });
 
     onDestroy(() => {
+        logger.trace('ProcessButton', 'Component unmounting');
         unsubscribe();
     });
+    
+    // React to processing state changes
+    $: {
+        if (isProcessing !== prevIsProcessing) {
+            if (isProcessing) {
+                logger.info('ProcessButton', 'Processing started');
+            } else {
+                logger.info('ProcessButton', 'Processing ended');
+            }
+            prevIsProcessing = isProcessing;
+        }
+    }
 </script>
 
 <div class="relative inline-block">

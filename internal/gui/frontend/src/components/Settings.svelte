@@ -22,6 +22,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     
     function handleBugIconClick() {
         bugIconClickCount++;
+        logger.trace('Settings', 'Bug icon clicked', { clickCount: bugIconClickCount });
         
         if (bugIconClickCount >= 7) {
             // Toggle developer mode after 7 clicks
@@ -31,7 +32,7 @@ import { isDeveloperMode } from '../lib/developerMode';
             bugIconClickCount = 0;
             
             // Notify the user
-            logger.info('settings', `Developer mode ${$isDeveloperMode ? 'enabled' : 'disabled'}`);
+            logger.info('Settings', 'Developer mode toggled', { enabled: $isDeveloperMode });
         }
     }
     
@@ -190,10 +191,17 @@ import { isDeveloperMode } from '../lib/developerMode';
     }
 
     async function validateLanguages() {
+        logger.trace('Settings', 'Validating languages');
+        
         if (currentSettings.targetLanguage) {
             const targetResponse = await ValidateLanguageTag(currentSettings.targetLanguage, true);
             targetLangValid = targetResponse.isValid;
             targetLangError = targetResponse.error || '';
+            logger.debug('Settings', 'Target language validation', { 
+                language: currentSettings.targetLanguage, 
+                valid: targetLangValid,
+                error: targetLangError 
+            });
         } else {
             targetLangValid = true; // Allow empty target language
             targetLangError = '';
@@ -203,6 +211,11 @@ import { isDeveloperMode } from '../lib/developerMode';
             const nativeResponse = await ValidateLanguageTag(currentSettings.nativeLanguages, false);
             nativeLangValid = nativeResponse.isValid;
             nativeLangError = nativeResponse.error || '';
+            logger.debug('Settings', 'Native languages validation', { 
+                languages: currentSettings.nativeLanguages, 
+                valid: nativeLangValid,
+                error: nativeLangError 
+            });
         } else {
             nativeLangValid = true; // Allow empty native languages
             nativeLangError = '';
@@ -212,8 +225,12 @@ import { isDeveloperMode } from '../lib/developerMode';
     }
 
     async function saveSettings() {
+        logger.info('Settings', 'Saving settings');
         await validateLanguages();
-        if (!isValid) return;
+        if (!isValid) {
+            logger.warn('Settings', 'Settings validation failed, not saving');
+            return;
+        }
         try {
             // Save to backend
             await (window as any).go.gui.App.SaveSettings(currentSettings);
@@ -224,12 +241,15 @@ import { isDeveloperMode } from '../lib/developerMode';
                 forceWasmMode: currentSettings.forceWasmMode as "auto" | "enabled" | "disabled"
             };
             settings.set(settingsToSave);
+            logger.info('Settings', 'Settings saved successfully');
             
             // Trigger STT model refresh after API key changes
+            logger.debug('Settings', 'Refreshing STT models after settings update');
             try {
                 await (window as any).go.gui.App.RefreshSTTModelsAfterSettingsUpdate();
+                logger.debug('Settings', 'STT models refreshed successfully');
             } catch (error) {
-                logger.error('settings', 'Failed to refresh STT models', { error });
+                logger.error('Settings', 'Failed to refresh STT models', { error });
             }
             
             // Update local wasmState
@@ -243,7 +263,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                 detail: currentSettings
             }));
         } catch (error) {
-            logger.error('settings', 'Failed to save settings', { error });
+            logger.error('Settings', 'Failed to save settings', { error });
             // Show error in the UI - ensure error is treated as Error instance
             const errorMsg = error instanceof Error ? error.message : String(error);
             exportError = 'Failed to save settings: ' + (errorMsg || 'Unknown error');
@@ -253,8 +273,12 @@ import { isDeveloperMode } from '../lib/developerMode';
     
     // Handle individual setting updates (for immediate updates like checkboxes and WebAssembly settings)
     async function updateSettings() {
+        logger.debug('Settings', 'Updating settings');
         await validateLanguages();
-        if (!isValid) return;
+        if (!isValid) {
+            logger.warn('Settings', 'Settings validation failed, not updating');
+            return;
+        }
         try {
             // Always update settings (not just WebAssembly-related ones)
             // UI settings like enableGlow and showLogViewerByDefault need to update immediately too
@@ -266,20 +290,23 @@ import { isDeveloperMode } from '../lib/developerMode';
             };
             settings.set(settingsToUpdate);
             wasmState = getWasmState();
+            logger.debug('Settings', 'Settings updated successfully');
         } catch (error) {
-            logger.error('settings', 'Failed to update settings', { error });
+            logger.error('Settings', 'Failed to update settings', { error });
         }
     }
 
     async function exportDebugReport() {
+        logger.info('Settings', 'Exporting debug report');
         isExportingDebug = true;
         exportSuccess = false;
         exportError = '';
         try {
             await ExportDebugReport();
             exportSuccess = true;
+            logger.info('Settings', 'Debug report exported successfully');
         } catch (err: any) { // Type the error
-            logger.error('settings', 'Failed to export debug report', { error: err });
+            logger.error('Settings', 'Failed to export debug report', { error: err });
             exportError = err?.message || 'Unknown error occurred.';
         } finally {
             isExportingDebug = false;
@@ -287,10 +314,16 @@ import { isDeveloperMode } from '../lib/developerMode';
     }
 
     onMount(async () => {
+        logger.info('Settings', 'Component mounting, loading settings');
         try {
             // Load settings from backend
             const loadedSettings = await (window as any).go.gui.App.LoadSettings();
             settings.set(loadedSettings); // Update store with backend data
+            logger.debug('Settings', 'Settings loaded from backend', { 
+                hasApiKeys: !!loadedSettings.apiKeys,
+                targetLanguage: loadedSettings.targetLanguage,
+                useWasm: loadedSettings.useWasm 
+            });
             
             // Merge loaded settings with defaults to ensure all fields exist
             currentSettings = {
@@ -311,7 +344,7 @@ import { isDeveloperMode } from '../lib/developerMode';
             };
             await validateLanguages();
         } catch (error) {
-            logger.error('settings', 'Failed to load settings', { error });
+            logger.error('Settings', 'Failed to load settings', { error });
         }
 
         // Update local wasmState on mount as well
@@ -354,6 +387,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     
     // Clear interval on component destroy
     onDestroy(() => {
+        logger.info('Settings', 'Component unmounting');
         if (wasmStateUpdateInterval) {
             clearInterval(wasmStateUpdateInterval);
         }
@@ -404,6 +438,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     <div class="relative">
                                         <TextInput
                                             bind:value={currentSettings.targetLanguage}
+                                            on:input={() => logger.trace('Settings', 'Target language input changed', { value: currentSettings.targetLanguage })}
                                             minLength={1}
                                             maxLength={9}
                                             placeholder="e.g. es, yue or pt-BR"
@@ -436,6 +471,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     <div class="relative">
                                         <TextInput
                                             bind:value={currentSettings.nativeLanguages}
+                                            on:input={() => logger.trace('Settings', 'Native languages input changed', { value: currentSettings.nativeLanguages })}
                                             minLength={1}
                                             maxLength={100}
                                             placeholder="e.g. en, fr, es"

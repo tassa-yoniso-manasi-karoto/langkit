@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { logger } from './logger';
 
 export interface ProgressBarData {
     id: string;               // unique ID for each bar
@@ -36,7 +37,11 @@ export function updateProgressBar(bar: ProgressBarData) {
                 if (newErrorState === 'error_all') {
                     // Allow error_all to override any existing error state
                     bars[idx] = { ...bars[idx], ...bar };
-                    console.log(`Overriding error state '${existingErrorState}' with 'error_all' for bar ${bar.id}`);
+                    logger.trace('store/progressBarsStore', 'Overriding error state with error_all', { 
+                        barId: bar.id, 
+                        previousState: existingErrorState, 
+                        newState: 'error_all' 
+                    });
                 } else if (!newErrorState) {
                     // Regular update - preserve existing error state
                     bars[idx] = { 
@@ -44,7 +49,10 @@ export function updateProgressBar(bar: ProgressBarData) {
                         ...bar,
                         errorState: existingErrorState
                     };
-                    console.log(`Preserving error state '${existingErrorState}' for bar ${bar.id}`);
+                    logger.trace('store/progressBarsStore', 'Preserving existing error state', { 
+                        barId: bar.id, 
+                        errorState: existingErrorState 
+                    });
                 } else {
                     // New error state but not error_all - check hierarchy
                     if (existingErrorState === 'error_task' && newErrorState === 'error_all') {

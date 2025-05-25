@@ -613,7 +613,12 @@ export function updateSummaryModels(models: SummaryModelsResponse, forProvider?:
   
   // If we have a specific provider, we can log it for debugging
   if (forProvider) {
-    console.log(`[featureModel] Updated models store for provider: ${forProvider}, models: ${models.names.length}`);
+    import('./logger').then(({ logger }) => {
+      logger.debug('featureModel', 'Updated models store for provider', { 
+        provider: forProvider, 
+        modelCount: models.names.length 
+      });
+    });
   }
   
   // Note: We no longer update condensedAudioFeature.options.summaryModel.choices here

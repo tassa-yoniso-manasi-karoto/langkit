@@ -12,7 +12,9 @@
         if (version === 'dev') {
             manualVirtualToggle = true;
             virtualEnabled = !virtualEnabled;
-            logger.trace('logViewer', `Virtualization ${virtualEnabled ? 'enabled' : 'disabled'} by dev dashboard`);
+            logger.trace('LogViewer', 'Virtualization toggled by dev dashboard', { 
+                enabled: virtualEnabled 
+            });
 
             if (virtualEnabled) {
                 setTimeout(() => resetVirtualization(), 50);
@@ -22,7 +24,7 @@
 
     function handleCheckVirtualization() {
         if (version === 'dev' && virtualEnabled && virtualizationReady) {
-            logger.trace('logViewer', "Virtualization check triggered from dev dashboard");
+            logger.trace('LogViewer', 'Virtualization check triggered from dev dashboard');
             recalculatePositions();
             updateVirtualization();
 
@@ -30,7 +32,7 @@
             [50, 200, 500].forEach(delay => {
                 setTimeout(() => {
                     if (virtualEnabled && virtualizationReady) {
-                        logger.trace('logViewer', `Check at t+${delay}ms`);
+                        logger.trace('LogViewer', 'Scheduled virtualization check', { delayMs: delay });
                         updateVirtualization();
                     }
                 }, delay);
@@ -41,20 +43,20 @@
     function handleToggleDebugScroll() {
         if (version === 'dev') {
             debugAutoScroll = !debugAutoScroll;
-            logger.trace('logViewer', `Debug scroll overlay ${debugAutoScroll ? 'enabled' : 'disabled'} by dev dashboard`);
+            logger.trace('LogViewer', 'Debug scroll overlay toggled', { enabled: debugAutoScroll });
         }
     }
 
     function handleForceScrollBottom() {
         if (version === 'dev') {
-            logger.trace('logViewer', "Force scroll to bottom triggered from dev dashboard");
+            logger.trace('LogViewer', 'Force scroll to bottom triggered from dev dashboard');
             scrollToBottomWithStrategy();
         }
     }
 
     function handleClearLogs() {
         if (version === 'dev') {
-            logger.trace('logViewer', "Clearing logs from dev dashboard");
+            logger.trace('LogViewer', 'Clearing logs from dev dashboard');
             logStore.set([]);
         }
     }
@@ -206,7 +208,11 @@
             
             if (shouldVirtualize !== virtualEnabled) {
                 if (debug) {
-                    logger.trace('logViewer', `Auto-toggling virtualization: ${shouldVirtualize ? 'ON' : 'OFF'} (log count: ${filteredLogs.length}, threshold: ${threshold})`);
+                    logger.trace('LogViewer', 'Auto-toggling virtualization', { 
+                        enabled: shouldVirtualize, 
+                        logCount: filteredLogs.length, 
+                        threshold 
+                    });
                 }
                 virtualEnabled = shouldVirtualize;
                 
@@ -247,11 +253,14 @@
     // Monitor isProcessing changes from App.svelte
     $: {
         if (isProcessing !== prevIsProcessing) {
-            if (debug) logger.trace('logViewer', `Processing state changed: ${prevIsProcessing} -> ${isProcessing}`);
+            logger.trace('LogViewer', 'Processing state changed', { 
+                from: prevIsProcessing, 
+                to: isProcessing 
+            });
             
             // CRITICAL FIX: Ensure we're at the bottom when processing starts (if auto-scroll is enabled)
             if (isProcessing && !prevIsProcessing && autoScroll && scrollContainer) {
-                if (debug) logger.trace('logViewer', "Processing started - forcing scroll to bottom");
+                logger.trace('LogViewer', 'Processing started - forcing scroll to bottom');
                 
                 // Force to bottom immediately
                 scrollContainer.scrollTop = 0;
@@ -262,7 +271,10 @@
                     setTimeout(() => {
                         if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
                             if (scrollContainer.scrollTop !== 0) {
-                                if (debug) logger.trace('logViewer', `Mid-processing scroll check (${delay}ms): fixing scrollTop=${scrollContainer.scrollTop}`);
+                                logger.trace('LogViewer', 'Mid-processing scroll check', { 
+                                    delayMs: delay, 
+                                    scrollTop: scrollContainer.scrollTop 
+                                });
                                 scrollContainer.scrollTop = 0;
                             }
                         }
@@ -272,7 +284,7 @@
             
             // When processing ends, schedule final scroll checks
             if (!isProcessing && prevIsProcessing) {
-                if (debug) logger.trace('logViewer', "Processing ended - scheduling post-processing actions");
+                logger.trace('LogViewer', 'Processing ended - scheduling post-processing actions');
                 
                 // For auto-scroll, we want to keep scrolled to bottom
                 if (autoScroll) {
@@ -288,7 +300,9 @@
                     
                     postProcessingChecks.forEach(delay => {
                         setTimeout(() => {
-                            if (debug) logger.trace('logViewer', `Post-processing virtualization check at t+${delay}ms`);
+                            logger.trace('LogViewer', 'Post-processing virtualization check', { 
+                                delayMs: delay 
+                            });
                             
                             // Force update virtualization
                             if (virtualEnabled && virtualizationReady) {
@@ -342,13 +356,18 @@
         if (autoScroll && !isUserScrolling && !manualScrollLock) {
             // Force to bottom immediately - this is essential for both virtualized and non-virtualized modes
             if (scrollContainer.scrollTop !== 0) {
-                if (debug) logger.trace('logViewer', `Force scrollTop=0 for auto-scroll (current=${scrollContainer.scrollTop})`);
+                logger.trace('LogViewer', 'Force scroll to bottom for auto-scroll', { 
+                    currentScrollTop: scrollContainer.scrollTop 
+                });
                 scrollContainer.scrollTop = 0;
             }
         }
         // If auto-scroll is on but we're not at the bottom, this is inconsistent
         else if (autoScroll && !exactlyAtBottom && !isUserScrolling) {
-            if (debug) logger.trace('logViewer', `Detected inconsistency: auto-scroll ON but scrollTop=${scrollContainer.scrollTop}px`);
+            logger.trace('LogViewer', 'Detected scroll inconsistency', { 
+                autoScroll: true, 
+                scrollTop: scrollContainer.scrollTop 
+            });
             // Turn off auto-scroll
             setAutoScroll(false, 'reactiveInconsistency');
         }
@@ -389,7 +408,7 @@
                 
                 // CRITICAL: For non-virtualized mode + auto-scroll, ensure we're at bottom after animation
                 if (!virtualEnabled && autoScroll && !isUserScrolling && !manualScrollLock) {
-                    if (debug) logger.trace('logViewer', "Force to bottom after animation in non-virtualized mode");
+                    logger.trace('LogViewer', 'Force to bottom after animation in non-virtualized mode');
                     scrollContainer.scrollTop = 0;
                 }
             }, 350); // Slightly longer than transition duration to ensure completion
@@ -444,7 +463,7 @@
                     setTimeout(() => {
                         if (scrollContainer && autoScroll && !isUserScrolling && !manualScrollLock) {
                             if (scrollContainer.scrollTop !== 0) {
-                                if (debug) logger.trace('logViewer', "Final safety scroll to bottom");
+                                logger.trace('LogViewer', 'Final safety scroll to bottom');
                                 scrollContainer.scrollTop = 0;
                             }
                         }
@@ -458,7 +477,7 @@
     
     // Track scroll triggers for debug overlay
     function trackScrollTrigger(triggerId: string) {
-        if (debug) logger.trace('logViewer', `SCROLL TRIGGER: ${triggerId}`);
+        logger.trace('LogViewer', 'Scroll trigger', { triggerId });
         
         // Create a new array with the new trigger at the beginning
         scrollTriggerHistory = [
@@ -476,14 +495,17 @@
         if (newValue === autoScroll) return;
         
         // Debug logging
-        if (debug) logger.trace('logViewer', `Auto-scroll ${newValue ? 'enabled' : 'disabled'} via ${source}`);
+        logger.trace('LogViewer', 'Auto-scroll state changed', { 
+            enabled: newValue, 
+            source 
+        });
         
         // Track this state change
         trackScrollTrigger(`setAutoScroll:${newValue ? 'ON' : 'OFF'}:${source}`);
         
         // IMPORTANT: If trying to enable auto-scroll but manual lock is active, refuse
         if (newValue && manualScrollLock && source !== 'userPreference') {
-            if (debug) logger.warn('logViewer', `Auto-scroll enable BLOCKED due to active manual lock`);
+            logger.warn('LogViewer', 'Auto-scroll enable blocked due to manual lock');
             return; // Early return - don't enable against user's wishes
         }
         

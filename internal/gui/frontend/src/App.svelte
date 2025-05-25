@@ -120,6 +120,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
     // Reactive error management
     $: {
         if (!mediaSource) {
+            logger.trace('app', 'No media source selected');
             errorStore.addError({
                 id: "no-media",
                 message: "No media file selected",
@@ -130,6 +131,12 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                 }
             });
         } else {
+            logger.info('app', 'Media source selected', { 
+                path: mediaSource.path, 
+                name: mediaSource.name,
+                size: mediaSource.size,
+                audioTrackIndex: mediaSource.audioTrackIndex 
+            });
             errorStore.removeError("no-media");
         }
     }
@@ -153,12 +160,17 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
     
     $: {
         if (!Object.values(selectedFeatures).some(v => v)) {
+            logger.trace('app', 'No features selected');
             errorStore.addError({
                 id: "no-features",
                 message: "Select at least one processing feature",
                 severity: "critical"
             });
         } else {
+            const activeFeatures = Object.entries(selectedFeatures)
+                .filter(([_, enabled]) => enabled)
+                .map(([feature, _]) => feature);
+            logger.debug('app', 'Features selected', { activeFeatures });
             errorStore.removeError("no-features");
         }
     }
@@ -200,6 +212,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
 
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
         currentFeatureOptions = event.detail;
+        logger.debug('app', 'Feature options changed', { options: event.detail });
     }
 
     // Helper to check for actual error logs (not user cancellations)
@@ -242,6 +255,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
     
     function toggleLogViewer() {
         showLogViewer = !showLogViewer;
+        logger.info('app', 'Log viewer toggled', { visible: showLogViewer });
         
         // Mark tooltip as dismissed once user has seen it
         if (hasErrorLogs()) {
@@ -792,7 +806,7 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             
             // For very large batches, log a debug message
             if (logBatch.length > 200) {
-                console.debug(`Processed large log batch: ${logBatch.length} entries`);
+                logger.debug('app', 'Processed large log batch', { batchSize: logBatch.length });
             }
         });
 
@@ -958,7 +972,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
                    transition-all duration-200 hover:bg-white/15 hover:text-white
                    hover:-translate-y-0.5 hover:shadow-lg hover:shadow-white/5
                    focus:outline-none focus:ring-2 focus:ring-primary/50"
-            on:click={() => $showSettings = true}
+            on:click={() => {
+                logger.info('app', 'Settings opened');
+                $showSettings = true;
+            }}
             aria-label="Open settings"
         >
             <span class="material-icons text-[20px]">settings</span>
@@ -1137,7 +1154,10 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
 
 <Settings
     version={version}
-    onClose={() => $showSettings = false}
+    onClose={() => {
+        logger.info('app', 'Settings closed');
+        $showSettings = false;
+    }}
 />
 
 <!-- Developer dashboard (only appears in dev mode) -->

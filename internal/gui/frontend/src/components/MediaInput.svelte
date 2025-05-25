@@ -15,6 +15,7 @@
     const VISIBLE_HEIGHT_VIDEOS = 4; // Number of videos visible without scrolling
 
     async function handleDirectorySelect() {
+        logger.trace('MediaInput', 'Directory selection initiated');
         try {
             const dirPath = await OpenDirectoryDialog();
             if (dirPath) {
@@ -23,16 +24,24 @@
                     name: dirPath.split('/').pop() || dirPath,
                     path: dirPath,
                 };
+                logger.info('MediaInput', 'Directory selected', { path: dirPath });
+                
                 // Get preview of videos in directory
                 previewFiles = await GetVideosInDirectory(dirPath);
-                logger.error('mediaInput', 'Failed to get videos in directory', { previewFiles });
+                logger.debug('MediaInput', 'Videos found in directory', { 
+                    path: dirPath, 
+                    videoCount: previewFiles.length 
+                });
+            } else {
+                logger.trace('MediaInput', 'Directory selection cancelled');
             }
         } catch (error) {
-            logger.error('mediaInput', 'Error selecting directory', { error });
+            logger.error('MediaInput', 'Error selecting directory', { error });
         }
     }
 
     async function handleVideoSelect() {
+        logger.trace('MediaInput', 'Video selection initiated');
         try {
             const filePath = await OpenVideoDialog();
             if (filePath) {
@@ -42,9 +51,15 @@
                     path: filePath
                 };
                 previewFiles = []; // Clear preview as it's not a directory
+                logger.info('MediaInput', 'Video file selected', { 
+                    path: filePath, 
+                    name: mediaSource.name 
+                });
+            } else {
+                logger.trace('MediaInput', 'Video selection cancelled');
             }
         } catch (error) {
-            logger.error('mediaInput', 'Error selecting video', { error });
+            logger.error('MediaInput', 'Error selecting video', { error });
         }
     }
 
@@ -53,9 +68,17 @@
         dragOver = false;
         
         const files = Array.from(e.dataTransfer?.files || []);
-        if (files.length !== 1) return;
+        if (files.length !== 1) {
+            logger.trace('MediaInput', 'Multiple files dropped, ignoring', { fileCount: files.length });
+            return;
+        }
 
         const file = files[0];
+        logger.debug('MediaInput', 'File dropped', { 
+            name: file.name, 
+            type: file.type, 
+            size: file.size 
+        });
         
         // The path property isn't standard in browsers but is available in desktop contexts
         const filePath = file.path || (file as any).webkitRelativePath;
@@ -67,6 +90,11 @@
                 path: filePath || file.name
             };
             previewFiles = [];
+            logger.info('MediaInput', 'Video file dropped', { 
+                path: filePath, 
+                name: file.name, 
+                type: file.type 
+            });
         } else {
             try {
                 isDirectory = true;
@@ -82,17 +110,22 @@
                         path: v.path,
                         size: v.size
                     }));
+                    logger.info('MediaInput', 'Directory dropped', { 
+                        path: filePath, 
+                        videoCount: previewFiles.length 
+                    });
                 } else {
                     previewFiles = [];
-                    logger.error('mediaInput', 'Cannot get directory contents from drag and drop: path unavailable');
+                    logger.warn('MediaInput', 'Cannot get directory contents from drag and drop: path unavailable');
                 }
             } catch (error) {
-                logger.error('mediaInput', 'Error handling directory drop', { error });
+                logger.error('MediaInput', 'Error handling directory drop', { error });
             }
         }
     }
 
     function resetSelection() {
+        logger.info('MediaInput', 'Media selection reset');
         mediaSource = null;
         isDirectory = false;
         previewFiles = [];
@@ -113,6 +146,7 @@
         // Only set dragOver state once - avoid excessive state updates
         if (dragEnterCount === 1) {
             dragOver = true;
+            logger.trace('MediaInput', 'Drag entered drop zone');
         }
     }
 
@@ -133,6 +167,7 @@
         if (dragEnterCount <= 0) {
             dragOver = false;
             dragEnterCount = 0; // Ensure counter never goes negative
+            logger.trace('MediaInput', 'Drag left drop zone');
         }
     }
     

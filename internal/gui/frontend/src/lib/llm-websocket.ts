@@ -1,5 +1,6 @@
 import { llmStateStore } from './stores';
 import { logLLMStateChange, createConnectionMonitor, logWebSocketStats } from './websocket-debug';
+import { logger } from './logger';
 
 export interface WSMessage {
     type: 'statechange' | 'initial_state' | 'ping' | 'pong';
@@ -27,39 +28,43 @@ export class LLMWebSocket {
             }
 
             const url = `ws://localhost:${this.port}/ws`;
-            console.log(`[LLMWebSocket] Connecting to ${url}`);
+            logger.info('llm-websocket', 'Connecting to WebSocket', { url });
             
             this.ws = new WebSocket(url);
 
             this.ws.onopen = () => {
-                console.log('[LLMWebSocket] Connected');
+                logger.info('llm-websocket', 'WebSocket connected');
                 this.reconnectDelay = 1000; // Reset backoff
             };
 
             this.ws.onmessage = (event) => {
                 try {
                     const message: WSMessage = JSON.parse(event.data);
-                    console.log('[LLMWebSocket] Message received:', message.type);
-                    console.log('[LLMWebSocket] Full message:', message);
+                    logger.debug('llm-websocket', 'Message received', { 
+                        type: message.type, 
+                        payload: message.payload 
+                    });
                     this.handleMessage(message);
                 } catch (err) {
-                    console.error('[LLMWebSocket] Failed to parse message:', err);
-                    console.error('[LLMWebSocket] Raw data:', event.data);
+                    logger.error('llm-websocket', 'Failed to parse message', { 
+                        error: err, 
+                        rawData: event.data 
+                    });
                 }
             };
 
             this.ws.onerror = (error) => {
-                console.error('[LLMWebSocket] Error:', error);
+                logger.error('llm-websocket', 'WebSocket error', { error });
             };
 
             this.ws.onclose = () => {
-                console.log('[LLMWebSocket] Disconnected');
+                logger.info('llm-websocket', 'WebSocket disconnected');
                 this.ws = null;
                 this.scheduleReconnect();
             };
 
         } catch (err) {
-            console.error('[LLMWebSocket] Failed to connect:', err);
+            logger.error('llm-websocket', 'Failed to connect', { error: err });
             this.scheduleReconnect();
         }
     }
@@ -68,14 +73,19 @@ export class LLMWebSocket {
         switch (message.type) {
             case 'statechange':
             case 'initial_state':
-                console.log('[LLMWebSocket] Updating LLM state:', message.payload.globalState);
+                logger.debug('llm-websocket', 'Updating LLM state', { 
+                    globalState: message.payload.globalState 
+                });
                 logLLMStateChange(message.payload);
                 llmStateStore.set(message.payload);
                 
                 // Log detailed provider states
                 if (message.payload.providerStatesSnapshot) {
                     Object.entries(message.payload.providerStatesSnapshot).forEach(([provider, state]: [string, any]) => {
-                        console.log(`[LLMWebSocket] Provider ${provider}:`, state.status);
+                        logger.trace('llm-websocket', 'Provider state', { 
+                            provider, 
+                            status: state.status 
+                        });
                     });
                 }
                 break;
@@ -95,7 +105,7 @@ export class LLMWebSocket {
     private scheduleReconnect(): void {
         if (this.isDestroyed || this.reconnectTimer) return;
 
-        console.log(`[LLMWebSocket] Scheduling reconnect in ${this.reconnectDelay}ms`);
+        logger.debug('llm-websocket', 'Scheduling reconnect', { delayMs: this.reconnectDelay });
         
         this.reconnectTimer = window.setTimeout(() => {
             this.reconnectTimer = null;
@@ -110,7 +120,7 @@ export class LLMWebSocket {
     }
 
     disconnect(): void {
-        console.log('[LLMWebSocket] Disconnecting');
+        logger.info('llm-websocket', 'Disconnecting WebSocket');
         this.isDestroyed = true;
         
         if (this.reconnectTimer) {
@@ -134,7 +144,7 @@ export class LLMWebSocket {
 
     logConnectionStats() {
         const stats = this.getConnectionStats();
-        console.log('[LLMWebSocket] Connection Statistics:', stats);
+        logger.info('llm-websocket', 'Connection statistics', { stats });
         logWebSocketStats(this.ws);
         return stats;
     }

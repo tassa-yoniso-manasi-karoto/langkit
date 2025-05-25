@@ -91,9 +91,9 @@ export function resetWasmMetrics(): void {
   resetWasmMetricsInternal();
   try {
     localStorage.removeItem('wasm-metrics');
-    if (shouldLogVerbose()) logger.info('store/wasm', 'Cleared saved metrics.');
+    logger.trace('store/wasm', 'Cleared saved metrics');
   } catch (e: any) {
-    logger.warn('store/wasm', `Failed clear saved metrics: ${e.message}`);
+    logger.warn('store/wasm', 'Failed to clear saved metrics', { error: e.message });
   }
 }
 
@@ -101,17 +101,17 @@ export function getWasmBuildInfo(): WasmBuildInfo | null { return wasmBuildInfo;
 
 export async function requestMemoryReset(): Promise<boolean> {
   if (!isWasmEnabled() || !wasmModule) {
-    logger.warn('store/wasm', 'Mem reset: WASM not active.');
+    logger.trace('store/wasm', 'Memory reset skipped - WASM not active');
     return false;
   }
-  logger.info('store/wasm', 'Performing WASM module reset.');
+  logger.trace('store/wasm', 'Performing WASM module reset');
   const currentSettings = get(settings);
   const wasForceEnabled = currentSettings.forceWasmMode === 'enabled';
   wasmModule = null; wasmInitialized = false; wasmEnabled = false;
   setWasmActive(false);
   await new Promise(resolve => setTimeout(resolve, 50));
   if (wasForceEnabled) {
-    logger.info('store/wasm', 'Restoring WASM after reset.');
+    logger.trace('store/wasm', 'Restoring WASM after reset');
     return initializeWasm();
   }
   return true;
@@ -128,7 +128,7 @@ export function getWasmSizeThreshold(): number {
 export function setOperationThreshold(operation: string, threshold: number): void {
   const validatedThreshold = Math.max(WASM_CONFIG.MIN_THRESHOLD, Math.min(threshold, WASM_CONFIG.MAX_THRESHOLD));
   operationThresholds.set(operation, validatedThreshold);
-  if (shouldLogVerbose()) logger.trace('store/wasm', `Set threshold ${operation}: ${validatedThreshold}`);
+  logger.trace('store/wasm', 'Set operation threshold', { operation, threshold: validatedThreshold });
 }
 
 export function getOperationThreshold(operation: string): number {
@@ -138,7 +138,7 @@ export function getOperationThreshold(operation: string): number {
 export function enableWasm(enabled: boolean): Promise<boolean> {
   const previouslyEnabled = wasmEnabled;
   wasmEnabled = enabled;
-  if (shouldLogVerbose()) logger.trace('store/wasm', `WASM ${enabled ? 'enabled' : 'disabled'}`);
+  logger.trace('store/wasm', 'WASM state changed', { enabled });
   if (enabled && !wasmInitialized && !initializePromise) {
     return initializeWasm();
   }
@@ -162,14 +162,14 @@ export function getWasmModule(): WasmModule | null { return wasmModule; }
 async function loadBuildInfo(version: string = 'unknown'): Promise<WasmBuildInfo | null> {
   try {
     const buildInfoPath = `/wasm/build-info.json?t=${Date.now()}`;
-    if (shouldLogVerbose()) logger.debug('store/wasm', `Loading build info: ${buildInfoPath}`);
+    logger.trace('store/wasm', 'Loading build info', { path: buildInfoPath });
     const response = await fetch(buildInfoPath);
     if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
     const buildInfoData = await response.json();
-    if (shouldLogVerbose()) logger.debug('store/wasm', `Build info loaded: v${buildInfoData.version}`);
+    logger.trace('store/wasm', 'Build info loaded', { version: buildInfoData.version });
     return buildInfoData;
   } catch (error: any) {
-    logger.warn('store/wasm', `Failed to load build-info.json: ${error.message}`);
+    logger.warn('store/wasm', 'Failed to load build-info.json', { error: error.message });
     return null;
   }
 }
@@ -190,21 +190,24 @@ export async function initializeWasm(): Promise<boolean> {
       resolve(false);
       return;
     }
-    if (shouldLogVerbose()) logger.trace('store/wasm', 'Starting WASM init');
+    logger.trace('store/wasm', 'Starting WASM initialization');
 
     try {
       if (!isWasmSupported()) throw new WasmInitializationError("WASM not supported");
       const version = (window as any).__LANGKIT_VERSION || 'unknown';
       wasmBuildInfo = await loadBuildInfo(version); // Loads from /public/wasm/build-info.json
-      if (shouldLogVerbose()) logger.info('store/wasm', `Env: ${version}, Build: ${wasmBuildInfo?.version || 'N/A'}`);
+      logger.trace('store/wasm', 'Environment info', { 
+        environment: version, 
+        buildVersion: wasmBuildInfo?.version || 'N/A' 
+      });
       
-      logger.info('store/wasm', 'Using statically imported, inlined WASM module.');
+      logger.trace('store/wasm', 'Using statically imported, inlined WASM module');
 
       // Use the async initializeWithInlinedBinary function which calls __wbg_init
       // This ensures the global overrides for WebAssembly.instantiate are triggered
-      logger.info('store/wasm', 'Initializing WASM with inlined binary.');
+      logger.trace('store/wasm', 'Initializing WASM with inlined binary');
       const instantiatedModuleExports = await wasmGeneratedExports.initializeWithInlinedBinary();
-      logger.info('store/wasm', 'WASM binary initialization completed');
+      logger.trace('store/wasm', 'WASM binary initialization completed');
 
       // Assign values to our module from the result of initialization
       const moduleInstance = {
@@ -227,7 +230,10 @@ export async function initializeWasm(): Promise<boolean> {
             apiAccessStatus.has_browser_api_access === true &&
             apiAccessStatus.total_bytes > 0) {
           browserApisOk = true;
-          logger.info('store/wasm', 'POST-INIT SUCCESS: WebAssembly browser APIs verified via inliner status check.', { statusResult: apiAccessStatus });
+          logger.trace('store/wasm', 'WebAssembly browser APIs verified via inliner status check', { 
+            success: true,
+            totalBytes: apiAccessStatus.total_bytes 
+          });
           // Update memory usage with the data from the status check
           updateMemoryUsage({
             total_bytes: apiAccessStatus.total_bytes,
@@ -251,7 +257,9 @@ export async function initializeWasm(): Promise<boolean> {
           memInfoFromRust = moduleInstance.get_memory_usage();
           if (memInfoFromRust && memInfoFromRust.has_browser_api_access === true && memInfoFromRust.total_bytes > 0) {
             browserApisOk = true;
-            logger.info('store/wasm', 'POST-INIT SUCCESS: WASM APIs verified through Rust function.', { total_bytes: memInfoFromRust.total_bytes });
+            logger.trace('store/wasm', 'WASM APIs verified through Rust function', { 
+              totalBytes: memInfoFromRust.total_bytes 
+            });
             updateMemoryUsage(memInfoFromRust);
           } else {
             logger.critical('store/wasm', 'POST-INIT FAILURE: Rust reports WebAssembly APIs inaccessible.', { memInfoFromRust });
@@ -391,7 +399,7 @@ function setupMaintenanceInterval(): void {
     try {
       // Example: if (wasmModule.get_memory_usage()?.utilization_estimate > 0.7 && wasmModule.reset_internal_allocation_stats) wasmModule.reset_internal_allocation_stats();
       adjustSizeThresholds();
-    } catch (e) { if (shouldLogVerbose()) logger.warn('store/wasm', `Maint. error: ${e}`);}
+    } catch (e) { logger.trace('store/wasm', 'Maintenance error', { error: e }); }
   }, 300000);
   updateState({ maintenanceIntervalId: intervalId as unknown as number });
   window.addEventListener('beforeunload', () => { if (wasmState.maintenanceIntervalId) clearInterval(wasmState.maintenanceIntervalId); });

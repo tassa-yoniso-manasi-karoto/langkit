@@ -120,7 +120,12 @@
             isValidLanguage = response.isValid;
             standardTag = response.standardTag || '';
             validationError = response.error || '';
-            logger.trace('featureSelector', `Language validated: ${standardTag} (valid: ${isValidLanguage})`);
+            logger.debug('FeatureSelector', 'Language validated', { 
+            code, 
+            standardTag, 
+            isValid: isValidLanguage, 
+            error: validationError 
+        });
         } catch (error) {
             logger.error('featureSelector', 'Error checking language code', { error });
             isValidLanguage = null;
@@ -135,7 +140,7 @@
      * Fetch available summary providers from the backend
      */
     async function fetchSummaryProviders() {
-        logger.trace('featureSelector', 'Fetching available summary providers');
+        logger.info('FeatureSelector', 'Fetching available summary providers');
         try {
             const summaryProviders = await GetAvailableSummaryProviders();
             
@@ -302,12 +307,16 @@
             needsDocker = response.needsDocker || false;
             dockerEngine = response.dockerEngine || 'Docker Desktop';
             
-            logger.trace('featureSelector', `Loaded ${romanizationSchemes.length} romanization schemes for ${tag}`);
-            logger.trace('featureSelector', `needsDocker: ${needsDocker}, needsScraper: ${needsScraper}`);
+            logger.debug('FeatureSelector', 'Romanization schemes loaded', { 
+                tag, 
+                schemeCount: romanizationSchemes.length, 
+                needsDocker, 
+                needsScraper 
+            });
             
             return isRomanizationAvailable;
         } catch (error) {
-            logger.error('featureSelector', 'Error fetching romanization styles', { error });
+            logger.error('FeatureSelector', 'Error fetching romanization styles', { error });
             romanizationSchemes = [];
             isRomanizationAvailable = false;
             isSelectiveTransliterationAvailable = false;
@@ -323,14 +332,17 @@
      */
     function applyDefaultRomanizationStyle(): void {
         if (romanizationSchemes.length === 0) {
-            logger.trace('featureSelector', "No romanization schemes available to set as default");
+            logger.debug('FeatureSelector', 'No romanization schemes available to set as default');
             return;
         }
         
         const newStyle = romanizationSchemes[0].name;
         const newProvider = romanizationSchemes[0].provider;
         
-        logger.trace('featureSelector', `Setting default romanization style to ${newStyle} with provider ${newProvider}`);
+        logger.info('FeatureSelector', 'Setting default romanization style', { 
+            style: newStyle, 
+            provider: newProvider 
+        });
         
         // Update group store options
         featureGroupStore.setGroupOption('subtitle', 'style', newStyle);
@@ -357,10 +369,13 @@
     async function checkTokenization(code: string): Promise<boolean> {
         try {
             tokenizationAllowed = await NeedsTokenization(code);
-            logger.trace('featureSelector', `Tokenization support for ${code}: ${tokenizationAllowed}`);
+            logger.debug('FeatureSelector', 'Tokenization support checked', { 
+                languageCode: code, 
+                allowed: tokenizationAllowed 
+            });
             return tokenizationAllowed;
         } catch (err) {
-            logger.error('featureSelector', "Error checking tokenization support", { error: err });
+            logger.error('FeatureSelector', 'Error checking tokenization support', { error: err });
             tokenizationAllowed = false;
             return false;
         }
@@ -372,12 +387,12 @@
      */
     async function processLanguageChange(newLanguage: string): Promise<void> {
         if (isProcessingLanguage) {
-            logger.trace('featureSelector', "Already processing language change, skipping");
+            logger.trace('FeatureSelector', 'Already processing language change, skipping');
             return;
         }
         
         isProcessingLanguage = true;
-        logger.trace('featureSelector', `Processing language change to: ${newLanguage}`);
+        logger.info('FeatureSelector', 'Processing language change', { newLanguage });
         
         try {
             // Step 1: Reset all feature selections for safety
@@ -389,7 +404,7 @@
             await validateLanguage(newLanguage, true);
             
             if (!isValidLanguage && newLanguage) {
-                logger.trace('featureSelector', `Language ${newLanguage} is not valid`);
+                logger.warn('FeatureSelector', 'Invalid language', { language: newLanguage });
                 return;
             }
             
@@ -411,7 +426,7 @@
             updateFeatureAvailabilityErrors();
             
         } catch (error) {
-            logger.error('featureSelector', "Error during language change processing", { error });
+            logger.error('FeatureSelector', 'Error during language change processing', { error });
             logStore.addLog({
                 level: 'ERROR',
                 message: `Error processing language change: ${error.message}`,
@@ -453,7 +468,7 @@
     
     // Function to reset all feature selections
     function resetAllFeatures() {
-        logger.trace('featureSelector', "Resetting all feature selections due to language change");
+        logger.info('FeatureSelector', 'Resetting all feature selections due to language change');
         
         // Disable all features
         Object.keys(selectedFeatures).forEach(featureId => {
@@ -478,7 +493,7 @@
     // Handle feature click for toggling and unavailable features
     function handleFeatureEnabledChange(event: CustomEvent) {
         const { id, enabled } = event.detail;
-        logger.trace('featureSelector', `Feature toggle: ${id} -> ${enabled}`);
+        logger.info('FeatureSelector', 'Feature toggled', { featureId: id, enabled });
         
         // Update the selected features state
         selectedFeatures[id] = enabled;
@@ -487,7 +502,7 @@
         // Find the feature definition
         const featureDef = features.find(f => f.id === id);
         if (!featureDef) {
-            logger.error('featureSelector', `Feature not found: ${id}`);
+            logger.error('FeatureSelector', 'Feature not found', { featureId: id });
             return;
         }
         
@@ -606,8 +621,11 @@
     ) {
         // Only update the active display feature if the disabled feature was the active one
         if (featureGroupStore.isActiveDisplayFeature(groupId, featureId)) {
-            logger.trace('featureSelector', `Feature ${featureId} was active display for group ${groupId} but is now disabled`);
-            logger.trace('featureSelector', `After disabling, group ${groupId} has ${enabledFeaturesInGroup.length} enabled features`);
+            logger.debug('FeatureSelector', 'Active display feature disabled', { 
+                featureId, 
+                groupId, 
+                remainingEnabledFeatures: enabledFeaturesInGroup.length 
+            });
             
             // Update the active display feature to the next best available
             featureGroupStore.updateActiveDisplayFeature(
@@ -641,7 +659,7 @@
      * Sync options from the group store to all features in the group
      */
     function syncFeatureOptions(groupId: string) {
-        logger.trace('featureSelector', `Syncing options for group ${groupId} to features`);
+        logger.debug('FeatureSelector', 'Syncing options for group to features', { groupId });
         currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
             groupId, currentFeatureOptions
         );
@@ -649,28 +667,35 @@
 
     // Improved provider warning checks
     function updateProviderWarnings() {
-        logger.trace('featureSelector', "Running updateProviderWarnings check");
+        logger.trace('FeatureSelector', 'Running updateProviderWarnings check');
         
         // Check dubtitles STT provider
         if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
             const sttModel = currentFeatureOptions.dubtitles.stt;
-            logger.trace('featureSelector', `Checking provider requirements for STT model: ${sttModel}`);
+            logger.trace('FeatureSelector', 'Checking provider requirements for STT model', { sttModel });
             
             // Find the model info to get the provider
             const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
             
             if (modelInfo) {
                 const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
-                logger.trace('featureSelector', `Model provider: ${providerName}`);
+                logger.trace('FeatureSelector', 'Model provider identified', { providerName });
                 
                 // Check if this provider requires a token
                 const { isValid, tokenType } = checkProviderApiToken(providerName);
-                logger.trace('featureSelector', `Provider ${providerName} token check: valid=${isValid}, tokenType=${tokenType}`);
+                logger.debug('FeatureSelector', 'Provider token check', { 
+                    provider: providerName, 
+                    isValid, 
+                    tokenType 
+                });
                 
                 if (!isValid) {
                     // Use addError to add/update the error message
                     const errorMessage = `${tokenType || providerName} API token is required for ${modelInfo.displayName}`;
-                    logger.trace('featureSelector', `Adding error: provider-dubtitles - ${errorMessage}`);
+                    logger.debug('FeatureSelector', 'Adding provider error', { 
+                        errorId: 'provider-dubtitles', 
+                        message: errorMessage 
+                    });
                     
                     errorStore.addError({
                         id: 'provider-dubtitles',
@@ -679,17 +704,21 @@
                     });
                 } else {
                     // Remove the error if it exists
-                    logger.trace('featureSelector', `Token is valid, removing any existing provider-dubtitles error`);
+                    logger.trace('FeatureSelector', 'Token is valid, removing provider error', { 
+                        errorId: 'provider-dubtitles' 
+                    });
                     errorStore.removeError('provider-dubtitles');
                 }
             } else {
-                logger.warn('featureSelector', `Could not find model info for ${sttModel}`);
+                logger.warn('FeatureSelector', 'Could not find model info', { sttModel });
                 // Clear any existing error if model not found
                 errorStore.removeError('provider-dubtitles');
             }
         } else {
             // Remove the error if the feature is disabled
-            logger.trace('featureSelector', `Feature not selected or options missing, removing provider-dubtitles error`);
+            logger.trace('FeatureSelector', 'Feature not selected, removing provider error', { 
+                errorId: 'provider-dubtitles' 
+            });
             errorStore.removeError('provider-dubtitles');
         }
 
@@ -721,7 +750,7 @@
             'elevenlabs': 'elevenLabs'
         };
         
-        logger.trace('featureSelector', `Checking API token for provider: ${provider}`);
+        logger.trace('FeatureSelector', 'Checking API token for provider', { provider });
         
         // Normalize provider name to lowercase for case-insensitive matching
         const normalizedProvider = provider.toLowerCase();
@@ -734,7 +763,10 @@
             tokenType = providersRequiringTokens[normalizedProvider];
         }
         
-        logger.trace('featureSelector', `Token type for ${provider}: ${tokenType || 'none required'}`);
+        logger.trace('FeatureSelector', 'Token type determined', { 
+            provider, 
+            tokenType: tokenType || 'none required' 
+        });
         
         // Check if token is needed
         if (!tokenType) {
@@ -752,7 +784,11 @@
         // Check if token has a value
         const hasToken = Boolean(currentSettings.apiKeys[tokenType]?.trim());
         
-        logger.trace('featureSelector', `Token status for ${provider} (${tokenType}): ${hasToken ? 'valid' : 'missing'}`);
+        logger.debug('FeatureSelector', 'Token status', { 
+            provider, 
+            tokenType, 
+            hasToken 
+        });
         
         return { 
             isValid: hasToken,
@@ -768,7 +804,7 @@
                 hasLanguageTags = info.hasLanguageTags;
                 showAudioTrackIndex = !hasLanguageTags;
             } catch (error) {
-                logger.error('featureSelector', 'Error checking media files', { error });
+                logger.error('FeatureSelector', 'Error checking media files', { error });
             }
         }
     }
@@ -778,7 +814,10 @@
         const previousTag = quickAccessLangTag;
         const newTag = event.detail.languageTag;
         
-        logger.trace('featureSelector', `Language tag changing from ${previousTag} to ${newTag}`);
+        logger.info('FeatureSelector', 'Language tag changing', { 
+            previousTag, 
+            newTag 
+        });
         quickAccessLangTag = newTag;
         
         // Process language change if it's different (case-insensitive)
@@ -790,11 +829,23 @@
     function handleAudioTrackChange(event: CustomEvent) {
         showAudioTrackIndex = event.detail.showAudioTrackIndex;
         audioTrackIndex = event.detail.audioTrackIndex;
+        logger.debug('FeatureSelector', 'Audio track changed', { 
+            showAudioTrackIndex, 
+            audioTrackIndex 
+        });
     }
 
     let isProcessingSTTChange = false;
     function handleOptionChange(event: CustomEvent) {
         const { featureId, optionId, value, isGroupOption, groupId, isSTTModelChange } = event.detail;
+        
+        logger.debug('FeatureSelector', 'Option changed', { 
+            featureId, 
+            optionId, 
+            value, 
+            isGroupOption, 
+            groupId 
+        });
         
         // For non-group options, directly update the feature's options (if needed)
         if (!isGroupOption) {
@@ -808,7 +859,7 @@
         if (isSTTModelChange && featureId === 'dubtitles' && optionId === 'stt') {
             // Prevent duplicate processing
             if (isProcessingSTTChange) {
-                logger.trace('featureSelector', `Ignoring recursive STT model change event for ${value}`);
+                logger.trace('FeatureSelector', 'Ignoring recursive STT model change event', { model: value });
                 return;
             }
             
@@ -816,7 +867,7 @@
             isProcessingSTTChange = true;
             
             try {
-                logger.trace('featureSelector', `FeatureSelector handling STT model change to ${value}`);
+                logger.info('FeatureSelector', 'Handling STT model change', { newModel: value });
                 
                 // Force provider warnings check immediately
                 updateProviderWarnings();
@@ -828,14 +879,21 @@
         
         // Handle group option changes
         if (isGroupOption && groupId) {
-            logger.trace('featureSelector', `FeatureSelector received group option change - ${groupId}.${optionId}: '${value}'`);
+            logger.debug('FeatureSelector', 'Received group option change', { 
+                groupId, 
+                optionId, 
+                value 
+            });
             
             // Special handling for romanization style changes
             if (groupId === 'subtitle' && optionId === 'style' && romanizationSchemes.length > 0) {
                 // Update the provider based on the selected style
                 const selectedScheme = romanizationSchemes.find(s => s.name === value);
                 if (selectedScheme) {
-                    logger.trace('featureSelector', `Style changed to ${value}, updating provider to ${selectedScheme.provider}`);
+                    logger.info('FeatureSelector', 'Romanization style changed', { 
+                        style: value, 
+                        provider: selectedScheme.provider 
+                    });
                     
                     // First set the style
                     featureGroupStore.setGroupOption(groupId, optionId, value);
@@ -872,7 +930,7 @@
         // Special case for summary provider changes - fetch models for the new provider
         if (featureId === 'condensedAudio' && optionId === 'summaryProvider') {
             const newProvider = value;
-            logger.debug('featureSelector', `Summary provider changed to: ${newProvider}`);
+            logger.info('FeatureSelector', 'Summary provider changed', { newProvider });
             
             // Fetch models for the selected provider if it's a non-empty string
             if (newProvider && typeof newProvider === 'string') {
@@ -884,7 +942,8 @@
                     
                     // Check if we already have models for this provider in our map
                     if (providerModelsMap[newProvider] && providerModelsMap[newProvider].length > 0) {
-                        logger.debug('featureSelector', `Using cached models for ${newProvider}`, { 
+                        logger.debug('FeatureSelector', 'Using cached models for provider', { 
+                            provider: newProvider,
                             modelCount: providerModelsMap[newProvider].length,
                             firstThree: providerModelsMap[newProvider].slice(0, 3)
                         });
@@ -938,7 +997,10 @@
             // Use Function constructor to evaluate the expression
             return new Function('return ' + prepared)();
         } catch (error) {
-            logger.error('featureSelector', 'Error evaluating feature condition', { condition: featureDef.showCondition, error });
+            logger.error('FeatureSelector', 'Error evaluating feature condition', { 
+                condition: featureDef.showCondition, 
+                error 
+            });
             return false;
         }
     }
@@ -953,7 +1015,10 @@
         
         // Update if current model doesn't exist in the list
         if (!currentSTTModels.names.includes(currentModel)) {
-          logger.trace('featureSelector', `Current STT model ${currentModel} not in available models list. Resetting to ${firstModel}`);
+          logger.info('FeatureSelector', 'Resetting STT model to first available', { 
+              previousModel: currentModel, 
+              newModel: firstModel 
+          });
           currentFeatureOptions.dubtitles.stt = firstModel;
           dispatch('optionChange', { featureId: 'dubtitles', optionId: 'stt', value: firstModel });
         }
@@ -1046,7 +1111,9 @@
     // Component lifecycle
     // Initialize feature groups
     function initializeFeatureGroups() {
-        logger.trace('featureSelector', `Initializing feature groups - current language: ${standardTag}`);
+        logger.info('FeatureSelector', 'Initializing feature groups', { 
+            currentLanguage: standardTag 
+        });
         
         // First, handle existing features to ensure they're visible
         // This ensures all feature cards are created correctly first
@@ -1057,7 +1124,9 @@
                                       feature.id === 'subtitleTokenization';
                                       
             if (isSubtitleFeature) {
-                logger.trace('featureSelector', `Adding ${feature.id} to subtitle group`);
+                logger.debug('FeatureSelector', 'Adding feature to subtitle group', { 
+                    featureId: feature.id 
+                });
                 
                 // Mark for group membership but don't initialize fully yet
                 if (!feature.featureGroups) {
@@ -1108,7 +1177,9 @@
             // Handle merge features
             const isMergeFeature = feature.outputMergeGroup === 'merge';
             if (isMergeFeature) {
-                logger.trace('featureSelector', `Adding ${feature.id} to merge group}`);
+                logger.debug('FeatureSelector', 'Adding feature to merge group', { 
+                    featureId: feature.id 
+                });
                 
                 // Mark for group membership
                 if (!feature.featureGroups) {
@@ -1338,19 +1409,22 @@
                     // Additional force update for the features array itself
                     const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
                     if (condensedAudioFeature) {
-                        logger.debug('featureSelector', 'Current provider choices:', condensedAudioFeature.options.summaryProvider.choices);
+                        logger.debug('FeatureSelector', 'Current provider choices', { 
+                            choices: condensedAudioFeature.options.summaryProvider.choices 
+                        });
                     }
                 });
             }
         });
         
         // Connect to WebSocket for real-time LLM state updates
-        logger.trace('featureSelector', 'Connecting to LLM WebSocket...');
+        logger.info('FeatureSelector', 'Connecting to LLM WebSocket');
         llmWebSocket = new LLMWebSocket();
         await llmWebSocket.connect();
         
-        logger.trace('featureSelector', "FeatureSelector mounting - loading data...");
-        logger.trace('featureSelector', `Current LLM state on mount: ${llmState?.globalState}`);
+        logger.info('FeatureSelector', 'Component mounting - loading data', { 
+            llmState: llmState?.globalState 
+        });
 
         try {
             // Load STT models BEFORE any animation starts
@@ -1385,7 +1459,7 @@
                 // Don't fetch summary providers here - wait for LLM state to be ready
                 // The LLM state subscription will trigger fetchSummaryProviders when ready
             } catch (error) {
-                logger.error('featureSelector', 'Failed to load STT models', { error });
+                logger.error('FeatureSelector', 'Failed to load STT models', { error });
             }
             
             // Only load summary providers if LLM is ready, otherwise wait for state subscription
@@ -1419,16 +1493,16 @@
                         }
                     }
                 } catch (error) {
-                    logger.error('featureSelector', 'Failed to load summary providers', { error });
+                    logger.error('FeatureSelector', 'Failed to load summary providers', { error });
                 }
             } else {
-                logger.trace('featureSelector', 'LLM not ready, skipping summary provider fetch');
+                logger.debug('FeatureSelector', 'LLM not ready, skipping summary provider fetch');
             }
             
             // Initialize canonical feature order from feature definitions
             const canonicalOrder = features.map(f => f.id);
             featureGroupStore.initializeCanonicalOrder(canonicalOrder);
-            logger.trace('featureSelector', 'Initialized canonical feature order', { canonicalOrder });
+            logger.debug('FeatureSelector', 'Initialized canonical feature order', { canonicalOrder });
             
             // Initialize feature groups 
             initializeFeatureGroups();
@@ -1453,7 +1527,7 @@
             
             // Mark component as ready BEFORE starting animations
             isInitialDataLoaded = true;
-            logger.trace('featureSelector', "FeatureSelector initial data loaded successfully");
+            logger.info('FeatureSelector', 'Initial data loaded successfully');
             
             // Restore the progressive reveal animation
             // Check if device has reduced motion preference
@@ -1489,7 +1563,10 @@
                     const delay = baseDelay * Math.pow(incrementFactor, index / 1.2);
                     
                     setTimeout(() => {
-                        logger.trace('featureSelector', `Revealing feature ${feature} at ${Math.round(delay)}ms`);
+                        logger.trace('FeatureSelector', 'Revealing feature', { 
+                            feature, 
+                            delayMs: Math.round(delay) 
+                        });
                         visibleFeatures = [...visibleFeatures, feature];
                     }, delay);
                 });
@@ -1502,11 +1579,11 @@
             // Do an initial provider warning check after everything is set up
             setTimeout(() => {
                 updateProviderWarnings();
-                logger.trace('featureSelector', "Initial provider warnings check completed");
+                logger.debug('FeatureSelector', 'Initial provider warnings check completed');
             }, 500);
             
         } catch (error) {
-            logger.error('featureSelector', "Error during FeatureSelector initialization", { error });
+            logger.error('FeatureSelector', 'Error during initialization', { error });
             // Mark as loaded anyway to prevent endless loading state
             isInitialDataLoaded = true;
             
@@ -1523,7 +1600,7 @@
     });
 
     onDestroy(() => {
-        logger.trace('featureSelector', 'FeatureSelector unmounting, cleaning up errors');
+        logger.info('FeatureSelector', 'Component unmounting, cleaning up');
        
         // Clean up store subscriptions
         if (sttModelsUnsubscribe) {
@@ -1550,7 +1627,7 @@
         
         // Disconnect WebSocket
         if (llmWebSocket) {
-            logger.trace('featureSelector', 'Disconnecting LLM WebSocket');
+            logger.debug('FeatureSelector', 'Disconnecting LLM WebSocket');
             llmWebSocket.disconnect();
             llmWebSocket = null;
         }
@@ -1597,12 +1674,14 @@
     // update provider warnings when STT model changes
     $: if (currentFeatureOptions?.dubtitles?.stt) {
         // This ensures we update warnings whenever the STT model changes
-        logger.trace('featureSelector', `STT model changed reactively to: ${currentFeatureOptions.dubtitles.stt}`);
+        logger.debug('FeatureSelector', 'STT model changed reactively', { 
+            model: currentFeatureOptions.dubtitles.stt 
+        });
         updateProviderWarnings();
     }
     
     $: if (currentSTTModels && currentSTTModels.models && currentSTTModels.models.length > 0) {
-        logger.trace('featureSelector', "STT models updated, checking default model selection");
+        logger.debug('FeatureSelector', 'STT models updated, checking default model selection');
         
         // Make sure dubtitles feature options exist
         if (!currentFeatureOptions.dubtitles) {
@@ -1613,7 +1692,9 @@
         const currentModel = currentFeatureOptions.dubtitles.stt;
         if (!currentModel || !currentSTTModels.names.includes(currentModel)) {
             const firstModel = currentSTTModels.names[0];
-            logger.trace('featureSelector', `Setting initial STT model to ${firstModel}`);
+            logger.info('FeatureSelector', 'Setting initial STT model', { 
+                model: firstModel 
+            });
             
             // Update the feature options directly
             currentFeatureOptions.dubtitles.stt = firstModel;

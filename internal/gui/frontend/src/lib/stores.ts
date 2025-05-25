@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { logger } from './logger';
 
 // IntermediaryFileMode defines how to handle intermediary files
 type IntermediaryFileMode = 'keep' | 'recompress' | 'delete';
@@ -79,11 +80,69 @@ const initSettings: Settings = {
 
 type showSettings = boolean;
 
-export const settings = writable<Settings>(initSettings);
-export const showSettings = writable(false);
+// Create custom settings store with logging
+function createSettingsStore() {
+    const { subscribe, set, update } = writable<Settings>(initSettings);
+    
+    return {
+        subscribe,
+        set: (value: Settings) => {
+            logger.trace('store/settings', 'Settings updated', {
+                hasApiKeys: !!value.apiKeys,
+                targetLanguage: value.targetLanguage,
+                nativeLanguages: value.nativeLanguages,
+                useWasm: value.useWasm,
+                wasmSizeThreshold: value.wasmSizeThreshold
+            });
+            set(value);
+        },
+        update: (updater: (value: Settings) => Settings) => {
+            update((current) => {
+                const newValue = updater(current);
+                logger.trace('store/settings', 'Settings updated via update()', {
+                    hasApiKeys: !!newValue.apiKeys,
+                    targetLanguage: newValue.targetLanguage,
+                    useWasm: newValue.useWasm
+                });
+                return newValue;
+            });
+        }
+    };
+}
+
+export const settings = createSettingsStore();
+
+// Create show settings store with logging
+function createShowSettingsStore() {
+    const { subscribe, set, update } = writable(false);
+    
+    return {
+        subscribe,
+        set: (value: boolean) => {
+            logger.trace('store/showSettings', 'Settings modal visibility changed', { visible: value });
+            set(value);
+        },
+        update
+    };
+}
+
+export const showSettings = createShowSettingsStore();
 
 // Add a reactive store to track when WASM is actively being used
-export const wasmActive = writable<boolean>(false);
+function createWasmActiveStore() {
+    const { subscribe, set, update } = writable<boolean>(false);
+    
+    return {
+        subscribe,
+        set: (value: boolean) => {
+            logger.trace('store/wasmActive', 'WASM active state changed', { active: value });
+            set(value);
+        },
+        update
+    };
+}
+
+export const wasmActive = createWasmActiveStore();
 
 // LLM state management types and store
 export interface LLMProviderState {
@@ -106,7 +165,16 @@ function createLLMStateStore() {
     
     return {
         subscribe,
-        set,
+        set: (value: LLMStateChange | null) => {
+            if (value) {
+                logger.trace('store/llmState', 'LLM state changed', {
+                    globalState: value.globalState,
+                    updatedProvider: value.updatedProviderName,
+                    message: value.message
+                });
+            }
+            set(value);
+        },
         update,
         
         // Helper methods
@@ -140,10 +208,20 @@ function createStatisticsStore() {
     
     return {
         subscribe,
-        set,
+        set: (value: Statistics) => {
+            logger.trace('store/statistics', 'Statistics replaced', { 
+                keys: Object.keys(value),
+                keyCount: Object.keys(value).length 
+            });
+            set(value);
+        },
         
         // Update specific statistics without overwriting the entire store
         updatePartial: (updates: Partial<Statistics>) => {
+            logger.trace('store/statistics', 'Statistics partially updated', { 
+                updatedKeys: Object.keys(updates),
+                updates 
+            });
             update(stats => ({
                 ...stats,
                 ...updates
@@ -165,6 +243,11 @@ function createStatisticsStore() {
             update(stats => {
                 const currentValue = typeof stats[key] === 'number' ? stats[key] : 0;
                 newValue = currentValue + 1;
+                logger.trace('store/statistics', 'Counter incremented', { 
+                    key, 
+                    oldValue: currentValue, 
+                    newValue 
+                });
                 return {
                     ...stats,
                     [key]: newValue

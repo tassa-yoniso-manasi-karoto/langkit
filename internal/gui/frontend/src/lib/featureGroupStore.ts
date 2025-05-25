@@ -70,7 +70,7 @@ function createFeatureGroupStore() {
          * Register a new feature group
          */
         registerGroup(group: FeatureGroup) {
-            // console.log(`Registering group: ${group.id}`, group);
+            logger.trace('store/featureGroupStore', 'Registering group', { groupId: group.id, group });
             store.update(state => {
                 // Initialize group state
                 const newState = { ...state };
@@ -110,7 +110,7 @@ function createFeatureGroupStore() {
          * Update a feature's enabled status within a group
          */
         updateFeatureEnabled(groupId: string, featureId: string, enabled: boolean) {
-            // console.log(`Updating feature enabled: ${groupId} - ${featureId} - ${enabled}`);
+            logger.trace('store/featureGroupStore', 'Updating feature enabled state', { groupId, featureId, enabled });
             store.update(state => {
                 if (!state.groups[groupId]) return state;
                 
@@ -119,12 +119,12 @@ function createFeatureGroupStore() {
                 
                 if (enabled && !enabledList.includes(featureId)) {
                     enabledList.push(featureId);
-                    console.log(`Added ${featureId} to enabled features in group ${groupId}`);
+                    logger.trace('store/featureGroupStore', 'Added feature to enabled features', { featureId, groupId });
                 } else if (!enabled) {
                     const index = enabledList.indexOf(featureId);
                     if (index !== -1) {
                         enabledList.splice(index, 1);
-                        // console.log(`Removed ${featureId} from enabled features in group ${groupId}`);
+                        logger.trace('store/featureGroupStore', 'Removed feature from enabled features', { featureId, groupId });
                     }
                 }
                 
@@ -145,7 +145,7 @@ function createFeatureGroupStore() {
          * Always uses the canonical order to determine topmost feature
          */
         updateActiveDisplayFeature(groupId: string, groupFeatures: string[], enabledFeatures: string[]) {
-            console.log(`Updating active display feature for group ${groupId}`);
+            logger.trace('store/featureGroupStore', 'Updating active display feature', { groupId });
             
             // Get the topmost enabled feature using canonical order
             const state = get(store);
@@ -167,11 +167,11 @@ function createFeatureGroupStore() {
                 if (topmostFeature) {
                     if (oldActiveFeature !== topmostFeature) {
                         newState.activeDisplayFeature[groupId] = topmostFeature;
-                        console.log(`Active display feature for ${groupId} changed from ${oldActiveFeature} to ${topmostFeature}`);
+                        logger.trace('store/featureGroupStore', 'Active display feature changed', { groupId, oldActiveFeature, topmostFeature });
                     }
                 } else {
                     newState.activeDisplayFeature[groupId] = null;
-                    console.log(`No active display feature for ${groupId} - no enabled features`);
+                    logger.trace('store/featureGroupStore', 'No active display feature - no enabled features', { groupId });
                 }
                 
                 return newState;
@@ -185,7 +185,7 @@ function createFeatureGroupStore() {
          * Set a group option value - central store of all option values
          */
         setGroupOption(groupId: string, optionId: string, value: any) {
-            // console.log(`Setting group option: ${groupId} - ${optionId}`, value);
+            logger.trace('store/featureGroupStore', 'Setting group option', { groupId, optionId, value });
             store.update(state => {
                 if (!state.groups[groupId]) return state;
                 
@@ -249,13 +249,13 @@ function createFeatureGroupStore() {
             const rules = group.validationRules?.filter(rule => rule.optionId === optionId) || [];
             const optionValue = state.groupOptions[groupId]?.[optionId];
             
-            // console.log(`Validating option: ${groupId} - ${optionId}`, {value: optionValue, rules});
+            logger.trace('store/featureGroupStore', 'Validating option', { groupId, optionId, value: optionValue, ruleCount: rules.length });
             
             // Apply each validation rule
             rules.forEach(rule => {
                 // FIXED: Ensure the validator function is called correctly
                 const isValid = rule.validator(optionValue);
-                // console.log(`Validation result for ${rule.id}: ${isValid}`);
+                logger.trace('store/featureGroupStore', 'Validation result', { ruleId: rule.id, isValid });
                 
                 if (!isValid) {
                     // Register error in errorStore
@@ -284,7 +284,7 @@ function createFeatureGroupStore() {
             const enabledFeaturesInGroup = state.enabledFeatures[groupId] || [];
             const anyFeatureEnabled = enabledFeaturesInGroup.length > 0;
             
-            // console.log(`Validating all options in group: ${groupId}, features enabled: ${anyFeatureEnabled}`);
+            logger.trace('store/featureGroupStore', 'Validating all options in group', { groupId, featuresEnabled: anyFeatureEnabled });
             
             // If no features are enabled, clear all validation errors for this group
             if (!anyFeatureEnabled) {
@@ -339,7 +339,7 @@ function createFeatureGroupStore() {
          * This method is kept for backward compatibility but now delegates to canonical order
          */
         updateFeatureDisplayOrder(groupId: string, orderedFeatureIds: string[]) {
-            console.log(`Updating display order for group ${groupId} - using canonical order instead`);
+            logger.trace('store/featureGroupStore', 'Updating display order - using canonical order', { groupId });
             
             // This method no longer updates the displayOrder but reuses the
             // canonical order for consistency
@@ -457,13 +457,7 @@ function createFeatureGroupStore() {
             // This feature is the topmost if it matches the first enabled feature in canonical order
             const isTopmost = topmostFeature === featureId;
             
-            /*console.log(`isTopmostInGroup check for ${groupId}:`, {
-                featureId,
-                enabledFeatures,
-                groupOrder,
-                topmostFeature,
-                isTopmost
-            });*/ // TODO this log is spammed and causes memory leaks; restore it with throttling
+            // Removed spammy log that caused memory leaks
             
             return isTopmost;
         },
@@ -587,7 +581,7 @@ function createFeatureGroupStore() {
             
             if (!group || !group.validationRules) return;
             
-            // console.log(`Clearing errors for group: ${groupId}`);
+            logger.trace('store/featureGroupStore', 'Clearing errors for group', { groupId });
             
             // Clear all validation errors
             group.validationRules.forEach(rule => {
