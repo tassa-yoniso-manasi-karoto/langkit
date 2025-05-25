@@ -28,7 +28,8 @@
     import LogViewerNotification from './components/LogViewerNotification.svelte';
     import MemoryTestButton from './components/MemoryTestButton.svelte';
     import DevDashboard from './components/DevDashboard.svelte';
-import CoffeeSupport from './components/CoffeeSupport.svelte';
+    import CoffeeSupport from './components/CoffeeSupport.svelte';
+    import WelcomePopup from './components/WelcomePopup.svelte';
     
     import { 
         SendProcessingRequest, 
@@ -116,6 +117,9 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
     // State for performance notice
     let showPerformanceNotice = false;
     let lastSignificantPerformance = 0;
+    
+    // State for welcome popup
+    let showWelcomePopup = false;
 
     // Reactive error management
     $: {
@@ -396,6 +400,12 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
             // Load statistics from backend
             const stats = await LoadStatistics();
             statisticsStore.set(stats);
+            
+            // Check if this is the first app start
+            if (stats.countAppStart === 0) {
+                logger.info('app', 'First app start detected, showing welcome popup');
+                showWelcomePopup = true;
+            }
             
             // Increment app start count
             const newCount = await IncrementStatistic('countAppStart');
@@ -1163,6 +1173,16 @@ import CoffeeSupport from './components/CoffeeSupport.svelte';
 <!-- Developer dashboard (only appears in dev mode) -->
 {#if version}
     <DevDashboard {version} />
+{/if}
+
+<!-- Welcome popup for first-time users -->
+{#if showWelcomePopup}
+    <WelcomePopup 
+        onClose={() => {
+            logger.info('app', 'Welcome popup closed');
+            showWelcomePopup = false;
+        }}
+    />
 {/if}
 
 <style>

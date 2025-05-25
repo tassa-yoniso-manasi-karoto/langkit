@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 	
@@ -808,6 +810,89 @@ func (a *App) GenerateSummary(text string, inputLanguage string, options map[str
 		Int("result_length", len(result)).
 		Msg("Summary generated successfully")
 
+	return result, nil
+}
+
+// CheckDockerAvailability checks if Docker is available on the system
+func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
+	a.logger.Debug().Msg("Checking Docker availability")
+	
+	// Try to run docker version command
+	cmd := exec.Command("docker", "version", "--format", "json")
+	output, err := cmd.Output()
+	
+	result := map[string]interface{}{
+		"available": false,
+		"version":   "",
+		"engine":    "",
+		"error":     "",
+	}
+	
+	if err != nil {
+		// Check if it's a command not found error
+		if strings.Contains(err.Error(), "executable file not found") {
+			result["error"] = "Docker is not installed"
+		} else {
+			result["error"] = "Cannot connect to Docker daemon"
+		}
+		a.logger.Debug().Err(err).Msg("Docker check failed")
+		return result, nil
+	}
+	
+	// Parse docker version output
+	var versionInfo map[string]interface{}
+	if err := json.Unmarshal(output, &versionInfo); err == nil {
+		result["available"] = true
+		if client, ok := versionInfo["Client"].(map[string]interface{}); ok {
+			if version, ok := client["Version"].(string); ok {
+				result["version"] = version
+			}
+		}
+		result["engine"] = "Docker Desktop"
+	}
+	
+	a.logger.Debug().Interface("result", result).Msg("Docker check completed")
+	return result, nil
+}
+
+// CheckInternetConnectivity checks if the system has internet connectivity
+func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
+	a.logger.Debug().Msg("Checking internet connectivity")
+	
+	result := map[string]interface{}{
+		"online":   false,
+		"latency":  0,
+		"error":    "",
+	}
+	
+	// Try to connect to multiple reliable hosts
+	hosts := []string{
+		"1.1.1.1:443",        // Cloudflare DNS
+		"8.8.8.8:443",        // Google DNS
+		"208.67.222.222:443", // OpenDNS
+	}
+	
+	for _, host := range hosts {
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", host, 3*time.Second)
+		if err == nil {
+			conn.Close()
+			result["online"] = true
+			result["latency"] = int(time.Since(start).Milliseconds())
+			break
+		}
+	}
+	
+	if !result["online"].(bool) {
+		result["error"] = "No internet connection detected"
+		a.logger.Debug().Msg("Internet connectivity check failed")
+	} else {
+		a.logger.Debug().
+			Bool("online", true).
+			Int("latency", result["latency"].(int)).
+			Msg("Internet connectivity check passed")
+	}
+	
 	return result, nil
 }
 

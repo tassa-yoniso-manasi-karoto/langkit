@@ -142,34 +142,6 @@
         transparent 100%
     );
   
-  /* Unused but looks neat*/
-  /* DOUBLE MARKER - Two distinct points for better movement tracking */
-  --sweep-gradient-double: linear-gradient(
-    90deg, 
-    transparent 0%, 
-    rgba(255, 255, 255, 0) 42%, 
-    rgba(255, 255, 255, 0.4) 45%, /* First peak */
-    rgba(255, 255, 255, 0.1) 47%, 
-    rgba(255, 255, 255, 0.7) 50%, /* Main peak */
-    rgba(255, 255, 255, 0.1) 53%, 
-    rgba(255, 255, 255, 0) 55%, 
-    transparent 100%
-  );
-  
-  /* TRIPLE MARKER - Three points for very clear movement tracking */
-  --sweep-gradient-triple: linear-gradient(
-    90deg, 
-    transparent 0%, 
-    rgba(255, 255, 255, 0) 40%, 
-    rgba(255, 255, 255, 0.2) 43%, /* First smaller peak */
-    rgba(255, 255, 255, 0) 46%, 
-    rgba(255, 255, 255, 0.6) 50%, /* Main peak */
-    rgba(255, 255, 255, 0) 54%, 
-    rgba(255, 255, 255, 0.2) 57%, /* Third peak */
-    rgba(255, 255, 255, 0) 60%, 
-    transparent 100%
-  );
-
   /* DROPDOWN STYLING */
   /* Primary-colored transparent dropdown using HSL variables */
   --dropdown-primary-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1); 
@@ -589,4 +561,20 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .settings-modal .backdrop-blur-lg {
   z-index: var(--z-index-settings-modal) !important;
+}
+
+/* Welcome popup glassmorphic effects */
+.welcome-popup-glow {
+  animation: welcomeGlow 3s ease-in-out infinite;
+}
+
+@keyframes welcomeGlow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
 }

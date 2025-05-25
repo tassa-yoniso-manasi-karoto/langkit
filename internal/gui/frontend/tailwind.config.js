@@ -128,6 +128,8 @@ export default {
           950: '#1a1700',
          },
         'pale-green': green,
+        'welcome-gradient-start': `hsl(${primaryHue}, 95%, 75%)`,
+        'welcome-gradient-end': `hsl(${secondaryHue}, 95%, 70%)`,
         
         'log-debug': violet,
         'log-info': green,
