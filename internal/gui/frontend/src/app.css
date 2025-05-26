@@ -541,6 +541,29 @@ input[type="number"]::-webkit-outer-spin-button {
   src: url('/fonts/dm-mono-v14-latin_latin-ext-500italic.woff2') format('woff2');
 }
 
+/* Fill effect color variables */
+:root {
+  --fill-red-hue: 0;
+  --fill-red-saturation: 75%;
+  --fill-red-lightness: 50%;
+  --fill-red-alpha: 0.85;
+  --fill-primary-alpha: 0.8;
+}
+
+/* Reusable fill effect for buttons */
+.fill-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.fill-effect-red {
+  --fill-color: hsla(var(--fill-red-hue), var(--fill-red-saturation), var(--fill-red-lightness), var(--fill-red-alpha));
+}
+
+.fill-effect-primary {
+  --fill-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), var(--fill-primary-alpha));
+}
+
 /* Component z-index management */
 .dev-dashboard-icon,
 .dev-dashboard-panel {

@@ -134,7 +134,7 @@ import { isDeveloperMode } from '../lib/developerMode';
       fill.style.width = '0';
       fill.style.height = '0';
       fill.style.borderRadius = '50%';
-      fill.style.backgroundColor = 'hsla(0, 85%, 45%, 0.8)';
+      fill.style.backgroundColor = 'hsla(var(--fill-red-hue), var(--fill-red-saturation), var(--fill-red-lightness), var(--fill-red-alpha))';
       fill.style.transform = 'translate(-50%, -50%)';
       fill.style.transition = 'width 0.5s ease-out, height 0.5s ease-out';
       fill.style.zIndex = '-1';
@@ -1006,9 +1006,9 @@ import { isDeveloperMode } from '../lib/developerMode';
       right: 0;
       bottom: 0;
       background: radial-gradient(circle at var(--x, center) var(--y, center), 
-                  hsla(0, 85%, 45%, 0.9) 0%, 
-                  hsla(0, 85%, 45%, 0.85) 60%, 
-                  hsla(0, 85%, 45%, 0.8) 100%);
+                  hsla(var(--fill-red-hue), var(--fill-red-saturation), var(--fill-red-lightness), calc(var(--fill-red-alpha) + 0.05)) 0%, 
+                  hsla(var(--fill-red-hue), var(--fill-red-saturation), var(--fill-red-lightness), var(--fill-red-alpha)) 60%, 
+                  hsla(var(--fill-red-hue), var(--fill-red-saturation), var(--fill-red-lightness), calc(var(--fill-red-alpha) - 0.05)) 100%);
       opacity: 0;
       transform: scale(0);
       transition: opacity 0.5s ease-in, transform 0.5s ease-in !important;

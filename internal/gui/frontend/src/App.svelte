@@ -132,6 +132,9 @@
     let logViewerButton: HTMLButtonElement;
     let logViewerButtonPosition = { x: 0, y: 0 };
     
+    // Cancel button reference for fill effect
+    let cancelButtonRef: HTMLButtonElement | null = null;
+    
     // Reactive tracking of language settings
     // A reactive statement to sync settings target language with quick access language
     $: {
@@ -390,6 +393,61 @@
                 };
             }
         }, 200); // Match transition duration from slide animation
+    }
+
+    // Fill effect handlers for cancel button
+    function handleCancelMouseEnter(event: MouseEvent) {
+        if (!cancelButtonRef) return;
+        
+        // Get exact coordinates relative to the button
+        const rect = cancelButtonRef.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        // Get the fill color from CSS variable
+        const computedStyle = getComputedStyle(cancelButtonRef);
+        const fillColor = computedStyle.getPropertyValue('--fill-color') || 'hsla(var(--fill-red-hue), var(--fill-red-saturation), var(--fill-red-lightness), var(--fill-red-alpha))';
+        
+        // Create and style a new element for the fill effect
+        const fill = document.createElement('div');
+        fill.style.position = 'absolute';
+        fill.style.left = x + 'px';
+        fill.style.top = y + 'px';
+        fill.style.width = '0';
+        fill.style.height = '0';
+        fill.style.borderRadius = '50%';
+        fill.style.backgroundColor = fillColor;
+        fill.style.transform = 'translate(-50%, -50%)';
+        fill.style.transition = 'width 0.5s ease-out, height 0.5s ease-out';
+        fill.style.zIndex = '-1';
+        
+        // Append to button
+        cancelButtonRef.appendChild(fill);
+        
+        // Force reflow
+        fill.offsetWidth;
+        
+        // Calculate max dimension needed to fill button
+        const maxDim = Math.max(
+            rect.width * 2,
+            rect.height * 2,
+            Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2)) * 2,
+            Math.sqrt(Math.pow(rect.width - x, 2) + Math.pow(y, 2)) * 2,
+            Math.sqrt(Math.pow(x, 2) + Math.pow(rect.height - y, 2)) * 2,
+            Math.sqrt(Math.pow(rect.width - x, 2) + Math.pow(rect.height - y, 2)) * 2
+        );
+        
+        // Expand the fill
+        fill.style.width = maxDim + 'px';
+        fill.style.height = maxDim + 'px';
+    }
+
+    function handleCancelMouseLeave() {
+        // Remove all fill elements when mouse leaves
+        if (cancelButtonRef) {
+            const fills = cancelButtonRef.querySelectorAll('div');
+            fills.forEach((fill: Element) => cancelButtonRef?.removeChild(fill));
+        }
     }
 
     async function handleProcess() {
@@ -1185,18 +1243,24 @@
                         
                         <!-- Cancel button with optimized transitions -->
                         {#if isProcessing}
-                            <div class="h-12 w-12" style="contain: strict;">
+                            <div class="h-14 w-12 flex items-end">
                                 <button
                                     class="h-12 w-12 flex items-center justify-center rounded-lg
-                                           bg-red-500/30 text-white transition-all duration-200
-                                           hover:bg-red-500/90 hover:-translate-y-0.5
+                                           bg-red-600/40 text-white transition-all duration-200
+                                           border border-red-500/50
+                                           hover:-translate-y-0.5
                                            hover:shadow-lg hover:shadow-red-500/20
+                                           hover:border-red-400
                                            focus:outline-none focus:ring-2 focus:ring-red-500/50
-                                           focus:ring-offset-2 focus:ring-offset-bg"
+                                           focus:ring-offset-2 focus:ring-offset-bg
+                                           fill-effect fill-effect-red"
                                     on:click={handleCancel}
+                                    on:mouseenter={handleCancelMouseEnter}
+                                    on:mouseleave={handleCancelMouseLeave}
                                     in:slide={{ duration: 200, axis: "x" }}
                                     out:slide={{ duration: 200, axis: "x" }}
                                     aria-label="Cancel processing"
+                                    bind:this={cancelButtonRef}
                                 >
                                     <span class="material-icons">close</span>
                                 </button>

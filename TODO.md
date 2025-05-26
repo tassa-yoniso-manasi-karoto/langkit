@@ -11,16 +11,12 @@ SVG animations: rework state transitions
 - support Condensed Audio summaries:
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
-  - dropdown for desired output format (mp3 / aac / opus)
 
 .
 - add tlit in TSV/CSV
 
 .
 - mergeInsertLogs called insane amount of times (26536 times when there is only 94 logs)
-
-.
-- bottom row buttons: process, cancel, open log viewer still truncated
 
 .
 - guarantee all settings in Settings panel work
@@ -37,9 +33,6 @@ SVG animations: rework state transitions
 
 .
 - settings button is plain, not integrated
-
-.
-- userIsAFK
 
 .
 - fix checkbox options visual misalignement
