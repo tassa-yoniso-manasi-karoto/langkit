@@ -193,11 +193,27 @@
     let autoScrollToastMessage = "";
     let autoScrollToastTimer: number | null = null;
 
-    // Filter logs by level
-    $: filteredLogs = $logStore.filter(log => 
-        logLevelPriority[log.level?.toLowerCase() || 'info'] >= 
-        logLevelPriority[selectedLogLevel.toLowerCase()]
-    );
+    // Memoize filtered logs to prevent excessive reactive updates
+    let previousLogStoreLength = 0;
+    let previousSelectedLogLevel = selectedLogLevel;
+    let memoizedFilteredLogs: LogMessage[] = [];
+    
+    // Filter logs by level - only re-compute when necessary
+    $: {
+        // Only recompute if log store changed or filter level changed
+        if ($logStore.length !== previousLogStoreLength || selectedLogLevel !== previousSelectedLogLevel) {
+            previousLogStoreLength = $logStore.length;
+            previousSelectedLogLevel = selectedLogLevel;
+            
+            memoizedFilteredLogs = $logStore.filter(log => 
+                logLevelPriority[log.level?.toLowerCase() || 'info'] >= 
+                logLevelPriority[selectedLogLevel.toLowerCase()]
+            );
+        }
+    }
+    
+    // Use the memoized version
+    $: filteredLogs = memoizedFilteredLogs;
     
     // Use the centralized threshold from settings
     $: {

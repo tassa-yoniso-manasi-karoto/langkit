@@ -281,11 +281,27 @@ function createLogStore() {
 
       return data.map(item => deepCleanObject(item));
     }
+    // Debug: Track call frequency
+    let mergeCallCount = 0;
+    let lastMergeReportTime = Date.now();
+    
     // Updated mergeInsertLogs from Phase 1.2 and Phase 2.2
     function mergeInsertLogs(existingLogs: LogMessage[], newLogs: LogMessage[]): LogMessage[] {
-      // Track operation in WASM state
-      trackOperation('mergeInsertLogs');
-
+      // Debug tracking
+      mergeCallCount++;
+      const now = Date.now();
+      if (now - lastMergeReportTime > 5000) { // Report every 5 seconds
+        logger.warn('store/logStore', 'mergeInsertLogs call frequency', {
+          callCount: mergeCallCount,
+          timeSpan: '5s',
+          existingCount: existingLogs.length,
+          newCount: newLogs.length,
+          callsPerSecond: (mergeCallCount / 5).toFixed(1)
+        });
+        mergeCallCount = 0;
+        lastMergeReportTime = now;
+      }
+      
       const totalLogCount = existingLogs.length + newLogs.length;
 
       // Early return for empty arrays with proper typing
@@ -329,6 +345,9 @@ function createLogStore() {
             )
           });
 
+          // Track operation in WASM state
+          trackOperation('mergeInsertLogs');
+          
           const wasmStartTime = performance.now();
           const result = wasmModule.merge_insert_logs(
             serializedExisting,
@@ -384,6 +403,9 @@ function createLogStore() {
             // We measure the JS prep time here.
             const serialized = serializeLogsForWasm([...existingLogs, ...newLogs]); // Pass combined for potential optimization
 
+            // Track operation in WASM state
+            trackOperation('mergeInsertLogs');
+            
             // Measure WebAssembly execution time
             const wasmStartTime = performance.now();
 
@@ -565,12 +587,30 @@ function createLogStore() {
         processLogBatch();
     }
     
+    // Debug: Track batch processing frequency
+    let batchProcessCount = 0;
+    let lastBatchReportTime = Date.now();
+    
     /**
      * Process accumulated logs in a batch for efficiency
      * UPDATED: No longer caps logs at maxEntries - keeps all logs
      */
     function processLogBatch() {
         if (processingBatch || pendingBatch.length === 0) return;
+        
+        // Debug tracking
+        batchProcessCount++;
+        const now = Date.now();
+        if (now - lastBatchReportTime > 5000) { // Report every 5 seconds
+            logger.warn('store/logStore', 'processLogBatch call frequency', {
+                callCount: batchProcessCount,
+                timeSpan: '5s',
+                callsPerSecond: (batchProcessCount / 5).toFixed(1),
+                pendingBatchSize: pendingBatch.length
+            });
+            batchProcessCount = 0;
+            lastBatchReportTime = now;
+        }
         
         processingBatch = true;
         if (batchProcessTimer) {
