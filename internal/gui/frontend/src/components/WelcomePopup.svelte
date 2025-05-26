@@ -197,6 +197,7 @@
         setTimeout(async () => {
             try {
                 dockerStatus = await CheckDockerAvailability();
+                // dockerStatus.available = false;
                 logger.debug('WelcomePopup', 'Docker check completed', dockerStatus);
             } catch (error) {
                 logger.error('WelcomePopup', 'Docker check failed', { error });
@@ -273,8 +274,7 @@
                     bg-black/30 backdrop-blur-2xl
                     border border-white/10
                     shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)]
-                    hover:shadow-[0_25px_55px_-12px_rgba(147,51,234,0.2)]
-                    transition-shadow duration-700">
+                    panel-glow">
             
             <!-- Subtle gradient accent -->
             <div class="absolute -top-32 -right-32 w-64 h-64 rounded-full bg-primary/10 blur-3xl"></div>
@@ -333,7 +333,7 @@
                                                     <rect width="24" height="24" fill="currentColor" mask="url(#dockerCheckMask)"/>
                                                 </svg>
                                             {:else if dockerStatus}
-                                                <DockerUnavailableIcon size="32" className="text-yellow-500" />
+                                                <DockerUnavailableIcon size="32" className="text-blue-400" />
                                             {:else}
                                                 <span class="material-icons text-3xl text-gray-400">pending</span>
                                             {/if}
@@ -610,6 +610,25 @@
     @keyframes blink {
         0%, 50% { opacity: 1; }
         51%, 100% { opacity: 0; }
+    }
+    
+    /* Panel glow effect with smooth transitions */
+    .panel-glow {
+        position: relative;
+        box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.8);
+        transition: box-shadow 2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .panel-glow:hover {
+        box-shadow: 
+            /* Right side glow - matching purple tones from GlowEffect */
+            20px 15px 45px -10px rgba(159, 110, 247, 0.2),
+            /* Bottom glow - stronger, closer to light source */
+            0 30px 60px -15px rgba(190, 120, 255, 0.25),
+            /* Bottom-right corner accent - where light hits directly */
+            15px 25px 40px -12px rgba(255, 100, 255, 0.15),
+            /* Original dark shadow */
+            0 20px 50px -12px rgba(0, 0, 0, 0.8);
     }
     
     

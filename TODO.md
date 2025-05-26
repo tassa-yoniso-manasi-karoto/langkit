@@ -25,13 +25,18 @@ SVG animations: rework state transitions
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
   - bigger icons for check cards
-  - fix fill animations' color
+  - fix fill animations' color fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'fill.style.backgroundColor = 'hsla(261, 90%, 60%, 0.8)'fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'
+  - use ExternalLink
+  - write "if ... then features X and Y are unavailable msg"
 
 .
 - settings button is plain, not integrated
 
 .
 - userIsAFK
+
+.
+- fix checkbox options visual misalignement
 
 .
 - add strategic frontend logging for prod
@@ -41,6 +46,10 @@ SVG animations: rework state transitions
 
 .
 - remove useless test files
+.
+
+- revoke API keys and make sure they are under no circumstances leaking in logs
+
 .
 
 - manual GUI tests
