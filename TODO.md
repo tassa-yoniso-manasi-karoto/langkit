@@ -17,12 +17,18 @@ SVG animations: rework state transitions
 - add tlit in TSV/CSV
 
 .
+- mergeInsertLogs called insane amount of times (26536 times when there is only 94 logs)
 
+.
+- bottom row buttons: process, cancel, open log viewer still truncated
+
+.
 - guarantee all settings in Settings panel work
   - implement intermediary file mode
 
 .
 - welcome.svelte component w/ checks for binary needed:
+  - different font for header
   - less transparency
   - bigger icons for check cards
   - fix fill animations' color fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'fill.style.backgroundColor = 'hsla(261, 90%, 60%, 0.8)'fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'
@@ -63,6 +69,8 @@ SVG animations: rework state transitions
 - fix newlines in builtin documentation
 - Browse / check FIXMEs in codebase
 .
+
+- chk memory management of WASM (remove 50Mib preallocated)
 
 
 

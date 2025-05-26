@@ -1,5 +1,5 @@
 import { writable, get, derived } from 'svelte/store';
-import { settings } from './stores';
+import { settings, userActivityState } from './stores';
 import { logger } from './logger';
 import {
   isWasmEnabled,
@@ -294,6 +294,13 @@ function createLogStore() {
 
       // Get current settings - add this line
       const $settings = get(settings);
+      const $userActivityStateData = get(userActivityState);
+
+      // Skip WASM if user is AFK to save CPU
+      if ($userActivityStateData.state === 'afk') {
+        logger.trace('store/logStore', 'Skipping WASM merge - user is AFK', { logCount: totalLogCount });
+        return mergeInsertLogsTS(existingLogs, newLogs);
+      }
 
       // IMPROVEMENT #1: Check if operation is forced first
       // This ensures user preferences take precedence over automatic checks

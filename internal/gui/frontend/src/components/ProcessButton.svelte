@@ -4,6 +4,7 @@
     import { errorStore } from '../lib/errorStore';
     import ProcessErrorTooltip from './ProcessErrorTooltip.svelte';
     import { logger } from '../lib/logger';
+    import { userActivityState } from '../lib/stores';
 
     // Create event dispatcher without generic type parameters
     const dispatch = createEventDispatcher();
@@ -16,6 +17,12 @@
     let showTooltip = false;
     let buttonRef: HTMLButtonElement;
     let tooltipPosition = { x: 0, y: 0 };
+    
+    // Subscribe to user activity state
+    let currentUserActivityState = 'active';
+    const unsubscribeUserActivity = userActivityState.subscribe(value => {
+        currentUserActivityState = value.state;
+    });
 
     // Subscribe to the error store to get the current errors.
     let errors = [];
@@ -148,6 +155,7 @@
     onDestroy(() => {
         logger.trace('ProcessButton', 'Component unmounting');
         unsubscribe();
+        unsubscribeUserActivity();
     });
     
     // React to processing state changes
@@ -185,7 +193,8 @@
     >
         <div class="flex items-center gap-2">
             {#if isProcessing}
-                <span class="material-icons animate-spin w-6 h-6 flex items-center justify-center">refresh</span>
+                <span class="material-icons w-6 h-6 flex items-center justify-center" 
+                      class:animate-spin={currentUserActivityState !== 'afk'}>refresh</span>
                 <span>Processing...</span>
             {:else}
                 <span>Process Files</span>

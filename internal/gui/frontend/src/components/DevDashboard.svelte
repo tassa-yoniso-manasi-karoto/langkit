@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore, statisticsStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
@@ -51,6 +51,14 @@
     let currentStatistics;
     const unsubscribeStatistics = statisticsStore.subscribe(value => {
         currentStatistics = value;
+    });
+    
+    // Store current user activity state
+    let currentUserActivityState = 'active';
+    let isForced = false;
+    const unsubscribeUserActivity = userActivityStateStore.subscribe(value => {
+        currentUserActivityState = value.state;
+        isForced = value.isForced;
     });
     
     // Show when in dev mode or developer mode is enabled
@@ -151,6 +159,17 @@
         logger.debug('devDashboard', 'Reset LLM state to real backend state');
     }
     
+    // User activity state control functions
+    function forceUserActivityState(state: 'active' | 'idle' | 'afk') {
+        userActivityStateStore.set(state, true); // true = forced
+        logger.debug('devDashboard', `Forced user activity state to: ${state}`);
+    }
+    
+    function resetUserActivityState() {
+        userActivityStateStore.reset();
+        logger.debug('devDashboard', 'Reset user activity state to automatic detection');
+    }
+    
     // Clean up event listeners on destroy
     onDestroy(() => {
         window.removeEventListener('mousemove', handleMouseMove);
@@ -158,6 +177,7 @@
         unsubscribeSettings();
         unsubscribeLLMState();
         unsubscribeStatistics();
+        unsubscribeUserActivity();
     });
     
     // Keep dashboard in viewport when window is resized
@@ -303,6 +323,36 @@
                                     </tbody>
                                 </table>
                             </div>
+                            
+                            <div class="state-section">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">User Activity</h5>
+                                <table class="state-table">
+                                    <tbody>
+                                        <tr>
+                                            <td class="state-key">userActivityState</td>
+                                            <td class="state-value">
+                                                <span class:text-green-400={currentUserActivityState === 'active'}
+                                                      class:text-yellow-400={currentUserActivityState === 'idle'}
+                                                      class:text-red-400={currentUserActivityState === 'afk'}>
+                                                    {currentUserActivityState}
+                                                    {#if isForced}
+                                                        <span class="text-purple-400 text-xs">(forced)</span>
+                                                    {/if}
+                                                </span>
+                                            </td>
+                                            <td class="state-description">
+                                                {#if currentUserActivityState === 'active'}
+                                                    User is actively interacting
+                                                {:else if currentUserActivityState === 'idle'}
+                                                    No activity for 5s-5min
+                                                {:else}
+                                                    Away from keyboard >5min
+                                                {/if}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                     {:else if activeTab === 'logs'}
                         <h4>Log Viewer Controls</h4>
 
@@ -409,6 +459,48 @@
                                 </div>
                                 <div class="text-xs text-gray-500 mt-2">
                                     Note: These are client-side only for UI testing
+                                </div>
+                            </div>
+
+                            <!-- User Activity State Control section -->
+                            <div class="control-section mb-4">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">User Activity State Control</h5>
+                                <div class="text-xs text-gray-400 mb-2">
+                                    Current state: <span class="font-mono {currentUserActivityState === 'active' ? 'text-green-400' : currentUserActivityState === 'idle' ? 'text-yellow-400' : 'text-red-400'}">{currentUserActivityState}</span>
+                                    {#if isForced}
+                                        <span class="text-purple-400 ml-2">(forced)</span>
+                                    {:else}
+                                        <span class="text-green-400 ml-2">(auto)</span>
+                                    {/if}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceUserActivityState('active')}
+                                    >
+                                        Force Active
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceUserActivityState('idle')}
+                                    >
+                                        Force Idle
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceUserActivityState('afk')}
+                                    >
+                                        Force AFK
+                                    </button>
+                                    <button
+                                        class="control-button reset-button"
+                                        on:click={() => resetUserActivityState()}
+                                    >
+                                        Reset to Auto
+                                    </button>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-2">
+                                    Active: User is interacting | Idle: 5s-5min inactivity | AFK: >5min away
                                 </div>
                             </div>
 
@@ -704,5 +796,18 @@
         padding: 6px 4px;
         color: rgba(255, 255, 255, 0.6);
         font-style: italic;
+    }
+    
+    /* Activity state colors */
+    .text-green-400 {
+        color: #68e796;
+    }
+    
+    .text-yellow-400 {
+        color: #fbbf24;
+    }
+    
+    .text-red-400 {
+        color: #f87171;
     }
 </style>

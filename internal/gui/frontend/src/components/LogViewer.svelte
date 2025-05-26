@@ -66,6 +66,9 @@
     // Add isProcessing prop to receive processing state from App.svelte
     export let isProcessing: boolean = false;
     let prevIsProcessing = false;
+    // User activity state from parent
+    export let userActivityState: 'active' | 'idle' | 'afk' = 'active';
+    let previousActivityState: typeof userActivityState = userActivityState;
 
     // Import developer mode store
     import { isDeveloperMode } from '../lib/developerMode';
@@ -322,6 +325,36 @@
             }
             
             prevIsProcessing = isProcessing;
+        }
+    }
+    
+    // Monitor user activity state changes to handle AFK transitions
+    $: {
+        if (userActivityState !== previousActivityState) {
+            logger.trace('LogViewer', 'User activity state changed', { 
+                from: previousActivityState, 
+                to: userActivityState 
+            });
+            
+            // When user comes back from AFK, force recalculation if virtualized
+            if (previousActivityState === 'afk' && userActivityState !== 'afk' && virtualEnabled && virtualizationReady) {
+                logger.trace('LogViewer', 'User returned from AFK - forcing virtualization update');
+                
+                // Force full recalculation
+                recalculatePositions();
+                updateVirtualization();
+                
+                // Schedule additional updates to ensure proper rendering
+                [50, 200, 500].forEach(delay => {
+                    setTimeout(() => {
+                        if (virtualEnabled && virtualizationReady) {
+                            updateVirtualization();
+                        }
+                    }, delay);
+                });
+            }
+            
+            previousActivityState = userActivityState;
         }
     }
     
@@ -2224,6 +2257,14 @@
                     <!-- Virtualized rendering once measurements are ready -->
                     {:else if virtualEnabled && virtualizationReady}
                         <!-- SIMPLIFIED VIRTUALIZATION: More stable with reliable spacers -->
+                        {#if userActivityState === 'afk'}
+                            <!-- Minimal rendering when user is AFK to save CPU -->
+                            <div class="flex items-center justify-center h-full">
+                                <div class="text-primary/40 text-sm">
+                                    {filteredLogs.length} logs (paused for performance)
+                                </div>
+                            </div>
+                        {:else}
                         <div>
                             <!-- Top spacer to maintain scroll position for logs above virtual window -->
                             <div 
@@ -2296,6 +2337,7 @@
                                 data-virtual-bottom-spacer="true"
                             ></div>
                         </div>
+                        {/if}
                     {:else}
                         <!-- Non-virtualized rendering (all logs) with animations -->
                         {#each filteredLogs as log, index (log._sequence + '-' + index)}

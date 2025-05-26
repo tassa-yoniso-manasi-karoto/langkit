@@ -262,3 +262,28 @@ export const statisticsStore = createStatisticsStore();
 
 // Welcome popup visibility state
 export const welcomePopupVisible = writable<boolean>(false);
+
+// User activity state with forced override support
+interface UserActivityStateData {
+    state: 'active' | 'idle' | 'afk';
+    isForced: boolean;
+}
+
+function createUserActivityStateStore() {
+    const { subscribe, set, update } = writable<UserActivityStateData>({
+        state: 'active',
+        isForced: false
+    });
+    
+    return {
+        subscribe,
+        set: (state: 'active' | 'idle' | 'afk', forced: boolean = false) => {
+            set({ state, isForced: forced });
+        },
+        reset: () => {
+            set({ state: 'active', isForced: false });
+        }
+    };
+}
+
+export const userActivityState = createUserActivityStateStore();

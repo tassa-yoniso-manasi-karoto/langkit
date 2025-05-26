@@ -2,7 +2,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { fade } from 'svelte/transition';
     import Portal from 'svelte-portal/src/Portal.svelte';
-    import { settings, statisticsStore } from '../lib/stores';
+    import { settings, statisticsStore, userActivityState } from '../lib/stores';
     import { logStore, type LogMessage } from '../lib/logStore';
 
     // Component props
@@ -27,6 +27,12 @@
     let hasSeenTooltip = false;
     let countAppStart = 0;
     let visible = false;
+    
+    // Subscribe to user activity state
+    let currentUserActivityState = 'active';
+    const unsubscribeUserActivity = userActivityState.subscribe(value => {
+        currentUserActivityState = value.state;
+    });
 
     // Subscribe to settings
     const unsubscribeSettings = settings.subscribe(val => {
@@ -135,10 +141,11 @@
         unsubscribeSettings();
         unsubscribeStatistics();
         unsubscribeLogs();
+        unsubscribeUserActivity();
     });
 </script>
 
-{#if isVisible}
+{#if isVisible && currentUserActivityState !== 'afk'}
     <Portal target="body">
         <div
             class="fixed transform -translate-x-1/2 -translate-y-full transition-opacity duration-300 ease-in-out {visible ? 'opacity-100' : 'opacity-0'}"
@@ -173,6 +180,7 @@
                            : 'shadow-primary/20'
                        } 
                        cursor-pointer notification-container"
+                 class:animation-reduced={currentUserActivityState === 'idle'}
                  on:click={handleDismiss}>
                 
                 <div class="text-sm font-medium mb-3 text-gray-300 flex items-center gap-2">
@@ -357,5 +365,14 @@
     .notification-container:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Reduce animations when user is idle */
+    .notification-container.animation-reduced {
+        animation: none !important;
+    }
+    
+    .notification-container.animation-reduced:hover {
+        transform: none;
     }
 </style>

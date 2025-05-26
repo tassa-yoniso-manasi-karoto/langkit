@@ -5,7 +5,7 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { logger } from './lib/logger';
@@ -94,6 +94,37 @@
     let isWindowMinimized = false;
     let isWindowMaximized = false;
     
+    // User activity states
+    const UserActivityState = {
+        ACTIVE: 'active',           // User is currently active
+        IDLE: 'idle',              // No activity for short period (5s - 5min)
+        AFK: 'afk'                 // Away from keyboard for long period (>5min)
+    } as const;
+    type UserActivityStateType = typeof UserActivityState[keyof typeof UserActivityState];
+    
+    // User activity tracking
+    let userActivityState: UserActivityStateType = UserActivityState.ACTIVE;
+    let userActivityTimer: ReturnType<typeof setTimeout> | null = null;
+    let afkTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastActivityTime = Date.now();
+    let isActivityStateForced = false;
+    
+    // Subscribe to the store to get forced state changes
+    const unsubscribeActivityState = userActivityStateStore.subscribe(value => {
+        if (value.isForced) {
+            userActivityState = value.state;
+            isActivityStateForced = true;
+            logger.trace('app', 'User activity state forced', { state: value.state });
+        } else if (isActivityStateForced && !value.isForced) {
+            // Reset forced flag when store is reset
+            isActivityStateForced = false;
+        }
+    });
+    
+    // Timeouts for state transitions
+    const IDLE_TIMEOUT = 5000;        // 5 seconds to idle
+    const AFK_TIMEOUT = 300000;       // 5 minutes to AFK
+    
     // Deferred loading state for feature selector - wait for main UI to render first
     let showFeatureSelector = false;
     
@@ -123,6 +154,86 @@
     
     // Sync welcome popup state with store
     $: welcomePopupVisible.set(showWelcomePopup);
+    
+    // Combined activity state: window minimized = immediate AFK (unless forced)
+    $: {
+        if (isWindowMinimized && userActivityState !== UserActivityState.AFK && !isActivityStateForced) {
+            userActivityState = UserActivityState.AFK;
+            userActivityStateStore.set(UserActivityState.AFK, false);
+            logger.trace('app', 'User marked as AFK due to window minimization');
+        }
+    }
+    
+    // Helper functions for checking activity states
+    function isUserActive(): boolean {
+        return userActivityState === UserActivityState.ACTIVE && !isWindowMinimized;
+    }
+    
+    function isUserIdle(): boolean {
+        return userActivityState === UserActivityState.IDLE && !isWindowMinimized;
+    }
+    
+    function isUserAFK(): boolean {
+        return userActivityState === UserActivityState.AFK || isWindowMinimized;
+    }
+    
+    // Robust user activity detection with 3-state system
+    function handleUserActivity() {
+        // Don't override forced states
+        if (isActivityStateForced) {
+            return;
+        }
+        
+        const now = Date.now();
+        const previousState = userActivityState;
+        
+        lastActivityTime = now;
+        
+        // Clear existing timers
+        if (userActivityTimer) {
+            clearTimeout(userActivityTimer);
+            userActivityTimer = null;
+        }
+        if (afkTimer) {
+            clearTimeout(afkTimer);
+            afkTimer = null;
+        }
+        
+        // Don't change state if window is minimized
+        if (isWindowMinimized) {
+            return;
+        }
+        
+        // Set state to active
+        userActivityState = UserActivityState.ACTIVE;
+        userActivityStateStore.set(UserActivityState.ACTIVE, false);
+        
+        // Log state transition
+        if (previousState !== UserActivityState.ACTIVE) {
+            logger.trace('app', 'User activity state changed', { 
+                from: previousState, 
+                to: userActivityState 
+            });
+        }
+        
+        // Set timer for transition to IDLE
+        userActivityTimer = setTimeout(() => {
+            if (!isActivityStateForced) {
+                userActivityState = UserActivityState.IDLE;
+                userActivityStateStore.set(UserActivityState.IDLE, false);
+                logger.trace('app', 'User marked as IDLE due to inactivity');
+                
+                // Set timer for transition to AFK
+                afkTimer = setTimeout(() => {
+                    if (!isActivityStateForced) {
+                        userActivityState = UserActivityState.AFK;
+                        userActivityStateStore.set(UserActivityState.AFK, false);
+                        logger.trace('app', 'User marked as AFK due to extended inactivity');
+                    }
+                }, AFK_TIMEOUT - IDLE_TIMEOUT);
+            }
+        }, IDLE_TIMEOUT);
+    }
 
     // Reactive error management
     $: {
@@ -804,6 +915,15 @@
             showFeatureSelector = true;
         }, 300); // 300ms gives UI shell time to render first
         
+        // Set up user activity event listeners
+        const activityEvents = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'wheel', 'click'];
+        activityEvents.forEach(event => {
+            window.addEventListener(event, handleUserActivity, { passive: true });
+        });
+        
+        // Trigger initial activity detection
+        handleUserActivity();
+        
         // Initialize log listener with passive option for better performance
         EventsOn("log", (rawLog: any) => {
             // Always process logs even when minimized to maintain complete log history
@@ -920,10 +1040,28 @@
         if (updateLogViewerButtonPosition) {
            window.removeEventListener('resize', updateLogViewerButtonPosition); 
         }
+        
+        // Clean up user activity event listeners
+        const activityEvents = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'wheel', 'click'];
+        activityEvents.forEach(event => {
+            window.removeEventListener(event, handleUserActivity);
+        });
+        
+        // Clear activity timers
+        if (userActivityTimer) {
+            clearTimeout(userActivityTimer);
+        }
+        if (afkTimer) {
+            clearTimeout(afkTimer);
+        }
+        
         // Unsubscribe from UI settings subscription
         if (uiSettingsSubscription) {
             uiSettingsSubscription();
         }
+        
+        // Unsubscribe from activity state
+        unsubscribeActivityState();
         
         // Log application shutdown
         logger.info('app', 'Application shutting down, performing cleanup');
@@ -964,7 +1102,7 @@
 <!-- Main container now spans full viewport -->
 <div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
     <BackgroundGradient />
-    {#if showGlow && !isWindowMinimized}
+    {#if showGlow && !isWindowMinimized && userActivityState !== UserActivityState.AFK}
         <GlowEffect {isProcessing} />
     {/if}
 
@@ -1035,7 +1173,7 @@
                 <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
                     <!-- Progress Manager with minimal spacing -->
                     <div class="mb-2">
-                        <ProgressManager {isProcessing} {isWindowMinimized} />
+                        <ProgressManager {isProcessing} {isWindowMinimized} {userActivityState} />
                     </div>
                     
                     <!-- Process Button Row with hardware acceleration -->
@@ -1131,7 +1269,7 @@
                  role="region"
                  aria-live="polite"
             >
-                <LogViewer version={version} isProcessing={isProcessing} />
+                <LogViewer version={version} isProcessing={isProcessing} userActivityState={userActivityState} />
             </div>
         {/if}
     </div>

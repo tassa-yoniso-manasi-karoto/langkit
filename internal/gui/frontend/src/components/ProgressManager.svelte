@@ -17,14 +17,12 @@
     // Process status text
     let statusText = "Processing Status";
     
-    // Track if user is active (for auto-removal of larger bars)
-    let userActive = false;
-    let userActivityTimer: ReturnType<typeof setTimeout> | null = null;
-    
     // Application processing state
     export let isProcessing = false;
     // Window state prop to disable animations when minimized
     export let isWindowMinimized = false;
+    // User activity state from parent
+    export let userActivityState: 'active' | 'idle' | 'afk' = 'active';
     
     // Function to reset state counters after a delay
     function resetStateCounters() {
@@ -87,7 +85,7 @@
         : 'state-normal'; // Default or normal state
 
     // Check for large bars that need cleanup when user becomes active
-    $: if (userActive) {
+    $: if (userActivityState === 'active') {
         checkForCompletedLargeBars();
     }
     
@@ -106,7 +104,7 @@
                 const sizeValue = sizeMatch ? parseFloat(sizeMatch[1]) : 2.5;
                 const isLargeBar = sizeValue > 3;  // Larger than h-3
                 
-                if (isLargeBar && userActive) {
+                if (isLargeBar && userActivityState === 'active') {
                     // Only remove completed large bars if user is active
                     // and wait a bit longer to ensure user sees completion
                     setTimeout(() => removeProgressBar(bar.id), 3000);
@@ -125,34 +123,6 @@
     
     // Automatic removal of fully completed bars (not in error) after 2s
     onMount(() => {
-        
-        // Set up user activity detection
-        const handleUserActivity = () => {
-            const wasInactive = !userActive;
-            userActive = true;
-            
-            // Reset timer on each activity
-            if (userActivityTimer) {
-                clearTimeout(userActivityTimer);
-            }
-            
-            // If user was inactive before, check for large bars to cleanup
-            if (wasInactive) {
-                checkForCompletedLargeBars();
-            }
-            
-            // Set user as inactive after 3 seconds of no movement
-            userActivityTimer = setTimeout(() => {
-                userActive = false;
-            }, 3000);
-        };
-        
-        // Add event listeners for user activity
-        window.addEventListener('mousemove', handleUserActivity);
-        window.addEventListener('keydown', handleUserActivity);
-        window.addEventListener('mousedown', handleUserActivity);
-        window.addEventListener('touchstart', handleUserActivity);
-        
         // Track progress bars
         const progressSub = progressBars.subscribe((bars) => {
             for (const bar of bars) {
@@ -191,16 +161,6 @@
         return () => {
             progressSub();
             logSub();
-            
-            // Clean up event listeners
-            window.removeEventListener('mousemove', handleUserActivity);
-            window.removeEventListener('keydown', handleUserActivity);
-            window.removeEventListener('mousedown', handleUserActivity);
-            window.removeEventListener('touchstart', handleUserActivity);
-            
-            if (userActivityTimer) {
-                clearTimeout(userActivityTimer);
-            }
         };
     });
     
@@ -364,7 +324,7 @@
             <!-- Status Text Container -->
             
             <div class="{statusStateClass}">
-                {#if statusHasWaves && !isWindowMinimized}
+                {#if statusHasWaves && !isWindowMinimized && userActivityState !== 'afk'}
                      <!-- SVG containing waves clipped by text -->
                      <svg class="status-svg"
                           viewBox="0 0 175 20"
@@ -485,8 +445,8 @@
                                 class="progress-bar-fill absolute inset-0 rounded-full transition-all duration-300 {stateClass}"
                                 style="width: {bar.progress}%;"
                             >
-                                <!-- apply svg animation to main bar only, and only if window is not minimized -->
-                                {#if showWaves && bar.size == 'h-5' && !isWindowMinimized}
+                                <!-- apply svg animation to main bar only, and only if window is not minimized and user is not AFK -->
+                                {#if showWaves && bar.size == 'h-5' && !isWindowMinimized && userActivityState !== 'afk'}
                                     <!-- Layered animated waves SVG -->
                                     <div class="waves-container" style="filter: blur(1.7px);">
                                         <svg class="waves-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -519,8 +479,8 @@
                                     {/if}
                                 {/if}
 
-                                <!-- Animated sweeping gradient effect (only for normal state and when window is not minimized) -->
-                                {#if bar.progress < 100 && !bar.errorState && bar.progress > 0 && !isWindowMinimized}
+                                <!-- Animated sweeping gradient effect (only for normal state and when window is not minimized and user is not AFK) -->
+                                {#if bar.progress < 100 && !bar.errorState && bar.progress > 0 && !isWindowMinimized && userActivityState !== 'afk'}
                                     <div class="absolute h-full w-full overflow-hidden will-change-transform">
                                         <!-- Main progress fill clipping container -->
                                         <div class="absolute inset-0 overflow-hidden" style="width: 100%;">
