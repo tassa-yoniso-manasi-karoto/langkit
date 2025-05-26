@@ -7,6 +7,66 @@
     import { logger } from '../lib/logger';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     
+    // Custom slide projector transition
+    function slideProjector(node, {
+        delay = 0,
+        duration = 800,
+        easing = cubicOut,
+        yStart = 100,
+        yEnd = 0,
+        scaleStart = 0.8,
+        scaleEnd = 1,
+        opacityStart = 0,
+        opacityEnd = 1,
+        blurStart = 0,
+        blurEnd = 0
+    }) {
+        const o = +getComputedStyle(node).opacity;
+        return {
+            delay,
+            duration,
+            easing,
+            css: (t) => {
+                const y = yStart + (yEnd - yStart) * t;
+                const scale = scaleStart + (scaleEnd - scaleStart) * t;
+                const opacity = opacityStart + (opacityEnd - opacityStart) * t;
+                const blur = blurStart + (blurEnd - blurStart) * t;
+                return `
+                    transform: translateY(${y}px) scale(${scale});
+                    opacity: ${opacity * o};
+                    filter: blur(${blur}px);
+                `;
+            }
+        };
+    }
+    
+    // Custom slide projector OUT transition (properly handles reverse)
+    function slideProjectorOut(node, {
+        delay = 0,
+        duration = 800,
+        easing = cubicOut
+    }) {
+        return {
+            delay,
+            duration,
+            easing,
+            css: (t) => {
+                // For out transition, we want to go from current position UP and fade/shrink
+                // t goes from 1 to 0, so we use (1-t) to get proper direction
+                const progress = 1 - t;
+                const y = -150 * progress; // Moves up as progress increases
+                const scale = 1 - (0.35 * progress); // Shrinks from 1 to 0.65
+                const opacity = 1 - progress; // Fades from 1 to 0
+                const blur = 6 * progress; // Increases blur
+                return `
+                    transform: translateY(${y}px) scale(${scale});
+                    opacity: ${opacity};
+                    filter: blur(${blur}px);
+                `;
+            }
+        };
+    }
+    
     export let onClose: () => void = () => {};
     
     // State variables
@@ -14,6 +74,8 @@
     let internetStatus: any = null;
     let dockerReady = false;
     let internetReady = false;
+    let showWelcome = true;
+    let showApiKeys = false;
     
     // Animation states
     let titleVisible = false;
@@ -120,16 +182,39 @@
     }
     
     function handleNext() {
-        if (currentStep === 0) {
+        if (showWelcome) {
             logger.info('WelcomePopup', 'Moving to API keys explanation');
-            currentStep = 1;
-        } else if (currentStep === 1) {
+            showWelcome = false;
+            // Start showing API keys almost immediately to create overlap effect
+            setTimeout(() => {
+                showApiKeys = true;
+                currentStep = 1;
+            }, 50);
+        } else if (showApiKeys) {
             logger.info('WelcomePopup', 'User clicked Get Started');
             onClose();
         }
     }
     
-    $: buttonText = currentStep === 0 ? 'Continue' : 'Get Started';
+    function goToPage(page: number) {
+        if (page === 0 && !showWelcome) {
+            logger.info('WelcomePopup', 'Switching to Welcome page');
+            showApiKeys = false;
+            setTimeout(() => {
+                showWelcome = true;
+                currentStep = 0;
+            }, 50);
+        } else if (page === 1 && !showApiKeys) {
+            logger.info('WelcomePopup', 'Switching to API Keys page');
+            showWelcome = false;
+            setTimeout(() => {
+                showApiKeys = true;
+                currentStep = 1;
+            }, 50);
+        }
+    }
+    
+    $: buttonText = showWelcome ? 'Continue' : 'Get Started';
 </script>
 
 <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
@@ -155,31 +240,26 @@
             
             <!-- Content -->
             <div class="relative p-8 md:p-12">
-                <!-- Header -->
-                <div class="text-center mb-6">
-                    {#if titleVisible}
-                        <h1 class="text-4xl md:text-5xl font-bold text-white mb-3 flex items-center justify-center gap-2"
-                            in:fly={{ y: 20, duration: 600, easing: cubicOut }}>
-                            Welcome to Langkit
-                            <span class="waving-hand text-4xl md:text-5xl">👋</span>
-                        </h1>
-                        {#if currentStep === 0}
-                            <p class="text-lg text-white/70">
-                                Let's check your system requirements
-                            </p>
-                        {/if}
-                    {/if}
-                </div>
-                
-                <!-- Content container with fixed min-height -->
-                <div class="min-h-[350px] relative">
-                    {#if contentVisible}
-                        {#key currentStep}
-                            <!-- Step 0: System requirements -->
-                            {#if currentStep === 0}
-                                <div class="space-y-6 absolute inset-x-0 top-1/2 -translate-y-1/2"
-                                     in:fly={{ x: 0, duration: 400, delay: 200, easing: cubicOut }}
-                                     out:fly={{ x: -30, duration: 200, easing: cubicOut }}>
+                <!-- Content container with 3D slide effect -->
+                <div class="min-h-[450px] relative slide-container overflow-hidden">
+                    <!-- Step 0: Welcome page -->
+                    {#if showWelcome}
+                        <div class="absolute inset-0 flex flex-col items-center"
+                             in:slideProjector={{ yStart: 100, yEnd: 0, scaleStart: 0.8, scaleEnd: 1, opacityStart: 0, opacityEnd: 1, duration: 800 }}
+                             out:slideProjectorOut={{ duration: 800 }}>
+                            <!-- Welcome header -->
+                            <div class="text-center mb-8 pt-4">
+                                <h1 class="text-4xl md:text-5xl font-bold text-white mb-3 flex items-center justify-center gap-2">
+                                    Welcome to Langkit
+                                    <span class="waving-hand text-4xl md:text-5xl">👋</span>
+                                </h1>
+                                <p class="text-lg text-white/70">
+                                    Let's check your system requirements
+                                </p>
+                            </div>
+                            
+                            <!-- System requirements cards -->
+                            <div class="space-y-6 px-4 w-full max-w-xl">
                         <!-- Docker Status -->
                         <div class="space-y-3">
                             <div class="flex items-center justify-between p-4 rounded-2xl
@@ -341,40 +421,40 @@
                                     </p>
                                 </div>
                             {/if}
+                            </div>
+                            </div>
                         </div>
-                                </div>
-                            {/if}
+                    {/if}
+                    
+                    <!-- Step 1: API Keys page -->
+                    {#if showApiKeys}
+                        <div class="absolute inset-0 flex flex-col items-center justify-center"
+                             in:slideProjector={{ yStart: 150, yEnd: 0, scaleStart: 0.65, scaleEnd: 1, opacityStart: 0, opacityEnd: 1, blurStart: 6, blurEnd: 0, duration: 800, delay: 0 }}
+                             out:slideProjectorOut={{ duration: 800 }}>
                             
-                            <!-- Step 1: API Keys explanation -->
-                            {#if currentStep === 1}
-                                <div class="space-y-6 text-center max-w-lg mx-auto absolute inset-x-0 top-1/2 -translate-y-1/2"
-                                     in:fly={{ y: 30, duration: 600, delay: 200, easing: cubicOut }}>
-                                    <h2 class="text-2xl font-semibold text-white mb-4 flex items-center justify-center gap-2 opacity-0 animate-fade-drop"
-                                        style="animation-delay: 300ms">
-                                        <span class="material-icons text-primary/70">vpn_key</span>
-                                        Understanding API Keys
-                                    </h2>
+                            <div class="text-center max-w-lg mx-auto px-4">
+                                <!-- API Keys header grouped with content -->
+                                <h2 class="text-3xl font-semibold text-white mb-6 flex items-center justify-center gap-2">
+                                    <span class="material-icons text-primary/70">vpn_key</span>
+                                    Understanding API Keys
+                                </h2>
+                                
+                                <div class="space-y-4">
+                                    <p class="text-base text-white/80 leading-relaxed">
+                                        API keys are secure codes that allow Langkit to access cloud-based AI services.
+                                    </p>
                                     
-                                    <div class="space-y-3">
-                                        <p class="text-base text-white/80 leading-relaxed opacity-0 animate-fade-drop"
-                                           style="animation-delay: 500ms">
-                                            API keys are secure codes that allow Langkit to access cloud-based AI services.
-                                        </p>
-                                        
-                                        <p class="text-base text-white/70 leading-relaxed opacity-0 animate-fade-drop"
-                                           style="animation-delay: 700ms">
-                                            They enable powerful features like speech-to-text and audio enhancement 
-                                            without requiring expensive local hardware.
-                                        </p>
-                                        
-                                        <p class="text-sm text-white/50 italic opacity-0 animate-fade-drop"
-                                           style="animation-delay: 900ms">
-                                            Think of them as membership cards for premium AI services
-                                        </p>
-                                    </div>
+                                    <p class="text-base text-white/70 leading-relaxed">
+                                        They enable powerful features like speech-to-text and audio enhancement 
+                                        without requiring expensive local hardware.
+                                    </p>
+                                    
+                                    <p class="text-sm text-white/50 italic mt-6">
+                                        Think of them as membership cards for premium AI services
+                                    </p>
                                 </div>
-                            {/if}
-                        {/key}
+                            </div>
+                        </div>
                     {/if}
                 </div>
                 
@@ -385,8 +465,14 @@
                         
                         <!-- Progress dots -->
                         <div class="flex gap-2">
-                            <div class="w-2 h-2 rounded-full transition-all duration-300 {currentStep === 0 ? 'bg-primary' : 'bg-white/30'}"></div>
-                            <div class="w-2 h-2 rounded-full transition-all duration-300 {currentStep === 1 ? 'bg-primary' : 'bg-white/30'}"></div>
+                            <div 
+                                class="w-2 h-2 rounded-full transition-all duration-300 {showWelcome ? 'bg-primary' : 'bg-white/30'}"
+                                on:click={() => goToPage(0)}>
+                            </div>
+                            <div 
+                                class="w-2 h-2 rounded-full transition-all duration-300 {showApiKeys ? 'bg-primary' : 'bg-white/30'}"
+                                on:click={() => goToPage(1)}>
+                            </div>
                         </div>
                         <button
                             bind:this={getStartedButton}
@@ -457,6 +543,12 @@
     
     .animate-fade-drop {
         animation: fade-drop 0.6s ease-out forwards;
+    }
+    
+    /* 3D perspective for slide projector effect */
+    :global(.slide-container) {
+        perspective: 1000px;
+        transform-style: preserve-3d;
     }
     
     /* Subtle skeleton sweep animation */

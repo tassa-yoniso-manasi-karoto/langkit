@@ -408,7 +408,7 @@
             }
             
             // Increment app start count
-            const newCount = await IncrementStatistic('countAppStart');
+            //const newCount = await IncrementStatistic('countAppStart');
             logger.trace('app', `App start count incremented to: ${newCount}`);
             
             // Update the local store with the new value
