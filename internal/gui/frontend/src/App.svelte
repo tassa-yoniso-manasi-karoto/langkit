@@ -1177,9 +1177,11 @@
         {/if}
 
         <button
-            class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 text-white/70
-                   transition-all duration-200 hover:bg-white/15 hover:text-white
-                   hover:-translate-y-0.5 hover:shadow-lg hover:shadow-white/5
+            class="w-10 h-10 flex items-center justify-center rounded-xl
+                   bg-white/5 backdrop-blur-md border border-white/10
+                   text-white/70 transition-all duration-300
+                   hover:bg-white/10 hover:border-primary/30 hover:text-primary
+                   hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/20
                    focus:outline-none focus:ring-2 focus:ring-primary/50"
             on:click={() => {
                 logger.info('app', 'Settings opened');
@@ -1187,7 +1189,7 @@
             }}
             aria-label="Open settings"
         >
-            <span class="material-icons text-[20px]">settings</span>
+            <span class="material-icons text-[22px]">settings</span>
         </button>
     </div>
 
@@ -1513,28 +1515,5 @@
     }
     .drop-zone {
         cursor: pointer;
-    }
-    
-    /* WASM status indicator */
-    .wasm-status-indicator {
-        position: relative;
-        transition: background-color 0.3s ease, color 0.3s ease;
-    }
-    
-    .wasm-status-indicator.active {
-        background-color: rgba(var(--primary-rgb), 0.25);
-        animation: wasm-pulse 2s infinite;
-    }
-    
-    @keyframes wasm-pulse {
-        0% {
-            box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4);
-        }
-        70% {
-            box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0);
-        }
-        100% {
-            box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0);
-        }
     }
 </style>

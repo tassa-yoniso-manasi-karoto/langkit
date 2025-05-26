@@ -32,9 +32,6 @@ SVG animations: rework state transitions
   - write "if ... then features X and Y are unavailable msg"
 
 .
-- settings button is plain, not integrated
-
-.
 - fix checkbox options visual misalignement
 
 .
