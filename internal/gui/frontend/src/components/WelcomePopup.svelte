@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import { fade, scale, fly } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
     import { CheckDockerAvailability, CheckInternetConnectivity } from '../../wailsjs/go/gui/App';
@@ -77,6 +77,11 @@
     let showWelcome = true;
     let showApiKeys = false;
     
+    // UI state
+    let subtitleText = '';
+    const fullSubtitle = "Let's check your system requirements";
+    let showCursor = true;
+    
     // Animation states
     let titleVisible = false;
     let contentVisible = false;
@@ -140,6 +145,18 @@
         }
     }
     
+    // Keyboard handling
+    function handleKeydown(e: KeyboardEvent) {
+        if (e.key === 'Escape') {
+            onClose();
+        } else if (e.key === 'ArrowLeft' && showApiKeys) {
+            goToPage(0);
+        } else if (e.key === 'ArrowRight' && showWelcome) {
+            handleNext();
+        }
+    }
+    
+    
     // Check statuses on mount
     onMount(async () => {
         logger.info('WelcomePopup', 'Welcome popup mounted');
@@ -149,8 +166,30 @@
         setTimeout(() => contentVisible = true, 300);
         setTimeout(() => actionsVisible = true, 500);
         
+        // Typewriter effect for subtitle
+        setTimeout(() => {
+            let index = 0;
+            const typeInterval = setInterval(() => {
+                if (index < fullSubtitle.length) {
+                    subtitleText = fullSubtitle.slice(0, index + 1);
+                    index++;
+                } else {
+                    clearInterval(typeInterval);
+                    // Hide cursor after typing is complete
+                    setTimeout(() => showCursor = false, 500);
+                }
+            }, 30);
+        }, 400);
+        
         // Start checking statuses after a brief delay
         setTimeout(() => checkStatuses(), 600);
+        
+        // Add keyboard listener
+        window.addEventListener('keydown', handleKeydown);
+    });
+    
+    onDestroy(() => {
+        window.removeEventListener('keydown', handleKeydown);
     });
     
     async function checkStatuses() {
@@ -233,7 +272,9 @@
         <div class="relative overflow-hidden rounded-3xl
                     bg-black/30 backdrop-blur-2xl
                     border border-white/10
-                    shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)]">
+                    shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)]
+                    hover:shadow-[0_25px_55px_-12px_rgba(147,51,234,0.2)]
+                    transition-shadow duration-700">
             
             <!-- Subtle gradient accent -->
             <div class="absolute -top-32 -right-32 w-64 h-64 rounded-full bg-primary/10 blur-3xl"></div>
@@ -253,8 +294,8 @@
                                     Welcome to Langkit
                                     <span class="waving-hand text-4xl md:text-5xl">👋</span>
                                 </h1>
-                                <p class="text-lg text-white/70">
-                                    Let's check your system requirements
+                                <p class="text-lg text-white/70 min-h-[28px]">
+                                    {subtitleText}{#if showCursor}<span class="animate-blink">|</span>{/if}
                                 </p>
                             </div>
                             
@@ -263,8 +304,8 @@
                         <!-- Docker Status -->
                         <div class="space-y-3">
                             <div class="flex items-center justify-between p-4 rounded-2xl
-                                        bg-white/5 backdrop-blur-sm border border-white/10
-                                        transition-all duration-300 hover:bg-white/10
+                                        bg-white/10 backdrop-blur-md border border-white/10
+                                        transition-all duration-300 hover:bg-white/[0.15]
                                         relative overflow-hidden"
                                  in:fly={{ y: 20, duration: 400, delay: 50, easing: cubicOut }}>
                                 
@@ -342,8 +383,8 @@
                         <!-- Internet Status -->
                         <div class="space-y-3">
                             <div class="flex items-center justify-between p-4 rounded-2xl
-                                        bg-white/5 backdrop-blur-sm border border-white/10
-                                        transition-all duration-300 hover:bg-white/10
+                                        bg-white/10 backdrop-blur-md border border-white/10
+                                        transition-all duration-300 hover:bg-white/[0.15]
                                         relative overflow-hidden"
                                  in:fly={{ y: 20, duration: 400, delay: 100, easing: cubicOut }}>
                                 
@@ -560,6 +601,17 @@
             transform: translateX(100%);
         }
     }
+    
+    /* Blinking cursor for typewriter effect */
+    .animate-blink {
+        animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+    }
+    
     
     .animate-skeleton-sweep {
         animation: skeleton-sweep 1.2s ease-in-out infinite;

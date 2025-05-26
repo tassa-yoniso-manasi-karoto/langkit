@@ -22,7 +22,14 @@ SVG animations: rework state transitions
   - implement intermediary file mode
 
 .
-- welcome.svelte component w/ checks for binary needed
+- welcome.svelte component w/ checks for binary needed:
+  - less transparency
+
+.
+- settings button is plain, not integrated
+
+.
+- userIsAFK
 
 .
 - add strategic frontend logging for prod
