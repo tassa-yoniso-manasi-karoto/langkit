@@ -5,7 +5,7 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { logger } from './lib/logger';
@@ -120,6 +120,9 @@
     
     // State for welcome popup
     let showWelcomePopup = false;
+    
+    // Sync welcome popup state with store
+    $: welcomePopupVisible.set(showWelcomePopup);
 
     // Reactive error management
     $: {

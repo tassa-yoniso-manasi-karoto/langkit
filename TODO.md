@@ -24,6 +24,8 @@ SVG animations: rework state transitions
 .
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
+  - bigger icons for check cards
+  - fix fill animations' color
 
 .
 - settings button is plain, not integrated
@@ -42,6 +44,7 @@ SVG animations: rework state transitions
 .
 
 - manual GUI tests
+  - watch for combinations that should spawn an error and disallow processing: no docker but japanese transliteration selected
 - manual CLI tests
 - try offline to see if icon / fonts are missing
 

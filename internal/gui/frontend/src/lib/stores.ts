@@ -259,3 +259,6 @@ function createStatisticsStore() {
 }
 
 export const statisticsStore = createStatisticsStore();
+
+// Welcome popup visibility state
+export const welcomePopupVisible = writable<boolean>(false);

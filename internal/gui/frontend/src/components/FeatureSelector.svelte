@@ -4,7 +4,7 @@
     import { cubicOut } from 'svelte/easing';
     import { get } from 'svelte/store';
     
-    import { settings, showSettings, llmStateStore, type LLMStateChange } from '../lib/stores.ts';
+    import { settings, showSettings, llmStateStore, welcomePopupVisible, type LLMStateChange } from '../lib/stores.ts';
     import { LLMWebSocket } from '../lib/llm-websocket';
     import { updateSTTModels, sttModelsStore } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
@@ -1529,51 +1529,36 @@
             isInitialDataLoaded = true;
             logger.info('FeatureSelector', 'Initial data loaded successfully');
             
-            // Restore the progressive reveal animation
-            // Check if device has reduced motion preference
-            const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            // Check if welcome popup is visible
+            const isWelcomePopupVisible = get(welcomePopupVisible);
             
-            if (prefersReducedMotion) {
-                // Respect user's motion preference - show all features at once
+            if (isWelcomePopupVisible) {
+                logger.info('FeatureSelector', 'Welcome popup is visible, deferring feature animation');
+                
+                // Show all features immediately but without animation
                 visibleFeatures = Object.keys(selectedFeatures);
                 
-                // Register display order immediately if not using animations
-                setTimeout(registerFeatureDisplayOrder, 50);
-            } else {
-                // Use proper staggered animation with timeouts
-                const allFeatures = Object.keys(selectedFeatures);
-                
-                // Clear visibleFeatures to ensure animation starts fresh
-                visibleFeatures = [];
-                
-                // Use a more dynamic animation approach based on the original features order
-                // This ensures we respect the intended UX design
-                
-                // First, ensure we're working with the original feature order from the features array
-                const orderedFeatures = features
-                    .map(f => f.id)
-                    .filter(id => allFeatures.includes(id));
-                
-                // Add features one by one with staggered delays
-                orderedFeatures.forEach((feature, index) => {
-                    // Create an exponential delay curve for a more natural feel
-                    // First items appear quickly, later items have increasing delays
-                    const baseDelay = 100;
-                    const incrementFactor = 1.75;
-                    const delay = baseDelay * Math.pow(incrementFactor, index / 1.2);
-                    
-                    setTimeout(() => {
-                        logger.trace('FeatureSelector', 'Revealing feature', { 
-                            feature, 
-                            delayMs: Math.round(delay) 
-                        });
-                        visibleFeatures = [...visibleFeatures, feature];
-                    }, delay);
+                // Subscribe to welcome popup state and start animation when it closes
+                const unsubscribe = welcomePopupVisible.subscribe(isVisible => {
+                    if (!isVisible) {
+                        logger.info('FeatureSelector', 'Welcome popup closed, deferring feature animation');
+                        unsubscribe();
+                        
+                        // Reset features immediately to prepare for animation
+                        visibleFeatures = [];
+                        
+                        // Add delay to ensure welcome popup closing animation completes
+                        // On low-spec machines, the store updates faster than the GUI can render,
+                        // so we need to wait for the fade-out animation (200ms) plus some buffer
+                        setTimeout(() => {
+                            logger.info('FeatureSelector', 'Starting feature reveal animation after delay');
+                            startFeatureRevealAnimation();
+                        }, 400); // 200ms fade-out + 200ms buffer for low-spec machines
+                    }
                 });
-                
-                // Register display order after all animations complete
-                const maxDelay = 100 * Math.pow(1.75, orderedFeatures.length / 1.2) + 200;
-                setTimeout(registerFeatureDisplayOrder, maxDelay);
+            } else {
+                // Welcome popup not visible, proceed with animation immediately
+                startFeatureRevealAnimation();
             }
             
             // Do an initial provider warning check after everything is set up
@@ -1655,6 +1640,57 @@
     
     function softLanding(t) {
        return 1 - Math.pow(1 - t, 3.5);
+    }
+    
+    /**
+     * Start the staggered feature reveal animation
+     */
+    function startFeatureRevealAnimation() {
+        // Check if device has reduced motion preference
+        const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        
+        if (prefersReducedMotion) {
+            // Respect user's motion preference - show all features at once
+            visibleFeatures = Object.keys(selectedFeatures);
+            
+            // Register display order immediately if not using animations
+            setTimeout(registerFeatureDisplayOrder, 50);
+        } else {
+            // Use proper staggered animation with timeouts
+            const allFeatures = Object.keys(selectedFeatures);
+            
+            // Clear visibleFeatures to ensure animation starts fresh
+            visibleFeatures = [];
+            
+            // Use a more dynamic animation approach based on the original features order
+            // This ensures we respect the intended UX design
+            
+            // First, ensure we're working with the original feature order from the features array
+            const orderedFeatures = features
+                .map(f => f.id)
+                .filter(id => allFeatures.includes(id));
+            
+            // Add features one by one with staggered delays
+            orderedFeatures.forEach((feature, index) => {
+                // Create an exponential delay curve for a more natural feel
+                // First items appear quickly, later items have increasing delays
+                const baseDelay = 100;
+                const incrementFactor = 1.75;
+                const delay = baseDelay * Math.pow(incrementFactor, index / 1.2);
+                
+                setTimeout(() => {
+                    logger.trace('FeatureSelector', 'Revealing feature', { 
+                        feature, 
+                        delayMs: Math.round(delay) 
+                    });
+                    visibleFeatures = [...visibleFeatures, feature];
+                }, delay);
+            });
+            
+            // Register display order after all animations complete
+            const maxDelay = 100 * Math.pow(1.75, orderedFeatures.length / 1.2) + 200;
+            setTimeout(registerFeatureDisplayOrder, maxDelay);
+        }
     }
 
     // Call this method whenever the STT models change
