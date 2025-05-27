@@ -30,9 +30,6 @@ SVG animations: rework state transitions
 
 .
 - fix checkbox options visual misalignement
-.
-
-- std language string to lowercase and support language names too
 
 .
 - mergeInsertLogs is sometime shown as having been called insane amounts of times (26536 times when there is only 94 logs in the entire session lifecycle)

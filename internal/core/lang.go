@@ -97,14 +97,25 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 	for _, tmp := range arr {
 		var lang Lang
 		arr := strings.Split(tmp, "-")
-		lang.Language = iso.FromAnyCode(arr[0])
+		// Convert to lowercase for case-insensitive matching
+		langCode := strings.ToLower(arr[0])
+		lang.Language = iso.FromAnyCode(langCode)
 		if lang.Language == nil {
-			// because everybody confuses the domain name .jp with the ISO language code
-			if arr[0] == "jp" {
-				return nil, fmt.Errorf("'%s' is not a valid ISO-639 code," +
-				"for Japanese the code to use is either 'ja' or 'jpn'", arr[0])
+			// Try to match by language name as fallback
+			lang.Language = iso.FromName(arr[0])
+			if lang.Language == nil {
+				// Try with title case for each word (handles "english" -> "English", "ancient greek" -> "Ancient Greek")
+				titleCased := strings.Title(strings.ToLower(arr[0]))
+				lang.Language = iso.FromName(titleCased)
+				if lang.Language == nil {
+					// because everybody confuses the domain name .jp with the ISO language code
+					if langCode == "jp" {
+						return nil, fmt.Errorf("'%s' is not a valid ISO-639 code," +
+						"for Japanese the code to use is either 'ja' or 'jpn'", arr[0])
+					}
+					return nil, fmt.Errorf("An invalid language code or name was passed: '%s'", arr[0])
+				}
 			}
-			return nil, fmt.Errorf("An invalid language code was passed: '%s'", arr[0])
 		}
 		if len(arr) > 1 {
 			lang.Subtag = strings.ToLower(arr[1])
