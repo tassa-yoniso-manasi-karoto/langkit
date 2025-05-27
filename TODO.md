@@ -2,10 +2,6 @@ SVG animations: rework state transitions
 
 - 🤯 make consistent progress bars between GUI and CLI
 
-- go-rod
-  - single Browser Access URL declaration
-  - make currenlty running browser download known in the GUI
-
 - condensed audio: CHECK IT
 
 - support Condensed Audio summaries:
@@ -18,6 +14,7 @@ SVG animations: rework state transitions
 .
 - guarantee all settings in Settings panel work
   - implement intermediary file mode
+  - FIXME featureselector not reacting / observing quicklanguageSelector updates pushed by default target language change in the setttings
 
 .
 - welcome.svelte component w/ checks for binary needed:
@@ -32,7 +29,7 @@ SVG animations: rework state transitions
 - fix checkbox options visual misalignement
 
 .
-- mergeInsertLogs is sometime shown as having been called insane amounts of times (26536 times when there is only 94 logs in the entire session lifecycle)
+- mergeInsertLogs calls (2nd check)
 
 .
 - remove useless test files
@@ -41,7 +38,8 @@ SVG animations: rework state transitions
 - finish theme 
 
 .
-- final check to add strategic frontend logging for prod
+- final check to add strategic frontend logging for prod (2nd check)
+  - change levels of logs "Created new provider pool" in translit manager
 
 .
 - revoke API keys and make sure they are under no circumstances leaking in logs

@@ -15,6 +15,7 @@ import (
 	
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/go-rod/rod/lib/launcher"
 	
 	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
 	common "github.com/tassa-yoniso-manasi-karoto/translitkit/common"
@@ -22,6 +23,7 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/browserutils"
 )
 
 
@@ -133,7 +135,15 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	// Record overall timing
 	startTime := time.Now()
 	
-	common.BrowserAccessURL = tsk.BrowserAccessURL
+	// Setup browser if needed for transliteration
+	browserCleanupFunc, procErr := tsk.setupBrowserForTransliteration(ctx)
+	if procErr != nil {
+		return procErr
+	}
+	if browserCleanupFunc != nil {
+		defer browserCleanupFunc() // Ensure browser cleanup
+	}
+	
 	base := strings.TrimSuffix(tsk.TargSubFile, ".srt")
 
 	subsFilepathTokenized := base + Tokenize.ToSuffix()
@@ -464,16 +474,15 @@ func (p *GenericProvider) Close(ctx context.Context, languageCode, RomanizationS
 	}
 	for _, scheme := range schemes {
 		if RomanizationStyle == scheme.Name && scheme.NeedsScraper {
-			color.Redf("not closing instance for %s provider since it's a user-started browser", languageCode)
+			// For scraper-based providers, we don't close the translitkit module instance
+			// as it may be reused. The actual browser cleanup is handled separately:
+			// - User-provided browsers: Never closed by Langkit
+			// - Langkit-managed browsers: Closed via Task.managedLauncher cleanup
 			return nil
 		}
 	}
 	return p.module.CloseWithContext(ctx)
 }
-
-
-
-
 
 
 
@@ -710,7 +719,95 @@ Mock ` + tlitType.String() + ` content line 2
 	return outputs, nil
 }
 
+// setupBrowserForTransliteration checks if the selected transliteration scheme needs a browser
+// and ensures one is available, returning a cleanup function if a browser was launched
+func (tsk *Task) setupBrowserForTransliteration(ctx context.Context) (cleanupFunc func(), procErr *ProcessingError) {
+	langCode := tsk.Targ.Language.Part3
+	style := tsk.RomanizationStyle
+
+	// Get schemes for the language to check if scraper is needed
+	schemes, err := common.GetSchemes(langCode)
+	if err != nil {
+		// If we can't get schemes, log warning but continue - translitkit might handle it
+		tsk.Handler.ZeroLog().Warn().Err(err).
+			Msgf("Failed to get transliteration schemes for language %s", langCode)
+		return nil, nil
+	}
+
+	// Check if the selected scheme needs a scraper
+	needsScraper := false
+	for _, s := range schemes {
+		if s.Name == style && s.NeedsScraper {
+			needsScraper = true
+			break
+		}
+	}
+
+	if needsScraper {
+		tsk.Handler.ZeroLog().Info().
+			Msgf("Transliteration scheme '%s' for language '%s' requires a browser. Checking browser availability...", 
+				style, langCode)
+		
+		// Check if user provided a browser URL
+		if tsk.BrowserAccessURL != "" {
+			tsk.Handler.ZeroLog().Info().
+				Msgf("Using user-provided browser access URL: %s", tsk.BrowserAccessURL)
+			common.BrowserAccessURL = tsk.BrowserAccessURL
+			return func() { /* no-op cleanup */ }, nil
+		}
+
+		// Need to manage browser ourselves
+		tsk.Handler.ZeroLog().Info().Msg("No browser URL provided. Langkit will manage browser download/launch...")
+		
+		// Get the log forwarder callback
+		logForwarder := GetScraperLibLogForwarder(tsk.Handler)
+		
+		// Ensure browser is available and get control URL
+		controlURL, l, ensureErr := browserutils.EnsureBrowserAndGetControlURL(logForwarder)
+		if ensureErr != nil {
+			if l != nil {
+				// If launcher was created but launch failed, try to kill it
+				l.Kill()
+			}
+			return nil, tsk.Handler.LogErr(ensureErr, AbortTask, 
+				"Failed to ensure browser for transliteration")
+		}
+		
+		// Set the control URL for translitkit to use
+		common.BrowserAccessURL = controlURL
+		
+		// Store the launcher instance in the task
+		tsk.managedLauncher = l
+		
+		// Return cleanup function
+		cleanupFunc = func() {
+			if tsk.managedLauncher != nil {
+				if l, ok := tsk.managedLauncher.(*launcher.Launcher); ok {
+					tsk.Handler.ZeroLog().Info().Msg("Cleaning up Langkit-managed browser instance...")
+					l.Kill()
+					tsk.managedLauncher = nil
+				}
+			}
+		}
+		
+		return cleanupFunc, nil
+	} else {
+		// Scheme doesn't need scraper, but still set user-provided URL if available
+		if tsk.BrowserAccessURL != "" {
+			common.BrowserAccessURL = tsk.BrowserAccessURL
+			tsk.Handler.ZeroLog().Info().
+				Msgf("Setting user-provided browser access URL: %s", tsk.BrowserAccessURL)
+		}
+		
+		tsk.Handler.ZeroLog().Debug().
+			Msgf("Transliteration scheme '%s' for '%s' does not require a scraper.", 
+				style, langCode)
+	}
+	
+	return func() { /* no-op cleanup */ }, nil
+}
+
 func placeholder2345432() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
-	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓂𝓹𝓲𝓵𝓮𝓻")
 }

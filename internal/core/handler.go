@@ -909,10 +909,18 @@ func (h *GUIHandler) GetContext() context.Context {
 	return h.ctx
 }
 
+// GetScraperLibLogForwarder returns a callback function that logs messages with a [scraper-lib] prefix
+// This is used to forward browser-related logs from go-rod to the frontend
+func GetScraperLibLogForwarder(handler MessageHandler) func(string) {
+	return func(statusMessage string) {
+		handler.ZeroLog().Info().Msgf("[scraper-lib] %s", statusMessage)
+	}
+}
+
 
 
 func placeholder3456() {
 	fmt.Println("")
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
-	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓂𝓹𝓲𝓵𝓮𝓻")
 }

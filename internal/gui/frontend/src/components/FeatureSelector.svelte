@@ -1218,7 +1218,7 @@
             description: 'Features related to subtitle processing',
             featureIds: ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'],
             sharedOptions: ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
-            validationRules: [
+            validationRules: [/*
                 {
                     id: 'browser-url-validation',
                     optionId: 'browserAccessURL',
@@ -1232,7 +1232,7 @@
                     },
                     errorMessage: 'Valid browser access URL is required for web scraping',
                     severity: 'critical'
-                }
+                }*/
             ]
         };
         
