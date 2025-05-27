@@ -16,6 +16,7 @@
     import Hovertip from './Hovertip.svelte';
     import NumericInput from './NumericInput.svelte';
     import TextInput from './TextInput.svelte';
+    import Slider from './Slider.svelte';
     import ExternalLink from './ExternalLink.svelte';
     import GroupIcon from './icons/GroupIcon.svelte';
     import DockerIcon from './icons/DockerIcon.svelte';
@@ -1101,6 +1102,36 @@
                                                 }
                                             />
                                         {/if}
+                                    {:else if optionDef.type === 'slider'}
+                                        <Slider
+                                            bind:value={options[optionId]}
+                                            min={optionDef.min || 0}
+                                            max={optionDef.max || 100}
+                                            step={typeof optionDef.step === 'number' ? optionDef.step : parseFloat(optionDef.step || '1')}
+                                            disabled={feature.id === 'condensedAudio' && (optionId === 'summaryMaxLength' || optionId === 'summaryTemperature') && !isLLMReady}
+                                            showValue={true}
+                                            formatValue={(value) => {
+                                                // Special formatting for summaryMaxLength
+                                                if (optionId === 'summaryMaxLength') {
+                                                    if (value === 0) {
+                                                        return 'Auto';
+                                                    }
+                                                    return `${value} words`;
+                                                }
+                                                // Format temperature with 1 decimal place
+                                                if (optionId === 'summaryTemperature') {
+                                                    if (value === 0) return '0.0 (deterministic)';
+                                                    if (value === 2) return '2.0 (very creative)';
+                                                    return value.toFixed(1);
+                                                }
+                                                // Format limiter (dBFS) - remove trailing zeros
+                                                if (optionId === 'limiter') {
+                                                    return parseFloat(value.toFixed(4)).toString();
+                                                }
+                                                return value.toString();
+                                            }}
+                                            on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
+                                        />
                                     {/if}
                                 </div>
                             </div>

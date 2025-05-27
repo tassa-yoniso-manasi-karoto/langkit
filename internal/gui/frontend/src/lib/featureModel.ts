@@ -1,12 +1,12 @@
 // Feature configuration model to centralize all feature-related data
 
 export interface FeatureOption {
-    type: 'number' | 'boolean' | 'string' | 'dropdown' | 'romanizationDropdown' | 'provider';
+    type: 'number' | 'boolean' | 'string' | 'dropdown' | 'romanizationDropdown' | 'provider' | 'slider';
     label: string;
     default: any;
     min?: number;
     max?: number;
-    step?: string;
+    step?: number | string;
     choices?: string[];
     hovertip?: string;
     placeholder?: string;
@@ -127,23 +127,24 @@ export const features: FeatureDefinition[] = [
                 showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true"
             },
             summaryMaxLength: {
-                type: 'number',
-                label: 'Approx. Max Summary Length (words)',
-                default: -1,
-                min: -1,
+                type: 'slider',
+                label: 'Max Summary Length',
+                default: 0,
+                min: 0,
                 max: 1000,
+                step: 50,
                 showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
-                hovertip: "Set to -1 to let the LLM decide the length."
+                hovertip: "Set to Auto (0) to let the LLM decide the length, or specify a maximum word count."
             },
             summaryTemperature: {
-                type: 'number',
+                type: 'slider',
                 label: 'Summary Temperature',
                 default: 0.7,
                 min: 0.0,
                 max: 2.0,
-                step: "0.1",
+                step: 0.1,
                 showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
-                hovertip: "Controls randomness of the output. Higher values make output more random, lower values make it more deterministic."
+                hovertip: "Controls creativity: 0 = focused, 2 = creative"
             },
             summaryCustomPrompt: {
                 type: 'string',
@@ -228,12 +229,12 @@ export const features: FeatureDefinition[] = [
                 step: '0.1'
             },
             limiter: {
-                type: 'number',
+                type: 'slider',
                 label: 'Limiter (dBFS)',
                 default: 0.9,
                 min: 0.0625,
                 max: 1,
-                step: '0.0125'
+                step: 0.0125
             },
             mergeOutputFiles: {
                 type: 'boolean',
