@@ -33,22 +33,22 @@
 
     .glow-blob {
         position: absolute;
-        width: 26vmax;
-        height: 26vmax;
+        width: var(--style-glow-size, 26vmax);
+        height: var(--style-glow-size, 26vmax);
         /* Adjust position to account for container offset */
-        left: calc(73vw + 5vw);
-        bottom: calc(-15vw + 5vh);
+        left: var(--style-glow-position-x, 78vw);
+        bottom: var(--style-glow-position-y, -10vw);
         border-radius: 50%;
-        background: linear-gradient(
+        background: var(--style-glow-gradient, linear-gradient(
             45deg,
             rgba(159, 110, 247, 0.4),
             rgba(190, 120, 255, 0.7),
             rgba(255, 100, 255, 0.6),
             rgba(255, 30, 255, 0.5)
-        );
-        opacity: 0,6;
-        filter: blur(100px);
-        animation: pulse 10s ease-in-out infinite;
+        ));
+        opacity: var(--style-glow-opacity, 0.6);
+        filter: blur(var(--style-glow-blur, 100px));
+        animation: pulse var(--style-glow-animation-speed, 10s) ease-in-out infinite;
         transform-origin: center center;
         will-change: transform;
         contain: strict;
@@ -80,7 +80,7 @@
             transform: scale(1);
         }
         50% {
-            transform: scale(1.2);
+            transform: scale(var(--style-glow-animation-scale, 1.2));
         }
     }
     .paused {

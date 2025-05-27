@@ -47,11 +47,7 @@
                 opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform, box-shadow, opacity;
     /* Gradient from top-left (purplish) to bottom-right with reduced opacity */
-    background: linear-gradient(
-        135deg, 
-        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.12) 0%,
-        rgba(50, 50, 55, 0.18) 100%
-    ) !important;
+    background: var(--style-feature-card-gradient) !important;
     /* Position relative for pseudo-element gradient border */
     position: relative;
     /* Remove default border since we're using pseudo-element */
@@ -89,12 +85,9 @@
 
 .feature-card[aria-checked="true"] {
     transform: translateY(-1px) scale(1.012);
-    /* Selected state gradient */
-    background: linear-gradient(
-        135deg, 
-        hsla(var(--primary-hue), var(--primary-saturation), calc(var(--primary-lightness) + 5%), 0.19) 0%,
-        rgba(55, 55, 60, 0.21) 100%
-    ) !important;
+    /* Selected state gradient - enhanced version of base gradient */
+    background: var(--style-feature-card-gradient) !important;
+    filter: brightness(1.15) saturate(1.1);
     /* Brighter border for selected state using pseudo-element */
     &::before {
         padding: 1.5px;
@@ -123,12 +116,9 @@
 
 .feature-card:hover:not(.disabled) {
     transform: translateY(-1px) scale(1.012);
-    /* Hover state gradient */
-    background: linear-gradient(
-        135deg, 
-        hsla(var(--primary-hue), var(--primary-saturation), calc(var(--primary-lightness) + 5%), 0.19) 0%,
-        rgba(55, 55, 60, 0.21) 100%
-    ) !important;
+    /* Hover state gradient - enhanced version of base gradient */
+    background: var(--style-feature-card-gradient) !important;
+    filter: brightness(1.1) saturate(1.05);
     
     /* Modified handling of pseudo-elements for smooth transitions */
     &::before, &::after {

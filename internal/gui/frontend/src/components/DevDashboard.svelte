@@ -32,7 +32,8 @@
         { id: 'performance', name: 'WASM', icon: 'speed' },
         { id: 'state', name: 'State', icon: 'data_object' },
         { id: 'logs', name: 'Logs', icon: 'subject' },
-        { id: 'debug', name: 'Debug', icon: 'bug_report' }
+        { id: 'debug', name: 'Debug', icon: 'bug_report' },
+        { id: 'style', name: 'Style', icon: 'palette' }
     ];
     
     // Store current settings
@@ -170,6 +171,160 @@
         logger.debug('devDashboard', 'Reset user activity state to automatic detection');
     }
     
+    // Style controls state
+    // 
+    // ⚠️  IMPORTANT NOTES FOR FUTURE SLIDER ADDITIONS ⚠️
+    // 
+    // When adding/removing sliders, be extremely careful about:
+    // 
+    // 1. NEVER remove existing sliders unless explicitly requested
+    //    - User may say "add more sliders" but mean "add additional ones", not replace existing ones
+    //    - Always preserve original functionality (e.g., glow opacity slider was original, keep it)
+    // 
+    // 2. When user provides exported values from dashboard, those values are ONLY for sliders that exist
+    //    - Don't hard-code values for sliders you removed 
+    //    - If slider is removed, let CSS variable return to its original default in app.css
+    //    - Only apply user's exported values to sliders that actually exist in the UI
+    // 
+    // 3. Distinguish between different effect types:
+    //    - "Background gradient" = the radial gradient behind everything (BackgroundGradient.svelte)  
+    //    - "Glow effect" = the animated blob effect (GlowEffect.svelte)
+    //    - User likely wants background gradient controls, not detailed glow controls
+    // 
+    // 4. CSS specificity issues:
+    //    - Main buttons use both .control-button and .reset-button classes
+    //    - Individual slider buttons use only .reset-button in .slider-row context
+    //    - Use specific selectors like .control-button.reset-button for main buttons
+    // 
+    // 5. Variable initialization order:
+    //    - Don't reference defaultValues before it's defined
+    //    - Define styleControls with actual values, not { ...defaultValues }
+    // 
+    // 6. Border opacity was REMOVED and should stay removed
+    //    - It returns to original CSS default, no longer controllable
+    //    - Don't re-add unless explicitly requested
+    //
+    let styleControls = {
+        bgHue: 280,
+        bgSaturation: 8,
+        bgLightness: 4.81,
+        bgOpacity: 1,
+        featureCardSaturation: 10,
+        featureCardLightness: 25,
+        featureCardOpacity: 1,
+        featureCardGradientStartOpacity: 1,
+        featureCardGradientEndOpacity: 0,
+        mediaInputSaturation: 10,
+        mediaInputLightness: 20,
+        mediaInputOpacity: 0.06,
+        glowOpacity: 0, // User's new default - this slider exists
+        bgGradientPosX: 19,
+        bgGradientPosY: 90,
+        bgGradientStop1Hue: 280,
+        bgGradientStop1Sat: 15,
+        bgGradientStop1Light: 26,
+        bgGradientStop1Alpha: 0.11,
+        bgGradientStop2Hue: 237,
+        bgGradientStop2Sat: 20,
+        bgGradientStop2Light: 35,
+        bgGradientStop2Alpha: 0.19,
+        bgGradientStop3Hue: 320,
+        bgGradientStop3Sat: 25,
+        bgGradientStop3Light: 45,
+        bgGradientStop3Alpha: 0.05,
+        bgGradientStop4Hue: 300,
+        bgGradientStop4Sat: 20,
+        bgGradientStop4Light: 35,
+        bgGradientStop4Alpha: 0.18
+    };
+    
+    // Target color input
+    let targetColorHex = '#141215';
+    
+    // Apply style changes to CSS custom properties
+    function applyStyleControls() {
+        const root = document.documentElement;
+        
+        // Background color
+        root.style.setProperty('--style-bg-color', `hsla(${styleControls.bgHue}, ${styleControls.bgSaturation}%, ${styleControls.bgLightness}%, ${styleControls.bgOpacity})`);
+        
+        // Feature card styles
+        root.style.setProperty('--style-feature-card-bg', `hsla(0, 0%, 100%, ${styleControls.featureCardOpacity})`);
+        root.style.setProperty('--style-feature-card-gradient', 
+            `linear-gradient(135deg, ` +
+            `hsla(${styleControls.bgHue}, ${styleControls.featureCardSaturation}%, ${styleControls.featureCardLightness}%, ${styleControls.featureCardGradientStartOpacity}) 0%, ` +
+            `hsla(${styleControls.bgHue}, ${styleControls.featureCardSaturation}%, ${styleControls.featureCardLightness + 5}%, ${styleControls.featureCardGradientEndOpacity}) 100%)`
+        );
+        
+        // Media input styles
+        root.style.setProperty('--style-media-input-bg', `hsla(0, 0%, 100%, ${styleControls.mediaInputOpacity})`);
+        
+        // Effect styles
+        root.style.setProperty('--style-glow-opacity', styleControls.glowOpacity.toString());
+        
+        // Background gradient with custom controls
+        root.style.setProperty('--style-background-gradient', 
+            `radial-gradient(` +
+            `circle at ${styleControls.bgGradientPosX}% ${styleControls.bgGradientPosY}%, ` +
+            `hsla(${styleControls.bgGradientStop1Hue}, ${styleControls.bgGradientStop1Sat}%, ${styleControls.bgGradientStop1Light}%, ${styleControls.bgGradientStop1Alpha}) 0%, ` +
+            `hsla(${styleControls.bgGradientStop2Hue}, ${styleControls.bgGradientStop2Sat}%, ${styleControls.bgGradientStop2Light}%, ${styleControls.bgGradientStop2Alpha}) 25%, ` +
+            `hsla(${styleControls.bgGradientStop3Hue}, ${styleControls.bgGradientStop3Sat}%, ${styleControls.bgGradientStop3Light}%, ${styleControls.bgGradientStop3Alpha}) 50%, ` +
+            `hsla(${styleControls.bgGradientStop4Hue}, ${styleControls.bgGradientStop4Sat}%, ${styleControls.bgGradientStop4Light}%, ${styleControls.bgGradientStop4Alpha}) 75%, ` +
+            `rgba(36, 36, 36, 0) 100%)`
+        );
+        
+        logger.debug('devDashboard', 'Applied style controls', styleControls);
+    }
+    
+    // Default values for individual reset
+    const defaultValues = {
+        bgHue: 280,
+        bgSaturation: 8,
+        bgLightness: 4.81,
+        bgOpacity: 1,
+        featureCardSaturation: 10,
+        featureCardLightness: 25,
+        featureCardOpacity: 1,
+        featureCardGradientStartOpacity: 1,
+        featureCardGradientEndOpacity: 0,
+        mediaInputSaturation: 10,
+        mediaInputLightness: 20,
+        mediaInputOpacity: 0.06,
+        glowOpacity: 0, // User's new default
+        bgGradientPosX: 19,
+        bgGradientPosY: 90,
+        bgGradientStop1Hue: 280,
+        bgGradientStop1Sat: 15,
+        bgGradientStop1Light: 26,
+        bgGradientStop1Alpha: 0.11,
+        bgGradientStop2Hue: 237,
+        bgGradientStop2Sat: 20,
+        bgGradientStop2Light: 35,
+        bgGradientStop2Alpha: 0.19,
+        bgGradientStop3Hue: 320,
+        bgGradientStop3Sat: 25,
+        bgGradientStop3Light: 45,
+        bgGradientStop3Alpha: 0.05,
+        bgGradientStop4Hue: 300,
+        bgGradientStop4Sat: 20,
+        bgGradientStop4Light: 35,
+        bgGradientStop4Alpha: 0.18
+    };
+
+    // Reset individual property to default
+    function resetProperty(propertyName: string) {
+        if (propertyName in defaultValues) {
+            styleControls[propertyName] = defaultValues[propertyName];
+            applyStyleControls();
+        }
+    }
+
+    // Reset all style controls to defaults
+    function resetStyleControls() {
+        styleControls = { ...defaultValues };
+        applyStyleControls();
+    }
+    
     // Clean up event listeners on destroy
     onDestroy(() => {
         window.removeEventListener('mousemove', handleMouseMove);
@@ -202,6 +357,9 @@
         if (showDashboard) {
             logger.info('devDashboard', `Developer dashboard initialized (version: ${version})`);
         }
+
+        // Apply initial style controls
+        applyStyleControls();
 
         // Watch for version changes after component is mounted
         const checkVersion = setInterval(() => {
@@ -504,6 +662,739 @@
                                 </div>
                             </div>
 
+                    {:else if activeTab === 'style'}
+                        <h4>Style Controls</h4>
+                        <div class="mb-3">
+                            <div class="flex items-center gap-2 text-xs text-gray-400">
+                                <span class="flex-shrink-0">Target color</span>
+                                <input
+                                    type="text"
+                                    bind:value={targetColorHex}
+                                    placeholder="#141215"
+                                    class="w-20 px-1 py-1 text-xs bg-white/10 border border-white/20 rounded text-white flex-shrink-0 font-mono"
+                                    style="max-width: 80px;"
+                                />
+                                <div
+                                    class="h-6 rounded border border-white/30 flex-1 min-w-0"
+                                    style="background-color: {targetColorHex}; min-height: 24px;"
+                                ></div>
+                            </div>
+                        </div>
+
+                        <!-- Background Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Background</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {styleControls.bgHue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="270"
+                                            max="290"
+                                            step="1"
+                                            bind:value={styleControls.bgHue}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgHue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.bgSaturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgSaturation}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgSaturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.bgLightness.toFixed(2)}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="7"
+                                            step="0.01"
+                                            bind:value={styleControls.bgLightness}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgLightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feature Card Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Feature Cards</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.featureCardSaturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.featureCardSaturation}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('featureCardSaturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.featureCardLightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.featureCardLightness}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('featureCardLightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Base Opacity: {styleControls.featureCardOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.featureCardOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('featureCardOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Gradient Start: {styleControls.featureCardGradientStartOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.featureCardGradientStartOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('featureCardGradientStartOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Gradient End: {styleControls.featureCardGradientEndOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.featureCardGradientEndOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('featureCardGradientEndOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Media Input Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Media Input</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.mediaInputSaturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.mediaInputSaturation}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('mediaInputSaturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.mediaInputLightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.mediaInputLightness}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('mediaInputLightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Opacity: {styleControls.mediaInputOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.mediaInputOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('mediaInputOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Effect Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Basic Effects</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Glow Opacity: {styleControls.glowOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.glowOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('glowOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Background Gradient Position -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Background Gradient Position</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Position X: {styleControls.bgGradientPosX}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="-100"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientPosX}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientPosX')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Position Y: {styleControls.bgGradientPosY}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="-100"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientPosY}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientPosY')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Background Gradient Stop 1 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Background Gradient Stop 1</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {styleControls.bgGradientStop1Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop1Hue}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop1Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.bgGradientStop1Sat}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop1Sat}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop1Sat')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.bgGradientStop1Light}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop1Light}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop1Light')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {styleControls.bgGradientStop1Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.bgGradientStop1Alpha}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop1Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Background Gradient Stop 2 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Background Gradient Stop 2</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {styleControls.bgGradientStop2Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop2Hue}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop2Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.bgGradientStop2Sat}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop2Sat}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop2Sat')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.bgGradientStop2Light}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop2Light}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop2Light')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {styleControls.bgGradientStop2Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.bgGradientStop2Alpha}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop2Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Background Gradient Stop 3 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Background Gradient Stop 3</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {styleControls.bgGradientStop3Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop3Hue}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop3Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.bgGradientStop3Sat}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop3Sat}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop3Sat')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.bgGradientStop3Light}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop3Light}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop3Light')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {styleControls.bgGradientStop3Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.bgGradientStop3Alpha}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop3Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Background Gradient Stop 4 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Background Gradient Stop 4</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {styleControls.bgGradientStop4Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop4Hue}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop4Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.bgGradientStop4Sat}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop4Sat}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop4Sat')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.bgGradientStop4Light}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.bgGradientStop4Light}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop4Light')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {styleControls.bgGradientStop4Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.bgGradientStop4Alpha}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('bgGradientStop4Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Reset Controls -->
+                        <div class="control-section">
+                            <div class="flex gap-2">
+                                <button
+                                    class="control-button reset-button"
+                                    on:click={resetStyleControls}
+                                >
+                                    Reset to Defaults
+                                </button>
+                                <button
+                                    class="control-button"
+                                    on:click={() => {
+                                        logger.info('devDashboard', 'Current style controls', styleControls);
+                                        navigator.clipboard.writeText(JSON.stringify(styleControls, null, 2));
+                                    }}
+                                >
+                                    Copy Values
+                                </button>
+                            </div>
+                        </div>
+
                     {/if}
                 </div>
             </div>
@@ -688,15 +1579,15 @@
         box-shadow: 0 0 4px rgba(159, 110, 247, 0.3);
     }
     
-    .reset-button {
-        background: hsla(130, 20%, 20%, 0.9);
-        border-color: hsla(130, 30%, 40%, 0.4);
+    .control-button.reset-button {
+        background: hsla(0, 85%, 60%, 0.7) !important;
+        border-color: hsla(0, 85%, 60%, 0.5) !important;
     }
     
-    .reset-button:hover {
-        background: hsla(130, 20%, 30%, 0.9);
-        border-color: hsla(130, 30%, 50%, 0.4);
-        box-shadow: 0 0 4px rgba(104, 231, 150, 0.3);
+    .control-button.reset-button:hover {
+        background: hsla(0, 85%, 60%, 0.9) !important;
+        border-color: hsla(0, 85%, 60%, 0.7) !important;
+        box-shadow: 0 0 4px rgba(239, 68, 68, 0.4) !important;
     }
 
     .control-section {
@@ -809,5 +1700,99 @@
     
     .text-red-400 {
         color: #f87171;
+    }
+    
+    /* Style controls specific styles */
+    .slider-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .slider-control {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .slider-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .slider-row input {
+        flex: 1;
+    }
+    
+    .slider-row .reset-button {
+        padding: 2px 6px;
+        background: hsla(0, 85%, 60%, 0.7);
+        border: 1px solid hsla(0, 85%, 60%, 0.5);
+        border-radius: 3px;
+        color: white;
+        font-size: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        min-width: 28px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .slider-row .reset-button:hover {
+        background: hsla(0, 85%, 60%, 0.9);
+        border-color: hsla(0, 85%, 60%, 0.7);
+        transform: scale(1.05);
+    }
+    
+    .slider-label {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 500;
+    }
+    
+    .slider {
+        -webkit-appearance: none;
+        appearance: none;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        outline: none;
+        cursor: pointer;
+    }
+    
+    .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: var(--primary-color, #9f6ef7);
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s;
+    }
+    
+    .slider::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 8px rgba(159, 110, 247, 0.5);
+    }
+    
+    .slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: var(--primary-color, #9f6ef7);
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s;
+    }
+    
+    .slider::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 8px rgba(159, 110, 247, 0.5);
     }
 </style>

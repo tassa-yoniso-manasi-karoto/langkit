@@ -168,6 +168,35 @@
   
   /* Reduce blur for less color contamination */
   --dropdown-backdrop-blur: 11px;
+  
+  /* Style controls dynamic variables */
+  --style-bg-color: hsl(0, 0%, 7%);
+  --style-feature-card-bg: hsla(0, 0%, 100%, 0.12);
+  --style-feature-card-gradient: linear-gradient(135deg, hsla(261, 90%, 70%, 0.12) 0%, rgba(50, 50, 55, 0.18) 100%);
+  --style-media-input-bg: hsla(0, 0%, 100%, 0.10);
+  --style-glow-opacity: 0.25;
+  --style-border-opacity: 0.12;
+  --style-background-gradient: radial-gradient(
+    circle at 10% 90%,
+    rgba(120, 81, 169, 0.2) 0%, 
+    rgba(159, 110, 247, 0.15) 25%,
+    rgba(255, 110, 199, 0.08) 50%,
+    rgba(159, 110, 247, 0.03) 75%,
+    rgba(36, 36, 36, 0) 100%
+  );
+  --style-glow-gradient: linear-gradient(
+    45deg,
+    rgba(159, 110, 247, 0.4),
+    rgba(190, 120, 255, 0.7),
+    rgba(255, 100, 255, 0.6),
+    rgba(255, 30, 255, 0.5)
+  );
+  --style-glow-position-x: 78vw;
+  --style-glow-position-y: -10vw;
+  --style-glow-size: 26vmax;
+  --style-glow-blur: 100px;
+  --style-glow-animation-scale: 1.2;
+  --style-glow-animation-speed: 10s;
 }
 
 body {
@@ -176,6 +205,7 @@ body {
     place-items: center;
     min-width: 320px;
     min-height: 100vh;
+    background-color: var(--style-bg-color);
 }
 
 h1 {
@@ -600,4 +630,15 @@ input[type="number"]::-webkit-outer-spin-button {
     opacity: 0.5;
     transform: scale(1.1);
   }
+}
+
+/* Style control overrides for UI elements */
+.bg-ui-element {
+  background-color: var(--style-media-input-bg) !important;
+}
+
+.bg-ui-element-hover,
+.bg-ui-element:hover {
+  background-color: var(--style-media-input-bg) !important;
+  filter: brightness(1.2);
 }

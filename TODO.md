@@ -16,9 +16,6 @@ SVG animations: rework state transitions
 - add tlit in TSV/CSV
 
 .
-- mergeInsertLogs called insane amount of times (26536 times when there is only 94 logs)
-
-.
 - guarantee all settings in Settings panel work
   - implement intermediary file mode
 
@@ -33,17 +30,23 @@ SVG animations: rework state transitions
 
 .
 - fix checkbox options visual misalignement
-
-.
-- add strategic frontend logging for prod
 .
 
 - std language string to lowercase and support language names too
 
 .
+- mergeInsertLogs is sometime shown as having been called insane amounts of times (26536 times when there is only 94 logs in the entire session lifecycle)
+
+.
 - remove useless test files
 .
 
+- finish theme 
+
+.
+- final check to add strategic frontend logging for prod
+
+.
 - revoke API keys and make sure they are under no circumstances leaking in logs
 
 .
