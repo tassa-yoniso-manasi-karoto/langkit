@@ -809,22 +809,6 @@
         }
     }
     
-    // Handler for language tag changes from QuickAccessLangSelector
-    function handleLanguageTagChange(event: CustomEvent) {
-        const previousTag = quickAccessLangTag;
-        const newTag = event.detail.languageTag;
-        
-        logger.info('FeatureSelector', 'Language tag changing', { 
-            previousTag, 
-            newTag 
-        });
-        quickAccessLangTag = newTag;
-        
-        // Process language change if it's different (case-insensitive)
-        if (previousTag.toLowerCase() !== newTag.toLowerCase()) {
-            processLanguageChange(newTag);
-        }
-    }
     
     function handleAudioTrackChange(event: CustomEvent) {
         showAudioTrackIndex = event.detail.showAudioTrackIndex;
@@ -1049,6 +1033,23 @@
     
     // Reactive statements
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
+    
+    // React to ALL changes to quickAccessLangTag (whether from user input or settings)
+    let lastProcessedLangTag = '';
+    $: if (quickAccessLangTag !== lastProcessedLangTag && isInitialDataLoaded) {
+        logger.info('FeatureSelector', 'Language tag changed', { 
+            previousTag: lastProcessedLangTag, 
+            newTag: quickAccessLangTag 
+        });
+        
+        // Process language change if it's different (case-insensitive)
+        if (lastProcessedLangTag.toLowerCase() !== quickAccessLangTag.toLowerCase()) {
+            processLanguageChange(quickAccessLangTag);
+        }
+        
+        // Update the last processed value
+        lastProcessedLangTag = quickAccessLangTag;
+    }
 
     // Function to register the display order of features in the UI
     function registerFeatureDisplayOrder() {
@@ -1720,6 +1721,23 @@
       }
     });
     
+    // React to programmatic changes to quickAccessLangTag (e.g., from settings)
+    let previousQuickAccessLangTag = quickAccessLangTag;
+    $: {
+        if (quickAccessLangTag !== previousQuickAccessLangTag && isInitialDataLoaded) {
+            logger.info('FeatureSelector', 'Language tag changed programmatically', { 
+                previousTag: previousQuickAccessLangTag, 
+                newTag: quickAccessLangTag 
+            });
+            
+            // Process the language change
+            processLanguageChange(quickAccessLangTag);
+            
+            // Update the previous value
+            previousQuickAccessLangTag = quickAccessLangTag;
+        }
+    }
+    
     // update provider warnings when STT model changes
     $: if (currentFeatureOptions?.dubtitles?.stt) {
         // This ensures we update warnings whenever the STT model changes
@@ -1765,13 +1783,12 @@
         <!-- Language selector component - won't shrink -->
         <div class="pr-3">
             <QuickAccessLangSelector 
-                languageTag={quickAccessLangTag}
+                bind:languageTag={quickAccessLangTag}
                 {isValidLanguage}
                 {isChecking}
                 {validationError}
                 {showAudioTrackIndex}
                 {audioTrackIndex}
-                on:languageTagChange={handleLanguageTagChange}
                 on:audioTrackChange={handleAudioTrackChange}
             />
         </div>
