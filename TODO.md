@@ -20,7 +20,6 @@ SVG animations: rework state transitions
 
 .
 - welcome.svelte component w/ checks for binary needed:
-  - different font for header
   - less transparency
   - bigger icons for check cards
   - fix fill animations' color fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'fill.style.backgroundColor = 'hsla(261, 90%, 60%, 0.8)'fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'

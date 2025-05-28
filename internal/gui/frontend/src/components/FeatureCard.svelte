@@ -56,6 +56,10 @@
     // Store if this is the topmost feature for any of its groups
     let isTopmostFeatureForAnyGroup = false;
     
+    // References to animated border elements
+    let animatedBorderRight: HTMLElement;
+    let animatedBorderBottom: HTMLElement;
+    
     // Function to check if this feature is the topmost for a given group using canonical order
     function checkTopmostFeatureStatus() {
         if (!feature.featureGroups || !feature.featureGroups.length || !enabled) {
@@ -252,6 +256,57 @@
         // Toggle the feature if it's available
         enabled = !enabled;
         dispatch('enabledChange', { id: feature.id, enabled });
+    }
+    
+    // Hover animation handlers
+    function handleHoverStart() {
+        if (isFeatureDisabled) return;
+        
+        // Remove any inline styles that might interfere with CSS animations
+        if (animatedBorderRight && animatedBorderBottom) {
+            animatedBorderRight.style.transition = '';
+            animatedBorderBottom.style.transition = '';
+            animatedBorderRight.style.opacity = '';
+            animatedBorderBottom.style.opacity = '';
+        }
+    }
+    
+    function handleHoverEnd() {
+        if (!animatedBorderRight || !animatedBorderBottom) return;
+        
+        // Stop the CSS animations first
+        animatedBorderRight.style.animation = 'none';
+        animatedBorderBottom.style.animation = 'none';
+        
+        // Set opacity to current value (should be 1 from animation)
+        animatedBorderRight.style.opacity = '1';
+        animatedBorderBottom.style.opacity = '1';
+        
+        // Force reflow to ensure animation is stopped and opacity is set
+        void animatedBorderRight.offsetWidth;
+        void animatedBorderBottom.offsetWidth;
+        
+        // Apply fade-out transition
+        animatedBorderRight.style.transition = 'opacity 0.7s ease-out';
+        animatedBorderBottom.style.transition = 'opacity 0.7s ease-out';
+        
+        // Trigger fade-out
+        requestAnimationFrame(() => {
+            animatedBorderRight.style.opacity = '0';
+            animatedBorderBottom.style.opacity = '0';
+        });
+        
+        // Clean up after transition
+        setTimeout(() => {
+            if (animatedBorderRight && animatedBorderBottom) {
+                animatedBorderRight.style.animation = '';
+                animatedBorderRight.style.transition = '';
+                animatedBorderRight.style.opacity = '';
+                animatedBorderBottom.style.animation = '';
+                animatedBorderBottom.style.transition = '';
+                animatedBorderBottom.style.opacity = '';
+            }
+        }, 700);
     }
     
     // Add material design ripple effect on click with reusable ripple elements
@@ -688,6 +743,8 @@
          }
      }}
      on:click={handleFeatureClick}
+     on:mouseenter={handleHoverStart}
+     on:mouseleave={handleHoverEnd}
 >
     <div class="p-4 pr-1 border-b border-white/10
                 {(enabled && hasFeatureMessages()) ? 'pb-1' : 'pb-4'}"
@@ -1233,8 +1290,8 @@
     </style>
     <!-- Animated border elements for hover effect -->
     {#if !isFeatureDisabled}
-        <div class="animated-border-right" aria-hidden="true"></div>
-        <div class="animated-border-bottom" aria-hidden="true"></div>
+        <div class="animated-border-right" aria-hidden="true" bind:this={animatedBorderRight}></div>
+        <div class="animated-border-bottom" aria-hidden="true" bind:this={animatedBorderBottom}></div>
     {/if}
 </div>
 
@@ -1247,11 +1304,10 @@
         position: absolute;
         opacity: 0;
         pointer-events: none;
-        transition: opacity 0.35s ease;
     }
     
     .animated-border-right {
-        width: 5px;
+        width: 4.5px;
         top: 0;
         bottom: 0;
         right: 0;
@@ -1268,7 +1324,7 @@
     }
     
     .animated-border-bottom {
-        height: 4.5px;
+        height: 4px;
         left: 0;
         right: 0;
         bottom: 0;
@@ -1284,18 +1340,23 @@
         border-radius: 0 0 0.5rem 0.5rem; /* Match parent's border radius on bottom */
     }
     
+    /* Simple fade animation for borders */
+    @keyframes borderFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
     /* Show and animate borders on hover */
     .feature-card:hover:not(.disabled) .animated-border-right {
-        opacity: 1;
-        animation: fadeInGradient 0.3s forwards,
-                  smoothFlowToTop 3s infinite linear;
+        animation: borderFadeIn 0.8s ease-out forwards,
+                  smoothFlowToTop 3s 0.8s infinite linear;
     }
     
     .feature-card:hover:not(.disabled) .animated-border-bottom {
-        opacity: 1;
-        animation: fadeInGradient 0.3s forwards,
-                  smoothFlowToLeft 3s infinite linear;
+        animation: borderFadeIn 0.8s ease-out forwards,
+                  smoothFlowToLeft 3s 0.8s infinite linear;
     }
+    
     
     /* Enhanced glassmorphism effect for feature message card 
     .glassmorphism-card {
