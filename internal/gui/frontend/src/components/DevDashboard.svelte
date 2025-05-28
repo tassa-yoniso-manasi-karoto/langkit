@@ -218,6 +218,12 @@
         mediaInputLightness: 20,
         mediaInputOpacity: 0.06,
         glowOpacity: 0, // User's new default - this slider exists
+        glowPositionX: 78, // Default: calc(73vw + 5vw) = 78vw
+        glowPositionY: -10, // Default: calc(-15vw + 5vh) ≈ -10vw
+        glowSize: 26, // Default: 26vmax
+        glowBlur: 100, // Default: blur(100px)
+        glowAnimationScale: 1.2, // Default pulse scale
+        glowAnimationSpeed: 10, // Default: 10s
         bgGradientPosX: 19,
         bgGradientPosY: 90,
         bgGradientStop1Hue: 280,
@@ -262,6 +268,14 @@
         // Effect styles
         root.style.setProperty('--style-glow-opacity', styleControls.glowOpacity.toString());
         
+        // Glow positioning and effects
+        root.style.setProperty('--style-glow-position-x', `${styleControls.glowPositionX}vw`);
+        root.style.setProperty('--style-glow-position-y', `${styleControls.glowPositionY}vw`);
+        root.style.setProperty('--style-glow-size', `${styleControls.glowSize}vmax`);
+        root.style.setProperty('--style-glow-blur', `${styleControls.glowBlur}px`);
+        root.style.setProperty('--style-glow-animation-scale', styleControls.glowAnimationScale.toString());
+        root.style.setProperty('--style-glow-animation-speed', `${styleControls.glowAnimationSpeed}s`);
+        
         // Background gradient with custom controls
         root.style.setProperty('--style-background-gradient', 
             `radial-gradient(` +
@@ -291,6 +305,12 @@
         mediaInputLightness: 20,
         mediaInputOpacity: 0.06,
         glowOpacity: 0, // User's new default
+        glowPositionX: 78,
+        glowPositionY: -10,
+        glowSize: 26,
+        glowBlur: 100,
+        glowAnimationScale: 1.2,
+        glowAnimationSpeed: 10,
         bgGradientPosX: 19,
         bgGradientPosY: 90,
         bgGradientStop1Hue: 280,
@@ -952,6 +972,146 @@
                                         <button
                                             class="reset-button"
                                             on:click={() => resetProperty('glowOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Glow Position & Size -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Glow Position & Size</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Position X: {styleControls.glowPositionX}vw</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="-100"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.glowPositionX}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('glowPositionX')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Position Y: {styleControls.glowPositionY}vw</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="-100"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.glowPositionY}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('glowPositionY')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Size: {styleControls.glowSize}vmax</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="5"
+                                            max="80"
+                                            step="1"
+                                            bind:value={styleControls.glowSize}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('glowSize')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Blur: {styleControls.glowBlur}px</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="300"
+                                            step="5"
+                                            bind:value={styleControls.glowBlur}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('glowBlur')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Glow Animation -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Glow Animation</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Pulse Scale: {styleControls.glowAnimationScale.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="3"
+                                            step="0.1"
+                                            bind:value={styleControls.glowAnimationScale}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('glowAnimationScale')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Speed: {styleControls.glowAnimationSpeed}s</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="30"
+                                            step="0.5"
+                                            bind:value={styleControls.glowAnimationSpeed}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('glowAnimationSpeed')}
                                             title="Reset to default"
                                         >
                                             ↺
