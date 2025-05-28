@@ -109,7 +109,6 @@
     z-index: 5;
     transform-origin: center center;
     position: relative;
-    overflow: visible !important;
     margin: 0;
 }
 
@@ -120,57 +119,6 @@
     background: var(--style-feature-card-gradient) !important;
     filter: brightness(1.1) saturate(1.05);
     
-    /* Modified handling of pseudo-elements for smooth transitions */
-    &::before, &::after {
-        transition: opacity 0.35s ease, transform 0.35s ease, background 0.35s ease;
-        opacity: 0; /* Start with 0 opacity */
-        content: "";
-        display: block !important;
-        position: absolute;
-        pointer-events: none;
-        z-index: 10;
-    }
-    
-    /* Right border with animation */
-    &::after {
-        width: 2.5px;
-        top: 0;
-        bottom: 0;
-        left: auto; /* Reset left position */
-        right: 0; /* Place on right side */
-        background: repeating-linear-gradient(
-            to bottom,
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
-        );
-        background-size: 100% 200%;
-        animation: fadeInGradient 0.3s forwards,
-                  smoothFlowToTop 3s infinite linear;
-    }
-    
-    /* Bottom border with animation */
-    &::before {
-        height: 2px;
-        left: 0;
-        right: 0;
-        top: auto; /* Reset top position */
-        bottom: 0; /* Place on bottom side */
-        background: repeating-linear-gradient(
-            to right,
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
-        );
-        background-size: 200% 100%;
-        animation: fadeInGradient 0.3s forwards,
-                  smoothFlowToLeft 3s infinite linear; 
-    }
-    
     box-shadow: 2px 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
                 4px 4px 8px -1px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
                 4px 4px 16px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
@@ -179,7 +127,6 @@
                 inset 0 2px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
     z-index: 5;
     transform-origin: center center;
-    overflow: visible !important;
     margin: 0;
 }
 
@@ -192,12 +139,11 @@
                 opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Ensure pseudo-elements also fade out smoothly */
-.feature-card:not(:hover)::before,
-.feature-card:not(:hover)::after {
+/* Ensure animated borders fade out smoothly */
+.feature-card:not(:hover) .animated-border-right,
+.feature-card:not(:hover) .animated-border-bottom {
     opacity: 0;
-    transform: scale(0.98);
-    transition: opacity 0.35s ease-out, transform 0.35s ease-out;
+    transition: opacity 0.35s ease-out;
 }
 
 @keyframes fadeInGradient {

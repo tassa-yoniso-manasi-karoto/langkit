@@ -11,6 +11,9 @@ SVG animations: rework state transitions
 - add tlit in TSV/CSV
 
 .
+- have claude scan for perf improvemnts / optimizations
+
+.
 - guarantee all settings in Settings panel work
   - implement intermediary file mode
   - FIXME featureselector not reacting / observing quicklanguageSelector updates pushed by default target language change in the setttings

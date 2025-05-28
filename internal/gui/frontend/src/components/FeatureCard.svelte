@@ -1231,10 +1231,71 @@
             }
         }
     </style>
+    <!-- Animated border elements for hover effect -->
+    {#if !isFeatureDisabled}
+        <div class="animated-border-right" aria-hidden="true"></div>
+        <div class="animated-border-bottom" aria-hidden="true"></div>
+    {/if}
 </div>
 
 <style>
     @import './featureStyles.css';
+    
+    /* Animated border elements that respect rounded corners */
+    .animated-border-right,
+    .animated-border-bottom {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.35s ease;
+    }
+    
+    .animated-border-right {
+        width: 5px;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        background: repeating-linear-gradient(
+            to bottom,
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
+        );
+        background-size: 100% 200%;
+        border-radius: 0 0.5rem 0.5rem 0; /* Match parent's border radius on right side */
+    }
+    
+    .animated-border-bottom {
+        height: 4.5px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+            to right,
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
+        );
+        background-size: 200% 100%;
+        border-radius: 0 0 0.5rem 0.5rem; /* Match parent's border radius on bottom */
+    }
+    
+    /* Show and animate borders on hover */
+    .feature-card:hover:not(.disabled) .animated-border-right {
+        opacity: 1;
+        animation: fadeInGradient 0.3s forwards,
+                  smoothFlowToTop 3s infinite linear;
+    }
+    
+    .feature-card:hover:not(.disabled) .animated-border-bottom {
+        opacity: 1;
+        animation: fadeInGradient 0.3s forwards,
+                  smoothFlowToLeft 3s infinite linear;
+    }
     
     /* Enhanced glassmorphism effect for feature message card 
     .glassmorphism-card {
