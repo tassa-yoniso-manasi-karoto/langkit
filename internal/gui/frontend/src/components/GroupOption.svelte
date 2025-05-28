@@ -240,7 +240,7 @@
                 on:change={(e) => handleImmediateChange(e)}
             />
         {:else if optionDef.type === 'boolean'}
-            <label class="inline-flex items-center cursor-pointer">
+            <label class="inline-flex items-center cursor-pointer -ml-5">
                 {#key localValue}
                     <input
                         type="checkbox"

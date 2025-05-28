@@ -1040,8 +1040,8 @@
                                             on:change={() => dispatch('optionChange', { featureId: feature.id, optionId, value: options[optionId] })}
                                         />
                                     {:else if optionDef.type === 'boolean'}
-                                        <!-- Boolean input (keep centered) -->
-                                        <label class="inline-flex items-center cursor-pointer">
+                                        <!-- Boolean input (shifted left to align with other inputs) -->
+                                        <label class="inline-flex items-center cursor-pointer -ml-5">
                                             <input 
                                                 type="checkbox" 
                                                 class="w-5 h-5 accent-primary rounded border-2 border-primary/50 
