@@ -77,11 +77,6 @@
     let showWelcome = true;
     let showApiKeys = false;
     
-    // UI state
-    let subtitleText = '';
-    const fullSubtitle = "Let's check your system requirements";
-    let showCursor = true;
-    
     // Animation states
     let titleVisible = false;
     let contentVisible = false;
@@ -165,21 +160,6 @@
         setTimeout(() => titleVisible = true, 100);
         setTimeout(() => contentVisible = true, 300);
         setTimeout(() => actionsVisible = true, 500);
-        
-        // Typewriter effect for subtitle
-        setTimeout(() => {
-            let index = 0;
-            const typeInterval = setInterval(() => {
-                if (index < fullSubtitle.length) {
-                    subtitleText = fullSubtitle.slice(0, index + 1);
-                    index++;
-                } else {
-                    clearInterval(typeInterval);
-                    // Hide cursor after typing is complete
-                    setTimeout(() => showCursor = false, 500);
-                }
-            }, 30);
-        }, 400);
         
         // Start checking statuses after a brief delay
         setTimeout(() => checkStatuses(), 600);
@@ -290,12 +270,12 @@
                              out:slideProjectorOut={{ duration: 800 }}>
                             <!-- Welcome header -->
                             <div class="text-center mb-8 pt-4">
-                                <h1 class="text-4xl md:text-5xl font-bold text-white mb-3 flex items-center justify-center gap-2">
+                                <h1 class="text-4xl md:text-5xl font-[Outfit] font-bold text-white mb-3 flex items-center justify-center gap-2">
                                     Welcome to Langkit
                                     <span class="waving-hand text-4xl md:text-5xl">👋</span>
                                 </h1>
                                 <p class="text-lg text-white/70 min-h-[28px]">
-                                    {subtitleText}{#if showCursor}<span class="animate-blink">|</span>{/if}
+                                    Let's check your system requirements
                                 </p>
                             </div>
                             
