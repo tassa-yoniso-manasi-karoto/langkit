@@ -2,9 +2,8 @@ SVG animations: rework state transitions
 
 - 🤯 make consistent progress bars between GUI and CLI
 
-- condensed audio: CHECK IT
-
-- support Condensed Audio summaries:
+- condensed audio:
+  - CHECK IT
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
 
@@ -48,6 +47,7 @@ SVG animations: rework state transitions
 
 - manual GUI tests
   - watch for combinations that should spawn an error and disallow processing: no docker but japanese transliteration selected
+  - test use case BrowserAccessURL not set 2 time in a row (test logger.go with already downloaded binary)
 - manual CLI tests
 - try offline to see if icon / fonts are missing
 

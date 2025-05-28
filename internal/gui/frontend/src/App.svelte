@@ -147,10 +147,6 @@
             }
         }
     }
-
-    // State for performance notice
-    let showPerformanceNotice = false;
-    let lastSignificantPerformance = 0;
     
     // State for welcome popup
     let showWelcomePopup = false;
@@ -311,26 +307,7 @@
             errorStore.removeError("no-native-lang");
         }
     }
-
-    // Monitor for significant performance improvements for notice
-    $: {
-      const currentWasmState = getWasmState(); // Use imported function
-      if (
-        $wasmActive &&
-        currentWasmState?.performanceMetrics?.speedupRatio > 5 && // Added null checks
-        currentWasmState?.performanceMetrics?.operationsCount > 10 && // Added null checks
-        Date.now() - lastSignificantPerformance > 60000 // Show at most once per minute
-      ) {
-        showPerformanceNotice = true;
-        lastSignificantPerformance = Date.now();
-
-        // Hide notice after 5 seconds
-        setTimeout(() => {
-          showPerformanceNotice = false;
-        }, 5000);
-      }
-    }
-
+    
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
         currentFeatureOptions = event.detail;
         logger.debug('app', 'Feature options changed', { options: event.detail });
@@ -1339,34 +1316,6 @@
             </div>
         {/if}
     </div>
-
-    <!-- Performance notice that appears when significant gains are detected -->
-    {#if showPerformanceNotice}
-        <div
-          transition:fade={{ duration: 300 }}
-          class="fixed bottom-4 right-4 bg-green-800/80 text-white px-4 py-3 rounded shadow-lg backdrop-blur-sm z-50 flex items-center gap-2"
-        >
-          <span class="material-icons text-green-300">rocket</span>
-          <div>
-            <div class="font-semibold">Performance Boost Active</div>
-            <div class="text-sm">WebAssembly is making this {Math.round(getWasmState().performanceMetrics.speedupRatio)}× faster</div>
-          </div>
-        </div>
-    {/if}
-
-    <!-- Performance notice that appears when significant gains are detected -->
-    {#if showPerformanceNotice}
-        <div
-          transition:fade={{ duration: 300 }}
-          class="fixed bottom-4 right-4 bg-green-800/80 text-white px-4 py-3 rounded shadow-lg backdrop-blur-sm z-50 flex items-center gap-2"
-        >
-          <span class="material-icons text-green-300">rocket</span>
-          <div>
-            <div class="font-semibold">Performance Boost Active</div>
-            <div class="text-sm">WebAssembly is making this {Math.round(getWasmState()?.performanceMetrics?.speedupRatio || 0)}× faster</div>
-          </div>
-        </div>
-    {/if}
 </div>
 
 <Settings
