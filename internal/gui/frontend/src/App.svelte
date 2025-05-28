@@ -551,13 +551,13 @@
             statisticsStore.set(stats);
             
             // Check if this is the first app start
-            if (stats.countAppStart === 0) {
+            if (stats.countAppStart === 0 || version == "dev") {
                 logger.info('app', 'First app start detected, showing welcome popup');
                 showWelcomePopup = true;
             }
             
             // Increment app start count
-            //const newCount = await IncrementStatistic('countAppStart');
+            const newCount = await IncrementStatistic('countAppStart');
             logger.trace('app', `App start count incremented to: ${newCount}`);
             
             // Update the local store with the new value
@@ -726,6 +726,17 @@
     let uiSettingsSubscription: () => void;
 
     onMount(async () => { // Make onMount async
+        // Get initial version and pass it to WebAssembly for environment-aware loading
+        GetVersion().then(v => {
+            version = v.version; // Access the version property 
+            // Add version to window for WebAssembly to access
+            (window as any).__LANGKIT_VERSION = version;
+            
+            logger.info('app', `Application version detected: ${version}`, 
+                { isDevMode: version === 'dev' }
+            );
+        });
+        
         // Initialize window state detection - check initially and set up interval
         checkWindowState();
         
@@ -1048,17 +1059,6 @@
             logger.info('app', `Update available: ${newVersion}`);
             version = newVersion; // Update version display if needed
             updateAvailable = true;
-        });
-        
-        // Get initial version and pass it to WebAssembly for environment-aware loading
-        GetVersion().then(v => {
-            version = v.version; // Access the version property 
-            // Add version to window for WebAssembly to access
-            (window as any).__LANGKIT_VERSION = version;
-            
-            logger.info('app', `Application version detected: ${version}`, 
-                { isDevMode: version === 'dev' }
-            );
         });
         
         // Check Docker availability on startup

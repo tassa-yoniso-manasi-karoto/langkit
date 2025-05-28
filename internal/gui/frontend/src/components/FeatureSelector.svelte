@@ -1533,19 +1533,17 @@
             const isWelcomePopupVisible = get(welcomePopupVisible);
             
             if (isWelcomePopupVisible) {
-                logger.info('FeatureSelector', 'Welcome popup is visible, deferring feature animation');
+                logger.info('FeatureSelector', 'Welcome popup is visible, keeping features hidden');
                 
-                // Show all features immediately but without animation
-                visibleFeatures = Object.keys(selectedFeatures);
+                // Keep features completely hidden while welcome popup is visible
+                // This prevents them from showing through the semi-transparent popup
+                visibleFeatures = [];
                 
                 // Subscribe to welcome popup state and start animation when it closes
                 const unsubscribe = welcomePopupVisible.subscribe(isVisible => {
                     if (!isVisible) {
-                        logger.info('FeatureSelector', 'Welcome popup closed, deferring feature animation');
+                        logger.info('FeatureSelector', 'Welcome popup closed, preparing feature reveal');
                         unsubscribe();
-                        
-                        // Reset features immediately to prepare for animation
-                        visibleFeatures = [];
                         
                         // Add delay to ensure welcome popup closing animation completes
                         // On low-spec machines, the store updates faster than the GUI can render,
@@ -1572,8 +1570,23 @@
             // Mark as loaded anyway to prevent endless loading state
             isInitialDataLoaded = true;
             
-            // In case of error, show all features at once
-            visibleFeatures = Object.keys(selectedFeatures);
+            // In case of error, check if welcome popup is visible before showing features
+            const isWelcomePopupVisible = get(welcomePopupVisible);
+            if (!isWelcomePopupVisible) {
+                // Only show features if welcome popup is not visible
+                visibleFeatures = Object.keys(selectedFeatures);
+            } else {
+                // Keep features hidden and wait for welcome popup to close
+                visibleFeatures = [];
+                const unsubscribe = welcomePopupVisible.subscribe(isVisible => {
+                    if (!isVisible) {
+                        unsubscribe();
+                        setTimeout(() => {
+                            visibleFeatures = Object.keys(selectedFeatures);
+                        }, 400);
+                    }
+                });
+            }
             
             // Log the error to help with debugging
             logStore.addLog({
