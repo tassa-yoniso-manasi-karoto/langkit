@@ -104,7 +104,7 @@
         fill.style.width = '0';
         fill.style.height = '0';
         fill.style.borderRadius = '50%';
-        fill.style.backgroundColor = 'hsla(320, 90%, 60%, 0.9)'; // Vibrant pink-purple for visibility
+        fill.style.backgroundColor = 'hsla(320, 90%, 60%, 0.3)';
         fill.style.transform = 'translate(-50%, -50%)';
         fill.style.transition = 'width 0.5s ease-out, height 0.5s ease-out';
         fill.style.zIndex = '-1';
@@ -298,7 +298,7 @@
                                     <div class="w-8 h-8 flex items-center justify-center">
                                         {#if dockerReady}
                                             {#if dockerStatus?.available}
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" class="text-primary">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
                                                     <mask id="dockerCheckMask">
                                                         <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
                                                             <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
@@ -313,7 +313,7 @@
                                                     <rect width="24" height="24" fill="currentColor" mask="url(#dockerCheckMask)"/>
                                                 </svg>
                                             {:else if dockerStatus}
-                                                <DockerUnavailableIcon size="32" className="text-blue-400" />
+                                                <DockerUnavailableIcon size="48" className="text-blue-400" />
                                             {:else}
                                                 <span class="material-icons text-3xl text-gray-400">pending</span>
                                             {/if}
@@ -438,7 +438,7 @@
                                      in:fade={{ duration: 300 }}>
                                     <p class="text-sm text-red-200/80">
                                         An internet connection is required for AI-powered features.
-                                        Translation and voice synthesis services will not be available offline.
+                                        Speech-to-Text and voice enhancing will not be available offline.
                                     </p>
                                 </div>
                             {/if}
@@ -495,13 +495,23 @@
                                 on:click={() => goToPage(1)}>
                             </div>
                         </div>
+                        <!--
+			  `will-change-transform` fixes a color shift during `active:scale`.
+			  The button has a semi-transparent bg (`bg-primary/70`) and a
+			  JS-injected semi-transparent ripple (with `z-index: -1`).
+			  Scaling these stacked transparent layers without this hint can
+			  cause inconsistent color blending by the browser.
+			  `will-change` allows the browser to optimize rendering, often by
+			  promoting the element to its own layer, which stabilizes the
+			  blend and prevents the color shift.
+			-->
                         <button
                             bind:this={getStartedButton}
                             class="px-6 py-2.5 rounded-lg bg-primary/70 text-white font-medium
                                    transition-colors duration-300 relative overflow-hidden
                                    hover:shadow-lg hover:shadow-primary/30
-                                   active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/50
-                                   border border-primary/50"
+                                   focus:outline-none focus:ring-2 focus:ring-primary/50
+                                   active:scale-[0.97] will-change-transform border border-primary/50"
                             on:click={handleNext}
                             on:mouseenter={handleMouseEnter}
                             on:mouseleave={handleMouseLeave}>
@@ -519,10 +529,6 @@
     button {
         position: relative;
         overflow: hidden;
-    }
-    
-    button div {
-        pointer-events: none;
     }
     
     /* Waving hand animation */
