@@ -9,6 +9,8 @@ SVG animations: rework state transitions
 - condensed audio:
   - CHECK SUMMARY OPTION
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
+  - log prompt before query, log response too before embeding
+  - implement API keys check for providers just like STT
 
 .
 - add tlit in TSV/CSV

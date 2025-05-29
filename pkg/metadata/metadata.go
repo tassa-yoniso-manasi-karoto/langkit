@@ -105,43 +105,24 @@ func addLyricsToMP3(filePath, lyricsText, summaryLangISO639_2 string) error {
 func addLyricsToM4A(filePath, lyricsText string) error {
 	logger.Debug().Str("file", filePath).Msg("Adding lyrics to M4A/AAC using FFmpeg")
 
-	tempOutFile := filePath + ".tmp_metadata" // Output to a temporary file first
+	// Keep the same extension as the original file for the temp file
+	ext := filepath.Ext(filePath)
+	tempOutFile := strings.TrimSuffix(filePath, ext) + "_tmp" + ext
 
-	// Create a temporary metadata file to handle multiline lyrics and special characters robustly.
-	tempMetaFile, err := os.CreateTemp("", "langkit_meta_*.txt")
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to create temporary metadata file")
-		return fmt.Errorf("failed to create temporary metadata file: %w", err)
-	}
-	defer os.Remove(tempMetaFile.Name()) // Clean up the temp metadata file
-
-	// Write metadata in FFmpeg metadata file format.
-	// The value for a tag continues on subsequent lines until a new tag or EOF.
-	metadataFileContent := fmt.Sprintf(";FFMETADATA1\n\\251lyr=%s\n", lyricsText)
-	if _, err := tempMetaFile.WriteString(metadataFileContent); err != nil {
-		tempMetaFile.Close()
-		logger.Error().Err(err).Str("file", tempMetaFile.Name()).Msg("Failed to write to temporary metadata file")
-		return fmt.Errorf("failed to write to temporary metadata file %s: %w", tempMetaFile.Name(), err)
-	}
-	if err := tempMetaFile.Close(); err != nil {
-		logger.Error().Err(err).Str("file", tempMetaFile.Name()).Msg("Failed to close temporary metadata file")
-		return fmt.Errorf("failed to close temporary metadata file %s: %w", tempMetaFile.Name(), err)
-	}
-
-	// Construct FFmpeg arguments.
+	// Construct FFmpeg arguments using direct metadata approach
+	// Use both ©lyr (standard) and lyrics for maximum compatibility
 	args := []string{
-		"-i", filePath,              // Original input file
-		"-i", tempMetaFile.Name(),   // Our metadata file as a second input
-		"-map_metadata", "1",        // Apply metadata from the second input (index 1) to the output
-		"-codec", "copy",            // Copy all audio/video streams without re-encoding
-		"-movflags", "use_metadata_tags", // Ensures correct M4A/MP4 tagging
-		"-y",                        // Overwrite output file if it exists
-		tempOutFile,                 // Output to the temporary file
+		"-i", filePath,                           // Original input file
+		"-c", "copy",                             // Copy all streams without re-encoding
+		"-metadata", "©lyr=" + lyricsText,       // Standard M4A lyrics atom
+		"-metadata", "lyrics=" + lyricsText,     // Alternative for compatibility
+		"-brand", "mp42",                         // Use mp42 brand for better compatibility
+		"-movflags", "+faststart",                // Optimize for streaming
+		"-y",                                     // Overwrite output file if it exists
+		tempOutFile,                              // Output to the temporary file
 	}
 
-	// Run FFmpeg.
 	if err := runFFmpegCommand(args...); err != nil {
-		// Attempt to remove the temporary output file if FFmpeg failed
 		_ = os.Remove(tempOutFile)
 		return fmt.Errorf("ffmpeg command failed for M4A metadata: %w", err)
 	}
@@ -190,44 +171,3 @@ func runFFmpegCommand(args ...string) error {
 	return nil
 }
 
-
-// AddMetadataToAudio is the original generic metadata function.
-// It's kept for potential other uses but for lyrics/summaries, AddLyricsToAudioFile is preferred.
-// This function only supports M4A/AAC via FFmpeg and is less robust for multiline/encoding.
-func AddMetadataToAudio(filePath, metadataKey, metadataValue string) error {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	if ext != ".m4a" && ext != ".aac" && ext != ".mp4" {
-		logger.Warn().Str("file", filePath).Str("key", metadataKey).Msg("Generic AddMetadataToAudio called for non-M4A/AAC file, skipping. Use AddLyricsToAudioFile for MP3.")
-		return fmt.Errorf("generic AddMetadataToAudio only supports M4A/AAC; unsupported file type: %s", ext)
-	}
-
-	if strings.ToLower(metadataKey) == "lyrics" || strings.ToLower(metadataKey) == "summary" || metadataKey == `\251lyr` {
-		logger.Warn().Str("file", filePath).Str("key", metadataKey).Msg("Generic AddMetadataToAudio called for lyrics/summary. Consider using AddLyricsToAudioFile for better handling.")
-	}
-
-	tempFile := filePath + ".tmp_metadata_generic"
-
-	// FFmpeg metadata arguments are tricky with special characters in values.
-	// Using a metadata file is generally safer for complex values, but for a generic
-	// single key-value, direct -metadata might work for simple cases.
-	args := []string{
-		"-i", filePath,
-		"-c", "copy", // Copy all streams
-		"-metadata", fmt.Sprintf("%s=%s", metadataKey, metadataValue),
-		"-movflags", "use_metadata_tags", // Important for M4A/MP4
-		"-y", // Overwrite output
-		tempFile,
-	}
-
-	if err := runFFmpegCommand(args...); err != nil {
-		_ = os.Remove(tempFile)
-		return fmt.Errorf("ffmpeg generic metadata error for key '%s': %w", metadataKey, err)
-	}
-
-	if err := os.Rename(tempFile, filePath); err != nil {
-		return fmt.Errorf("error replacing file after adding generic metadata: %w", err)
-	}
-
-	logger.Info().Str("file", filePath).Str("key", metadataKey).Msg("Successfully added generic metadata")
-	return nil
-}
