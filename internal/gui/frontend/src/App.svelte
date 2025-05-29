@@ -1222,7 +1222,7 @@
                         
                         <!-- Cancel button with optimized transitions -->
                         {#if isProcessing}
-                            <div class="h-14 w-12 flex items-end">
+                            <div class="h-14 w-12 flex items-center">
                                 <button
                                     class="h-12 w-12 flex items-center justify-center rounded-lg
                                            bg-red-600/40 text-white transition-all duration-200
