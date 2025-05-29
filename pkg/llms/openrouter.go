@@ -18,6 +18,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var AppName string
+
 // OpenRouterProvider implements the Provider interface for OpenRouter.
 type OpenRouterProvider struct {
 	client        *openrouter.Client
@@ -450,8 +452,8 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, request CompletionReq
 		}
 		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
 		httpReq.Header.Set("Content-Type", "application/json")
-		// httpReq.Header.Set("HTTP-Referer", "YOUR_APP_NAME_OR_URL") 
-		// httpReq.Header.Set("X-Title", "YOUR_APP_NAME") 
+		httpReq.Header.Set("HTTP-Referer", AppName) 
+		httpReq.Header.Set("X-Title", AppName) 
 
 
 		resp, err := p.httpClient.Do(httpReq)

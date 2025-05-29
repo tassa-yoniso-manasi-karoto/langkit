@@ -17,7 +17,7 @@ type StateChangeNotifier interface {
 // InitLLM initializes the LLM subsystem and related components
 // It sets up the Registry but doesn't block on initialization
 func InitLLM(handler MessageHandler, wailsContext context.Context, notifier StateChangeNotifier) *llms.Registry {
-	// No longer need the old initialization method as Registry handles everything
+	llms.AppName = "Langkit"
 	
 	// Load settings
 	settings, err := config.LoadSettings()
