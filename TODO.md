@@ -3,11 +3,12 @@ SVG animations: rework state transitions
 - 🤯 make consistent progress bars between GUI and CLI
 
 
+- fix cancel button offset.
+
 .
 - condensed audio:
-  - CHECK IT
+  - CHECK SUMMARY OPTION
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
-  - hardcode padded timming to 250ms (IIRC it found it ideal to not get truncated, or overlapping sentences)
 
 .
 - add tlit in TSV/CSV

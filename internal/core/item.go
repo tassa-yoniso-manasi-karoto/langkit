@@ -14,7 +14,6 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary" 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
@@ -76,6 +75,7 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	
 	// Extract WAV for condensed audio if needed
 	if tsk.Mode == Condense || tsk.WantCondensedAudio {
+		// CAVEAT: Offset MUST be 0 to avoid duplicating audio at junctions of adjascent sublines
 		_, errWAV = media.ExtractAudio("wav", tsk.UseAudiotrack,
 			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
 			tsk.MediaSourceFile, tsk.MediaPrefix, false)
@@ -193,20 +193,23 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 
 
 func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
-	// Determine output format and extension
+	errFmt := fmt.Errorf("invalid or missing audio format")
 	var ext string
 	switch tsk.CondensedAudioFmt {
 	case "MP3":
 		ext = "mp3"
 	case "AAC":
-		ext = "m4a" // Using m4a container for AAC
+		ext = "m4a"
 	case "Opus":
 		ext = "opus"
 	default:
-		ext = "mp3" // Default to MP3 if not specified
+		return tsk.Handler.LogErr(fmt.Errorf("%w: \"%s\" isn't recognized", errFmt, tsk.CondensedAudioFmt), AbortAllTasks, "")
 	}
 	
 	out := fmt.Sprintf("%s.%s.%s", tsk.MediaPrefix, suffix, ext)
+	tsk.Handler.ZeroLog().Debug().
+		Str("outFile", out).
+		Msg("Condensed audio initialized")
 
 	if _, err := os.Stat(out); err == nil {
 		tsk.Handler.ZeroLog().Info().
@@ -272,27 +275,19 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 		return err
 	}
 
-	if tsk.IntermediaryFileMode != config.KeepIntermediaryFiles {
-		tsk.Handler.ZeroLog().Debug().
-			Str("mode", string(tsk.IntermediaryFileMode)).
-			Int("count", len(wavFiles)).
-			Msg("Removing WAV segment files after creating condensed audio...")
-		removedCount := 0
-		for _, f := range wavFiles {
-			if err := os.Remove(f); err != nil {
-				tsk.Handler.ZeroLog().Warn().
-					Str("file", f).
-					Err(err).
-					Msg("Failed to remove WAV segment file")
-			} else {
-				removedCount++
-			}
+	tsk.Handler.ZeroLog().Trace().Msg("Removing WAV segment files after creating condensed audio...")
+	removedCount := 0
+	for _, f := range wavFiles {
+		if err := os.Remove(f); err != nil {
+			tsk.Handler.ZeroLog().Warn().
+				Str("file", f).
+				Err(err).
+				Msg("Failed to remove WAV segment file")
+		} else {
+			removedCount++
 		}
-		tsk.Handler.ZeroLog().Debug().
-			Int("removedFiles", removedCount).
-			Msg("Finished removing WAV segment files.")
 	}
-
+		
 	// Generate and add summary to metadata if requested (not supported for Opus format)
 	if tsk.WantSummary && tsk.CondensedAudioFmt != "Opus" {
 		if tsk.TargSubs != nil && tsk.TargSubs.Subtitles != nil && len(tsk.TargSubs.Subtitles.Items) > 0 {

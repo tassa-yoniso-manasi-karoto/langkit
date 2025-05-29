@@ -117,7 +117,7 @@ func RunFFmpegConcat(concatFile, outputWav string) error {
 // Converts the WAV file to specified audio format using FFmpeg
 func RunFFmpegConvert(inputWav, outputFile string) error {
 	// Determine codec and parameters based on file extension
-	ext := strings.ToLower(filepath.Ext(outputFile))
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(outputFile)), ".")
 	
 	args := []string{"-loglevel", "error", "-i", inputWav, "-acodec"}
 	switch ext {
@@ -126,7 +126,6 @@ func RunFFmpegConvert(inputWav, outputFile string) error {
 	case "opus", "ogg":
 		args = append(args, []string{"libopus", "-b:a", "112k", outputFile}...)
 	default:
-		// Default to MP3
 		args = append(args, []string{"libmp3lame", "-b:a", "192k", outputFile}...)
 	}
 	

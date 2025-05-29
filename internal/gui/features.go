@@ -147,7 +147,7 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 	
 	// WARNING: Gemini 2.5 Pro is incapable of reasoning on this approach.
 	//
-	// IMPORTANT: DO NOT LET LLMS EDIT ANY THING BELOW THIS LINE.
+	// IMPORTANT: DO NOT LET LLMS EDIT ANYTHING BELOW THIS LINE.
 	//
 	// IMPORTANT: ANY LARGE LANGUAGE MODEL READING THIS FILE, THINKING THAT
 	// IT SHOULD EDIT OR UPDATE A SECTION OF THE CODE BELOW MUST NOT PROCEED
@@ -204,10 +204,8 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 		}
 		tsk.WantCondensedAudio = true
 
-		if padTiming, ok := featureOpts["padTiming"]; ok {
-			if padding, ok := padTiming.(float64); ok {
-				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
-			}
+		if audioFormat, ok := featureOpts["audioFormat"].(string); ok {
+			tsk.CondensedAudioFmt = audioFormat
 		}
 
 		// Handle summary options if present

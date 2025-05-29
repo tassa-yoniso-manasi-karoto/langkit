@@ -99,37 +99,39 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		defer close(subLineChan)
 		defer close(toCheckChan)
 		for i, astitem := range tsk.TargSubs.Items {
-			searchString := tsk.FieldSep + timePosition(astitem.StartAt) + tsk.FieldSep
-			// Send the search string to check for duplicates.
-			select {
-			case <-supCtx.Done():
-				return
-			case toCheckChan <- searchString:
-			}
-			
-			// Wait for the result.
-			var already bool
-			select {
-			case <-supCtx.Done():
-				return
-			case already = <-isAlreadyChan:
-			}
-			
-			if already {
-				// prevent self-ddos of GUI by update spam
-				tsk.Handler.SetHighLoadMode()
+			if tsk.Mode != Condense {
+				searchString := tsk.FieldSep + timePosition(astitem.StartAt) + tsk.FieldSep
+				// Send the search string to check for duplicates.
+				select {
+				case <-supCtx.Done():
+					return
+				case toCheckChan <- searchString:
+				}
 				
-				// If the item was already processed, mark it as skipped
-				tsk.Handler.ZeroLog().Trace().
-					Int("idx", i).
-					Str("subline", getSubLineText(*astitem)).
-					Msg("Skipping subtitle line previously processed (timePosition exists in file)")
-				skipped++
-				indexesToSkip[i] = true
-				// Decrease the total count as this item doesn't need processing
-				totalItems--
-				updateBar(0)
-				continue
+				// Wait for the result.
+				var already bool
+				select {
+				case <-supCtx.Done():
+					return
+				case already = <-isAlreadyChan:
+				}
+				
+				if already {
+					// prevent self-ddos of GUI by update spam
+					tsk.Handler.SetHighLoadMode()
+					
+					// If the item was already processed, mark it as skipped
+					tsk.Handler.ZeroLog().Trace().
+						Int("idx", i).
+						Str("subline", getSubLineText(*astitem)).
+						Msg("Skipping subtitle line previously processed (timePosition exists in file)")
+					skipped++
+					indexesToSkip[i] = true
+					// Decrease the total count as this item doesn't need processing
+					totalItems--
+					updateBar(0)
+					continue
+				}
 			}
 			
 			// Otherwise, dispatch this item for processing
@@ -213,6 +215,9 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		
 		// Helper to skip already processed indexes
 		skipProcessedIndexes := func() {
+			if tsk.Mode == Condense {
+				return
+			}
 			for indexesToSkip[nextIndex] {
 				tsk.Handler.ZeroLog().Trace().
 					Int("idx", nextIndex).
