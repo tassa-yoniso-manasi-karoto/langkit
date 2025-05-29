@@ -7,9 +7,7 @@ SVG animations: rework state transitions
 
 .
 - condensed audio:
-  - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
   - log prompt before query, log response too before embeding
-  - implement API keys check for providers just like STT
   - add recommendation of model in a hovertip for Summary Model
   - translate markdown to hardcoded UTF-8 
   - improve prompt to remove useless things like:
@@ -54,6 +52,7 @@ SVG animations: rework state transitions
 .
 
 - manual GUI tests
+  - double check translateReq2Tsk against DEV.md
   - watch for combinations that should spawn an error and disallow processing:
     - no docker but japanese transliteration selected
     - Speech-to-Text and voice enhancing will not be available offline

@@ -112,6 +112,33 @@
     $: isLLMError = debugLLMState ? debugLLMState === 'error' : llmState?.globalState === 'error';
     $: llmErrorMessage = isLLMError ? (llmState?.message || 'LLM system error') : null;
     
+    // Reactive computation for missing LLM providers
+    $: missingProviders = (() => {
+        if (feature.id !== 'condensedAudio' || !isLLMReady) return [];
+        
+        // Get available providers from the summaryProvider option
+        const availableProviders = feature.options.summaryProvider.choices || [];
+        
+        // Map display names to expected provider keys
+        const providerKeyMap: Record<string, string> = {
+            'OpenAI': 'openai',
+            'Google': 'google',
+            'OpenRouter': 'openrouter',
+            'OpenRouter Free': 'openrouter-free'
+        };
+        
+        const availableKeys = availableProviders.map(p => providerKeyMap[p] || p.toLowerCase());
+        
+        // Check which expected providers are missing
+        const missing = [];
+        if (!availableKeys.includes('openai')) missing.push('OpenAI');
+        if (!availableKeys.includes('google')) missing.push('Google');
+        // OpenRouter key covers both openrouter and openrouter-free
+        if (!availableKeys.includes('openrouter') && !availableKeys.includes('openrouter-free')) missing.push('OpenRouter');
+        
+        return missing;
+    })();
+    
     onMount(() => {
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
             currentSTTModels = value;
@@ -704,6 +731,12 @@
                 showNotAvailableMessage) {
                 return true;
             }
+        } else if (feature.id === 'condensedAudio') {
+            // Show message if enableSummary is true and LLM is ready
+            if (enabled && options.enableSummary && isLLMReady) {
+                // Show message if no providers at all OR some providers are missing
+                return feature.options.summaryProvider.choices.length === 0 || missingProviders.length > 0;
+            }
         }
         
         // Dependency messages
@@ -906,6 +939,42 @@
                                     <span>Sorry, no tokenizer is implemented for this language at this time!</span>
                                 </div>
                             </div>
+                        {/if}
+                    
+                    {:else if feature.id === 'condensedAudio'}
+                        <!-- LLM Provider availability message -->
+                        {#if enabled && options.enableSummary && isLLMReady}
+                            {#if feature.options.summaryProvider.choices.length === 0}
+                                <!-- No providers at all - more prominent warning -->
+                                <div class={messageItemClass}>
+                                    <span class="material-icons text-[14px] text-log-warn mt-0.5">
+                                        warning
+                                    </span>
+                                    <div class="flex-1 text-xs text-white/90">
+                                        <span>No LLM providers available. Configure API keys in Settings to use this feature.</span>
+                                    </div>
+                                </div>
+                            {:else if missingProviders.length > 0}
+                                <!-- Some providers missing - subtle info -->
+                                <div class={messageItemClass}>
+                                    <span class="material-icons text-[14px] text-primary/60 mt-0.5">
+                                        info_outline
+                                    </span>
+                                    <div class="flex-1 text-xs text-white/70">
+                                        <span>
+                                            Configure 
+                                            {#if missingProviders.length === 1}
+                                                {missingProviders[0]}
+                                            {:else if missingProviders.length === 2}
+                                                {missingProviders[0]} and {missingProviders[1]}
+                                            {:else}
+                                                {missingProviders.slice(0, -1).join(', ')} and {missingProviders[missingProviders.length - 1]}
+                                            {/if}
+                                            API {missingProviders.length === 1 ? 'key' : 'keys'} to access more models.
+                                        </span>
+                                    </div>
+                                </div>
+                            {/if}
                         {/if}
                     {/if}
 
