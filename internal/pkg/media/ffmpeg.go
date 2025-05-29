@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"regexp"
 	"strings"
+	"path/filepath"
 
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
@@ -110,28 +111,23 @@ func CreateConcatFile(wavFiles []string) (string, error) {
 
 // Runs FFmpeg concat command with the provided concat file and output wav file
 func RunFFmpegConcat(concatFile, outputWav string) error {
-	return FFmpeg([]string{"-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
+	return FFmpeg([]string{"-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
 }
 
 // Converts the WAV file to specified audio format using FFmpeg
 func RunFFmpegConvert(inputWav, outputFile string) error {
 	// Determine codec and parameters based on file extension
-	ext := strings.ToLower(outputFile[strings.LastIndex(outputFile, ".")+1:])
+	ext := strings.ToLower(filepath.Ext(outputFile))
 	
-	var args []string
+	args := []string{"-loglevel", "error", "-i", inputWav, "-acodec"}
 	switch ext {
-	case "mp3":
-		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libmp3lame", "-b:a", "192k", outputFile}
 	case "m4a":
-		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "aac", "-b:a", "192k", outputFile}
-	case "opus":
-		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "128k", outputFile}
-	case "ogg":
-		// Legacy support for OGG container with Opus codec
-		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libopus", "-b:a", "112k", outputFile}
+		args = append(args, []string{"aac", "-b:a", "192k", outputFile}...)
+	case "opus", "ogg":
+		args = append(args, []string{"libopus", "-b:a", "112k", outputFile}...)
 	default:
-		// Default to MP3 if extension is not recognized
-		args = []string{"-loglevel", "error", "-y", "-i", inputWav, "-acodec", "libmp3lame", "-b:a", "192k", outputFile}
+		// Default to MP3
+		args = append(args, []string{"libmp3lame", "-b:a", "192k", outputFile}...)
 	}
 	
 	return FFmpeg(args...)
@@ -141,7 +137,7 @@ func RunFFmpegConvert(inputWav, outputFile string) error {
 
 func FFmpeg(arg ...string) error {
 	arg = append(arg, "-hide_banner")
-	arg = append(arg, "-n")
+	arg = append(arg, "-y")
 	cmd := exec.Command(FFmpegPath, arg...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
