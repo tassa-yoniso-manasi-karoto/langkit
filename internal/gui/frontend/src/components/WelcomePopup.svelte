@@ -242,7 +242,7 @@
      out:fade={{ duration: 200 }}>
     
     <!-- Background overlay -->
-    <div class="absolute inset-0 bg-black/40" on:click={onClose}></div>
+    <div class="absolute inset-0" style="background-color: rgba(0, 0, 0, var(--style-welcome-overlay-opacity, 0.4))" on:click={onClose}></div>
     
     <!-- Popup container with fixed size -->
     <div class="relative max-w-2xl w-full"
@@ -251,10 +251,12 @@
         
         <!-- Panel with more solid appearance and depth -->
         <div class="relative overflow-hidden rounded-3xl
-                    bg-black/30 backdrop-blur-2xl
-                    border border-white/10
                     shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)]
-                    panel-glow">
+                    panel-glow"
+             style="background-color: rgba(0, 0, 0, var(--style-welcome-panel-bg-opacity, 0.3));
+                    backdrop-filter: blur(var(--style-welcome-panel-blur, 24px));
+                    -webkit-backdrop-filter: blur(var(--style-welcome-panel-blur, 24px));
+                    border: 1px solid rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))">
             
             <!-- Subtle gradient accent -->
             <div class="absolute -top-32 -right-32 w-64 h-64 rounded-full bg-primary/10 blur-3xl"></div>
@@ -270,11 +272,13 @@
                              out:slideProjectorOut={{ duration: 800 }}>
                             <!-- Welcome header -->
                             <div class="text-center mb-8 pt-4">
-                                <h1 class="text-4xl md:text-5xl font-[Outfit] font-bold text-white mb-3 flex items-center justify-center gap-2">
+                                <h1 class="text-4xl md:text-5xl font-[Outfit] font-bold mb-3 flex items-center justify-center gap-2"
+                                    style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                     Welcome to Langkit
                                     <span class="waving-hand text-4xl md:text-5xl">👋</span>
                                 </h1>
-                                <p class="text-lg text-white/70 min-h-[28px]">
+                                <p class="text-lg min-h-[28px]"
+                                   style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
                                     Let's check your system requirements
                                 </p>
                             </div>
@@ -284,9 +288,13 @@
                         <!-- Docker Status -->
                         <div class="space-y-3">
                             <div class="flex items-center justify-between p-4 rounded-2xl
-                                        bg-white/10 backdrop-blur-md border border-white/10
-                                        transition-all duration-300 hover:bg-white/[0.15]
+                                        backdrop-blur-md border border-white/10
+                                        transition-all duration-300
                                         relative overflow-hidden"
+                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
+                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
+                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
+                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
                                  in:fly={{ y: 20, duration: 400, delay: 50, easing: cubicOut }}>
                                 
                                 {#if !dockerReady}
@@ -323,8 +331,8 @@
                                     </div>
                                     <div>
                                         {#if dockerReady}
-                                            <h3 class="text-white font-medium">Docker Desktop</h3>
-                                            <p class="text-sm text-white/60">
+                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">Docker Desktop</h3>
+                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
                                                 {#if dockerStatus?.available}
                                                     Version {dockerStatus.version || 'detected'}
                                                 {:else if dockerStatus?.error}
@@ -334,8 +342,8 @@
                                                 {/if}
                                             </p>
                                         {:else}
-                                            <div class="h-5 bg-white/10 rounded w-32 mb-1"></div>
-                                            <div class="h-3.5 bg-white/5 rounded w-48"></div>
+                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
+                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
                                         {/if}
                                     </div>
                                 </div>
@@ -352,7 +360,8 @@
                             {#if dockerReady && dockerStatus && !dockerStatus.available}
                                 <div class="px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20"
                                      in:fade={{ duration: 300 }}>
-                                    <p class="text-sm text-yellow-200/80">
+                                    <p class="text-sm"
+                                       style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
                                         Without Docker, some advanced processing features will be unavailable.
                                         Voice separation and certain subtitle operations require Docker to function.
                                     </p>
@@ -363,9 +372,13 @@
                         <!-- Internet Status -->
                         <div class="space-y-3">
                             <div class="flex items-center justify-between p-4 rounded-2xl
-                                        bg-white/10 backdrop-blur-md border border-white/10
-                                        transition-all duration-300 hover:bg-white/[0.15]
+                                        backdrop-blur-md border border-white/10
+                                        transition-all duration-300
                                         relative overflow-hidden"
+                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
+                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
+                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
+                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
                                  in:fly={{ y: 20, duration: 400, delay: 100, easing: cubicOut }}>
                                 
                                 {#if !internetReady}
@@ -415,8 +428,8 @@
                                     </div>
                                     <div>
                                         {#if internetReady}
-                                            <h3 class="text-white font-medium">Internet Connection</h3>
-                                            <p class="text-sm text-white/60">
+                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">Internet Connection</h3>
+                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
                                                 {#if internetStatus?.online}
                                                     Connected ({internetStatus.latency}ms latency)
                                                 {:else if internetStatus?.error}
@@ -426,8 +439,8 @@
                                                 {/if}
                                             </p>
                                         {:else}
-                                            <div class="h-5 bg-white/10 rounded w-32 mb-1"></div>
-                                            <div class="h-3.5 bg-white/5 rounded w-48"></div>
+                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
+                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
                                         {/if}
                                     </div>
                                 </div>
@@ -455,7 +468,8 @@
                             
                             <div class="text-center max-w-lg mx-auto px-4">
                                 <!-- API Keys header grouped with content -->
-                                <h2 class="text-3xl font-semibold text-white mb-6 flex items-center justify-center gap-2">
+                                <h2 class="text-3xl font-semibold mb-6 flex items-center justify-center gap-2"
+                                    style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 32 32" class="text-primary" stroke-width="1" stroke="currentColor">
                                         <path fill="currentColor" d="M28 26c-.178 0-.347.03-.511.074l-1.056-1.055c.352-.595.567-1.28.567-2.019s-.215-1.424-.567-2.019l1.055-1.055c.165.043.334.074.512.074a2 2 0 1 0-2-2c0 .178.03.347.074.512l-1.055 1.055C24.424 19.215 23.739 19 23 19s-1.424.215-2.019.567l-1.055-1.055c.043-.165.074-.334.074-.512a2 2 0 1 0-2 2c.178 0 .347-.03.512-.074l1.055 1.055C19.215 21.576 19 22.261 19 23s.215 1.424.567 2.019l-1.055 1.055A2 2 0 0 0 18 26a2 2 0 1 0 2 2c0-.178-.03-.347-.074-.512l1.055-1.055c.595.352 1.28.567 2.019.567s1.424-.215 2.019-.567l1.055 1.055A2 2 0 0 0 26 28a2 2 0 1 0 2-2m-7-3c0-1.102.897-2 2-2s2 .898 2 2s-.897 2-2 2s-2-.897-2-2"/>
                                         <circle cx="22" cy="10" r="2" fill="currentColor"/>
@@ -465,17 +479,20 @@
                                 </h2>
                                 
                                 <div class="space-y-4">
-                                    <p class="text-base text-white/90 leading-relaxed">
+                                    <p class="text-base leading-relaxed"
+                                       style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         API keys are <strong>secure, confidential codes</strong> that allow Langkit to access cloud-based AI services.
                                     </p>
-                                    <p class="text-base text-white/90 leading-relaxed">
+                                    <p class="text-base leading-relaxed"
+                                       style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         <strong>
                                             An API key is like your private electricity meter number that tracks how much power you use so the company can bill you accurately.
                                             Don't share it with anyone!
                                         </strong>
                                     </p>
                                     
-                                    <p class="text-base text-white/70 leading-relaxed">
+                                    <p class="text-base leading-relaxed"
+                                       style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
                                         They enable powerful features like speech-to-text, subtitle summarization and voice enhancement 
                                         without requiring expensive local hardware.
                                     </p>
@@ -493,11 +510,13 @@
                         <!-- Progress dots -->
                         <div class="flex gap-2">
                             <div 
-                                class="w-2 h-2 rounded-full transition-all duration-300 {showWelcome ? 'bg-primary' : 'bg-white/30'}"
+                                class="w-2 h-2 rounded-full transition-all duration-300 {showWelcome ? 'bg-primary' : ''}"
+                                style="{!showWelcome ? 'background-color: rgba(255, 255, 255, var(--style-welcome-progress-dot-opacity, 0.3))' : ''}"
                                 on:click={() => goToPage(0)}>
                             </div>
                             <div 
-                                class="w-2 h-2 rounded-full transition-all duration-300 {showApiKeys ? 'bg-primary' : 'bg-white/30'}"
+                                class="w-2 h-2 rounded-full transition-all duration-300 {showApiKeys ? 'bg-primary' : ''}"
+                                style="{!showApiKeys ? 'background-color: rgba(255, 255, 255, var(--style-welcome-progress-dot-opacity, 0.3))' : ''}"
                                 on:click={() => goToPage(1)}>
                             </div>
                         </div>
@@ -513,11 +532,14 @@
 			-->
                         <button
                             bind:this={getStartedButton}
-                            class="px-6 py-2.5 rounded-lg bg-primary/70 text-white font-medium
+                            class="px-6 py-2.5 rounded-lg font-medium
                                    transition-colors duration-300 relative overflow-hidden
                                    hover:shadow-lg hover:shadow-primary/30
                                    focus:outline-none focus:ring-2 focus:ring-primary/50
-                                   active:scale-[0.97] will-change-transform border border-primary/50"
+                                   active:scale-[0.97] will-change-transform border"
+                            style="background-color: rgba(159, 110, 247, var(--style-welcome-button-bg-opacity, 0.7));
+                                   border-color: rgba(159, 110, 247, var(--style-welcome-button-border-opacity, 0.5));
+                                   color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))"
                             on:click={handleNext}
                             on:mouseenter={handleMouseEnter}
                             on:mouseleave={handleMouseLeave}>

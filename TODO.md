@@ -2,6 +2,8 @@ SVG animations: rework state transitions
 
 - 🤯 make consistent progress bars between GUI and CLI
 
+
+.
 - condensed audio:
   - CHECK IT
   - 🔳 manually fix AI slop in translateReq2Tsk; double check it against DEV.md
@@ -16,18 +18,12 @@ SVG animations: rework state transitions
 .
 - guarantee all settings in Settings panel work
   - implement intermediary file mode
-  - FIXME featureselector not reacting / observing quicklanguageSelector updates pushed by default target language change in the setttings
 
 .
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
-  - bigger icons for check cards
-  - fix fill animations' color fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'fill.style.backgroundColor = 'hsla(261, 90%, 60%, 0.8)'fill.style.backgroundColor = 'hsla(261, 90%, 50%, 0.9)'
   - use ExternalLink
   - write "if ... then features X and Y are unavailable msg"
-
-.
-- fix checkbox options visual misalignement
 
 .
 - mergeInsertLogs calls (2nd check)
@@ -48,7 +44,9 @@ SVG animations: rework state transitions
 .
 
 - manual GUI tests
-  - watch for combinations that should spawn an error and disallow processing: no docker but japanese transliteration selected
+  - watch for combinations that should spawn an error and disallow processing:
+    - no docker but japanese transliteration selected
+    - Speech-to-Text and voice enhancing will not be available offline
   - test use case BrowserAccessURL not set 2 time in a row (test logger.go with already downloaded binary)
 - manual CLI tests
 - try offline to see if icon / fonts are missing

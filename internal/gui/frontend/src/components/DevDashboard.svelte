@@ -204,6 +204,12 @@
     //    - It returns to original CSS default, no longer controllable
     //    - Don't re-add unless explicitly requested
     //
+    // 7. When adding sub-tabs or new sections:
+    //    - ALL sliders must be included in styleControls object
+    //    - ALL sliders must be included in defaultValues object  
+    //    - This ensures reset/copy functionality works across all tabs
+    //    - Sub-tab sliders are still part of the main styleControls object
+    //
     let styleControls = {
         bgHue: 280,
         bgSaturation: 8,
@@ -241,11 +247,27 @@
         bgGradientStop4Hue: 300,
         bgGradientStop4Sat: 20,
         bgGradientStop4Light: 35,
-        bgGradientStop4Alpha: 0.18
+        bgGradientStop4Alpha: 0.18,
+        // Welcome Popup controls
+        welcomeOverlayOpacity: 0.4, // bg-black/40
+        welcomePanelBgOpacity: 0.3, // bg-black/30
+        welcomePanelBlur: 24, // backdrop-blur-2xl (24px)
+        welcomeBorderOpacity: 0.1, // border-white/10
+        welcomeCardBgOpacity: 0.1, // bg-white/10
+        welcomeCardHoverOpacity: 0.15, // hover:bg-white/[0.15]
+        welcomeButtonBgOpacity: 0.7, // bg-primary/70
+        welcomeButtonBorderOpacity: 0.5, // border-primary/50
+        welcomeProgressDotOpacity: 0.3, // bg-white/30
+        welcomeTextPrimaryOpacity: 1, // text-white
+        welcomeTextSecondaryOpacity: 0.7, // text-white/70
+        welcomeTextTertiaryOpacity: 0.6 // text-white/60
     };
     
     // Target color input
     let targetColorHex = '#141215';
+    
+    // Style sub-tabs
+    let activeStyleSubTab = 'main';
     
     // Apply style changes to CSS custom properties
     function applyStyleControls() {
@@ -286,6 +308,20 @@
             `hsla(${styleControls.bgGradientStop4Hue}, ${styleControls.bgGradientStop4Sat}%, ${styleControls.bgGradientStop4Light}%, ${styleControls.bgGradientStop4Alpha}) 75%, ` +
             `rgba(36, 36, 36, 0) 100%)`
         );
+        
+        // Welcome Popup styles
+        root.style.setProperty('--style-welcome-overlay-opacity', styleControls.welcomeOverlayOpacity.toString());
+        root.style.setProperty('--style-welcome-panel-bg-opacity', styleControls.welcomePanelBgOpacity.toString());
+        root.style.setProperty('--style-welcome-panel-blur', `${styleControls.welcomePanelBlur}px`);
+        root.style.setProperty('--style-welcome-border-opacity', styleControls.welcomeBorderOpacity.toString());
+        root.style.setProperty('--style-welcome-card-bg-opacity', styleControls.welcomeCardBgOpacity.toString());
+        root.style.setProperty('--style-welcome-card-hover-opacity', styleControls.welcomeCardHoverOpacity.toString());
+        root.style.setProperty('--style-welcome-button-bg-opacity', styleControls.welcomeButtonBgOpacity.toString());
+        root.style.setProperty('--style-welcome-button-border-opacity', styleControls.welcomeButtonBorderOpacity.toString());
+        root.style.setProperty('--style-welcome-progress-dot-opacity', styleControls.welcomeProgressDotOpacity.toString());
+        root.style.setProperty('--style-welcome-text-primary-opacity', styleControls.welcomeTextPrimaryOpacity.toString());
+        root.style.setProperty('--style-welcome-text-secondary-opacity', styleControls.welcomeTextSecondaryOpacity.toString());
+        root.style.setProperty('--style-welcome-text-tertiary-opacity', styleControls.welcomeTextTertiaryOpacity.toString());
         
         logger.debug('devDashboard', 'Applied style controls', styleControls);
     }
@@ -328,7 +364,20 @@
         bgGradientStop4Hue: 300,
         bgGradientStop4Sat: 20,
         bgGradientStop4Light: 35,
-        bgGradientStop4Alpha: 0.18
+        bgGradientStop4Alpha: 0.18,
+        // Welcome Popup controls
+        welcomeOverlayOpacity: 0.4, // bg-black/40
+        welcomePanelBgOpacity: 0.3, // bg-black/30
+        welcomePanelBlur: 24, // backdrop-blur-2xl (24px)
+        welcomeBorderOpacity: 0.1, // border-white/10
+        welcomeCardBgOpacity: 0.1, // bg-white/10
+        welcomeCardHoverOpacity: 0.15, // hover:bg-white/[0.15]
+        welcomeButtonBgOpacity: 0.7, // bg-primary/70
+        welcomeButtonBorderOpacity: 0.5, // border-primary/50
+        welcomeProgressDotOpacity: 0.3, // bg-white/30
+        welcomeTextPrimaryOpacity: 1, // text-white
+        welcomeTextSecondaryOpacity: 0.7, // text-white/70
+        welcomeTextTertiaryOpacity: 0.6 // text-white/60
     };
 
     // Reset individual property to default
@@ -701,6 +750,23 @@
                             </div>
                         </div>
 
+                        <!-- Style Sub-tabs -->
+                        <div class="flex gap-2 mb-4 border-b border-white/10">
+                            <button
+                                class="px-3 py-2 text-xs {activeStyleSubTab === 'main' ? 'text-white border-b-2 border-primary' : 'text-white/60'}"
+                                on:click={() => activeStyleSubTab = 'main'}
+                            >
+                                Main Interface
+                            </button>
+                            <button
+                                class="px-3 py-2 text-xs {activeStyleSubTab === 'welcome' ? 'text-white border-b-2 border-primary' : 'text-white/60'}"
+                                on:click={() => activeStyleSubTab = 'welcome'}
+                            >
+                                Welcome Popup
+                            </button>
+                        </div>
+
+                        {#if activeStyleSubTab === 'main'}
                         <!-- Background Controls -->
                         <div class="control-section">
                             <h5 class="text-xs font-semibold mb-2 opacity-80">Background</h5>
@@ -1533,6 +1599,278 @@
                                 </div>
                             </div>
                         </div>
+                        {:else if activeStyleSubTab === 'welcome'}
+                        <!-- Welcome Popup Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Overlay & Panel</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Overlay Opacity: {styleControls.welcomeOverlayOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeOverlayOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeOverlayOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Panel BG Opacity: {styleControls.welcomePanelBgOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomePanelBgOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomePanelBgOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Panel Blur: {styleControls.welcomePanelBlur}px</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="48"
+                                            step="2"
+                                            bind:value={styleControls.welcomePanelBlur}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomePanelBlur')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Border Opacity: {styleControls.welcomeBorderOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="0.5"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeBorderOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeBorderOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Cards & Buttons</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Card BG Opacity: {styleControls.welcomeCardBgOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="0.5"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeCardBgOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeCardBgOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Card Hover Opacity: {styleControls.welcomeCardHoverOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="0.5"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeCardHoverOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeCardHoverOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Button BG Opacity: {styleControls.welcomeButtonBgOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeButtonBgOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeButtonBgOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Button Border: {styleControls.welcomeButtonBorderOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeButtonBorderOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeButtonBorderOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Text & UI Elements</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Progress Dots: {styleControls.welcomeProgressDotOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeProgressDotOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeProgressDotOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Primary Text: {styleControls.welcomeTextPrimaryOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0.5"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeTextPrimaryOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeTextPrimaryOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Secondary Text: {styleControls.welcomeTextSecondaryOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0.3"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeTextSecondaryOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeTextSecondaryOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Tertiary Text: {styleControls.welcomeTextTertiaryOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0.3"
+                                            max="1"
+                                            step="0.05"
+                                            bind:value={styleControls.welcomeTextTertiaryOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('welcomeTextTertiaryOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {/if}
 
                         <!-- Reset Controls -->
                         <div class="control-section">
