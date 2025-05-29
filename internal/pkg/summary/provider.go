@@ -60,24 +60,25 @@ func GeneratePrompt(subtitleText string, inputLanguageName string, options Optio
 	}
 
 	var prompt strings.Builder
-	// FIXME improve
-	prompt.WriteString("Please generate a summary for the following subtitle content.")
+	prompt.WriteString("Generate a pure factual summary of the narrative content below. ")
+	prompt.WriteString("Your response must consist solely of the story's plot and events - no preambles, ")
+	prompt.WriteString("no commentary, no thematic analysis, and no meta-statements about the content itself. ")
+	prompt.WriteString("Begin directly with what happens in the story, presenting events in chronological order. ")
+	prompt.WriteString("Focus exclusively on actions, dialogue, and plot developments that advance the narrative.")
 
 	if inputLanguageName != "" {
 		prompt.WriteString(fmt.Sprintf(" The content is in %s.", inputLanguageName))
 	}
 
 	if options.OutputLanguage != "" {
-		prompt.WriteString(fmt.Sprintf(" The summary should be written in %s.", options.OutputLanguage))
+		prompt.WriteString(fmt.Sprintf(" Write the summary in %s.", options.OutputLanguage))
 	} else {
-		prompt.WriteString(" Write the summary in English, or if the original content's language is clearly discernible and not English, summarize in that original language.")
+		prompt.WriteString(" Write in English, or if the original content is clearly in another language and not English, write in that original language.")
 	}
 
 	if options.MaxLength > 0 {
-		prompt.WriteString(fmt.Sprintf(" Aim for a summary of approximately %d words.", options.MaxLength))
+		prompt.WriteString(fmt.Sprintf(" Keep the summary to approximately %d words.", options.MaxLength))
 	}
-
-	prompt.WriteString(" Focus on the main plot points and key events to provide a coherent overview of the content.")
 
 	prompt.WriteString("\n\n--- Subtitle Content to Summarize ---\n")
 	prompt.WriteString(subtitleText)

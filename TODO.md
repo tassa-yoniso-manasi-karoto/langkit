@@ -9,13 +9,7 @@ SVG animations: rework state transitions
 - condensed audio:
   - log prompt before query, log response too before embeding
   - add recommendation of model in a hovertip for Summary Model
-  - translate markdown to hardcoded UTF-8 
-  - improve prompt to remove useless things like:
-    - "the story offers insights into the complexities of _______ life, the importance of..."
-    - "The provided subtitle content appears to be a ..."
-    - "Here's a summary of the main plot points and key events:"
-    - "Here is a summary of the subtitle content in approximately 400 words:"
-    - "Throughout the narrative, themes of ______ and ______ among ______ are explored."
+  - translate markdown to hardcoded UTF-8
 
 .
 - add tlit in TSV/CSV

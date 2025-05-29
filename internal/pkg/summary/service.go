@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rs/zerolog"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
 
@@ -176,9 +177,36 @@ func (p *DefaultSummaryProvider) Generate(ctx context.Context, subtitleText stri
 		return "", fmt.Errorf("underlying LLM provider '%s' not found for DefaultSummaryProvider", p.GetName())
 	}
 
+	// Log request details before sending
+	if logger.GetLevel() <= zerolog.DebugLevel {
+		logger.Debug().
+			Str("provider", p.GetName()).
+			Str("model", llmRequest.Model).
+			Int("prompt_length", len(finalPrompt)).
+			Int("max_tokens", llmRequest.MaxTokens).
+			Float64("temperature", llmRequest.Temperature).
+			Msg("Sending summary generation request to LLM")
+	}
+
 	response, err := llmProviderInstance.Complete(ctx, llmRequest)
 	if err != nil {
+		if logger.GetLevel() <= zerolog.ErrorLevel {
+			logger.Error().
+				Err(err).
+				Str("provider", p.GetName()).
+				Str("model", llmRequest.Model).
+				Msg("LLM summary generation request failed")
+		}
 		return "", err
+	}
+
+	// Log response details after receiving
+	if logger.GetLevel() <= zerolog.DebugLevel {
+		logger.Debug().
+			Str("provider", p.GetName()).
+			Str("model", llmRequest.Model).
+			Int("response_length", len(response.Text)).
+			Msg("Received summary generation response from LLM")
 	}
 
 	return strings.TrimSpace(response.Text), nil
