@@ -13,6 +13,9 @@ type Options struct {
 
 	// Customization
 	CustomPrompt string // If provided, this prompt is used directly, and subtitle text is appended.
+	
+	// Formatting options
+	UseSymbolicEmphasis bool // If true, use UTF-8 mathematical symbols for emphasis instead of markdown/HTML
 
 	// For future use: Context from previous content (not implemented yet)
 	// PreviousContentContext string

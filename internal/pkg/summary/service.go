@@ -177,12 +177,14 @@ func (p *DefaultSummaryProvider) Generate(ctx context.Context, subtitleText stri
 		return "", fmt.Errorf("underlying LLM provider '%s' not found for DefaultSummaryProvider", p.GetName())
 	}
 
+	promptHead, _, _ := strings.Cut(finalPrompt, splitter)
+
 	// Log request details before sending
 	if logger.GetLevel() <= zerolog.DebugLevel {
 		logger.Debug().
 			Str("provider", p.GetName()).
 			Str("model", llmRequest.Model).
-			Int("prompt_length", len(finalPrompt)).
+			Str("prompt_head", promptHead).
 			Int("max_tokens", llmRequest.MaxTokens).
 			Float64("temperature", llmRequest.Temperature).
 			Msg("Sending summary generation request to LLM")
@@ -205,9 +207,15 @@ func (p *DefaultSummaryProvider) Generate(ctx context.Context, subtitleText stri
 		logger.Debug().
 			Str("provider", p.GetName()).
 			Str("model", llmRequest.Model).
-			Int("response_length", len(response.Text)).
+			Str("response", response.Text).
 			Msg("Received summary generation response from LLM")
 	}
+	
+	txt := strings.TrimSpace(response.Text)
+	// maverick can't let go of Markdown
+	if strings.Contains(llmRequest.Model, "llama-4-maverick") {
+		txt = strings.ReplaceAll(txt, "*", "")
+	}
 
-	return strings.TrimSpace(response.Text), nil
+	return txt, nil
 }

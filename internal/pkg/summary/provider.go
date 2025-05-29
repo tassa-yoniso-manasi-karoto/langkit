@@ -10,6 +10,8 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
 
+const splitter = "--- Subtitle Content to Summarize ---"
+
 // Provider defines the interface for generating summaries
 type Provider interface {
 	// Generate creates a summary from the given subtitleText using the provided options.
@@ -80,7 +82,16 @@ func GeneratePrompt(subtitleText string, inputLanguageName string, options Optio
 		prompt.WriteString(fmt.Sprintf(" Keep the summary to approximately %d words.", options.MaxLength))
 	}
 
-	prompt.WriteString("\n\n--- Subtitle Content to Summarize ---\n")
+	// Add symbolic emphasis instructions if requested
+	if options.UseSymbolicEmphasis {
+		prompt.WriteString("Format the summary using bold letters (ONLY the bold letters) ")
+		prompt.WriteString("from the 'Mathematical Alphanumeric Symbols' subset of UTF-8 to fairly sparingly add emphasis ")
+		prompt.WriteString("to important key points and relevant character names. DO NOT USE MARKDOWN OR HTML. ")
+		prompt.WriteString("For example, 'Bob has been tasked by someone to infiltrate the Gang' would become ")
+		prompt.WriteString("'Bob has 𝗯𝗲𝗲𝗻 𝘁𝗮𝘀𝗸𝗲𝗱 𝗯𝘆 𝘀𝗼𝗺𝗲𝗼𝗻𝗲 𝘁𝗼 𝗶𝗻𝗳𝗶𝗹𝘁𝗿𝗮𝘁𝗲 𝘁𝗵𝗲 𝗚𝗮𝗻𝗴'.")
+	}
+
+	prompt.WriteString("\n\n" + splitter + "\n")
 	prompt.WriteString(subtitleText)
 
 	return prompt.String()

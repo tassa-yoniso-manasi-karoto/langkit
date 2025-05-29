@@ -212,6 +212,10 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 		if enableSummary, ok := featureOpts["enableSummary"].(bool); ok && enableSummary {
 			tsk.WantSummary = true
 
+			if useSymbolicEmphasis, ok := featureOpts["useSymbolicEmphasis"].(bool); ok && useSymbolicEmphasis {
+				tsk.UseSymbolicEmphasis = true
+			}
+			
 			if provider, ok := featureOpts["summaryProvider"].(string); ok && provider != "" {
 				tsk.SummaryProvider = provider
 			}

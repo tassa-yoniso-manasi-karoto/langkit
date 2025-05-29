@@ -7,9 +7,8 @@ SVG animations: rework state transitions
 
 .
 - condensed audio:
-  - log prompt before query, log response too before embeding
-  - add recommendation of model in a hovertip for Summary Model
-  - translate markdown to hardcoded UTF-8
+  - watermark model name in lyrics
+  - write concat WAV to tmp
 
 .
 - add tlit in TSV/CSV

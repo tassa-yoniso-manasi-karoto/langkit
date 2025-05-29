@@ -129,6 +129,7 @@ type Task struct {
 	SummaryMaxLength    int    // Approximate max length in words for the summary
 	SummaryTemperature  float64// Temperature for summary generation (-1 for default)
 	SummaryCustomPrompt string // User-provided custom prompt for summarization
+	UseSymbolicEmphasis bool   // Whether to use UTF-8 mathematical symbols for emphasis instead of markdown/HTML
 	
 	// Audio track options
 	TargetChan           int // TODO rename TargetChanNum

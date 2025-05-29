@@ -97,7 +97,7 @@ export const features: FeatureDefinition[] = [
     {
         id: 'condensedAudio',
         label: 'Make Condensed Audio',
-        optionOrder: ['audioFormat', 'enableSummary', 'summaryProvider', 'summaryModel', 'summaryMaxLength', 'summaryTemperature', 'summaryCustomPrompt'],
+        optionOrder: ['audioFormat', 'enableSummary', 'summaryProvider', 'summaryModel', 'summaryMaxLength', 'summaryTemperature', 'useSymbolicEmphasis', 'summaryCustomPrompt'],
         options: {
             audioFormat: {
                 type: 'dropdown',
@@ -134,7 +134,7 @@ export const features: FeatureDefinition[] = [
                 max: 1000,
                 step: 50,
                 showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
-                hovertip: "Set to Auto (0) to let the LLM decide the length, or specify a maximum word count."
+                hovertip: "Set to Auto to let the LLM decide the length, or specify a maximum word count."
             },
             summaryTemperature: {
                 type: 'slider',
@@ -144,7 +144,14 @@ export const features: FeatureDefinition[] = [
                 max: 2.0,
                 step: 0.1,
                 showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true",
-                hovertip: "Controls creativity: 0 = focused, 2 = creative"
+                hovertip: "Controls creativity:\n0 = deterministic,\n2 = very creative"
+            },
+            useSymbolicEmphasis: {
+                type: 'boolean',
+                label: 'Use UTF-8 formatting',
+                default: false,
+                showCondition: "feature.condensedAudio.enableSummary === true && context.isLLMReady === true && context.isNativeLanguageEnglish === true",
+                hovertip: "Uses UTF-8 𝗯𝗼𝗹𝗱 characters to format summaries embeded as lyrics.\n\nAccording to my tests llama-4-maverick (free) and grok-3-mini (very cheap) are the best models for this option with regard to speed, price and output quality.\n\n Only available for English summaries."
             },
             summaryCustomPrompt: {
                 type: 'string',

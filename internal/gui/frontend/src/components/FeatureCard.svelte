@@ -5,9 +5,10 @@
     
     import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
-    import { showSettings, llmStateStore, type LLMStateChange } from '../lib/stores';
+    import { showSettings, llmStateStore, settings, type LLMStateChange } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
+    import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
     
     // Class for message items to keep styling consistent
     const messageItemClass = "flex items-center gap-2 py-2 px-3 first:pt-2 last:pb-2 hover:bg-white/5 transition-colors duration-200 group";
@@ -104,6 +105,34 @@
         }
     }
     
+    // Native language check
+    let isNativeLanguageEnglish = false;
+    let settingsUnsubscribe: () => void;
+    
+    // Function to check if native language is English
+    async function checkNativeLanguageIsEnglish() {
+        const currentSettings = get(settings);
+        if (!currentSettings?.nativeLanguages) {
+            isNativeLanguageEnglish = false;
+            return;
+        }
+        
+        try {
+            // ValidateLanguageTag already handles parsing multiple languages and returns the first one
+            const response = await ValidateLanguageTag(currentSettings.nativeLanguages, true);
+            isNativeLanguageEnglish = response.isValid && response.standardTag === 'eng';
+            
+            logger.trace('featureCard', 'Native language English check', {
+                nativeLanguages: currentSettings.nativeLanguages,
+                standardTag: response.standardTag,
+                isEnglish: isNativeLanguageEnglish
+            });
+        } catch (error) {
+            logger.error('featureCard', 'Error checking native language', { error });
+            isNativeLanguageEnglish = false;
+        }
+    }
+    
     // Reactive computations for LLM state (respecting debug override)
     $: isLLMReady = debugLLMState ? debugLLMState === 'ready' : llmState?.globalState === 'ready';
     $: isLLMInitializing = debugLLMState 
@@ -168,6 +197,14 @@
             }
         });
         
+        // Subscribe to settings for native language check
+        settingsUnsubscribe = settings.subscribe(() => {
+            checkNativeLanguageIsEnglish();
+        });
+        
+        // Initial check
+        checkNativeLanguageIsEnglish();
+        
         // Initial measurement of the options height if enabled
         if (enabled && optionsWrapper) {
             optionsHeight = optionsWrapper.offsetHeight;
@@ -180,6 +217,9 @@
         }
         if (llmStateUnsubscribe) {
             llmStateUnsubscribe();
+        }
+        if (settingsUnsubscribe) {
+            settingsUnsubscribe();
         }
         
         // Clean up any LLM errors we may have created
@@ -443,7 +483,8 @@
             isTopmostForOption: isTopmostForThisOption,
             isLLMReady,
             isLLMInitializing,
-            isLLMError
+            isLLMError,
+            isNativeLanguageEnglish
         };
         
         const contextHash = JSON.stringify(contextValues);
@@ -472,7 +513,8 @@
             featureGroupStore, // Add store to context
             isLLMReady, // Add LLM state for condition evaluation
             isLLMInitializing,
-            isLLMError
+            isLLMError,
+            isNativeLanguageEnglish
         };
         
         // Feature options reference for conditions 
@@ -561,7 +603,7 @@
     
     // Mark cache as dirty when dependencies change
     $: {
-        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError) {
+        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError || isNativeLanguageEnglish) {
             visibleOptionsDirty = true;
         }
     }
@@ -569,10 +611,10 @@
     // Reactive variable for visible options (force recalculation when LLM state changes)
     $: visibleOptions = (() => {
         // Dependencies to trigger recalculation
-        const deps = [feature, options, standardTag, selectedFeatures, isLLMReady, isLLMInitializing, isLLMError];
+        const deps = [feature, options, standardTag, selectedFeatures, isLLMReady, isLLMInitializing, isLLMError, isNativeLanguageEnglish];
         const result = getVisibleOptions();
         if (feature.id === 'condensedAudio') {
-            logger.trace('featureCard', `Visible options for condensedAudio: ${result.length} options, isLLMReady: ${isLLMReady}, debugState: ${debugLLMState}`);
+            logger.trace('featureCard', `Visible options for condensedAudio: ${result.length} options, isLLMReady: ${isLLMReady}, isNativeLanguageEnglish: ${isNativeLanguageEnglish}, debugState: ${debugLLMState}`);
         }
         return result;
     })();

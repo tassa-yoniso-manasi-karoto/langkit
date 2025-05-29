@@ -276,18 +276,15 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 	}
 
 	tsk.Handler.ZeroLog().Trace().Msg("Removing WAV segment files after creating condensed audio...")
-	removedCount := 0
 	for _, f := range wavFiles {
 		if err := os.Remove(f); err != nil {
 			tsk.Handler.ZeroLog().Warn().
 				Str("file", f).
 				Err(err).
 				Msg("Failed to remove WAV segment file")
-		} else {
-			removedCount++
 		}
 	}
-		
+
 	// Generate and add summary to metadata if requested (not supported for Opus format)
 	if tsk.WantSummary && tsk.CondensedAudioFmt != "Opus" {
 		if tsk.TargSubs != nil && tsk.TargSubs.Subtitles != nil && len(tsk.TargSubs.Subtitles.Items) > 0 {
@@ -327,12 +324,13 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 				}
 
 				summaryOpts := summary.Options{
-					Provider:       tsk.SummaryProvider,
-					Model:          tsk.SummaryModel,
-					OutputLanguage: outputLangName,
-					MaxLength:      tsk.SummaryMaxLength,
-					Temperature:    tsk.SummaryTemperature,
-					CustomPrompt:   tsk.SummaryCustomPrompt,
+					Provider:            tsk.SummaryProvider,
+					Model:               tsk.SummaryModel,
+					OutputLanguage:      outputLangName,
+					MaxLength:           tsk.SummaryMaxLength,
+					Temperature:         tsk.SummaryTemperature,
+					CustomPrompt:        tsk.SummaryCustomPrompt,
+					UseSymbolicEmphasis: tsk.UseSymbolicEmphasis,
 				}
 
 				ctxSummarize, cancelSummarize := context.WithTimeout(context.Background(), 3*time.Minute) // TODO: Make timeout configurable
