@@ -2,19 +2,19 @@ SVG animations: rework state transitions
 
 - 🤯 make consistent progress bars between GUI and CLI
 
-
-- fix cancel button offset.
+.
+- cleanup logger.ts junk
+14:01:42 TRC FRONT: GroupOption mounted: subtitle.style=paiboon component=groupOption fe_appVersion=dev fe_sessionId=mbag5aul9u4q27l fe_timestamp=1748587998765 fe_userAgent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 wails.io/605.1.15" fe_viewport=1030x724 module=app sessionId=mbag5aul9u4q27l
 
 .
+
 - condensed audio:
   - watermark model name in lyrics
-  - write concat WAV to tmp
+  - write concat WAV to tmp for easy retries
+  - backoff requests
 
 .
 - add tlit in TSV/CSV
-
-.
-- have claude scan for perf improvemnts / optimizations
 
 .
 - guarantee all settings in Settings panel work
@@ -44,6 +44,7 @@ SVG animations: rework state transitions
 
 .
 
+- have claude scan for perf improvemnts / optimizations
 - manual GUI tests
   - double check translateReq2Tsk against DEV.md
   - watch for combinations that should spawn an error and disallow processing:

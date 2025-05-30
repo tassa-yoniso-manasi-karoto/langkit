@@ -425,41 +425,13 @@ function createFeatureGroupStore() {
         },
         
         /**
-         * Check if a feature is the topmost in its group based on canonical order
+         * Check if a feature is the topmost in its group (the active display feature)
          */
         isTopmostInGroup(groupId: string, featureId: string): boolean {
             const state = get(store);
             
-            // First check if the feature is enabled
-            if (!state.enabledFeatures[groupId]?.includes(featureId)) {
-                return false;
-            }
-            
-            // Get all enabled features for this group
-            const enabledFeatures = state.enabledFeatures[groupId] || [];
-            
-            // Standard handling for all groups (e.g., subtitle, merge)
-            const groupOrder = state.groupCanonicalOrder[groupId] || [];
-            if (groupOrder.length === 0) {
-                logger.warn('store/featureGroupStore', `No canonical order for group ${groupId}, falling back to feature definition order`);
-                
-                // Fallback to group feature order if no canonical order is available
-                const groupFeatures = state.groups[groupId]?.featureIds || [];
-                
-                // Find the first enabled feature in group definition order
-                const topmostFeature = groupFeatures.find(id => enabledFeatures.includes(id));
-                return topmostFeature === featureId;
-            }
-            
-            // Find the first enabled feature according to this group's canonical order
-            const topmostFeature = groupOrder.find(id => enabledFeatures.includes(id));
-            
-            // This feature is the topmost if it matches the first enabled feature in canonical order
-            const isTopmost = topmostFeature === featureId;
-            
-            // Removed spammy log that caused memory leaks
-            
-            return isTopmost;
+            // The topmost feature is the one marked as activeDisplayFeature for this group
+            return state.activeDisplayFeature[groupId] === featureId;
         },
         
         /**

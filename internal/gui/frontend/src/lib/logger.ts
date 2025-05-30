@@ -115,7 +115,7 @@ export class Logger {
     private _evtListeners: Array<() => void> = [];
 
     private _cfg: LogConf = {
-        minLvl: Lvl.INFO,
+        minLvl: Lvl.TRACE,
         bufSz: 500,
         thrConf: {
             en: true,

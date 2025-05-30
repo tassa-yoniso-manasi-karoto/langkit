@@ -56,6 +56,7 @@
     
     // Store if this is the topmost feature for any of its groups
     let isTopmostFeatureForAnyGroup = false;
+    let groupStoreUnsubscribe: () => void;
     
     // References to animated border elements
     let animatedBorderRight: HTMLElement;
@@ -197,6 +198,27 @@
             }
         });
         
+        // Subscribe to group store changes to re-evaluate topmost status
+        groupStoreUnsubscribe = featureGroupStore.subscribe((state) => {
+            if (feature.featureGroups?.length) {
+                if (enabled) {
+                    // Check if the topmost status actually changed for this feature
+                    const wasTopmost = isTopmostFeatureForAnyGroup;
+                    checkTopmostFeatureStatus();
+                    
+                    // If topmost status changed, invalidate the option visibility cache
+                    if (wasTopmost !== isTopmostFeatureForAnyGroup) {
+                        logger.trace('featureCard', `Topmost status changed for ${feature.id}: ${wasTopmost} -> ${isTopmostFeatureForAnyGroup}`);
+                        visibleOptionsDirty = true;
+                    }
+                } else if (isTopmostFeatureForAnyGroup) {
+                    // If this feature is disabled but was showing group options, invalidate cache
+                    logger.trace('featureCard', `Feature ${feature.id} disabled but was topmost, invalidating cache`);
+                    visibleOptionsDirty = true;
+                }
+            }
+        });
+        
         // Subscribe to settings for native language check
         settingsUnsubscribe = settings.subscribe(() => {
             checkNativeLanguageIsEnglish();
@@ -220,6 +242,9 @@
         }
         if (settingsUnsubscribe) {
             settingsUnsubscribe();
+        }
+        if (groupStoreUnsubscribe) {
+            groupStoreUnsubscribe();
         }
         
         // Clean up any LLM errors we may have created
@@ -603,7 +628,7 @@
     
     // Mark cache as dirty when dependencies change
     $: {
-        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError || isNativeLanguageEnglish) {
+        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError || isNativeLanguageEnglish || enabled) {
             visibleOptionsDirty = true;
         }
     }

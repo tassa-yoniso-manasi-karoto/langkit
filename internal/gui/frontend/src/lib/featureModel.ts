@@ -70,7 +70,8 @@ const commonMergeOptions = {
     }
 };
 
-export const features: FeatureDefinition[] = [
+// Internal features array
+const featuresArray: FeatureDefinition[] = [
     {
         id: 'subs2cards',
         label: 'Subs2cards',
@@ -456,6 +457,12 @@ export const features: FeatureDefinition[] = [
     }
 ];
 
+// Create a Svelte store for features to enable reactivity
+export const featuresStore = writable<FeatureDefinition[]>([...featuresArray]);
+
+// Export a getter for backward compatibility and non-reactive access
+export const features = featuresArray;
+
 // Create default options object based on feature definitions
 export function createDefaultOptions() {
     const options: Record<string, any> = {};
@@ -519,7 +526,7 @@ export interface SummaryModelsResponse {
 }
 
 // Create stores for model information
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 export const sttModelsStore = writable<STTModelsResponse>({
   models: [],
   names: [],
@@ -553,11 +560,29 @@ export const summarySelectionStore = writable({
 
 // Function to update choices for a specific feature option
 export function updateFeatureChoices(featureId: string, optionId: string, choices: string[], suggested?: string): void {
+  // Update the store
+  featuresStore.update(features => {
+    const updatedFeatures = [...features];
+    const feature = updatedFeatures.find(f => f.id === featureId);
+    if (feature && feature.options[optionId]) {
+      // Create new object references for reactivity
+      feature.options = { ...feature.options };
+      feature.options[optionId] = { ...feature.options[optionId] };
+      feature.options[optionId].choices = choices;
+      
+      // Update default value if suggested is provided and the current default is not in choices
+      if (suggested && !choices.includes(feature.options[optionId].default)) {
+        feature.options[optionId].default = suggested;
+      }
+    }
+    return updatedFeatures;
+  });
+  
+  // Also update the original array for backward compatibility
   const feature = features.find(f => f.id === featureId);
   if (feature && feature.options[optionId]) {
     feature.options[optionId].choices = choices;
     
-    // Update default value if suggested is provided and the current default is not in choices
     if (suggested && !choices.includes(feature.options[optionId].default)) {
       feature.options[optionId].default = suggested;
     }
@@ -572,13 +597,39 @@ export function updateSTTModels(sttModels: STTModelsResponse): void {
   // Always update choices for the STT dropdown with all models
   updateFeatureChoices('dubtitles', 'stt', sttModels.names, sttModels.suggested);
   
-  // Also update the default value to always be the first model in the list
+  // Update the store with default value and conditions
+  featuresStore.update(features => {
+    const updatedFeatures = [...features];
+    const dubtitlesFeature = updatedFeatures.find(f => f.id === 'dubtitles');
+    if (dubtitlesFeature) {
+      // Create new object references for reactivity
+      dubtitlesFeature.options = { ...dubtitlesFeature.options };
+      
+      if (dubtitlesFeature.options.stt && sttModels.names.length > 0) {
+        dubtitlesFeature.options.stt = { ...dubtitlesFeature.options.stt };
+        dubtitlesFeature.options.stt.default = sttModels.names[0];
+      }
+      
+      if (dubtitlesFeature.options.initialPrompt) {
+        dubtitlesFeature.options.initialPrompt = { ...dubtitlesFeature.options.initialPrompt };
+        dubtitlesFeature.options.initialPrompt.showCondition = 
+          `(function() {
+             const sttModel = feature.dubtitles.stt;
+             const sttModels = ${JSON.stringify(sttModels.models)};
+             const modelInfo = sttModels.find(m => m.name === sttModel);
+             return modelInfo && modelInfo.takesInitialPrompt;
+           })()`;
+      }
+    }
+    return updatedFeatures;
+  });
+  
+  // Also update the original array for backward compatibility
   const dubtitlesFeature = features.find(f => f.id === 'dubtitles');
   if (dubtitlesFeature && dubtitlesFeature.options.stt && sttModels.names.length > 0) {
     dubtitlesFeature.options.stt.default = sttModels.names[0];
   }
   
-  // Update the initialPrompt condition as before
   if (dubtitlesFeature && dubtitlesFeature.options.initialPrompt) {
     dubtitlesFeature.options.initialPrompt.showCondition = 
       `(function() {
@@ -599,14 +650,24 @@ export function updateSummaryProviders(providers: SummaryProvidersResponse): voi
   updateFeatureChoices('condensedAudio', 'summaryProvider', providers.names, providers.suggested);
   
   // Update the default value to be the suggested provider or the first in the list
+  featuresStore.update(features => {
+    const updatedFeatures = [...features];
+    const condensedAudioFeature = updatedFeatures.find(f => f.id === 'condensedAudio');
+    if (condensedAudioFeature && condensedAudioFeature.options.summaryProvider && providers.names.length > 0) {
+      // Create new object references for reactivity
+      condensedAudioFeature.options = { ...condensedAudioFeature.options };
+      condensedAudioFeature.options.summaryProvider = { ...condensedAudioFeature.options.summaryProvider };
+      condensedAudioFeature.options.summaryProvider.default = providers.suggested || providers.names[0];
+      condensedAudioFeature.options.summaryProvider.choices = [...providers.names];
+    }
+    return updatedFeatures;
+  });
+  
+  // Also update the original array for backward compatibility
   const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
   if (condensedAudioFeature && condensedAudioFeature.options.summaryProvider && providers.names.length > 0) {
     condensedAudioFeature.options.summaryProvider.default = providers.suggested || providers.names[0];
-    
-    // Create a new reference for the choices array to ensure reactivity
     condensedAudioFeature.options.summaryProvider.choices = [...providers.names];
-    
-    // Force the options object to be seen as a new reference to trigger reactivity
     condensedAudioFeature.options = {...condensedAudioFeature.options};
   }
 }

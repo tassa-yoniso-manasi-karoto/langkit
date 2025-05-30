@@ -12,11 +12,13 @@
     import { logger } from '../lib/logger';
     import { 
         features, 
+        featuresStore,
         createDefaultOptions, 
         providerGithubUrls, 
         providersRequiringTokens,
         updateSummaryProviders,
         updateSummaryModels,
+        updateFeatureChoices,
         summaryProvidersStore,
         summaryModelsStore,
         type RomanizationScheme 
@@ -93,6 +95,10 @@
     let currentSummaryModels = { models: [], names: [], available: false, suggested: "" };
     let summaryProvidersUnsubscribe: () => void;
     let summaryModelsUnsubscribe: () => void;
+    
+    // Reactive features array from store
+    let reactiveFeatures = features;
+    let featuresUnsubscribe: () => void;
     
     // LLM WebSocket and state management
     let llmWebSocket: LLMWebSocket | null = null;
@@ -176,9 +182,6 @@
             // Force reactivity update to ensure dropdowns are populated
             currentFeatureOptions = {...currentFeatureOptions};
             
-            // IMPORTANT: Update the reactive features array to trigger re-render
-            featuresForRendering = [...features];
-            
             return summaryProviders;
         } catch (error) {
             logger.error('featureSelector', 'Failed to load summary providers', { error });
@@ -220,34 +223,23 @@
                 // Update feature models and store with provider context
                 updateSummaryModels(summaryModels, providerName);
                 
-                // Get the feature definition for condensed audio to directly update the dropdown
-                const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
-                if (condensedAudioFeature && condensedAudioFeature.options.summaryModel) {
-                    // Directly update the choices with the models for THIS provider
-                    condensedAudioFeature.options.summaryModel.choices = [...summaryModels.names];
+                // Update the selected model if needed
+                if (summaryModels.names.length > 0 && 
+                    (!currentFeatureOptions.condensedAudio.summaryModel || 
+                     !summaryModels.names.includes(currentFeatureOptions.condensedAudio.summaryModel))) {
+                    const newModel = summaryModels.suggested || summaryModels.names[0];
+                    currentFeatureOptions.condensedAudio.summaryModel = newModel;
                     
-                    // Update the selected model if needed
-                    if (summaryModels.names.length > 0 && 
-                        (!currentFeatureOptions.condensedAudio.summaryModel || 
-                         !summaryModels.names.includes(currentFeatureOptions.condensedAudio.summaryModel))) {
-                        const newModel = summaryModels.suggested || summaryModels.names[0];
-                        currentFeatureOptions.condensedAudio.summaryModel = newModel;
-                        
-                        // Notify parent of the model change
-                        dispatch('optionChange', {
-                            featureId: 'condensedAudio',
-                            optionId: 'summaryModel',
-                            value: newModel
-                        });
-                    }
-                    
-                    // Force the options object to be seen as a new reference to trigger reactivity
-                    condensedAudioFeature.options = {...condensedAudioFeature.options};
-                    currentFeatureOptions = {...currentFeatureOptions};
-                    
-                    // Refresh the reactive features array
-                    featuresForRendering = [...features];
+                    // Notify parent of the model change
+                    dispatch('optionChange', {
+                        featureId: 'condensedAudio',
+                        optionId: 'summaryModel',
+                        value: newModel
+                    });
                 }
+                
+                // Force reactivity update
+                currentFeatureOptions = {...currentFeatureOptions};
             } else {
                 logger.debug('featureSelector', `Ignoring models for ${providerName} because current provider is ${currentProvider}`);
             }
@@ -477,7 +469,7 @@
                 selectedFeatures[featureId] = false;
                 
                 // Handle feature groups
-                const featureDef = features.find(f => f.id === featureId);
+                const featureDef = reactiveFeatures.find(f => f.id === featureId);
                 if (featureDef?.featureGroups?.length) {
                     featureDef.featureGroups.forEach(groupId => {
                         featureGroupStore.updateFeatureEnabled(groupId, featureId, false);
@@ -500,13 +492,12 @@
         updateProviderWarnings();
         
         // Find the feature definition
-        const featureDef = features.find(f => f.id === id);
+        const featureDef = reactiveFeatures.find(f => f.id === id);
         if (!featureDef) {
             logger.error('FeatureSelector', 'Feature not found', { featureId: id });
             return;
         }
         
-        // Process feature groups if this feature belongs to any
         if (featureDef.featureGroups?.length) {
             handleFeatureGroupUpdates(featureDef, id, enabled);
             
@@ -918,47 +909,39 @@
             
             // Fetch models for the selected provider if it's a non-empty string
             if (newProvider && typeof newProvider === 'string') {
-                // Get the feature definition for condensed audio
-                const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
-                if (condensedAudioFeature && condensedAudioFeature.options.summaryModel) {
-                    // Clear the current model selection
-                    currentFeatureOptions.condensedAudio.summaryModel = '';
+                // Clear the current model selection
+                currentFeatureOptions.condensedAudio.summaryModel = '';
+                
+                // Check if we already have models for this provider in our map
+                if (providerModelsMap[newProvider] && providerModelsMap[newProvider].length > 0) {
+                    logger.debug('FeatureSelector', 'Using cached models for provider', { 
+                        provider: newProvider,
+                        modelCount: providerModelsMap[newProvider].length,
+                        firstThree: providerModelsMap[newProvider].slice(0, 3)
+                    });
                     
-                    // Check if we already have models for this provider in our map
-                    if (providerModelsMap[newProvider] && providerModelsMap[newProvider].length > 0) {
-                        logger.debug('FeatureSelector', 'Using cached models for provider', { 
-                            provider: newProvider,
-                            modelCount: providerModelsMap[newProvider].length,
-                            firstThree: providerModelsMap[newProvider].slice(0, 3)
+                    // Update the choices using the proper function
+                    updateFeatureChoices('condensedAudio', 'summaryModel', providerModelsMap[newProvider]);
+                    
+                    // Select a default model
+                    if (providerModelsMap[newProvider].length > 0) {
+                        currentFeatureOptions.condensedAudio.summaryModel = providerModelsMap[newProvider][0];
+                        
+                        // Notify parent of the model change
+                        dispatch('optionChange', {
+                            featureId: 'condensedAudio',
+                            optionId: 'summaryModel',
+                            value: currentFeatureOptions.condensedAudio.summaryModel
                         });
-                        
-                        // We already have models for this provider - use them immediately
-                        condensedAudioFeature.options.summaryModel.choices = [...providerModelsMap[newProvider]];
-                        
-                        // Select a default model
-                        if (providerModelsMap[newProvider].length > 0) {
-                            currentFeatureOptions.condensedAudio.summaryModel = providerModelsMap[newProvider][0];
-                            
-                            // Notify parent of the model change
-                            dispatch('optionChange', {
-                                featureId: 'condensedAudio',
-                                optionId: 'summaryModel',
-                                value: currentFeatureOptions.condensedAudio.summaryModel
-                            });
-                        }
-                        
-                        // Force options to be seen as a new reference for reactivity
-                        condensedAudioFeature.options = {...condensedAudioFeature.options};
-                        currentFeatureOptions = {...currentFeatureOptions};
-                    } else {
-                        // We don't have models for this provider yet - clear the list 
-                        condensedAudioFeature.options.summaryModel.choices = [];
-                        
-                        // Force options to be seen as a new reference for reactivity
-                        condensedAudioFeature.options = {...condensedAudioFeature.options};
                     }
                     
-                    // Always force current feature options to update
+                    // Force current feature options to update
+                    currentFeatureOptions = {...currentFeatureOptions};
+                } else {
+                    // We don't have models for this provider yet - clear the list 
+                    updateFeatureChoices('condensedAudio', 'summaryModel', []);
+                    
+                    // Force current feature options to update
                     currentFeatureOptions = {...currentFeatureOptions};
                 }
                 
@@ -1082,7 +1065,7 @@
     // Special initialization to clean up inconsistencies in feature options
     function cleanupFeatureOptions() {
         // Initialize all features with appropriate options
-        features.forEach(feature => {
+        reactiveFeatures.forEach(feature => {
             if (!currentFeatureOptions[feature.id]) {
                 currentFeatureOptions[feature.id] = {};
             }
@@ -1106,9 +1089,6 @@
         });
     }
     
-    // Force features array to be reactive
-    let featuresForRendering = [...features];
-    
     // Component lifecycle
     // Initialize feature groups
     function initializeFeatureGroups() {
@@ -1116,9 +1096,13 @@
             currentLanguage: standardTag 
         });
         
+        // Initialize the canonical order once during setup
+        const canonicalOrder = reactiveFeatures.map(f => f.id);
+        featureGroupStore.initializeCanonicalOrder(canonicalOrder);
+        
         // First, handle existing features to ensure they're visible
         // This ensures all feature cards are created correctly first
-        for (let feature of features) {
+        for (let feature of reactiveFeatures) {
             // Include selective transliteration regardless of its label (which changes based on language)
             const isSubtitleFeature = feature.id === 'subtitleRomanization' || 
                                       feature.id === 'selectiveTransliteration' || 
@@ -1259,7 +1243,7 @@
         // Sync happens later during initialization - no need to do it here
         
         // Update subtitle features with shared options
-        const subtitleFeatures = features.filter(f => 
+        const subtitleFeatures = reactiveFeatures.filter(f => 
             ['subtitleRomanization', 'selectiveTransliteration', 'subtitleTokenization'].includes(f.id));
             
         subtitleFeatures.forEach(feature => {
@@ -1353,6 +1337,11 @@
             currentSummaryModels = value;
         });
         
+        // Subscribe to features store for reactivity
+        featuresUnsubscribe = featuresStore.subscribe(value => {
+            reactiveFeatures = value;
+        });
+        
         // Subscribe to LLM state changes
         llmStateUnsubscribe = llmStateStore.subscribe(state => {
             logger.trace('featureSelector', 'LLM state updated:', state?.globalState);
@@ -1395,20 +1384,15 @@
                             logger.debug('featureSelector', `Set default model to: ${currentFeatureOptions.condensedAudio.summaryModel}`);
                             
                             // Update the model dropdown choices
-                            const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
-                            if (condensedAudioFeature && condensedAudioFeature.options.summaryModel) {
-                                condensedAudioFeature.options.summaryModel.choices = [...providerModelsMap[providers.suggested]];
-                            }
+                            updateFeatureChoices('condensedAudio', 'summaryModel', providerModelsMap[providers.suggested] || []);
                         }
                     }
                     
                     // Force reactivity update to refresh dropdowns
                     currentFeatureOptions = {...currentFeatureOptions};
-                    // Also refresh the reactive features array
-                    featuresForRendering = [...features];
                     
                     // Additional force update for the features array itself
-                    const condensedAudioFeature = features.find(f => f.id === 'condensedAudio');
+                    const condensedAudioFeature = reactiveFeatures.find(f => f.id === 'condensedAudio');
                     if (condensedAudioFeature) {
                         logger.debug('FeatureSelector', 'Current provider choices', { 
                             choices: condensedAudioFeature.options.summaryProvider.choices 
@@ -1501,7 +1485,7 @@
             }
             
             // Initialize canonical feature order from feature definitions
-            const canonicalOrder = features.map(f => f.id);
+            const canonicalOrder = reactiveFeatures.map(f => f.id);
             featureGroupStore.initializeCanonicalOrder(canonicalOrder);
             logger.debug('FeatureSelector', 'Initialized canonical feature order', { canonicalOrder });
             
@@ -1612,6 +1596,10 @@
         
         if (summaryModelsUnsubscribe) {
             summaryModelsUnsubscribe();
+        }
+        
+        if (featuresUnsubscribe) {
+            featuresUnsubscribe();
         }
         
         // Clean up error store subscription
@@ -1797,7 +1785,7 @@
     <!-- Feature cards container - only rendered after data is fully loaded -->
     <div class="space-y-4 overflow-visible">
         {#if isInitialDataLoaded}
-            {#each featuresForRendering.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
+            {#each reactiveFeatures.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
                 <div 
                     in:fly={{ 
                         x: 400,
