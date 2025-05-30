@@ -175,9 +175,14 @@ export class Logger {
         this._evtListeners.push(() => {
             window.removeEventListener('beforeunload', unloadHandler);
         });
-        this.info('logger', 'Logger initialized', {
+        // Log initialization with global context
+        console.info('%c[logger]', 'color: #4caf50; font-weight: normal;', 'Logger initialized with global context:', {
             developerMode: this._cfg.devMode,
-            minLevel: Lvl.INFO
+            minLevel: 'INFO',
+            userAgent: this._gCtx.userAgent,
+            viewport: this._gCtx.viewport,
+            sessionId: this._gCtx.sessionId,
+            appVersion: this._gCtx.appVersion || 'dev'
         });
     }
 
@@ -348,6 +353,22 @@ export class Logger {
         this.info('user', `User action: ${action}`, details);
     }
 
+    private _filterGlobalCtx(ctx?: Record<string, any>): Record<string, any> | undefined {
+        if (!ctx) return undefined;
+        
+        // Filter out global context fields
+        const globalKeys = new Set(['userAgent', 'viewport', 'timestamp', 'sessionId', 'appVersion']);
+        const filtered: Record<string, any> = {};
+        
+        for (const [key, value] of Object.entries(ctx)) {
+            if (!globalKeys.has(key)) {
+                filtered[key] = value;
+            }
+        }
+        
+        return Object.keys(filtered).length > 0 ? filtered : undefined;
+    }
+
     beginBatch(): void {
         if (this._batLogs.length > 0) {
             this.flushBatch();
@@ -444,7 +465,9 @@ export class Logger {
     }
 
     private _buildCtx(localContext?: Record<string, any>): Record<string, any> {
-        const context = { ...this._gCtx };
+        const context: Record<string, any> = {};
+        
+        // Only add operation context if present
         if (this._actOp) {
             const opData = this._opCtxs.get(this._actOp);
             if (opData?.context) {
@@ -452,10 +475,14 @@ export class Logger {
                 context.operationElapsedMs = Date.now() - opData.startTime;
             }
         }
+        
+        // Add local context if provided
         if (localContext) {
             Object.assign(context, localContext);
         }
-        return context;
+        
+        // Return undefined if no context to avoid sending empty objects
+        return Object.keys(context).length > 0 ? context : {};
     }
 
     private _conOut(e: LEntry): void {
@@ -463,7 +490,8 @@ export class Logger {
             return;
         }
         const pfx = `[${e.comp}]`;
-        const ctx = e.ctx ? e.ctx : '';
+        // Filter out global context fields
+        const ctx = this._filterGlobalCtx(e.ctx);
         let mth = 'log';
         let stl = '';
         switch (e.lvl) {
@@ -474,7 +502,11 @@ export class Logger {
             case Lvl.ERROR: mth = 'error'; stl = 'color: #f44336; font-weight: bold;'; break;
             case Lvl.CRITICAL: mth = 'error'; stl = 'color: #b71c1c; font-weight: bold; font-size: 1.1em;'; break;
         }
-        console[mth](`%c${pfx}`, stl, e.msg, ctx);
+        if (ctx && Object.keys(ctx).length > 0) {
+            console[mth](`%c${pfx}`, stl, e.msg, ctx);
+        } else {
+            console[mth](`%c${pfx}`, stl, e.msg);
+        }
         if (e.stack && e.lvl >= Lvl.ERROR) {
             console.groupCollapsed('Stack trace');
             console.error(e.stack);
