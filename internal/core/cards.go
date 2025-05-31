@@ -119,6 +119,9 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 
 	// Launch bulk of app logic: supervisor
 	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs || tsk.Mode == Condense {
+		// Check if we can skip WAV extraction due to existing concatenated file
+		tsk.CheckConcatenatedWAV()
+		
 		// For Condense mode, we don't need to write TSV output, just extract WAV segments
 		if tsk.Mode == Condense {
 			tsk.Handler.ZeroLog().Info().Msg("Running in Condense mode - extracting audio segments only")
@@ -135,13 +138,13 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 				if tsk.SeparationLib == "" {
 					procErr = tsk.Handler.Log(Warn, AbortTask, "Cannot create enhanced track: No separation library specified for Condense mode with enhanced track option.")
 					if procErr != nil { 
-						return procErr // Abort this task
+						return procErr
 					}
 				} else {
 					// Process audio enhancement as an auxiliary feature for Condense mode
 					if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
 						// Error is already logged by processAudioEnhancement or its callees
-						return procErr // Abort this task
+						return procErr
 					}
 				}
 			}
@@ -184,7 +187,7 @@ goodEnd:
 				// This is a critical error for the requested feature
 				procErr = tsk.Handler.LogErr(err, AbortTask, fmt.Sprintf("Failed to create media output directory for condensed audio: %s", mediaOutDir))
 				if procErr != nil { 
-					return procErr // Abort this task
+					return procErr
 				}
 				// Continue processing even if condensed audio creation fails
 			} else {
@@ -193,7 +196,7 @@ goodEnd:
 						// This is a critical error - we need TargSubFile for outputBase
 						procErr = tsk.Handler.Log(Error, AbortTask, "Cannot generate condensed audio: TargSubFile is not set, cannot determine output base.")
 						if procErr != nil { 
-							return procErr // Abort this task
+							return procErr
 						}
 					}
 					
@@ -203,32 +206,37 @@ goodEnd:
 						Str("MediaPrefix", tsk.MediaPrefix).
 						Msg("MediaPrefix set for Translit + WantCondensedAudio")
 					
-					tsk.Handler.ZeroLog().Info().Msg("Extracting WAV segments for condensed audio (auxiliary output)...")
-				
-				// Extract WAV segments for each subtitle item
-				for _, foreignItem := range tsk.TargSubs.Items {
-					select {
-					case <-ctx.Done():
-						tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "Condensed audio WAV extraction canceled by user")
-						goto mergeOutputs
-					default:
-						_, err := media.ExtractAudio("wav", tsk.UseAudiotrack,
-							time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
-							tsk.MediaSourceFile, tsk.MediaPrefix, false) // dryRun = false
-						if err != nil && !os.IsExist(err) {
-							tsk.Handler.ZeroLog().Error().Err(err).
-								Str("time", timePosition(foreignItem.StartAt)).
-								Msg("Failed to extract WAV segment for condensed audio")
+					// Check if we can skip WAV extraction due to existing concatenated file
+					tsk.CheckConcatenatedWAV()
+					
+					if !tsk.SkipWAVExtraction {
+						tsk.Handler.ZeroLog().Info().Msg("Extracting WAV segments for condensed audio (auxiliary output)...")
+					
+						// Extract WAV segments for each subtitle item
+						for _, foreignItem := range tsk.TargSubs.Items {
+							select {
+							case <-ctx.Done():
+								tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "Condensed audio WAV extraction canceled by user")
+								goto mergeOutputs
+							default:
+								_, err := media.ExtractAudio("wav", tsk.UseAudiotrack,
+									time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
+									tsk.MediaSourceFile, tsk.MediaPrefix, false) // dryRun = false
+								if err != nil && !os.IsExist(err) {
+									tsk.Handler.ZeroLog().Error().Err(err).
+										Str("time", timePosition(foreignItem.StartAt)).
+										Msg("Failed to extract WAV segment for condensed audio")
+								}
+							}
 						}
 					}
-				}
 				
 				// Call concatenation to create the final condensed audio file
 				tsk.Handler.ZeroLog().Info().Msg("Creating condensed audio file (auxiliary output)...")
 				if err := tsk.ConcatWAVsToAudio("CONDENSED"); err != nil {
 					procErr = tsk.Handler.LogErr(err, AbortTask, "Failed to create condensed audio file as part of Translit mode.")
 					if procErr != nil {
-						return procErr // Abort this task
+						return procErr
 					}
 				}
 			}

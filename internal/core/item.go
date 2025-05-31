@@ -75,12 +75,20 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 	
 	// Extract WAV for condensed audio if needed
 	if tsk.Mode == Condense || tsk.WantCondensedAudio {
-		// CAVEAT: Offset MUST be 0 to avoid duplicating audio at junctions of adjascent sublines
-		_, errWAV = media.ExtractAudio("wav", tsk.UseAudiotrack,
-			time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
-			tsk.MediaSourceFile, tsk.MediaPrefix, false)
-		if errWAV != nil && !errors.Is(errWAV, fs.ErrExist) {
-			tsk.Handler.ZeroLog().Error().Err(errWAV).Msg("can't extract wav audio")
+		// Check if we should skip WAV extraction (concatenated file already exists)
+		if !tsk.SkipWAVExtraction {
+			// CAVEAT: Offset MUST be 0 to avoid duplicating audio at junctions of adjascent sublines
+			_, errWAV = media.ExtractAudio("wav", tsk.UseAudiotrack,
+				time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
+				tsk.MediaSourceFile, tsk.MediaPrefix, false)
+			if errWAV != nil && !errors.Is(errWAV, fs.ErrExist) {
+				tsk.Handler.ZeroLog().Error().Err(errWAV).Msg("can't extract wav audio")
+			}
+		} else {
+			// Mark as already done since we're skipping extraction
+			tsk.Handler.ZeroLog().Trace().
+				Int("idx", indexedSub.Index).
+				Msg("Skipping WAV extraction - concatenated file already exists")
 		}
 	}
 
@@ -253,17 +261,33 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 	}
 	defer os.Remove(concatFile)
 
-	tempWavFile := tsk.MediaPrefix + ".concatenated.wav"
-
-	if err := media.RunFFmpegConcat(concatFile, tempWavFile); err != nil {
-		tsk.Handler.ZeroLog().Error().Err(err).
-			Str("concatFile", concatFile).
-			Str("outputWav", tempWavFile).
-			Msg("Failed to concatenate WAV files")
-		_ = os.Remove(tempWavFile)
-		return err
+	// Create a unique temp file name based on the media prefix
+	// This allows reuse across runs with different output formats
+	tempBaseName := path.Base(tsk.MediaPrefix) + ".concatenated.wav"
+	tempWavFile := filepath.Join(os.TempDir(), tempBaseName)
+	
+	// Check if concatenated WAV already exists in temp
+	if _, err := os.Stat(tempWavFile); err == nil {
+		tsk.Handler.ZeroLog().Info().
+			Str("tempWavFile", tempWavFile).
+			Msg("Found existing concatenated WAV file in temp, reusing it")
+	} else {
+		// Need to concatenate the WAV files
+		tsk.Handler.ZeroLog().Debug().
+			Str("tempWavFile", tempWavFile).
+			Msg("Creating concatenated WAV file in temp directory")
+			
+		if err := media.RunFFmpegConcat(concatFile, tempWavFile); err != nil {
+			tsk.Handler.ZeroLog().Error().Err(err).
+				Str("concatFile", concatFile).
+				Str("outputWav", tempWavFile).
+				Msg("Failed to concatenate WAV files")
+			_ = os.Remove(tempWavFile)
+			return err
+		}
 	}
-	defer os.Remove(tempWavFile)
+	// Note: We intentionally do NOT defer removal of tempWavFile
+	// to allow reuse in subsequent runs with different formats
 
 	if err := media.RunFFmpegConvert(tempWavFile, out); err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).

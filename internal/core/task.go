@@ -152,6 +152,7 @@ type Task struct {
 	
 	// File handling options
 	IntermediaryFileMode config.IntermediaryFileMode // How to handle intermediary files
+	SkipWAVExtraction    bool // Skip individual WAV extraction if concatenated WAV exists
 	
 	// Subtitle processing options
 	WantTranslit               bool // TODO use len(TranslitTypes) > 0 instead
@@ -478,6 +479,28 @@ func (tsk *Task) DebugVals() string {
 	return pp.Sprintln(cp)
 }
 
+
+// CheckConcatenatedWAV checks if a concatenated WAV file already exists in temp
+// and sets SkipWAVExtraction accordingly. This optimization allows skipping
+// individual WAV segment extraction when re-processing with different output formats.
+func (tsk *Task) CheckConcatenatedWAV() {
+	// Only check if we're in a mode that will create condensed audio
+	if tsk.Mode == Condense || tsk.WantCondensedAudio {
+		tempBaseName := path.Base(tsk.MediaPrefix) + ".concatenated.wav"
+		tempWavFile := filepath.Join(os.TempDir(), tempBaseName)
+		
+		if _, err := os.Stat(tempWavFile); err == nil {
+			tsk.SkipWAVExtraction = true
+			tsk.Handler.ZeroLog().Info().
+				Str("tempWavFile", tempWavFile).
+				Msg("Found existing concatenated WAV file, will skip individual WAV extraction")
+		} else {
+			tsk.Handler.ZeroLog().Debug().
+				Str("tempWavFile", tempWavFile).
+				Msg("No existing concatenated WAV file found, will extract individual segments")
+		}
+	}
+}
 
 func placeholder2345634567() {
 	fmt.Print("")
