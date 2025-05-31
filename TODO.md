@@ -6,7 +6,6 @@ SVG animations: rework state transitions
 
 - condensed audio:
   - watermark model name in lyrics
-  - write concat WAV to tmp for easy retries
   - backoff requests
 
 .
