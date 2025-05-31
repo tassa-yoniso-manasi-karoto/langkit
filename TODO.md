@@ -16,6 +16,10 @@ SVG animations: rework state transitions
   - write "if ... then features X and Y are unavailable msg"
 
 .
+
+- eta simple stills shows wrong ETA
+
+.
 - mergeInsertLogs calls (2nd check)
 
 .
