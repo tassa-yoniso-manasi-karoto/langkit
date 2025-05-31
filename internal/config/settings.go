@@ -57,6 +57,11 @@ type Settings struct {
 	
 	// File handling settings
 	IntermediaryFileMode IntermediaryFileMode `json:"intermediaryFileMode" mapstructure:"intermediary_file_mode"`
+
+	// WebAssembly settings
+	UseWasm           bool   `json:"useWasm" mapstructure:"use_wasm"`
+	WasmSizeThreshold int    `json:"wasmSizeThreshold" mapstructure:"wasm_size_threshold"`
+	ForceWasmMode     string `json:"forceWasmMode" mapstructure:"force_wasm_mode"`
 }
 
 func GetConfigDir() (string, error) {
@@ -117,6 +122,11 @@ func InitConfig(customPath string) error {
 	
 	// Default intermediary file mode
 	viper.SetDefault("intermediary_file_mode", string(KeepIntermediaryFiles))
+
+	// Default WebAssembly settings
+	viper.SetDefault("use_wasm", true)
+	viper.SetDefault("wasm_size_threshold", 500)
+	viper.SetDefault("force_wasm_mode", "enabled")
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -184,6 +194,11 @@ func SaveSettings(settings Settings) error {
 	
 	// Save file handling settings
 	viper.Set("intermediary_file_mode", string(settings.IntermediaryFileMode))
+
+	// Save WebAssembly settings
+	viper.Set("use_wasm", settings.UseWasm)
+	viper.Set("wasm_size_threshold", settings.WasmSizeThreshold)
+	viper.Set("force_wasm_mode", settings.ForceWasmMode)
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()
