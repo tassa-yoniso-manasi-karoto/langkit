@@ -234,11 +234,36 @@ func (p *GoogleProvider) Complete(ctx context.Context, request CompletionRequest
 			var genaiErr *genai.APIError
 			if errors.As(streamErr, &genaiErr) {
 				Logger.Error().Int("code", genaiErr.Code).Str("status", genaiErr.Status).Msg("Google API error during streaming")
+				// Check for specific error codes
+				if genaiErr.Code == 429 {
+					return CompletionResponse{}, fmt.Errorf("google rate limit exceeded: %w", streamErr)
+				}
 			}
 			return CompletionResponse{}, fmt.Errorf("google stream error: %w", streamErr)
 		}
 
-		finalResponse.Text = fullText.String()
+		// Check for blocked content in streaming response
+		if lastResp != nil && lastResp.PromptFeedback != nil && lastResp.PromptFeedback.BlockReason != "" {
+			Logger.Error().
+				Str("block_reason", string(lastResp.PromptFeedback.BlockReason)).
+				Msg("Google API blocked the streaming request")
+			return CompletionResponse{}, fmt.Errorf("google streaming content generation blocked: %s", lastResp.PromptFeedback.BlockReason)
+		}
+
+		// Check if we got any text from the stream
+		responseText := fullText.String()
+		if strings.TrimSpace(responseText) == "" {
+			var finishReason string
+			if lastResp != nil && len(lastResp.Candidates) > 0 {
+				finishReason = string(lastResp.Candidates[0].FinishReason)
+			}
+			Logger.Error().
+				Str("finish_reason", finishReason).
+				Msg("Google API streaming returned empty text content")
+			return CompletionResponse{}, errors.New("google streaming returned empty text in response")
+		}
+
+		finalResponse.Text = responseText
 		if lastResp != nil && len(lastResp.Candidates) > 0 {
 			finalResponse.FinishReason = string(lastResp.Candidates[0].FinishReason)
 		}
@@ -266,7 +291,23 @@ func (p *GoogleProvider) Complete(ctx context.Context, request CompletionRequest
 			return CompletionResponse{}, fmt.Errorf("google content generation: %w", err)
 		}
 
-		if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
+		// Check for blocked content or empty candidates
+		if resp.PromptFeedback != nil && resp.PromptFeedback.BlockReason != "" {
+			Logger.Error().
+				Str("block_reason", string(resp.PromptFeedback.BlockReason)).
+				Msg("Google API blocked the request")
+			return CompletionResponse{}, fmt.Errorf("google content generation blocked: %s", resp.PromptFeedback.BlockReason)
+		}
+
+		if len(resp.Candidates) == 0 {
+			Logger.Error().Msg("Google API returned no candidates")
+			return CompletionResponse{}, errors.New("google returned no response candidates (possible rate limit or quota issue)")
+		}
+
+		if resp.Candidates[0].Content == nil {
+			Logger.Error().
+				Str("finish_reason", string(resp.Candidates[0].FinishReason)).
+				Msg("Google API returned candidate with nil content")
 			return CompletionResponse{}, errors.New("google returned empty response content")
 		}
 
@@ -277,8 +318,18 @@ func (p *GoogleProvider) Complete(ctx context.Context, request CompletionRequest
 			}
 		}
 
+		// Check if the response text is empty after concatenation
+		responseText := fullText.String()
+		if strings.TrimSpace(responseText) == "" {
+			Logger.Error().
+				Str("finish_reason", string(resp.Candidates[0].FinishReason)).
+				Int("part_count", len(resp.Candidates[0].Content.Parts)).
+				Msg("Google API returned empty text content")
+			return CompletionResponse{}, errors.New("google returned empty text in response")
+		}
+
 		response := CompletionResponse{
-			Text:         fullText.String(),
+			Text:         responseText,
 			FinishReason: string(resp.Candidates[0].FinishReason),
 			Model:        modelID,
 			Provider:     p.GetName(),

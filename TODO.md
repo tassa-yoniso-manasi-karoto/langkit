@@ -3,12 +3,6 @@ SVG animations: rework state transitions
 - 🤯 make consistent progress bars between GUI and CLI
 
 .
-
-- condensed audio:
-  - watermark model name in lyrics
-  - backoff requests
-
-.
 - add tlit in TSV/CSV
 
 .
@@ -97,6 +91,7 @@ Looking at the logs, this error is not critical but shows a race condition durin
 
 <hr>
 
+backoff requests using https://github.com/cenkalti/backoff
 
 *future implementations*
 
