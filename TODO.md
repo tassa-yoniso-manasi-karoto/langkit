@@ -23,7 +23,7 @@ SVG animations: rework state transitions
 - mergeInsertLogs calls (2nd check)
 
 .
-- remove useless test files
+- remove useless go test files
 .
 
 - finish theme 

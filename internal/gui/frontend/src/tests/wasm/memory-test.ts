@@ -1,6 +1,6 @@
 // memory-test.ts - Utility to definitively test WebAssembly memory access
 import * as wasmModule from '../../wasm-generated/pkg/log_engine.js';
-import { wasmLogger, WasmLogLevel } from '../../lib/wasm-logger';
+import { logger } from '../../lib/logger';
 
 const MEMORY_TEST_COMPONENT = 'wasm-memory-test';
 
@@ -9,28 +9,28 @@ const MEMORY_TEST_COMPONENT = 'wasm-memory-test';
  * by checking memory access from both JS and Rust sides
  */
 export async function testWasmMemoryAccess(): Promise<void> {
-  wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "=== WebAssembly Memory Access Test Started ===");
+  logger.info(MEMORY_TEST_COMPONENT, "=== WebAssembly Memory Access Test Started ===");
   
   try {
     // Initialize the WASM module using our inlined binary
-    wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Initializing WASM module...");
+    logger.info(MEMORY_TEST_COMPONENT, "Initializing WASM module...");
     const exports = await wasmModule.initializeWithInlinedBinary();
-    wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "WASM initialization complete");
+    logger.info(MEMORY_TEST_COMPONENT, "WASM initialization complete");
     
     // First check: verification through inliner status
     if (typeof wasmModule.get_memory_api_access_status === 'function') {
       const status = wasmModule.get_memory_api_access_status();
-      wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Inliner memory status check", status);
+      logger.info(MEMORY_TEST_COMPONENT, "Inliner memory status check", status);
       
       if (status && status.success === true && status.has_browser_api_access === true) {
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "✅ Inliner reports memory API access is available", {
+        logger.info(MEMORY_TEST_COMPONENT, "✅ Inliner reports memory API access is available", {
           total_bytes: formatBytes(status.total_bytes)
         });
       } else {
-        wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "❌ Inliner reports memory API access is NOT available", status);
+        logger.error(MEMORY_TEST_COMPONENT, "❌ Inliner reports memory API access is NOT available", status);
       }
     } else {
-      wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "Inliner status check function not available");
+      logger.error(MEMORY_TEST_COMPONENT, "Inliner status check function not available");
     }
     
     // Second check: verification through Rust memory usage function
@@ -39,7 +39,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
       
       // First, check if memUsage is a Map
       const isMap = Object.prototype.toString.call(memUsage) === '[object Map]';
-      wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, `Memory usage object type: ${isMap ? 'Map' : 'regular object'}`);
+      logger.info(MEMORY_TEST_COMPONENT, `Memory usage object type: ${isMap ? 'Map' : 'regular object'}`);
       
       // Log keys for Map or Object
       let memKeys: string[] = [];
@@ -49,7 +49,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
         memKeys = memUsage ? Object.keys(memUsage).sort() : [];
       }
       
-      wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Memory usage keys", {
+      logger.info(MEMORY_TEST_COMPONENT, "Memory usage keys", {
         keys: memKeys.join(', '),
         keyCount: memKeys.length,
         objectType: typeof memUsage,
@@ -81,7 +81,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
         }
       }
       
-      wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Memory usage values (all properties)", allProps);
+      logger.info(MEMORY_TEST_COMPONENT, "Memory usage values (all properties)", allProps);
       
       // Convert Map to object for easier handling if needed
       const memoryData = {};
@@ -90,7 +90,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
           memoryData[key] = value;
         });
         
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Memory usage converted from Map to object", {
+        logger.info(MEMORY_TEST_COMPONENT, "Memory usage converted from Map to object", {
           objKeys: Object.keys(memoryData).join(', '),
           totalBytes: memoryData['total_bytes']
         });
@@ -110,7 +110,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
       }
       
       // Finally log the standard expected properties
-      wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Memory usage summary", {
+      logger.info(MEMORY_TEST_COMPONENT, "Memory usage summary", {
         formatted: {
           total_bytes: formatBytes(totalBytes),
           tracked_bytes: formatBytes(trackedBytes)
@@ -125,9 +125,9 @@ export async function testWasmMemoryAccess(): Promise<void> {
       
       // Check if the memory usage reports browser API access
       if (hasApiAccess === true) {
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "✅ Rust reports memory API access is available");
+        logger.info(MEMORY_TEST_COMPONENT, "✅ Rust reports memory API access is available");
       } else {
-        wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "❌ Rust reports memory API access is NOT available", {
+        logger.error(MEMORY_TEST_COMPONENT, "❌ Rust reports memory API access is NOT available", {
           hasApiAccess,
           valueType: typeof hasApiAccess,
           directAccess: isMap ? null : memUsage?.has_browser_api_access,
@@ -135,7 +135,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
         });
       }
     } else {
-      wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "get_memory_usage function not available");
+      logger.error(MEMORY_TEST_COMPONENT, "get_memory_usage function not available");
     }
     
     // Third check: test memory growth
@@ -145,7 +145,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
       
       for (const size of sizes) {
         const sizeBytes = size * 1024 * 1024;
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, `Testing memory growth to ${size}MB...`);
+        logger.info(MEMORY_TEST_COMPONENT, `Testing memory growth to ${size}MB...`);
         
         // Before growth
         const beforeMem = exports.get_memory_usage();
@@ -163,16 +163,16 @@ export async function testWasmMemoryAccess(): Promise<void> {
           beforeTrackedBytes = beforeMem?.tracked_bytes;
         }
         
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Memory before growth (summary)", { 
+        logger.info(MEMORY_TEST_COMPONENT, "Memory before growth (summary)", { 
           total_bytes: formatBytes(beforeTotalBytes),
           used_bytes: formatBytes(beforeTrackedBytes),
           isMap: beforeIsMap
         });
         
         // Attempt growth
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, `Calling ensure_sufficient_memory(${formatBytes(sizeBytes)})`);
+        logger.info(MEMORY_TEST_COMPONENT, `Calling ensure_sufficient_memory(${formatBytes(sizeBytes)})`);
         const success = exports.ensure_sufficient_memory(sizeBytes);
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, `ensure_sufficient_memory returned: ${success}`);
+        logger.info(MEMORY_TEST_COMPONENT, `ensure_sufficient_memory returned: ${success}`);
         
         // After growth
         const afterMem = exports.get_memory_usage();
@@ -192,13 +192,13 @@ export async function testWasmMemoryAccess(): Promise<void> {
         
         // Log results
         if (success) {
-          wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, `Memory growth SUCCESS to ${size}MB`, {
+          logger.info(MEMORY_TEST_COMPONENT, `Memory growth SUCCESS to ${size}MB`, {
             before: formatBytes(beforeTotalBytes),
             after: formatBytes(afterTotalBytes),
             growth: formatBytes((afterTotalBytes || 0) - (beforeTotalBytes || 0))
           });
         } else {
-          wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, `Memory growth FAILED for ${size}MB`, {
+          logger.error(MEMORY_TEST_COMPONENT, `Memory growth FAILED for ${size}MB`, {
             before: formatBytes(beforeTotalBytes),
             after: formatBytes(afterTotalBytes)
           });
@@ -208,16 +208,16 @@ export async function testWasmMemoryAccess(): Promise<void> {
         if (typeof afterTotalBytes === 'number' && typeof beforeTotalBytes === 'number') {
           const bytesGrew = afterTotalBytes > beforeTotalBytes;
           if (bytesGrew) {
-            wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "✅ Memory size actually increased", {
+            logger.info(MEMORY_TEST_COMPONENT, "✅ Memory size actually increased", {
               before: formatBytes(beforeTotalBytes),
               after: formatBytes(afterTotalBytes),
               growth: formatBytes(afterTotalBytes - beforeTotalBytes)
             });
           } else {
-            wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "ℹ️ Memory size unchanged (sufficient memory already available)");
+            logger.info(MEMORY_TEST_COMPONENT, "ℹ️ Memory size unchanged (sufficient memory already available)");
           }
         } else {
-          wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "❌ Cannot compare memory sizes - invalid values", {
+          logger.error(MEMORY_TEST_COMPONENT, "❌ Cannot compare memory sizes - invalid values", {
             beforeTotalBytes,
             afterTotalBytes,
             beforeType: typeof beforeTotalBytes,
@@ -228,7 +228,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
         }
       }
     } else {
-      wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "ensure_sufficient_memory function not available");
+      logger.error(MEMORY_TEST_COMPONENT, "ensure_sufficient_memory function not available");
     }
     
     // Fourth check: test merge operation to verify memory is truly accessible
@@ -262,14 +262,14 @@ export async function testWasmMemoryAccess(): Promise<void> {
 
       // Verify array items are serializable
       const firstA = testArrayA[0];
-      wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Test array structure check", {
+      logger.info(MEMORY_TEST_COMPONENT, "Test array structure check", {
         itemType: typeof firstA,
         itemToString: Object.prototype.toString.call(firstA),
         keys: Object.keys(firstA).join(', '),
         isMap: Object.prototype.toString.call(firstA) === '[object Map]'
       });
       
-      wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Testing merge_insert_logs function with 200 log entries");
+      logger.info(MEMORY_TEST_COMPONENT, "Testing merge_insert_logs function with 200 log entries");
       
       try {
         // Get memory before operation
@@ -289,7 +289,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
                   obj[key] = value;
                 });
               } catch (e) {
-                wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, `Error converting Map: ${e}`);
+                logger.error(MEMORY_TEST_COMPONENT, `Error converting Map: ${e}`);
               }
               return obj;
             }
@@ -302,7 +302,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
         const serializedB = ensureArrayHasNoMaps(testArrayB);
 
         // Perform merge with serialized data
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Calling merge_insert_logs with serialized arrays");
+        logger.info(MEMORY_TEST_COMPONENT, "Calling merge_insert_logs with serialized arrays");
         const resultArray = exports.merge_insert_logs(serializedA, serializedB);
         
         // Get memory after operation
@@ -330,7 +330,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
         const expectedLength = testArrayA.length + testArrayB.length;
         const actualLength = resultArray?.length || 0;
         
-        wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "Merge operation results", {
+        logger.info(MEMORY_TEST_COMPONENT, "Merge operation results", {
           expectedLength,
           actualLength,
           success: actualLength === expectedLength,
@@ -343,9 +343,9 @@ export async function testWasmMemoryAccess(): Promise<void> {
         });
         
         if (actualLength === expectedLength) {
-          wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "✅ Merge operation succeeded with correct array length");
+          logger.info(MEMORY_TEST_COMPONENT, "✅ Merge operation succeeded with correct array length");
         } else {
-          wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "❌ Merge operation failed with incorrect array length");
+          logger.error(MEMORY_TEST_COMPONENT, "❌ Merge operation failed with incorrect array length");
         }
         
         // Check if memory usage increased, which would indicate active tracking
@@ -353,22 +353,22 @@ export async function testWasmMemoryAccess(): Promise<void> {
             typeof beforeTrackedBytes === 'number') {
           const memoryIncreased = afterTrackedBytes > beforeTrackedBytes;
           if (memoryIncreased) {
-            wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "✅ Memory usage tracking is working correctly");
+            logger.info(MEMORY_TEST_COMPONENT, "✅ Memory usage tracking is working correctly");
           } else {
-            wasmLogger.log(WasmLogLevel.WARN, MEMORY_TEST_COMPONENT, "⚠️ Memory usage did not increase after operation");
+            logger.warn(MEMORY_TEST_COMPONENT, "⚠️ Memory usage did not increase after operation");
           }
         }
       } catch (error) {
-        wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "❌ Merge operation failed with exception", {
+        logger.error(MEMORY_TEST_COMPONENT, "❌ Merge operation failed with exception", {
           error: error instanceof Error ? error.message : String(error)
         });
       }
     }
     
-    wasmLogger.log(WasmLogLevel.INFO, MEMORY_TEST_COMPONENT, "=== Memory Test Complete ===");
+    logger.info(MEMORY_TEST_COMPONENT, "=== Memory Test Complete ===");
     
   } catch (error) {
-    wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "Memory test failed with exception", {
+    logger.error(MEMORY_TEST_COMPONENT, "Memory test failed with exception", {
       error: error instanceof Error ? error.message : String(error)
     });
   }
@@ -385,7 +385,7 @@ function formatBytes(bytes: number | undefined): string {
 // Script entry point - if this file is imported directly
 if (import.meta.url === document.currentScript?.getAttribute('src')) {
   testWasmMemoryAccess().catch(err => {
-    wasmLogger.log(WasmLogLevel.ERROR, MEMORY_TEST_COMPONENT, "Unhandled error in memory test", { 
+    logger.error(MEMORY_TEST_COMPONENT, "Unhandled error in memory test", { 
       error: err instanceof Error ? err.message : String(err)
     });
   });
