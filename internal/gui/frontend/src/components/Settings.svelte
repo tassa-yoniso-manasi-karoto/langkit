@@ -385,6 +385,34 @@ import { isDeveloperMode } from '../lib/developerMode';
         }
     });
     
+    // State for delayed backdrop blur
+    let panelBlurVisible = false;
+    let panelBlurReady = false;
+    let backdropBlurReady = false;
+    
+    // Watch for settings modal visibility changes
+    $: if ($showSettings) {
+        panelBlurVisible = false;
+        panelBlurReady = false;
+        backdropBlurReady = false;
+        // Show panel blur element after brief delay (50ms)
+        setTimeout(() => {
+            panelBlurVisible = true;
+        }, 50);
+        // Panel blur enhancement after slide (300ms)
+        setTimeout(() => {
+            panelBlurReady = true;
+        }, 300);
+        // Backdrop blur after panel enhancement (300ms + 300ms transition + 200ms stagger)
+        setTimeout(() => {
+            backdropBlurReady = true;
+        }, 600);
+    } else {
+        panelBlurVisible = false;
+        panelBlurReady = false;
+        backdropBlurReady = false;
+    }
+    
     // Clear interval on component destroy
     onDestroy(() => {
         logger.info('Settings', 'Component unmounting');
@@ -396,16 +424,32 @@ import { isDeveloperMode } from '../lib/developerMode';
 
 {#if $showSettings}
     <div class="settings-modal">
-        <!-- Improved backdrop with more blur and less transparency -->
-        <div class="fixed inset-0 backdrop-blur-lg overflow-y-auto"
-             transition:fade={{ duration: 200 }}>
+        <!-- Backdrop as sibling element with delayed rendering -->
+        {#if backdropBlurReady}
+            <div class="fixed inset-0 backdrop-blur-lg bg-black/30 settings-backdrop"
+                 transition:fade={{ duration: 300 }}
+                 on:click={onClose}></div>
+        {/if}
+        
+        <!-- Settings panel container as separate sibling -->
+        <div class="fixed inset-0 overflow-y-auto settings-panel-container">
             <div class="container mx-auto max-w-2xl p-4 min-h-screen flex items-center"
                  transition:slide={{ duration: 300 }}
                  on:click|stopPropagation>
-                <!-- Improved panel background with less transparency -->
-                <div class="backdrop-blur-3xl rounded-xl shadow-2xl border border-primary/30 w-full 
-                            shadow-settings">
-                    <!-- Header with improved contrast -->
+                <!-- Panel container with siblings for blur and content -->
+                <div class="relative w-full">
+                    <!-- Panel backdrop blur as sibling -->
+                    {#if panelBlurVisible}
+                        <div class="{panelBlurReady ? 'backdrop-blur-3xl' : 'backdrop-blur-lg'} rounded-xl absolute inset-0 
+                                    backdrop-panel-transition panel-blur-layer"
+                             transition:fade={{ duration: 200 }}></div>
+                    {/if}
+                    
+                    <!-- Panel content as sibling -->
+                    <div class="bg-bg-800 rounded-xl shadow-2xl border border-primary/30 w-full relative
+                                shadow-settings will-change-transform panel-content-layer"
+                         style="transform: translateZ(0); contain: layout style paint;">
+                        <!-- Header with improved contrast -->
                     <div class="p-6 border-b border-primary/30 bg-bg-800/50">
                         <div class="flex items-center justify-between">
                             <h2 class="text-xl font-medium text-white flex items-center gap-2">
@@ -421,8 +465,9 @@ import { isDeveloperMode } from '../lib/developerMode';
                         </div>
                     </div>
                     
-                    <!-- Content with improved readability -->
-                    <div class="p-6 space-y-8 max-h-[calc(100vh-16rem)] overflow-y-auto settings-content">
+                    <!-- Content with improved readability and GPU acceleration -->
+                    <div class="p-6 space-y-8 max-h-[calc(100vh-16rem)] overflow-y-auto settings-content will-change-scroll"
+                         style="transform: translateZ(0);">
                         <!-- Language Settings -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
@@ -973,6 +1018,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             Save Changes
                         </button>
                     </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1203,6 +1249,38 @@ import { isDeveloperMode } from '../lib/developerMode';
         box-shadow: 
             0 0 8px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
             inset 0 0 3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2);
+    }
+    
+    /* CSS containment for settings content */
+    .settings-content {
+        contain: layout style paint;
+    }
+    
+    /* Settings backdrop - lower z-index */
+    .settings-backdrop {
+        z-index: calc(var(--z-index-settings-modal) - 1);
+    }
+    
+    /* Settings panel container - higher z-index */
+    .settings-panel-container {
+        z-index: var(--z-index-settings-modal);
+    }
+    
+    /* Panel backdrop blur transition */
+    .backdrop-panel-transition {
+        transition: backdrop-filter 0.3s ease-in-out;
+        -webkit-transition: -webkit-backdrop-filter 0.3s ease-in-out;
+    }
+    
+    /* Panel blur layer - behind content */
+    .panel-blur-layer {
+        z-index: 0;
+        pointer-events: none;
+    }
+    
+    /* Panel content layer - above blur */
+    .panel-content-layer {
+        z-index: 1;
     }
     
     :global(.shadow-input-focus) {

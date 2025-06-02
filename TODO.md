@@ -1,9 +1,18 @@
 - 📌 📌 📌 ADD SVG animations SLIDERS: rework state transitions
-- 📌 📌 📌 settings panel laggy
 
 .
 - 🚧🚧 add tlit in TSV/CSV
 - 🚧🚧 draft word frequency list feature
+
+.
+- write github-actions for builds
+
+.
+
+- don't use trimmed closed captions for summaries
+
+.
+- BROWSE FIXMEs / TODOs IN CODEBASE
 
 .
 -  📌 📌 📌 implement intermediary file mode
