@@ -14,6 +14,44 @@
     let abortedTasksCount = 0;
     let isGlobalAbort = false;
     
+    // Dynamic wave physics values (reactive)
+    let waveIntensity = 4;
+    let waveFrequency = 1;
+    
+    // Dynamic wave path generation
+    function generateWavePath(intensity: number = 4, frequency: number = 1): string {
+        // Original paths:
+        // Progress: "M-160 6 c30 0 58-4 88-4s 58 4 88 4 58-4 88-4 58 4 88 4 v10 h-352z"
+        // Status: "M-160 12 c30 0 58-3 88-3s 58 3 88 3 58-3 88-3 58 3 88 3 v14 h-352z"
+        
+        const baseY = 10;
+        const startY = baseY - intensity;
+        
+        // Scale wave components by frequency
+        const waveUnit = 88 / frequency;
+        const c1 = 30 / frequency;
+        const c2 = 58 / frequency;
+        
+        // We need enough waves to cover the animation range
+        const segments = Math.ceil(500 / waveUnit);
+        
+        let path = `M-160 ${startY}`;
+        
+        // Build the wave pattern
+        for (let i = 0; i < segments; i++) {
+            // Each complete wave cycle
+            path += ` c${c1} 0 ${c2}-${intensity} ${waveUnit}-${intensity}`;
+            path += `s ${c2} ${intensity} ${waveUnit} ${intensity}`;
+        }
+        
+        // Close the path
+        path += ` v10 h-352z`;
+        return path;
+    }
+    
+    // Reactive wave path
+    $: wavePath = generateWavePath(waveIntensity, waveFrequency);
+    
     // Process status text
     let statusText = "Processing Status";
     
@@ -158,9 +196,23 @@
             }
         });
         
+        // Listen for wave physics changes
+        const updateWavePhysics = () => {
+            waveIntensity = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--progress-wave-intensity') || '4');
+            waveFrequency = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--progress-wave-frequency') || '1');
+        };
+        
+        // Initial update
+        updateWavePhysics();
+        
+        // Listen for custom event from DevDashboard
+        const handleWaveUpdate = () => updateWavePhysics();
+        document.addEventListener('progress-wave-update', handleWaveUpdate);
+        
         return () => {
             progressSub();
             logSub();
+            document.removeEventListener('progress-wave-update', handleWaveUpdate);
         };
     });
     
@@ -332,8 +384,10 @@
                           xmlns="http://www.w3.org/2000/svg"
                           xmlns:xlink="http://www.w3.org/1999/xlink">
                          <defs>
-                             <!-- Wave Path (Reduced wave height: -3 instead of -7) -->
-                             <path id="gentle-wave-status" d="M-160 12 c30 0 58-3 88-3s 58 3 88 3 58-3 88-3 58 3 88 3 v14 h-352z" />
+                             <!-- Wave Path (Dynamic based on intensity/frequency) -->
+                             {#key waveIntensity + waveFrequency}
+                             <path id="gentle-wave-status" d={wavePath} />
+                             {/key}
                              <!-- Clip Path using Text. IMPORTANT must redefine clipPath whenever statusText changes -->
                              {#key statusText}
                                  <clipPath id="status-text-clip">
@@ -348,16 +402,16 @@
                              {/key}
                          </defs>
                          <!-- Animated Waves (Clipped by Text) -->
-                         <g class="parallax-progress" style="filter: blur(1.7px);" clip-path="url(#status-text-clip)">
+                         <g class="parallax-progress" style="filter: blur(var(--progress-wave-blur, 1.7px)); opacity: var(--wave-overall-opacity, 1);" clip-path="url(#status-text-clip)">
                               <!-- Background rectangle inside the clip path -->
                               <!-- Make rect much wider than the new viewBox (175) -->
                               <rect x="-100" y="0" width="1500" height="1500" fill="var(--progress-bg-color)" />
                               <!-- Use status-specific wave fills -->
                               <!-- Increased y offset slightly to lower waves -->
                               <use xlink:href="#gentle-wave-status" x="48" y="2" fill="var(--status-wave-1-fill)" />
-                              <use xlink:href="#gentle-wave-status" x="48" y="5" fill="var(--status-wave-2-fill)" />
-                              <use xlink:href="#gentle-wave-status" x="48" y="7" fill="var(--status-wave-3-fill)" />
-                              <use xlink:href="#gentle-wave-status" x="48" y="9" fill="var(--status-wave-4-fill)" />
+                              <use xlink:href="#gentle-wave-status" x="48" y="5" fill="var(--status-wave-2-fill)" style="transform: translateY(calc((var(--wave-offset-multiplier, 1) - 1) * 5px));" />
+                              <use xlink:href="#gentle-wave-status" x="48" y="7" fill="var(--status-wave-3-fill)" style="transform: translateY(calc((var(--wave-offset-multiplier-2, 1) - 1) * 7px));" />
+                              <use xlink:href="#gentle-wave-status" x="48" y="9" fill="var(--status-wave-4-fill)" style="transform: translateY(calc((var(--wave-offset-multiplier-3, 1) - 1) * 9px));" />
                          </g>
                      </svg>
                 {:else}
@@ -448,18 +502,20 @@
                                 <!-- apply svg animation to main bar only, and only if window is not minimized and user is not AFK -->
                                 {#if showWaves && bar.size == 'h-5' && !isWindowMinimized && userActivityState !== 'afk'}
                                     <!-- Layered animated waves SVG -->
-                                    <div class="waves-container" style="filter: blur(1.7px);">
+                                    <div class="waves-container" style="filter: blur(var(--progress-wave-blur, 1.7px));">
                                         <svg class="waves-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
                                              viewBox="0 0 150 10" preserveAspectRatio="none" shape-rendering="auto">
                                             <defs>
-                                                <!-- Adjusted path for ~10px height -->
-                                                <path id="gentle-wave-progress" d="M-160 6 c30 0 58-4 88-4s 58 4 88 4 58-4 88-4 58 4 88 4 v10 h-352z" />
+                                                <!-- Adjusted path for progress bars -->
+                                                {#key waveIntensity + waveFrequency}
+                                                <path id="gentle-wave-progress" d={wavePath} />
+                                                {/key}
                                             </defs>
-                                            <g class="parallax-progress">
+                                            <g class="parallax-progress" style="opacity: var(--wave-overall-opacity, 1);">
                                                 <use xlink:href="#gentle-wave-progress" x="48" y="0" fill="var(--wave-1-fill)" />
-                                                <use xlink:href="#gentle-wave-progress" x="48" y="3" fill="var(--wave-2-fill)" />
-                                                <use xlink:href="#gentle-wave-progress" x="48" y="5" fill="var(--wave-3-fill)" />
-                                                <use xlink:href="#gentle-wave-progress" x="48" y="7" fill="var(--wave-4-fill)" />
+                                                <use xlink:href="#gentle-wave-progress" x="48" y="3" fill="var(--wave-2-fill)" style="transform: translateY(calc((var(--wave-offset-multiplier, 1) - 1) * 3px));" />
+                                                <use xlink:href="#gentle-wave-progress" x="48" y="5" fill="var(--wave-3-fill)" style="transform: translateY(calc((var(--wave-offset-multiplier-2, 1) - 1) * 5px));" />
+                                                <use xlink:href="#gentle-wave-progress" x="48" y="7" fill="var(--wave-4-fill)" style="transform: translateY(calc((var(--wave-offset-multiplier-3, 1) - 1) * 7px));" />
                                             </g>
                                         </svg>
                                     </div>
@@ -574,50 +630,53 @@
     /* State-specific Color Themes (Inverted Wave Colors) */
     .state-normal {
         /* Darker background using primary color */
-        --progress-bg-color: hsl(var(--primary-hue), var(--primary-saturation), calc(var(--primary-lightness) - 10%)); /* Slightly darker background */
-        /* Waves use primary/secondary colors with increased opacity */
-        --wave-1-fill: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5); /* Top wave */
-        --wave-2-fill: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7);
-        --wave-3-fill: hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.8); /* Introduce secondary */
-        --wave-4-fill: hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.9); /* Bottom wave, almost opaque */
-        /* Status text waves (can be same or different - using same for now) */
-        --status-wave-1-fill: var(--wave-1-fill);
-        --status-wave-2-fill: var(--wave-2-fill);
-        --status-wave-3-fill: var(--wave-3-fill);
-        --status-wave-4-fill: var(--wave-4-fill);
+        --progress-bg-color: hsl(var(--primary-hue), var(--primary-saturation), calc(var(--primary-lightness) + var(--progress-bg-darkness, -10%))); /* Configurable darkness */
+        /* Waves use dynamic colors from CSS variables */
+        --wave-1-fill: var(--progress-wave-1-fill, hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5));
+        --wave-2-fill: var(--progress-wave-2-fill, hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7));
+        --wave-3-fill: var(--progress-wave-3-fill, hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.8));
+        --wave-4-fill: var(--progress-wave-4-fill, hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.9));
+        /* Status text waves use the same dynamic fills */
+        --status-wave-1-fill: var(--progress-wave-1-fill, var(--wave-1-fill));
+        --status-wave-2-fill: var(--progress-wave-2-fill, var(--wave-2-fill));
+        --status-wave-3-fill: var(--progress-wave-3-fill, var(--wave-3-fill));
+        --status-wave-4-fill: var(--progress-wave-4-fill, var(--wave-4-fill));
     }
     .state-complete {
-        --progress-bg-color: hsl(var(--completion-hue), var(--completion-saturation), calc(var(--completion-lightness) - 25%));
-        --wave-1-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.5);
-        --wave-2-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.7);
-        --wave-3-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.8);
-        --wave-4-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.9);
-        --status-wave-1-fill: var(--wave-1-fill);
-        --status-wave-2-fill: var(--wave-2-fill);
-        --status-wave-3-fill: var(--wave-3-fill);
-        --status-wave-4-fill: var(--wave-4-fill);
+        --progress-bg-color: hsl(var(--completion-hue), var(--completion-saturation), calc(var(--completion-lightness) + var(--progress-bg-darkness, -10%) - 15%));
+        /* Use default or custom wave fills if available */
+        --wave-1-fill: var(--progress-wave-1-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.5));
+        --wave-2-fill: var(--progress-wave-2-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.7));
+        --wave-3-fill: var(--progress-wave-3-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.8));
+        --wave-4-fill: var(--progress-wave-4-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.9));
+        --status-wave-1-fill: var(--progress-wave-1-fill, var(--wave-1-fill));
+        --status-wave-2-fill: var(--progress-wave-2-fill, var(--wave-2-fill));
+        --status-wave-3-fill: var(--progress-wave-3-fill, var(--wave-3-fill));
+        --status-wave-4-fill: var(--progress-wave-4-fill, var(--wave-4-fill));
     }
     .state-error-soft {
-        --progress-bg-color: hsl(var(--error-soft-hue), var(--error-soft-saturation), calc(var(--error-soft-lightness) - 35%));
-        --wave-1-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.5);
-        --wave-2-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.7);
-        --wave-3-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.8);
-        --wave-4-fill: hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.9);
-        --status-wave-1-fill: var(--wave-1-fill);
-        --status-wave-2-fill: var(--wave-2-fill);
-        --status-wave-3-fill: var(--wave-3-fill);
-        --status-wave-4-fill: var(--wave-4-fill);
+        --progress-bg-color: hsl(var(--error-soft-hue), var(--error-soft-saturation), calc(var(--error-soft-lightness) + var(--progress-bg-darkness, -10%) - 25%));
+        /* Use default or custom wave fills if available */
+        --wave-1-fill: var(--progress-wave-1-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.5));
+        --wave-2-fill: var(--progress-wave-2-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.7));
+        --wave-3-fill: var(--progress-wave-3-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.8));
+        --wave-4-fill: var(--progress-wave-4-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.9));
+        --status-wave-1-fill: var(--progress-wave-1-fill, var(--wave-1-fill));
+        --status-wave-2-fill: var(--progress-wave-2-fill, var(--wave-2-fill));
+        --status-wave-3-fill: var(--progress-wave-3-fill, var(--wave-3-fill));
+        --status-wave-4-fill: var(--progress-wave-4-fill, var(--wave-4-fill));
     }
     .state-error-hard {
-        --progress-bg-color: hsl(var(--error-hard-hue), var(--error-hard-saturation), calc(var(--error-hard-lightness) - 25%));
-        --wave-1-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.5);
-        --wave-2-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.7);
-        --wave-3-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.8);
-        --wave-4-fill: hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.9);
-        --status-wave-1-fill: var(--wave-1-fill);
-        --status-wave-2-fill: var(--wave-2-fill);
-        --status-wave-3-fill: var(--wave-3-fill);
-        --status-wave-4-fill: var(--wave-4-fill);
+        --progress-bg-color: hsl(var(--error-hard-hue), var(--error-hard-saturation), calc(var(--error-hard-lightness) + var(--progress-bg-darkness, -10%) - 15%));
+        /* Use default or custom wave fills if available */
+        --wave-1-fill: var(--progress-wave-1-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.5));
+        --wave-2-fill: var(--progress-wave-2-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.7));
+        --wave-3-fill: var(--progress-wave-3-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.8));
+        --wave-4-fill: var(--progress-wave-4-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.9));
+        --status-wave-1-fill: var(--progress-wave-1-fill, var(--wave-1-fill));
+        --status-wave-2-fill: var(--progress-wave-2-fill, var(--wave-2-fill));
+        --status-wave-3-fill: var(--progress-wave-3-fill, var(--wave-3-fill));
+        --status-wave-4-fill: var(--progress-wave-4-fill, var(--wave-4-fill));
     }
     
     
@@ -728,27 +787,27 @@
     }
     .parallax-progress > use:nth-child(1) {
       animation-delay: -2s;
-      animation-duration: 7s;
+      animation-duration: var(--progress-wave-speed-1, 7s);
     }
     .parallax-progress > use:nth-child(2) {
       animation-delay: -3s;
-      animation-duration: 10s;
+      animation-duration: var(--progress-wave-speed-2, 10s);
     }
     .parallax-progress > use:nth-child(3) {
       animation-delay: -4s;
-      animation-duration: 13s;
+      animation-duration: var(--progress-wave-speed-3, 13s);
     }
     .parallax-progress > use:nth-child(4) {
       animation-delay: -5s;
-      animation-duration: 20s;
+      animation-duration: var(--progress-wave-speed-4, 20s);
     }
 
     @keyframes move-forever {
       0% {
-       transform: translate3d(-90px,0,0);
+       transform: translate3d(calc(-90px * var(--wave-direction, 1)),0,0);
       }
       100% { 
-        transform: translate3d(85px,0,0);
+        transform: translate3d(calc(85px * var(--wave-direction, 1)),0,0);
       }
     }
 
