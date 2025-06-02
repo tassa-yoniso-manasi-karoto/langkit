@@ -82,8 +82,10 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 	// Calculate tasks completed during this session
 	tasksDoneThisSession := e.completedTasks - e.initialProgress
 
-	// If not enough tasks completed in this session OR elapsed time is too short, return no estimate
-	if tasksDoneThisSession < MinimumTasksForSimpleETASession || time.Since(e.startTime) < SimpleETAMinimumElapsed {
+	// If not enough tasks completed in this session OR elapsed time is too short OR progress is too low, return no estimate
+	if tasksDoneThisSession < MinimumTasksForSimpleETASession || 
+		time.Since(e.startTime) < SimpleETAMinimumElapsed ||
+		percentDone < SimpleETAMinimumProgress {
 		return result
 	}
 

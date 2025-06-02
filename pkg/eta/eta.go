@@ -29,7 +29,8 @@ const (
 	SimpleETAPessimismFactor    = 1.05             // 5% pessimism for SimpleETACalculator
 	SimpleETARangeMultiplier    = 1.10             // 10% range for SimpleETACalculator
 	MinBulkProgressElapsed      = 5 * time.Second  // Minimum elapsed time to show ETA for bulk updates
-	MinimumTasksForSimpleETASession = 1           // Minimum tasks completed in current session before showing ETA
+	MinimumTasksForSimpleETASession = 100         // Minimum tasks completed in current session before showing ETA
+	SimpleETAMinimumProgress    = 0.25             // Minimum progress (25%) before showing ETA
 )
 
 // ETAResult represents an ETA calculation with estimate ranges
