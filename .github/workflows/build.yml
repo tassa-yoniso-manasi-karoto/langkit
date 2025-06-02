@@ -1,0 +1,258 @@
+name: Build langkit
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  NODE_OPTIONS: "--max-old-space-size=4096"
+  GO_VERSION: '1.24'
+  NODE_VERSION: '18'
+  WAILS_VERSION: 'v2.9.0'  # Avoiding v2.10+ 
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - name: langkit
+            platform: linux/amd64
+            platform_sanitized: linux-amd64
+            os: ubuntu-22.04  # Pinned for stability with Wails v2.9.0
+          - name: langkit
+            platform: windows/amd64
+            platform_sanitized: windows-amd64
+            os: windows-latest
+          - name: langkit
+            platform: darwin/universal
+            platform_sanitized: darwin-universal
+            os: macos-latest
+    
+    runs-on: ${{ matrix.build.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      # Setup build environment
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          
+      # Install system dependencies
+      - name: Install build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          
+      # Caching
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: internal/gui/frontend/src/wasm -> target
+          
+      - name: Cache Node modules
+        uses: actions/cache@v4
+        with:
+          path: internal/gui/frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('internal/gui/frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+            
+      # Install wasm-pack
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        
+      # Build WASM components with your custom inlining process
+      - name: Build WebAssembly components
+        working-directory: internal/gui/frontend
+        run: |
+          npm install
+          npm run build:wasm
+          
+      # Build CLI binary
+      - name: Build CLI
+        run: |
+          go build -ldflags="-s -w" -o langkit-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/cli
+          
+      # Build GUI with Wails using the action
+      - name: Build GUI with Wails
+        uses: dAppServer/wails-build-action@main
+        with:
+          build-name: ${{ matrix.build.name }}
+          build-platform: ${{ matrix.build.platform }}
+          wails-version: ${{ env.WAILS_VERSION }}
+          go-version: ${{ env.GO_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+          sign: false
+          package: false  # We'll handle packaging ourselves
+          app-working-directory: "."
+          # Let the action handle webkit2_41 tag automatically
+          
+      # Package both CLI and GUI together
+      - name: Package distribution
+        shell: bash
+        run: |
+          set -e  # Exit on error
+          
+          mkdir -p dist
+          
+          # Copy CLI
+          if ls langkit-cli* 1> /dev/null 2>&1; then
+            cp langkit-cli* dist/
+          else
+            echo "Warning: CLI binary not found"
+          fi
+          
+          # Copy GUI based on platform
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            # Copy main executable
+            if ls build/bin/*.exe 1> /dev/null 2>&1; then
+              cp build/bin/*.exe dist/
+            else
+              echo "Error: Windows executable not found"
+              exit 1
+            fi
+            # Copy installer if it exists
+            if ls build/bin/*-installer.exe 1> /dev/null 2>&1; then
+              cp build/bin/*-installer.exe dist/
+            fi
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # Copy app bundle
+            if ls build/bin/*.app 1> /dev/null 2>&1; then
+              cp -r build/bin/*.app dist/
+            else
+              echo "Error: macOS app bundle not found"
+              exit 1
+            fi
+            # Copy pkg installer if it exists
+            if ls build/bin/*.pkg 1> /dev/null 2>&1; then
+              cp build/bin/*.pkg dist/
+            fi
+            # Copy app.zip if it exists
+            if ls build/bin/*.app.zip 1> /dev/null 2>&1; then
+              cp build/bin/*.app.zip dist/
+            fi
+          else
+            # Linux - copy all executables
+            if ls build/bin/* 1> /dev/null 2>&1; then
+              cp build/bin/* dist/
+            else
+              echo "Error: Linux binaries not found"
+              exit 1
+            fi
+          fi
+          
+          # Determine version name for README
+          VERSION_NAME=""
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION_NAME="${{ github.ref_name }}"
+          else
+            # Use branch name + short SHA for dev builds
+            BRANCH_NAME="${{ github.ref_name }}"
+            SHORT_SHA="${{ github.sha }}"
+            SHORT_SHA="${SHORT_SHA:0:7}"
+            VERSION_NAME="dev-${BRANCH_NAME}-${SHORT_SHA}"
+          fi
+          
+          # Create a README for the distribution
+          cat > dist/README.txt << EOF
+          # langkit ${VERSION_NAME}
+          
+          ## Requirements:
+          - FFmpeg v6 or higher (dev builds preferred)
+          - MediaInfo
+          - Replicate API token (for some features)
+          
+          ## Usage:
+          CLI: Run langkit-cli (or langkit-cli.exe on Windows)
+          GUI: Run langkit (or langkit.exe on Windows)
+          
+          ## Platform: ${{ matrix.build.platform }}
+          Build date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          EOF
+          
+      # Upload artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: langkit-${{ matrix.build.platform_sanitized }}-${{ github.sha }}
+          path: dist/*
+          
+  # Create release if this is a tag
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: langkit-*
+          
+      - name: Organize release files
+        run: |
+          # Create directories for each platform
+          mkdir -p release-files
+          
+          # Move all downloaded files to release-files, preserving platform organization
+          for dir in langkit-*/; do
+            if [ -d "$dir" ]; then
+              platform=$(basename "$dir" | sed 's/-[^-]*$//')
+              cp -r "$dir"* release-files/
+            fi
+          done
+          
+          # List what we have for debugging
+          echo "Release files:"
+          ls -la release-files/
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          draft: false
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          generate_release_notes: true
+          body: |
+            ## Installation
+            
+            1. Download the appropriate files for your platform
+            2. Ensure you have the required runtime dependencies:
+               - FFmpeg v6+ (dev builds recommended)
+               - MediaInfo
+               - Replicate API token (for voice enhancement and STT features)
+            
+            ## What's included
+            
+            - `langkit-cli` - Command line interface
+            - `langkit` - GUI application
+            - Platform-specific installers (where applicable)
+            
+            ## Platforms
+            
+            - **Linux (amd64)**: Download files ending in `-linux-amd64`
+            - **Windows (amd64)**: Download files ending in `-windows-amd64`
+            - **macOS (universal)**: Download files ending in `-darwin-universal` (Intel + Apple Silicon)
+            
+            See the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#readme) for detailed usage instructions.
