@@ -1,29 +1,28 @@
-SVG animations: rework state transitions
-
-- 🤯 make consistent progress bars between GUI and CLI
-
-.
-- add tlit in TSV/CSV
+- 📌 📌 📌 ADD SVG animations SLIDERS: rework state transitions
+- 📌 📌 📌 settings panel laggy
 
 .
-- guarantee all settings in Settings panel work
-  - implement intermediary file mode
+- 🚧🚧 add tlit in TSV/CSV
+- 🚧🚧 draft word frequency list feature
+
+.
+-  📌 📌 📌 implement intermediary file mode
 
 .
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
   - use ExternalLink
-  - write "if ... then features X and Y are unavailable msg"
+  - 📌 📌 📌write "if ... then features X and Y are unavailable msg"
 
 .
-
-- eta simple stills shows wrong ETA
+- 📌 📌 📌 eta simple stills shows wrong ETA
 
 .
-- mergeInsertLogs calls (2nd check)
+- 📌 📌 📌 test translit provider manager
 
 .
 - remove useless go test files
+
 .
 
 - finish theme 
@@ -39,6 +38,7 @@ SVG animations: rework state transitions
 
 - have claude scan for perf improvemnts / optimizations
 - manual GUI tests
+  - make consistent progress bars between GUI and CLI
   - double check translateReq2Tsk against DEV.md
   - watch for combinations that should spawn an error and disallow processing:
     - no docker but japanese transliteration selected
@@ -110,8 +110,6 @@ backoff requests using https://github.com/cenkalti/backoff
 
 - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
-
-- word freq lists
 
 <hr>
 
