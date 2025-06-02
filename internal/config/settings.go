@@ -57,6 +57,7 @@ type Settings struct {
 	
 	// File handling settings
 	IntermediaryFileMode IntermediaryFileMode `json:"intermediaryFileMode" mapstructure:"intermediary_file_mode"`
+	DeleteResumptionFiles bool               `json:"deleteResumptionFiles" mapstructure:"delete_resumption_files"`
 
 	// WebAssembly settings
 	UseWasm           bool   `json:"useWasm" mapstructure:"use_wasm"`
@@ -122,6 +123,7 @@ func InitConfig(customPath string) error {
 	
 	// Default intermediary file mode
 	viper.SetDefault("intermediary_file_mode", string(KeepIntermediaryFiles))
+	viper.SetDefault("delete_resumption_files", false)
 
 	// Default WebAssembly settings
 	viper.SetDefault("use_wasm", true)
@@ -194,6 +196,7 @@ func SaveSettings(settings Settings) error {
 	
 	// Save file handling settings
 	viper.Set("intermediary_file_mode", string(settings.IntermediaryFileMode))
+	viper.Set("delete_resumption_files", settings.DeleteResumptionFiles)
 
 	// Save WebAssembly settings
 	viper.Set("use_wasm", settings.UseWasm)

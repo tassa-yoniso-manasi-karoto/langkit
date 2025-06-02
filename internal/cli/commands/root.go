@@ -159,6 +159,8 @@ func initCommandsWithSettings() {
 	RootCmd.PersistentFlags().String("intermediary-files", intermediaryMode, 
 		"How to handle intermediary files: keep (original quality),\n"+
 		"recompress (save space), or delete (maximum space savings)")
+	RootCmd.PersistentFlags().Bool("delete-resumption-files", false,
+		"Also delete TSV/CSV files used for session resumption")
 	
 	subs2cardsCmd.PersistentFlags().Int("w", 1000, "maximum width of screenshot")
 	subs2cardsCmd.PersistentFlags().Int("h", 562, "maximum height of screenshot")

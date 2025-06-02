@@ -15,16 +15,10 @@
 - BROWSE FIXMEs / TODOs IN CODEBASE
 
 .
--  📌 📌 📌 implement intermediary file mode
-
-.
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
   - use ExternalLink
   - 📌 📌 📌write "if ... then features X and Y are unavailable msg"
-
-.
-- 📌 📌 📌 eta simple stills shows wrong ETA
 
 .
 - 📌 📌 📌 test translit provider manager

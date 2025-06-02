@@ -60,6 +60,16 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.ogg")
 	VoiceFile := audioPrefix + langkitMadeVocalsOnlyMarker(tsk.SeparationLib) + extPerProvider[tsk.SeparationLib]
 	
+	// Check if a recompressed version exists (from previous run with recompress mode)
+	ext := filepath.Ext(VoiceFile)
+	recompressedVoiceFile := strings.TrimSuffix(VoiceFile, ext) + ".RECOMPRESSED.opus"
+	if _, err := os.Stat(recompressedVoiceFile); err == nil {
+		tsk.Handler.ZeroLog().Info().
+			Str("recompressed", recompressedVoiceFile).
+			Msg("Using existing recompressed voice file")
+		VoiceFile = recompressedVoiceFile
+	}
+	
 	tsk.Handler.ZeroLog().Debug().
 		Str("originalAudio", OriginalAudio).
 		Str("vocalsFile", VoiceFile).
@@ -135,6 +145,9 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		// Must write to disk so that it can be reused if ft error
 		if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("File of separated vocals couldn't be written.")
+		} else if tsk.fileManager != nil {
+			// Register the voice file with the file manager for optional cleanup
+			tsk.fileManager.RegisterFile(VoiceFile, "audio")
 		}
 	} else {
 		tsk.Handler.ZeroLog().Info().Msg("Previously separated vocals audio was found and will be reused.")

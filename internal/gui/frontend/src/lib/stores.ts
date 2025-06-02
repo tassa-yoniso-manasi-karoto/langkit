@@ -39,6 +39,7 @@ type Settings = {
     
     // File handling settings
     intermediaryFileMode?: IntermediaryFileMode;
+    deleteResumptionFiles?: boolean;
 };
 
 /* these values are irrelevant, only the default values of the backend matter */
@@ -75,7 +76,8 @@ const initSettings: Settings = {
     eventThrottling: { enabled: true, minInterval: 0, maxInterval: 250 }, // Default object
     convertValues: false,    // Assuming default
     // Default file handling settings
-    intermediaryFileMode: 'keep'
+    intermediaryFileMode: 'keep',
+    deleteResumptionFiles: false
 };
 
 type showSettings = boolean;

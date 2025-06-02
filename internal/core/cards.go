@@ -62,6 +62,13 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		return procErr
 	}
 	
+	// Initialize the intermediary file manager
+	tsk.fileManager = NewIntermediaryFileManager(
+		tsk.IntermediaryFileMode,
+		tsk.Handler,
+		tsk.DeleteResumptionFiles,
+	)
+	
 	if tsk.Mode != Enhance {
 		// Handle subtitle detection and language determination
 		if procErr := tsk.setupSubtitles(ctx, reporter); procErr != nil {
@@ -267,6 +274,20 @@ mergeOutputs:
 			Bool("mergeOutputFiles", tsk.MergeOutputFiles).
 			Int("outputFilesCount", len(tsk.OutputFiles)).
 			Msg("Skipping merge outputs - not part of merge group or no files to merge")
+	}
+
+	// Process intermediary files according to the configured mode
+	if tsk.fileManager != nil {
+		tsk.Handler.ZeroLog().Debug().Msg("Processing intermediary files")
+		tsvFile := tsk.outputFile()
+		if err := tsk.fileManager.ProcessFiles(tsvFile); err != nil {
+			tsk.Handler.ZeroLog().Warn().Err(err).Msg("Error processing intermediary files")
+		}
+		
+		// Clean up empty media directory if all files were deleted
+		if tsk.Mode != Enhance && tsk.Mode != Translit {
+			tsk.fileManager.CleanupMediaDirectory(tsk.mediaOutputDir())
+		}
 	}
 
 	tsk.Handler.ZeroLog().Info().Msg("Processing completed")

@@ -152,7 +152,8 @@ type Task struct {
 	
 	// File handling options
 	IntermediaryFileMode config.IntermediaryFileMode // How to handle intermediary files
-	SkipWAVExtraction    bool // Skip individual WAV extraction if concatenated WAV exists
+	DeleteResumptionFiles bool                       // Whether to delete TSV/CSV resumption files
+	SkipWAVExtraction    bool                        // Skip individual WAV extraction if concatenated WAV exists
 	
 	// Subtitle processing options
 	WantTranslit               bool // TODO use len(TranslitTypes) > 0 instead
@@ -169,6 +170,9 @@ type Task struct {
 	
 	// Browser management for transliteration  
 	managedLauncher      interface{}         // Stores *launcher.Launcher to avoid import cycle
+	
+	// Intermediary file management
+	fileManager          *IntermediaryFileManager
 }
 
 func NewTask(handler MessageHandler) (tsk *Task) {
@@ -210,6 +214,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		
 		// Default file handling settings
 		IntermediaryFileMode: config.KeepIntermediaryFiles,
+		DeleteResumptionFiles: false,
 		
 		// Default output merging settings
 		MergeOutputFiles: false,
@@ -294,6 +299,9 @@ func (tsk *Task) ApplyConfig(settings config.Settings) {
 	if settings.IntermediaryFileMode != "" {
 		tsk.IntermediaryFileMode = settings.IntermediaryFileMode
 	}
+	
+	// Apply delete resumption files setting
+	tsk.DeleteResumptionFiles = settings.DeleteResumptionFiles
 	
 	// FIXME CLI wasn't designed with a default language in config in mind → unknown behavior down the line
 	if settings.TargetLanguage != "" {
@@ -380,10 +388,11 @@ func (tsk *Task) applyCLIFlags(cmd *cobra.Command) {
 	}
 	
 	boolFlags := map[string]*bool{
-		"stt-dub":     &tsk.WantDubs,
-		"translit":    &tsk.WantTranslit,
-		"merge":       &tsk.MergeOutputFiles,
-		"enhance":     &tsk.WantEnhancedTrack,
+		"stt-dub":                &tsk.WantDubs,
+		"translit":               &tsk.WantTranslit,
+		"merge":                  &tsk.MergeOutputFiles,
+		"enhance":                &tsk.WantEnhancedTrack,
+		"delete-resumption-files": &tsk.DeleteResumptionFiles,
 	}
 	
 	// Special case for "offset" which needs conversion to time.Duration
