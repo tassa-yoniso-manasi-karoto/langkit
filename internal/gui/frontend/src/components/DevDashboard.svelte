@@ -268,10 +268,11 @@
     
     // Style sub-tabs
     let activeStyleSubTab = 'main';
+    let currentProgressState: 'normal' | 'error_task' | 'error_all' | 'user_cancel' | 'complete' = 'normal';
     
     // Progress Manager wave controls
     let progressWaveControls = {
-        // Wave colors (HSLA)
+        // Normal state wave colors (HSLA)
         wave1Hue: 261,
         wave1Saturation: 90,
         wave1Lightness: 70,
@@ -288,6 +289,40 @@
         wave4Saturation: 100,
         wave4Lightness: 72,
         wave4Alpha: 0.9,
+        // Error task state wave colors
+        errorTaskWave1Hue: 50,
+        errorTaskWave1Saturation: 90,
+        errorTaskWave1Lightness: 75,
+        errorTaskWave1Alpha: 0.5,
+        errorTaskWave2Hue: 50,
+        errorTaskWave2Saturation: 90,
+        errorTaskWave2Lightness: 75,
+        errorTaskWave2Alpha: 0.7,
+        errorTaskWave3Hue: 50,
+        errorTaskWave3Saturation: 90,
+        errorTaskWave3Lightness: 75,
+        errorTaskWave3Alpha: 0.8,
+        errorTaskWave4Hue: 50,
+        errorTaskWave4Saturation: 90,
+        errorTaskWave4Lightness: 75,
+        errorTaskWave4Alpha: 0.9,
+        // Error all state wave colors
+        errorAllWave1Hue: 0,
+        errorAllWave1Saturation: 85,
+        errorAllWave1Lightness: 60,
+        errorAllWave1Alpha: 0.5,
+        errorAllWave2Hue: 0,
+        errorAllWave2Saturation: 85,
+        errorAllWave2Lightness: 60,
+        errorAllWave2Alpha: 0.7,
+        errorAllWave3Hue: 0,
+        errorAllWave3Saturation: 85,
+        errorAllWave3Lightness: 60,
+        errorAllWave3Alpha: 0.8,
+        errorAllWave4Hue: 0,
+        errorAllWave4Saturation: 85,
+        errorAllWave4Lightness: 60,
+        errorAllWave4Alpha: 0.9,
         // Wave physics
         waveIntensity: 4,  // Height of waves
         waveFrequency: 1,  // Density of wave crests
@@ -320,10 +355,33 @@
         const opacity3 = progressWaveControls.wave3Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 2) : 1);
         const opacity4 = progressWaveControls.wave4Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 3) : 1);
         
+        // Normal state wave colors
         root.style.setProperty('--progress-wave-1-fill', `hsla(${progressWaveControls.wave1Hue}, ${progressWaveControls.wave1Saturation}%, ${progressWaveControls.wave1Lightness}%, ${opacity1})`);
         root.style.setProperty('--progress-wave-2-fill', `hsla(${progressWaveControls.wave2Hue}, ${progressWaveControls.wave2Saturation}%, ${progressWaveControls.wave2Lightness}%, ${opacity2})`);
         root.style.setProperty('--progress-wave-3-fill', `hsla(${progressWaveControls.wave3Hue}, ${progressWaveControls.wave3Saturation}%, ${progressWaveControls.wave3Lightness}%, ${opacity3})`);
         root.style.setProperty('--progress-wave-4-fill', `hsla(${progressWaveControls.wave4Hue}, ${progressWaveControls.wave4Saturation}%, ${progressWaveControls.wave4Lightness}%, ${opacity4})`);
+        
+        // Error task state wave colors
+        const errorTaskOpacity1 = progressWaveControls.errorTaskWave1Alpha * progressWaveControls.waveOverallOpacity;
+        const errorTaskOpacity2 = progressWaveControls.errorTaskWave2Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 1) : 1);
+        const errorTaskOpacity3 = progressWaveControls.errorTaskWave3Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 2) : 1);
+        const errorTaskOpacity4 = progressWaveControls.errorTaskWave4Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 3) : 1);
+        
+        root.style.setProperty('--error-task-wave-1-fill', `hsla(${progressWaveControls.errorTaskWave1Hue}, ${progressWaveControls.errorTaskWave1Saturation}%, ${progressWaveControls.errorTaskWave1Lightness}%, ${errorTaskOpacity1})`);
+        root.style.setProperty('--error-task-wave-2-fill', `hsla(${progressWaveControls.errorTaskWave2Hue}, ${progressWaveControls.errorTaskWave2Saturation}%, ${progressWaveControls.errorTaskWave2Lightness}%, ${errorTaskOpacity2})`);
+        root.style.setProperty('--error-task-wave-3-fill', `hsla(${progressWaveControls.errorTaskWave3Hue}, ${progressWaveControls.errorTaskWave3Saturation}%, ${progressWaveControls.errorTaskWave3Lightness}%, ${errorTaskOpacity3})`);
+        root.style.setProperty('--error-task-wave-4-fill', `hsla(${progressWaveControls.errorTaskWave4Hue}, ${progressWaveControls.errorTaskWave4Saturation}%, ${progressWaveControls.errorTaskWave4Lightness}%, ${errorTaskOpacity4})`);
+        
+        // Error all state wave colors
+        const errorAllOpacity1 = progressWaveControls.errorAllWave1Alpha * progressWaveControls.waveOverallOpacity;
+        const errorAllOpacity2 = progressWaveControls.errorAllWave2Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 1) : 1);
+        const errorAllOpacity3 = progressWaveControls.errorAllWave3Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 2) : 1);
+        const errorAllOpacity4 = progressWaveControls.errorAllWave4Alpha * progressWaveControls.waveOverallOpacity * (applyStacking ? Math.pow(progressWaveControls.waveStackingMultiplier, 3) : 1);
+        
+        root.style.setProperty('--error-all-wave-1-fill', `hsla(${progressWaveControls.errorAllWave1Hue}, ${progressWaveControls.errorAllWave1Saturation}%, ${progressWaveControls.errorAllWave1Lightness}%, ${errorAllOpacity1})`);
+        root.style.setProperty('--error-all-wave-2-fill', `hsla(${progressWaveControls.errorAllWave2Hue}, ${progressWaveControls.errorAllWave2Saturation}%, ${progressWaveControls.errorAllWave2Lightness}%, ${errorAllOpacity2})`);
+        root.style.setProperty('--error-all-wave-3-fill', `hsla(${progressWaveControls.errorAllWave3Hue}, ${progressWaveControls.errorAllWave3Saturation}%, ${progressWaveControls.errorAllWave3Lightness}%, ${errorAllOpacity3})`);
+        root.style.setProperty('--error-all-wave-4-fill', `hsla(${progressWaveControls.errorAllWave4Hue}, ${progressWaveControls.errorAllWave4Saturation}%, ${progressWaveControls.errorAllWave4Lightness}%, ${errorAllOpacity4})`);
         
         // Progress bar specific
         root.style.setProperty('--progress-edge-opacity', progressWaveControls.progressEdgeGlow);
@@ -533,6 +591,12 @@
         // Apply initial style controls
         applyStyleControls();
         applyProgressWaveControls();
+        
+        // Listen for progress state changes
+        const handleStateChange = (event: CustomEvent) => {
+            currentProgressState = event.detail.state;
+        };
+        window.addEventListener('progress-state-change', handleStateChange);
 
         // Watch for version changes after component is mounted
         const checkVersion = setInterval(() => {
@@ -547,6 +611,7 @@
 
         return () => {
             clearInterval(checkVersion);
+            window.removeEventListener('progress-state-change', handleStateChange);
         };
     });
 </script>
@@ -1981,7 +2046,18 @@
                             </div>
                         </div>
                         {:else if activeStyleSubTab === 'progress'}
-                        <!-- Progress Manager Wave Controls -->
+                        <!-- Dynamic Wave Controls Based on Current State -->
+                        <div class="mb-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs text-gray-400">Current State:</span>
+                                <span class="text-xs font-semibold {currentProgressState === 'normal' ? 'text-primary' : currentProgressState === 'error_task' ? 'text-yellow-400' : currentProgressState === 'error_all' ? 'text-red-400' : currentProgressState === 'user_cancel' ? 'text-gray-400' : 'text-green-400'}">
+                                    {currentProgressState.replace('_', ' ').toUpperCase()}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        {#if currentProgressState === 'normal' || currentProgressState === 'complete'}
+                        <!-- Normal State Wave Controls -->
                         <div class="control-section">
                             <h5 class="text-xs font-semibold mb-2 opacity-80">Wave 1</h5>
                             <div class="slider-grid">
@@ -2344,6 +2420,747 @@
                                 </div>
                             </div>
                         </div>
+
+                        {:else if currentProgressState === 'error_task'}
+                        <!-- Error Task Wave Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-yellow-400">Error Task - Wave 1</h5>
+                            <div class="slider-grid">
+                                <!-- Only showing Wave 1 and 4 for error states to keep it simple -->
+                                <div class="slider-control">
+                                    <label class="slider-label">Wave 1 Hue: {progressWaveControls.errorTaskWave1Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave1Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave1Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorTaskWave1Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave1Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave1Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorTaskWave1Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave1Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave1Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorTaskWave1Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorTaskWave1Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave1Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error Task Wave 2 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-yellow-400">Error Task - Wave 2</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {progressWaveControls.errorTaskWave2Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave2Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave2Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorTaskWave2Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave2Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave2Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorTaskWave2Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave2Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave2Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorTaskWave2Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorTaskWave2Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave2Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error Task Wave 3 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-yellow-400">Error Task - Wave 3</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {progressWaveControls.errorTaskWave3Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave3Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave3Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorTaskWave3Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave3Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave3Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorTaskWave3Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave3Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave3Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorTaskWave3Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorTaskWave3Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave3Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Error Task Wave 4 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-yellow-400">Error Task - Wave 4</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {progressWaveControls.errorTaskWave4Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave4Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave4Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorTaskWave4Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave4Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave4Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorTaskWave4Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorTaskWave4Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave4Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorTaskWave4Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorTaskWave4Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorTaskWave4Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {:else if currentProgressState === 'error_all'}
+                        <!-- Error All Wave Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-red-400">Error All - Wave 1</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Wave 1 Hue: {progressWaveControls.errorAllWave1Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave1Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave1Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorAllWave1Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave1Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave1Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorAllWave1Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave1Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave1Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorAllWave1Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorAllWave1Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave1Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Error All Wave 2 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-red-400">Error All - Wave 2</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {progressWaveControls.errorAllWave2Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave2Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave2Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorAllWave2Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave2Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave2Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorAllWave2Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave2Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave2Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorAllWave2Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorAllWave2Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave2Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error All Wave 3 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-red-400">Error All - Wave 3</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {progressWaveControls.errorAllWave3Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave3Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave3Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorAllWave3Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave3Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave3Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorAllWave3Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave3Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave3Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorAllWave3Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorAllWave3Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave3Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+
+                        <!-- Error All Wave 4 -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-red-400">Error All - Wave 4</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {progressWaveControls.errorAllWave4Hue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave4Hue}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave4Hue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {progressWaveControls.errorAllWave4Saturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave4Saturation}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave4Saturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {progressWaveControls.errorAllWave4Lightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={progressWaveControls.errorAllWave4Lightness}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave4Lightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Alpha: {progressWaveControls.errorAllWave4Alpha.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={progressWaveControls.errorAllWave4Alpha}
+                                            on:input={applyProgressWaveControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProgressWaveProperty('errorAllWave4Alpha')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+
+                        {:else}
+                        <!-- User Cancel State -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80 text-gray-400">User Cancelled - Static Gradient Only</h5>
+                            <p class="text-xs text-gray-500">Wave animations are disabled in cancel state. The interface shows a static gray gradient instead.</p>
+                        </div>
+                        {/if}
 
                         <!-- Wave Physics -->
                         <div class="control-section">

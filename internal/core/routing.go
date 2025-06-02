@@ -176,8 +176,33 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			"Total media files done...",
 			"h-5",
 		)
-		
+		changed := false
 		for idx, tsk := range tasks {
+			if !changed {
+				rand.Seed(time.Now().UnixNano())
+				i := rand.Intn(10)
+				if idx > 7  &&  i > 5  {
+					return tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortAllTasks, "TEST ABORT ALL")
+					changed = true
+				} else if idx > 4000  && i < 5  {
+					tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortTask, "TEST ABORT ONE")
+					//tsk.Handler.ZeroLog().Error().Err(fmt.Errorf("error itself")).Msg("test simple error")
+					changed = true
+				}
+				time.Sleep(1 * time.Second)
+				if true { //idx < len(tasks)-1 {
+					tsk.Handler.IncrementProgress(
+						"media-bar",
+						1,
+						len(tasks),
+						10,
+						"Processing",
+						"Total media files done...",
+						"h-5",
+					)
+				}
+			}
+			continue
 			reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 				es.CurrentFileIndex = idx
 				es.CurrentFilePath = tsk.MediaSourceFile

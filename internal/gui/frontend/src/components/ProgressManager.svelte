@@ -14,6 +14,31 @@
     let abortedTasksCount = 0;
     let isGlobalAbort = false;
     
+    // Export current display state for DevDashboard
+    export let currentDisplayState: 'normal' | 'error_task' | 'error_all' | 'user_cancel' | 'complete' = 'normal';
+    
+    // Update display state based on conditions
+    $: {
+        if (userCancelled) {
+            currentDisplayState = 'user_cancel';
+        } else if (isGlobalAbort) {
+            currentDisplayState = 'error_all';
+        } else if (abortedTasksCount > 0) {
+            currentDisplayState = 'error_task';
+        } else if (!isProcessing && $progressBars.length === 0) {
+            currentDisplayState = 'complete';
+        } else {
+            currentDisplayState = 'normal';
+        }
+        
+        // Dispatch event for DevDashboard
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('progress-state-change', { 
+                detail: { state: currentDisplayState } 
+            }));
+        }
+    }
+    
     // Dynamic wave physics values (reactive)
     let waveIntensity = 4;
     let waveFrequency = 1;
@@ -656,27 +681,27 @@
     }
     .state-error-soft {
         --progress-bg-color: hsl(var(--error-soft-hue), var(--error-soft-saturation), calc(var(--error-soft-lightness) + var(--progress-bg-darkness, -10%) - 25%));
-        /* Use default or custom wave fills if available */
-        --wave-1-fill: var(--progress-wave-1-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.5));
-        --wave-2-fill: var(--progress-wave-2-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.7));
-        --wave-3-fill: var(--progress-wave-3-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.8));
-        --wave-4-fill: var(--progress-wave-4-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.9));
-        --status-wave-1-fill: var(--progress-wave-1-fill, var(--wave-1-fill));
-        --status-wave-2-fill: var(--progress-wave-2-fill, var(--wave-2-fill));
-        --status-wave-3-fill: var(--progress-wave-3-fill, var(--wave-3-fill));
-        --status-wave-4-fill: var(--progress-wave-4-fill, var(--wave-4-fill));
+        /* Use error-specific wave fills */
+        --wave-1-fill: var(--error-task-wave-1-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.5));
+        --wave-2-fill: var(--error-task-wave-2-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.7));
+        --wave-3-fill: var(--error-task-wave-3-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.8));
+        --wave-4-fill: var(--error-task-wave-4-fill, hsla(var(--error-soft-hue), var(--error-soft-saturation), var(--error-soft-lightness), 0.9));
+        --status-wave-1-fill: var(--error-task-wave-1-fill, var(--wave-1-fill));
+        --status-wave-2-fill: var(--error-task-wave-2-fill, var(--wave-2-fill));
+        --status-wave-3-fill: var(--error-task-wave-3-fill, var(--wave-3-fill));
+        --status-wave-4-fill: var(--error-task-wave-4-fill, var(--wave-4-fill));
     }
     .state-error-hard {
         --progress-bg-color: hsl(var(--error-hard-hue), var(--error-hard-saturation), calc(var(--error-hard-lightness) + var(--progress-bg-darkness, -10%) - 15%));
-        /* Use default or custom wave fills if available */
-        --wave-1-fill: var(--progress-wave-1-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.5));
-        --wave-2-fill: var(--progress-wave-2-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.7));
-        --wave-3-fill: var(--progress-wave-3-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.8));
-        --wave-4-fill: var(--progress-wave-4-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.9));
-        --status-wave-1-fill: var(--progress-wave-1-fill, var(--wave-1-fill));
-        --status-wave-2-fill: var(--progress-wave-2-fill, var(--wave-2-fill));
-        --status-wave-3-fill: var(--progress-wave-3-fill, var(--wave-3-fill));
-        --status-wave-4-fill: var(--progress-wave-4-fill, var(--wave-4-fill));
+        /* Use error-specific wave fills */
+        --wave-1-fill: var(--error-all-wave-1-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.5));
+        --wave-2-fill: var(--error-all-wave-2-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.7));
+        --wave-3-fill: var(--error-all-wave-3-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.8));
+        --wave-4-fill: var(--error-all-wave-4-fill, hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.9));
+        --status-wave-1-fill: var(--error-all-wave-1-fill, var(--wave-1-fill));
+        --status-wave-2-fill: var(--error-all-wave-2-fill, var(--wave-2-fill));
+        --status-wave-3-fill: var(--error-all-wave-3-fill, var(--wave-3-fill));
+        --status-wave-4-fill: var(--error-all-wave-4-fill, var(--wave-4-fill));
     }
     
     
