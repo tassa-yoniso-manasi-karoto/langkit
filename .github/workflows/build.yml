@@ -85,14 +85,26 @@ jobs:
       # Build WASM components with your custom inlining process
       - name: Build WebAssembly components
         working-directory: internal/gui/frontend
-        env:
-          SKIP_WASM_OPT: ${{ matrix.os == 'macos-latest' && 'true' || 'false' }}
+        shell: bash
         run: |
+          echo "Current OS: ${{ matrix.os }}"
+          echo "Current platform: ${{ matrix.build.platform }}"
+          echo "Runner OS: ${{ runner.os }}"
+          
+          # Set SKIP_WASM_OPT for macOS - use runner.os which is more reliable
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            export SKIP_WASM_OPT=true
+            echo "Setting SKIP_WASM_OPT=true for macOS build"
+          else
+            echo "Not macOS, proceeding with normal build"
+          fi
+          
           npm install
           npm run build:wasm
           
       # Build CLI binary
       - name: Build CLI
+        shell: bash
         run: |
           go build -ldflags="-s -w" -o langkit-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/cli
           
@@ -126,7 +138,7 @@ jobs:
           fi
           
           # Copy GUI based on platform
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
             # Copy main executable
             if ls build/bin/*.exe 1> /dev/null 2>&1; then
               cp build/bin/*.exe dist/
@@ -138,7 +150,7 @@ jobs:
             if ls build/bin/*-installer.exe 1> /dev/null 2>&1; then
               cp build/bin/*-installer.exe dist/
             fi
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
             # Copy app bundle
             if ls build/bin/*.app 1> /dev/null 2>&1; then
               cp -r build/bin/*.app dist/
@@ -157,7 +169,7 @@ jobs:
           else
             # Linux - copy all executables
             if ls build/bin/* 1> /dev/null 2>&1; then
-              cp build/bin/* dist/
+              cp -r build/bin/* dist/
             else
               echo "Error: Linux binaries not found"
               exit 1
