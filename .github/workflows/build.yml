@@ -10,9 +10,9 @@ on:
 
 env:
   NODE_OPTIONS: "--max-old-space-size=4096"
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.23'  # Required by dAppServer/wails-build-action
   NODE_VERSION: '18'
-  WAILS_VERSION: 'v2.9.0'  # Avoiding v2.10+ 
+  WAILS_VERSION: 'v2.9.0'  # v2.10+ not supported by the action yet 
 
 jobs:
   build:

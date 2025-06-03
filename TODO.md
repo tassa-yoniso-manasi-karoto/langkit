@@ -1,6 +1,3 @@
-- 📌 📌 📌 ADD SVG animations SLIDERS: rework state transitions
-
-.
 - 🚧🚧 add tlit in TSV/CSV
 - 🚧🚧 draft word frequency list feature
 
