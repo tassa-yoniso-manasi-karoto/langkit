@@ -1,8 +1,8 @@
 module github.com/tassa-yoniso-manasi-karoto/langkit
 
-go 1.24.1
+go 1.23.4
 
-toolchain go1.24.2
+toolchain go1.24.3
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
@@ -23,8 +23,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openai/openai-go v0.1.0-beta.10
 	github.com/replicate/replicate-go v0.26.0
-	github.com/revrost/go-openrouter v0.0.0-20250414052218-c9123df8a97e
-	github.com/rs/zerolog v1.33.0
+	github.com/rs/zerolog v1.34.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/afero v1.12.0
@@ -34,6 +33,7 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250402055055-5169dec2dfb7
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.2-beta
+	github.com/tassa-yoniso-manasi-karoto/go-openrouter v0.0.0-20250603092737-033150d1ff32
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250402043425-6757e4e55314
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.10.0
