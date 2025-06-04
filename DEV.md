@@ -1,4 +1,18 @@
-## Feature selection to internal mode mapping
+## Target Versions
+
+Go 1.23.4 <br>
+Toolchain 1.23.9 (⚠️) <br>
+Wails CLI 2.9.0 (⚠️) <br>
+Wails modules 2.10.1 or latest v2 <br>
+
+> [!NOTE]
+> ⚠️ = most recent version supported by [wails-action](https://github.com/dAppServer/wails-build-action), newer version will fail the build process due to CGo conflicts.
+
+> [!WARNING]
+> The TOOLCHAIN IS AUTORITATIVE FOR THE GO VERSION USED IN THE GH ACTION. <br>You **MUST use go 1.23** for `go mod tidy` otherwise the toolchain will be overwritten to a newer version. <br> <br>
+> In other words, even if go1.23 is specified as go version, the **GH action will use the version specified by the toolchain for the build process** and thus it will fail. (I tried with GOTOOLCHAIN=local but even that got ignored).
+
+## Feature(s) selection to internal mode matrix
 
 Feature selection must be 'translated' into a Task mode. These modes ***for the most part*** correspond to CLI subcommands.
 
