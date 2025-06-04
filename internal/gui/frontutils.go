@@ -196,11 +196,36 @@ func (a *App) ValidateLanguageTag(tagsString string, maxOne bool) LanguageCheckR
 		}
 	}
 
+	if len(nonEmptyTags) == 0 {
+		resp.Error = "no valid tags provided"
+		return resp
+	}
+
+	// For single tag validation, we can use the internal helper
+	if len(nonEmptyTags) == 1 {
+		std, isValid, err := validateLanguageTag(nonEmptyTags[0])
+		if err != nil {
+			resp.Error = err.Error()
+			return resp
+		}
+		return LanguageCheckResponse{
+			IsValid:     isValid,
+			StandardTag: std,
+		}
+	}
+
+	// For multiple tags, use the original logic
 	langs, err := core.ParseLanguageTags(nonEmptyTags)
 	if err != nil {
 		resp.Error = err.Error()
 		return resp
 	}
+	
+	if len(langs) == 0 {
+		resp.Error = "no valid language tags found"
+		return resp
+	}
+	
 	std := langs[0].Part3
 	if langs[0].Subtag != "" {
 		std += "-" + langs[0].Subtag

@@ -44,8 +44,7 @@
         IncrementStatistic,
         CheckDockerAvailability,
         CheckInternetConnectivity,
-        LanguageRequiresDocker,
-        LanguageRequiresInternet
+        GetLanguageRequirements
     } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
     import type { gui } from '../wailsjs/go/models';
@@ -94,9 +93,8 @@
     let defaultTargetLanguage = "";
     let quickAccessLangTag = "";
     
-    // Track whether current language requires special processing
-    let currentLanguageRequiresDocker = false;
-    let currentLanguageRequiresInternet = false;
+    // Track current language requirements
+    let currentLanguageRequirements: gui.LanguageRequirements | null = null;
     
     // Window state tracking
     let isWindowMinimized = false;
@@ -156,26 +154,18 @@
         }
     }
     
-    // Check if current language requires special processing when it changes
+    // Check language requirements when it changes
     $: {
         if (quickAccessLangTag) {
-            // Check Docker requirement
-            LanguageRequiresDocker(quickAccessLangTag).then(requiresDocker => {
-                currentLanguageRequiresDocker = requiresDocker;
-                logger.debug('app', `Language ${quickAccessLangTag} requires Docker: ${requiresDocker}`);
+            GetLanguageRequirements(quickAccessLangTag).then(requirements => {
+                currentLanguageRequirements = requirements;
+                logger.debug('app', 'Language requirements updated', requirements);
             }).catch(error => {
-                logger.error('app', 'Failed to check Docker requirement', { error });
-                currentLanguageRequiresDocker = false;
+                logger.error('app', 'Failed to get language requirements', { error });
+                currentLanguageRequirements = null;
             });
-            
-            // Check Internet requirement
-            LanguageRequiresInternet(quickAccessLangTag).then(requiresInternet => {
-                currentLanguageRequiresInternet = requiresInternet;
-                logger.debug('app', `Language ${quickAccessLangTag} requires Internet: ${requiresInternet}`);
-            }).catch(error => {
-                logger.error('app', 'Failed to check Internet requirement', { error });
-                currentLanguageRequiresInternet = false;
-            });
+        } else {
+            currentLanguageRequirements = null;
         }
     }
     
@@ -349,10 +339,8 @@
                                          selectedFeatures.selectiveTransliteration || 
                                          selectedFeatures.subtitleTokenization;
         
-        // Languages that require Docker for linguistic processing (hardcoded for immediate check)
-        const dockerRequiredLanguages = ['jpn', 'hin', 'mar', 'ben', 'tam', 'tel', 'kan', 'mal', 'guj', 'pan', 'ori', 'urd'];
-        const languageRequiresDocker = quickAccessLangTag && 
-                                     dockerRequiredLanguages.some(lang => quickAccessLangTag.startsWith(lang));
+        // Check if current language requires Docker (from backend requirements)
+        const languageRequiresDocker = currentLanguageRequirements?.requiresDocker || false;
         
         // Only create error if:
         // 1. Docker is not available AND
@@ -386,10 +374,8 @@
                                         selectedFeatures.voiceEnhancing ||
                                         (selectedFeatures.condensedAudio && currentFeatureOptions?.condensedAudio?.enableSummary);
         
-        // Languages that require internet for linguistic processing (hardcoded for immediate check)
-        const internetRequiredLanguages = ['tha', 'jpn', 'hin', 'mar', 'ben', 'tam', 'tel', 'kan', 'mal', 'guj', 'pan', 'ori', 'urd'];
-        const languageRequiresInternet = quickAccessLangTag && 
-                                       internetRequiredLanguages.some(lang => quickAccessLangTag.startsWith(lang));
+        // Check if current language requires Internet (from backend requirements)
+        const languageRequiresInternet = currentLanguageRequirements?.requiresInternet || false;
         
         // Need internet if:
         // 1. AI-powered features are selected OR
@@ -539,60 +525,6 @@
 
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
-        
-        // Check requirements before processing
-        const dockerChecked = $dockerStatusStore.checked;
-        const dockerAvailable = $dockerStatusStore.available;
-        const internetChecked = $internetStatusStore.checked;
-        const internetOnline = $internetStatusStore.online;
-        
-        // Check if subtitle features requiring Docker are selected
-        const needsDocker = selectedFeatures.subtitleRomanization || 
-                          selectedFeatures.selectiveTransliteration || 
-                          selectedFeatures.subtitleTokenization;
-        
-        // Check if language is Japanese or Indic (requires Docker for processing)
-        const isJapanese = quickAccessLangTag && (quickAccessLangTag.startsWith('ja') || quickAccessLangTag.startsWith('jpn'));
-        const indicLanguageCodes = ['hi', 'hin', 'mar', 'ben', 'ta', 'tam', 'te', 'tel', 'kn', 'kan', 'ml', 'mal', 'gu', 'guj', 'pa', 'pan', 'or', 'ori', 'ur', 'urd'];
-        const isIndicLanguage = quickAccessLangTag && indicLanguageCodes.some(code => quickAccessLangTag.startsWith(code));
-        const needsDockerForLang = isJapanese || isIndicLanguage;
-        
-        // Check if features requiring internet are selected
-        const needsInternet = selectedFeatures.dubtitles || 
-                            selectedFeatures.voiceEnhancing ||
-                            (selectedFeatures.condensedAudio && currentFeatureOptions?.condensedAudio?.enableSummary) ||
-                            (selectedFeatures.subtitleRomanization && quickAccessLangTag && !quickAccessLangTag.startsWith('eng')); // Some languages need online services
-        
-        // Block processing if Docker is required but not available
-        if (dockerChecked && !dockerAvailable && (needsDocker || (needsDockerForLang && Object.values(selectedFeatures).some(v => v)))) {
-            errorStore.addError({
-                id: "process-docker-required",
-                message: needsDockerForLang 
-                    ? `Cannot process: Docker is required for ${isJapanese ? 'Japanese' : 'Indic'} language processing`
-                    : "Cannot process: Docker is required for the selected subtitle features",
-                severity: "critical",
-                dismissible: true,
-                action: {
-                    label: "Install Docker", 
-                    handler: () => {
-                        const url = "https://docs.docker.com/get-docker/";
-                        window.open(url, "_blank");
-                    }
-                }
-            });
-            return;
-        }
-        
-        // Block processing if Internet is required but not available
-        if (internetChecked && !internetOnline && needsInternet) {
-            errorStore.addError({
-                id: "process-internet-required",
-                message: "Cannot process: Internet connection is required for the selected features",
-                severity: "critical",
-                dismissible: true
-            });
-            return;
-        }
 	
         // Increment process start count
         try {

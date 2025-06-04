@@ -901,8 +901,57 @@ func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
 	return result, nil
 }
 
-// LanguageRequiresDocker checks if a specific language requires Docker for linguistic processing
-func (a *App) LanguageRequiresDocker(languageTag string) bool {
+// LanguageRequirements holds the requirements for a specific language
+type LanguageRequirements struct {
+	StandardTag      string `json:"standardTag"`
+	IsValid         bool   `json:"isValid"`
+	RequiresDocker  bool   `json:"requiresDocker"`
+	RequiresInternet bool   `json:"requiresInternet"`
+	Error           string `json:"error,omitempty"`
+}
+
+// validateLanguageTag is an internal helper to validate and standardize a language tag
+func validateLanguageTag(tag string) (standardTag string, isValid bool, err error) {
+	if tag == "" {
+		return "", false, fmt.Errorf("language tag is empty")
+	}
+	
+	// Validate the language tag using core
+	langs, err := core.ParseLanguageTags([]string{strings.TrimSpace(tag)})
+	if err != nil {
+		return "", false, err
+	}
+	
+	if len(langs) == 0 {
+		return "", false, fmt.Errorf("invalid language tag")
+	}
+	
+	// Get the standardized tag
+	std := langs[0].Part3
+	if langs[0].Subtag != "" {
+		std += "-" + langs[0].Subtag
+	}
+	
+	return std, true, nil
+}
+
+// GetLanguageRequirements validates a language tag and returns its requirements
+func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
+	resp := LanguageRequirements{
+		IsValid: false,
+	}
+	
+	// Use the internal validation helper
+	std, isValid, err := validateLanguageTag(languageTag)
+	if err != nil {
+		resp.Error = err.Error()
+		return resp
+	}
+	
+	resp.StandardTag = std
+	resp.IsValid = isValid
+	
+	// TODO slap translitkit get default scheme for lang & remove hardcoded maps
 	// Languages that require Docker for linguistic processing
 	dockerRequiredLanguages := map[string]bool{
 		"jpn": true, // Japanese
@@ -919,18 +968,6 @@ func (a *App) LanguageRequiresDocker(languageTag string) bool {
 		"urd": true, // Urdu
 	}
 	
-	// Check if the language tag starts with any of the codes
-	for code := range dockerRequiredLanguages {
-		if strings.HasPrefix(languageTag, code) {
-			return true
-		}
-	}
-	
-	return false
-}
-
-// LanguageRequiresInternet checks if a specific language requires Internet for linguistic processing
-func (a *App) LanguageRequiresInternet(languageTag string) bool {
 	// Languages that require Internet for linguistic processing
 	internetRequiredLanguages := map[string]bool{
 		"tha": true, // Thai
@@ -948,14 +985,22 @@ func (a *App) LanguageRequiresInternet(languageTag string) bool {
 		"urd": true, // Urdu
 	}
 	
-	// Check if the language tag starts with any of the codes
-	for code := range internetRequiredLanguages {
-		if strings.HasPrefix(languageTag, code) {
-			return true
+	// Check requirements based on the ISO 639-3 code
+	for code := range dockerRequiredLanguages {
+		if strings.HasPrefix(std, code) {
+			resp.RequiresDocker = true
+			break
 		}
 	}
 	
-	return false
+	for code := range internetRequiredLanguages {
+		if strings.HasPrefix(std, code) {
+			resp.RequiresInternet = true
+			break
+		}
+	}
+	
+	return resp
 }
 
 // shutdown is called at application termination
