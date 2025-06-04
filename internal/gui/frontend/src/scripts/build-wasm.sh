@@ -80,33 +80,11 @@ echo "VERSION: $VERSION"
 
 # Build the WebAssembly module optimized for size
 echo "Running wasm-pack build..."
+wasm-pack build \
+    --target web \
+    --release
 
-# Check if we should skip wasm-opt (for macOS CI builds)
-if [ "$SKIP_WASM_OPT" = "true" ]; then
-    echo -e "${YELLOW}Skipping wasm-opt optimization (SKIP_WASM_OPT is set)${RESET}"
-    # Create a temporary Cargo.toml with wasm-opt disabled
-    cp Cargo.toml Cargo.toml.backup
-    echo "" >> Cargo.toml
-    echo "[package.metadata.wasm-pack]" >> Cargo.toml
-    echo "wasm-opt = false" >> Cargo.toml
-    
-    # Build without optimization
-    wasm-pack build \
-        --target web \
-        --release
-    
-    BUILD_RESULT=$?
-    
-    # Restore original Cargo.toml
-    mv Cargo.toml.backup Cargo.toml
-else
-    # Normal build with optimization
-    wasm-pack build \
-        --target web \
-        --release
-    
-    BUILD_RESULT=$?
-fi
+BUILD_RESULT=$?
 
 # Check if build was successful
 if [ $BUILD_RESULT -ne 0 ]; then

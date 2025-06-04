@@ -12,7 +12,7 @@ env:
   NODE_OPTIONS: "--max-old-space-size=4096"
   GO_VERSION: '1.23'  # Required by dAppServer/wails-build-action
   NODE_VERSION: '18'
-  WAILS_VERSION: 'v2.9.3'  # v2.10+ not supported by the action yet
+  WAILS_VERSION: 'v2.9.0'  # v2.10+ is problematic per wails-build-action docs
 
 jobs:
   build:
@@ -65,6 +65,14 @@ jobs:
           sudo apt-get install -y jq
           
       # Caching
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-go-
+            
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -78,8 +86,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
             
-      # Install wasm-pack
-      - name: Install wasm-pack
+      - name: Cache wasm-pack binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/.wasm-pack
+            ~/Library/Caches/.wasm-pack
+            ~/AppData/Local/wasm-pack/cache
+          key: ${{ runner.os }}-wasm-pack-bins
+          restore-keys: |
+            ${{ runner.os }}-wasm-pack-bins
+            
+      # Install wasm-pack - pinned version for macOS to avoid wasm-opt issues
+      - name: Install wasm-pack (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "Installing wasm-pack v0.10.3 for macOS (known to work with our WASM)"
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- --version 0.10.3
+          
+      - name: Install wasm-pack (Linux/Windows)
+        if: runner.os != 'macOS'
         uses: jetli/wasm-pack-action@v0.4.0
         
       # Build WASM components with your custom inlining process
@@ -87,26 +113,39 @@ jobs:
         working-directory: internal/gui/frontend
         shell: bash
         run: |
-          echo "Current OS: ${{ matrix.os }}"
-          echo "Current platform: ${{ matrix.build.platform }}"
-          echo "Runner OS: ${{ runner.os }}"
-          
-          # Set SKIP_WASM_OPT for macOS - use runner.os which is more reliable
-          if [[ "${{ runner.os }}" == "macOS" ]]; then
-            export SKIP_WASM_OPT=true
-            echo "Setting SKIP_WASM_OPT=true for macOS build"
-          else
-            echo "Not macOS, proceeding with normal build"
-          fi
-          
           npm install
           npm run build:wasm
+          
+      # Diagnostic step for macOS
+      - name: macOS Build Diagnostics
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          echo "=== macOS Build Environment ==="
+          echo "Runner architecture: ${{ runner.arch }}"
+          echo "Go version: $(go version)"
+          echo "GOARCH: $(go env GOARCH)"
+          echo "GOOS: $(go env GOOS)"
+          echo "CGO_ENABLED: $(go env CGO_ENABLED)"
+          uname -a
           
       # Build CLI binary
       - name: Build CLI
         shell: bash
         run: |
-          go build -ldflags="-s -w" -o langkit-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/cli
+          # Let Go detect the architecture on macOS (could be arm64 or amd64)
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            echo "Building CLI for macOS (auto-detecting architecture)"
+            # Ensure CGO is enabled for macOS
+            export CGO_ENABLED=1
+            go build -ldflags="-s -w" -o langkit-cli ./cmd/cli
+          else
+            # Explicitly set for Windows and Linux
+            export GOOS=${{ runner.os == 'Windows' && 'windows' || 'linux' }}
+            export GOARCH=amd64
+            echo "Building CLI for GOOS=$GOOS GOARCH=$GOARCH"
+            go build -ldflags="-s -w" -o langkit-cli${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/cli
+          fi
           
       # Build GUI with Wails using the action
       - name: Build GUI with Wails
@@ -121,6 +160,31 @@ jobs:
           package: false  # We'll handle packaging ourselves
           app-working-directory: "."
           # Let the action handle webkit2_41 tag automatically
+          
+      # Debug: Check what was actually built
+      - name: Debug - Check build output
+        shell: bash
+        run: |
+          echo "=== Looking for build output ==="
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo ""
+          echo "=== Searching for executables ==="
+          find . -name "*.exe" -o -name "*.app" -o -name "langkit*" -type f | grep -v node_modules | grep -v ".git" | head -20
+          echo ""
+          if [ -d "build" ]; then
+            echo "=== Build directory structure ==="
+            ls -la build/
+            if [ -d "build/bin" ]; then
+              echo "build/bin contents:"
+              ls -la build/bin/
+            fi
+            if [ -d "build/windows" ]; then
+              echo "build/windows contents:"
+              ls -la build/windows/
+            fi
+          fi
           
       # Package both CLI and GUI together
       - name: Package distribution
@@ -139,15 +203,27 @@ jobs:
           
           # Copy GUI based on platform
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # Copy main executable
-            if ls build/bin/*.exe 1> /dev/null 2>&1; then
-              cp build/bin/*.exe dist/
+            # Check multiple possible locations for Windows executable
+            if ls langkit.exe 1> /dev/null 2>&1; then
+              cp langkit.exe dist/
+            elif ls build/bin/langkit.exe 1> /dev/null 2>&1; then
+              cp build/bin/langkit.exe dist/
+            elif ls build/bin/langkit 1> /dev/null 2>&1; then
+              # Found Windows executable without .exe extension - this is suspicious
+              echo "WARNING: Found Windows executable without .exe extension at build/bin/langkit"
+              echo "This suggests GOOS/GOARCH were not properly set during build"
+              cp build/bin/langkit dist/langkit.exe
+            elif ls build/windows/*.exe 1> /dev/null 2>&1; then
+              cp build/windows/*.exe dist/
             else
               echo "Error: Windows executable not found"
+              echo "Searched: ./langkit.exe, build/bin/langkit.exe, build/bin/langkit, build/windows/*.exe"
               exit 1
             fi
-            # Copy installer if it exists
-            if ls build/bin/*-installer.exe 1> /dev/null 2>&1; then
+            # Copy installer if it exists (check both locations)
+            if ls build/windows/*-installer.exe 1> /dev/null 2>&1; then
+              cp build/windows/*-installer.exe dist/
+            elif ls build/bin/*-installer.exe 1> /dev/null 2>&1; then
               cp build/bin/*-installer.exe dist/
             fi
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
