@@ -58,7 +58,7 @@
                     <animate attributeName="height" id="steamIntroHeight" dur="0.6s" values="0;7" fill="freeze" begin="0.2s"/>
                 </rect>
 
-                <g id="mugGroup" fill="none" stroke="#6B7280" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                <g id="mugGroup" fill="none" stroke="var(--style-coffee-mug-color, #6B7280)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
                     <path id="mugBody" fill="url(#coffeeFillGradient)" fill-opacity="0" 
                           stroke-dasharray="36" stroke-dashoffset="36"
                           d="M16.5 9v5c0 1.66 -1.34 3 -3 3h-5c-1.66 0 -3 -1.34 -3 -3v-5Z"> 

@@ -1,9 +1,7 @@
 - 🚧🚧 add tlit in TSV/CSV
 - 🚧🚧 draft word frequency list feature
 
-.
-- write github-actions for builds
-
+color silder coffee mug
 .
 
 - don't use trimmed closed captions for summaries

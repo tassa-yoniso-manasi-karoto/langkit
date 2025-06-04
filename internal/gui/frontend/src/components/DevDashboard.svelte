@@ -260,7 +260,12 @@
         welcomeProgressDotOpacity: 0.3, // bg-white/30
         welcomeTextPrimaryOpacity: 1, // text-white
         welcomeTextSecondaryOpacity: 0.7, // text-white/70
-        welcomeTextTertiaryOpacity: 0.6 // text-white/60
+        welcomeTextTertiaryOpacity: 0.6, // text-white/60
+        // Coffee mug controls
+        coffeeMugHue: 220, // Default gray-blue hue (from #6B7280)
+        coffeeMugSaturation: 9, // Low saturation for gray
+        coffeeMugLightness: 51, // Medium lightness
+        coffeeMugOpacity: 1 // Full opacity
     };
     
     // Target color input
@@ -484,6 +489,9 @@
         root.style.setProperty('--style-welcome-text-secondary-opacity', styleControls.welcomeTextSecondaryOpacity.toString());
         root.style.setProperty('--style-welcome-text-tertiary-opacity', styleControls.welcomeTextTertiaryOpacity.toString());
         
+        // Coffee mug styles
+        root.style.setProperty('--style-coffee-mug-color', `hsla(${styleControls.coffeeMugHue}, ${styleControls.coffeeMugSaturation}%, ${styleControls.coffeeMugLightness}%, ${styleControls.coffeeMugOpacity})`);
+        
         logger.debug('devDashboard', 'Applied style controls', styleControls);
     }
     
@@ -538,7 +546,12 @@
         welcomeProgressDotOpacity: 0.3, // bg-white/30
         welcomeTextPrimaryOpacity: 1, // text-white
         welcomeTextSecondaryOpacity: 0.7, // text-white/70
-        welcomeTextTertiaryOpacity: 0.6 // text-white/60
+        welcomeTextTertiaryOpacity: 0.6, // text-white/60
+        // Coffee mug controls
+        coffeeMugHue: 220, // Default gray-blue hue (from #6B7280)
+        coffeeMugSaturation: 9, // Low saturation for gray
+        coffeeMugLightness: 51, // Medium lightness
+        coffeeMugOpacity: 1 // Full opacity
     };
 
     // Reset individual property to default
@@ -938,6 +951,12 @@
                                 on:click={() => activeStyleSubTab = 'progress'}
                             >
                                 Progress
+                            </button>
+                            <button
+                                class="px-3 py-2 text-xs {activeStyleSubTab === 'coffee' ? 'text-white border-b-2 border-primary' : 'text-white/60'}"
+                                on:click={() => activeStyleSubTab = 'coffee'}
+                            >
+                                Coffee
                             </button>
                         </div>
 
@@ -3460,6 +3479,97 @@
                                 >
                                     Copy Progress Values
                                 </button>
+                            </div>
+                        </div>
+                        {:else if activeStyleSubTab === 'coffee'}
+                        <!-- Coffee Mug Controls -->
+                        <div class="control-section">
+                            <h5 class="text-xs font-semibold mb-2 opacity-80">Coffee Mug Color</h5>
+                            <div class="slider-grid">
+                                <div class="slider-control">
+                                    <label class="slider-label">Hue: {styleControls.coffeeMugHue}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            step="1"
+                                            bind:value={styleControls.coffeeMugHue}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('coffeeMugHue')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Saturation: {styleControls.coffeeMugSaturation}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.coffeeMugSaturation}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('coffeeMugSaturation')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Lightness: {styleControls.coffeeMugLightness}%</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            bind:value={styleControls.coffeeMugLightness}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('coffeeMugLightness')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="slider-control">
+                                    <label class="slider-label">Opacity: {styleControls.coffeeMugOpacity.toFixed(2)}</label>
+                                    <div class="slider-row">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            bind:value={styleControls.coffeeMugOpacity}
+                                            on:input={applyStyleControls}
+                                            class="slider"
+                                        />
+                                        <button
+                                            class="reset-button"
+                                            on:click={() => resetProperty('coffeeMugOpacity')}
+                                            title="Reset to default"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         {/if}

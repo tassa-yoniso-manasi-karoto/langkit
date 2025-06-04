@@ -197,6 +197,9 @@
   --style-glow-blur: 100px;
   --style-glow-animation-scale: 1.2;
   --style-glow-animation-speed: 10s;
+  
+  /* Coffee mug color - default gray-blue (#6B7280) */
+  --style-coffee-mug-color: hsla(220, 9%, 51%, 1);
 }
 
 body {
