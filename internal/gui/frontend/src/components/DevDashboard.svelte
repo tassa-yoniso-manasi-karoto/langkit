@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
@@ -60,6 +60,24 @@
     const unsubscribeUserActivity = userActivityStateStore.subscribe(value => {
         currentUserActivityState = value.state;
         isForced = value.isForced;
+    });
+    
+    // Store current Docker status
+    let currentDockerStatus;
+    let dockerForced = false;
+    const unsubscribeDocker = dockerStatusStore.subscribe(value => {
+        currentDockerStatus = value;
+        // Check if it's forced by looking for special markers
+        dockerForced = value.error === 'Debug: Forced state';
+    });
+    
+    // Store current Internet status
+    let currentInternetStatus;
+    let internetForced = false;
+    const unsubscribeInternet = internetStatusStore.subscribe(value => {
+        currentInternetStatus = value;
+        // Check if it's forced by looking for special markers
+        internetForced = value.error === 'Debug: Forced state';
     });
     
     // Show when in dev mode or developer mode is enabled
@@ -169,6 +187,59 @@
     function resetUserActivityState() {
         userActivityStateStore.reset();
         logger.debug('devDashboard', 'Reset user activity state to automatic detection');
+    }
+    
+    // Docker control functions
+    function forceDockerStatus(available: boolean) {
+        dockerStatusStore.set({
+            available: available,
+            version: available ? 'Debug Mode' : '',
+            error: available ? '' : 'Debug: Forced state',
+            checked: true
+        });
+        logger.debug('devDashboard', `Forced Docker status to: ${available ? 'available' : 'unavailable'}`);
+    }
+    
+    function resetDockerStatus() {
+        // Re-run the actual check by importing and calling the function from App.svelte
+        import('../../wailsjs/go/gui/App').then(({ CheckDockerAvailability }) => {
+            CheckDockerAvailability().then(status => {
+                dockerStatusStore.set({
+                    available: status.available || false,
+                    version: status.version,
+                    engine: status.engine,
+                    error: status.error,
+                    checked: true
+                });
+                logger.debug('devDashboard', 'Reset Docker status to real state', status);
+            });
+        });
+    }
+    
+    // Internet control functions
+    function forceInternetStatus(online: boolean) {
+        internetStatusStore.set({
+            online: online,
+            latency: online ? 50 : 0,
+            error: online ? '' : 'Debug: Forced state',
+            checked: true
+        });
+        logger.debug('devDashboard', `Forced Internet status to: ${online ? 'online' : 'offline'}`);
+    }
+    
+    function resetInternetStatus() {
+        // Re-run the actual check by importing and calling the function from App.svelte
+        import('../../wailsjs/go/gui/App').then(({ CheckInternetConnectivity }) => {
+            CheckInternetConnectivity().then(status => {
+                internetStatusStore.set({
+                    online: status.online || false,
+                    latency: status.latency,
+                    error: status.error,
+                    checked: true
+                });
+                logger.debug('devDashboard', 'Reset Internet status to real state', status);
+            });
+        });
     }
     
     // Style controls state
@@ -576,6 +647,8 @@
         unsubscribeLLMState();
         unsubscribeStatistics();
         unsubscribeUserActivity();
+        unsubscribeDocker();
+        unsubscribeInternet();
     });
     
     // Keep dashboard in viewport when window is resized
@@ -910,6 +983,88 @@
                                 </div>
                                 <div class="text-xs text-gray-500 mt-2">
                                     Active: User is interacting | Idle: 5s-5min inactivity | AFK: >5min away
+                                </div>
+                            </div>
+
+                            <!-- Docker Status Control section -->
+                            <div class="control-section mb-4">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">Docker Status Control</h5>
+                                <div class="text-xs text-gray-400 mb-2">
+                                    Status: <span class="font-mono {currentDockerStatus?.available ? 'text-green-400' : 'text-red-400'}">{currentDockerStatus?.available ? 'Available' : 'Unavailable'}</span>
+                                    {#if dockerForced}
+                                        <span class="text-purple-400 ml-2">(forced)</span>
+                                    {:else if currentDockerStatus?.checked}
+                                        <span class="text-green-400 ml-2">(real)</span>
+                                    {:else}
+                                        <span class="text-yellow-400 ml-2">(checking...)</span>
+                                    {/if}
+                                    {#if currentDockerStatus?.version}
+                                        <span class="text-gray-500 ml-2">v{currentDockerStatus.version}</span>
+                                    {/if}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceDockerStatus(true)}
+                                    >
+                                        Force Available
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceDockerStatus(false)}
+                                    >
+                                        Force Unavailable
+                                    </button>
+                                    <button
+                                        class="control-button reset-button"
+                                        on:click={() => resetDockerStatus()}
+                                    >
+                                        Reset to Real
+                                    </button>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-2">
+                                    Controls Docker availability checks for features requiring Docker
+                                </div>
+                            </div>
+
+                            <!-- Internet Status Control section -->
+                            <div class="control-section mb-4">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">Internet Status Control</h5>
+                                <div class="text-xs text-gray-400 mb-2">
+                                    Status: <span class="font-mono {currentInternetStatus?.online ? 'text-green-400' : 'text-red-400'}">{currentInternetStatus?.online ? 'Online' : 'Offline'}</span>
+                                    {#if internetForced}
+                                        <span class="text-purple-400 ml-2">(forced)</span>
+                                    {:else if currentInternetStatus?.checked}
+                                        <span class="text-green-400 ml-2">(real)</span>
+                                    {:else}
+                                        <span class="text-yellow-400 ml-2">(checking...)</span>
+                                    {/if}
+                                    {#if currentInternetStatus?.latency}
+                                        <span class="text-gray-500 ml-2">{currentInternetStatus.latency}ms</span>
+                                    {/if}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceInternetStatus(true)}
+                                    >
+                                        Force Online
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceInternetStatus(false)}
+                                    >
+                                        Force Offline
+                                    </button>
+                                    <button
+                                        class="control-button reset-button"
+                                        on:click={() => resetInternetStatus()}
+                                    >
+                                        Reset to Real
+                                    </button>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-2">
+                                    Controls Internet connectivity checks for AI-powered features
                                 </div>
                             </div>
 

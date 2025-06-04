@@ -2,8 +2,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { fade, scale, fly } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
-    import { CheckDockerAvailability, CheckInternetConnectivity } from '../../wailsjs/go/gui/App';
-    import { statisticsStore } from '../lib/stores';
+    import { statisticsStore, dockerStatusStore, internetStatusStore } from '../lib/stores';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
@@ -71,12 +70,14 @@
     export let onClose: () => void = () => {};
     
     // State variables
-    let dockerStatus: any = null;
-    let internetStatus: any = null;
-    let dockerReady = false;
-    let internetReady = false;
     let showWelcome = true;
     let showApiKeys = false;
+    
+    // Reactive variables from stores
+    $: dockerStatus = $dockerStatusStore;
+    $: internetStatus = $internetStatusStore;
+    $: dockerReady = dockerStatus.checked;
+    $: internetReady = internetStatus.checked;
     
     // Animation states
     let titleVisible = false;
@@ -162,9 +163,6 @@
         setTimeout(() => contentVisible = true, 300);
         setTimeout(() => actionsVisible = true, 500);
         
-        // Start checking statuses after a brief delay
-        setTimeout(() => checkStatuses(), 600);
-        
         // Add keyboard listener
         window.addEventListener('keydown', handleKeydown);
     });
@@ -172,36 +170,6 @@
     onDestroy(() => {
         window.removeEventListener('keydown', handleKeydown);
     });
-    
-    async function checkStatuses() {
-        // Check Docker with delay for smooth animation
-        setTimeout(async () => {
-            try {
-                dockerStatus = await CheckDockerAvailability();
-                // dockerStatus.available = false;
-                logger.debug('WelcomePopup', 'Docker check completed', dockerStatus);
-            } catch (error) {
-                logger.error('WelcomePopup', 'Docker check failed', { error });
-                dockerStatus = { available: false, error: 'Check failed' };
-            } finally {
-                dockerReady = true;
-            }
-        }, 200);
-        
-        // Check Internet with staggered delay
-        setTimeout(async () => {
-            try {
-                internetStatus = await CheckInternetConnectivity();
-                // internetStatus.online = false;
-                logger.debug('WelcomePopup', 'Internet check completed', internetStatus);
-            } catch (error) {
-                logger.error('WelcomePopup', 'Internet check failed', { error });
-                internetStatus = { online: false, error: 'Check failed' };
-            } finally {
-                internetReady = true;
-            }
-        }, 600);
-    }
     
     function handleNext() {
         if (showWelcome) {
@@ -333,10 +301,10 @@
                                     </div>
                                     <div>
                                         {#if dockerReady}
-                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">Docker Desktop</h3>
+                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">{dockerStatus?.engine || 'Docker Desktop'}</h3>
                                             <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
                                                 {#if dockerStatus?.available}
-                                                    Version {dockerStatus.version || 'detected'}
+                                                    {dockerStatus.engine || 'Docker'} v{dockerStatus.version || 'detected'}
                                                 {:else if dockerStatus?.error}
                                                     {dockerStatus.error}
                                                 {:else}

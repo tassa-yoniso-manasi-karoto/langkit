@@ -5,7 +5,7 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { logger } from './lib/logger';
@@ -41,7 +41,11 @@
         RefreshSTTModelsAfterSettingsUpdate,
         LoadStatistics,
         UpdateStatistics,
-        IncrementStatistic
+        IncrementStatistic,
+        CheckDockerAvailability,
+        CheckInternetConnectivity,
+        LanguageRequiresDocker,
+        LanguageRequiresInternet
     } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
     import type { gui } from '../wailsjs/go/models';
@@ -89,6 +93,10 @@
     let showGlow = true;
     let defaultTargetLanguage = "";
     let quickAccessLangTag = "";
+    
+    // Track whether current language requires special processing
+    let currentLanguageRequiresDocker = false;
+    let currentLanguageRequiresInternet = false;
     
     // Window state tracking
     let isWindowMinimized = false;
@@ -145,6 +153,29 @@
                 defaultTargetLanguage = $settings.targetLanguage;
                 quickAccessLangTag = $settings.targetLanguage;
             }
+        }
+    }
+    
+    // Check if current language requires special processing when it changes
+    $: {
+        if (quickAccessLangTag) {
+            // Check Docker requirement
+            LanguageRequiresDocker(quickAccessLangTag).then(requiresDocker => {
+                currentLanguageRequiresDocker = requiresDocker;
+                logger.debug('app', `Language ${quickAccessLangTag} requires Docker: ${requiresDocker}`);
+            }).catch(error => {
+                logger.error('app', 'Failed to check Docker requirement', { error });
+                currentLanguageRequiresDocker = false;
+            });
+            
+            // Check Internet requirement
+            LanguageRequiresInternet(quickAccessLangTag).then(requiresInternet => {
+                currentLanguageRequiresInternet = requiresInternet;
+                logger.debug('app', `Language ${quickAccessLangTag} requires Internet: ${requiresInternet}`);
+            }).catch(error => {
+                logger.error('app', 'Failed to check Internet requirement', { error });
+                currentLanguageRequiresInternet = false;
+            });
         }
     }
     
@@ -308,6 +339,85 @@
         }
     }
     
+    // Check Docker requirements for selected features
+    $: {
+        const dockerChecked = $dockerStatusStore.checked;
+        const dockerAvailable = $dockerStatusStore.available;
+        
+        // Check if subtitle linguistic processing features are selected
+        const linguisticFeaturesSelected = selectedFeatures.subtitleRomanization || 
+                                         selectedFeatures.selectiveTransliteration || 
+                                         selectedFeatures.subtitleTokenization;
+        
+        // Languages that require Docker for linguistic processing (hardcoded for immediate check)
+        const dockerRequiredLanguages = ['jpn', 'hin', 'mar', 'ben', 'tam', 'tel', 'kan', 'mal', 'guj', 'pan', 'ori', 'urd'];
+        const languageRequiresDocker = quickAccessLangTag && 
+                                     dockerRequiredLanguages.some(lang => quickAccessLangTag.startsWith(lang));
+        
+        // Only create error if:
+        // 1. Docker is not available AND
+        // 2. Linguistic features are selected AND
+        // 3. The current language actually requires Docker
+        if (dockerChecked && !dockerAvailable && linguisticFeaturesSelected && languageRequiresDocker) {
+            errorStore.addError({
+                id: "docker-required",
+                message: "Without Docker, linguistic processing for Japanese & Indic languages will not be available.",
+                severity: "critical",
+                dismissible: false,
+                docsUrl: "https://docs.docker.com/get-docker/"
+            });
+        } else {
+            errorStore.removeError("docker-required");
+        }
+    }
+    
+    // Check Internet requirements for selected features
+    $: {
+        const internetChecked = $internetStatusStore.checked;
+        const internetOnline = $internetStatusStore.online;
+        
+        // Check if subtitle linguistic processing features are selected
+        const linguisticFeaturesSelected = selectedFeatures.subtitleRomanization || 
+                                         selectedFeatures.selectiveTransliteration || 
+                                         selectedFeatures.subtitleTokenization;
+        
+        // Check if AI-powered features are selected
+        const aiPoweredFeaturesSelected = selectedFeatures.dubtitles || 
+                                        selectedFeatures.voiceEnhancing ||
+                                        (selectedFeatures.condensedAudio && currentFeatureOptions?.condensedAudio?.enableSummary);
+        
+        // Languages that require internet for linguistic processing (hardcoded for immediate check)
+        const internetRequiredLanguages = ['tha', 'jpn', 'hin', 'mar', 'ben', 'tam', 'tel', 'kan', 'mal', 'guj', 'pan', 'ori', 'urd'];
+        const languageRequiresInternet = quickAccessLangTag && 
+                                       internetRequiredLanguages.some(lang => quickAccessLangTag.startsWith(lang));
+        
+        // Need internet if:
+        // 1. AI-powered features are selected OR
+        // 2. Linguistic features are selected AND language requires internet
+        const needsInternet = aiPoweredFeaturesSelected || 
+                            (linguisticFeaturesSelected && languageRequiresInternet);
+        
+        if (internetChecked && !internetOnline && needsInternet) {
+            let message = "An internet connection is required for ";
+            if (aiPoweredFeaturesSelected && linguisticFeaturesSelected && languageRequiresInternet) {
+                message += "AI-powered features and linguistic processing for Thai, Japanese & Indic languages.";
+            } else if (aiPoweredFeaturesSelected) {
+                message += "AI-powered features (dubtitles, voice enhancing).";
+            } else {
+                message += "linguistic processing for Thai, Japanese & Indic languages.";
+            }
+            
+            errorStore.addError({
+                id: "internet-required",
+                message: message,
+                severity: "critical",
+                dismissible: false
+            });
+        } else {
+            errorStore.removeError("internet-required");
+        }
+    }
+    
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
         currentFeatureOptions = event.detail;
         logger.debug('app', 'Feature options changed', { options: event.detail });
@@ -429,6 +539,60 @@
 
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
+        
+        // Check requirements before processing
+        const dockerChecked = $dockerStatusStore.checked;
+        const dockerAvailable = $dockerStatusStore.available;
+        const internetChecked = $internetStatusStore.checked;
+        const internetOnline = $internetStatusStore.online;
+        
+        // Check if subtitle features requiring Docker are selected
+        const needsDocker = selectedFeatures.subtitleRomanization || 
+                          selectedFeatures.selectiveTransliteration || 
+                          selectedFeatures.subtitleTokenization;
+        
+        // Check if language is Japanese or Indic (requires Docker for processing)
+        const isJapanese = quickAccessLangTag && (quickAccessLangTag.startsWith('ja') || quickAccessLangTag.startsWith('jpn'));
+        const indicLanguageCodes = ['hi', 'hin', 'mar', 'ben', 'ta', 'tam', 'te', 'tel', 'kn', 'kan', 'ml', 'mal', 'gu', 'guj', 'pa', 'pan', 'or', 'ori', 'ur', 'urd'];
+        const isIndicLanguage = quickAccessLangTag && indicLanguageCodes.some(code => quickAccessLangTag.startsWith(code));
+        const needsDockerForLang = isJapanese || isIndicLanguage;
+        
+        // Check if features requiring internet are selected
+        const needsInternet = selectedFeatures.dubtitles || 
+                            selectedFeatures.voiceEnhancing ||
+                            (selectedFeatures.condensedAudio && currentFeatureOptions?.condensedAudio?.enableSummary) ||
+                            (selectedFeatures.subtitleRomanization && quickAccessLangTag && !quickAccessLangTag.startsWith('eng')); // Some languages need online services
+        
+        // Block processing if Docker is required but not available
+        if (dockerChecked && !dockerAvailable && (needsDocker || (needsDockerForLang && Object.values(selectedFeatures).some(v => v)))) {
+            errorStore.addError({
+                id: "process-docker-required",
+                message: needsDockerForLang 
+                    ? `Cannot process: Docker is required for ${isJapanese ? 'Japanese' : 'Indic'} language processing`
+                    : "Cannot process: Docker is required for the selected subtitle features",
+                severity: "critical",
+                dismissible: true,
+                action: {
+                    label: "Install Docker", 
+                    handler: () => {
+                        const url = "https://docs.docker.com/get-docker/";
+                        window.open(url, "_blank");
+                    }
+                }
+            });
+            return;
+        }
+        
+        // Block processing if Internet is required but not available
+        if (internetChecked && !internetOnline && needsInternet) {
+            errorStore.addError({
+                id: "process-internet-required",
+                message: "Cannot process: Internet connection is required for the selected features",
+                severity: "critical",
+                dismissible: true
+            });
+            return;
+        }
 	
         // Increment process start count
         try {
@@ -568,35 +732,92 @@
     }
 
     async function checkDockerAvailability() {
-        // try {
-        //     const available = await CheckDocker(); // Use direct import
-        //     if (!available) {
-        //         errorStore.addError({
-        //             id: "docker-not-available",
-        //             message: "Docker is not available. Some features may be limited.",
-        //             severity: "warning",
-        //             dismissible: true,
-        //             docsUrl: "https://docs.docker.com/get-docker/"
-        //         });
-        //     } else {
-        //         errorStore.removeError("docker-not-available");
-        //     }
-        // } catch (error) {
-        //     console.error("Docker check failed:", error);
-        //     errorStore.addError({
-        //         id: "docker-check-failed",
-        //         message: "Failed to check Docker availability",
-        //         severity: "warning",
-        //         dismissible: true
-        //     });
-        // }
-        logger.warn('app', "Docker check temporarily disabled"); // Placeholder
+        try {
+            const dockerStatus = await CheckDockerAvailability();
+            dockerStatusStore.set({
+                available: dockerStatus.available || false,
+                version: dockerStatus.version,
+                engine: dockerStatus.engine,
+                error: dockerStatus.error,
+                checked: true
+            });
+            
+            logger.debug('app', 'Docker check completed', dockerStatus);
+        } catch (error) {
+            logger.error('app', 'Docker check failed', { error });
+            dockerStatusStore.set({
+                available: false,
+                error: 'Check failed',
+                checked: true
+            });
+        }
+    }
+    
+    async function checkInternetConnectivity() {
+        try {
+            const internetStatus = await CheckInternetConnectivity();
+            internetStatusStore.set({
+                online: internetStatus.online || false,
+                latency: internetStatus.latency,
+                error: internetStatus.error,
+                checked: true
+            });
+            
+            logger.debug('app', 'Internet check completed', internetStatus);
+        } catch (error) {
+            logger.error('app', 'Internet check failed', { error });
+            internetStatusStore.set({
+                online: false,
+                error: 'Check failed',
+                checked: true
+            });
+        }
+    }
+    
+    // Set up periodic Docker checks when unavailable
+    $: {
+        if ($dockerStatusStore.checked && !$dockerStatusStore.available && $dockerStatusStore.error !== 'Debug: Forced state') {
+            // Start checking every 5 seconds if not already checking
+            if (!dockerCheckInterval) {
+                logger.debug('app', 'Starting periodic Docker availability checks');
+                dockerCheckInterval = setInterval(checkDockerAvailability, 5000);
+            }
+        } else {
+            // Stop checking when available or forced
+            if (dockerCheckInterval) {
+                logger.debug('app', 'Stopping periodic Docker availability checks');
+                clearInterval(dockerCheckInterval);
+                dockerCheckInterval = null;
+            }
+        }
+    }
+    
+    // Set up periodic Internet checks when unavailable
+    $: {
+        if ($internetStatusStore.checked && !$internetStatusStore.online && $internetStatusStore.error !== 'Debug: Forced state') {
+            // Start checking every 5 seconds if not already checking
+            if (!internetCheckInterval) {
+                logger.debug('app', 'Starting periodic Internet connectivity checks');
+                internetCheckInterval = setInterval(checkInternetConnectivity, 5000);
+            }
+        } else {
+            // Stop checking when online or forced
+            if (internetCheckInterval) {
+                logger.debug('app', 'Stopping periodic Internet connectivity checks');
+                clearInterval(internetCheckInterval);
+                internetCheckInterval = null;
+            }
+        }
     }
 
     // Use a more efficient approach to handle events, with debouncing for frequent events
     let progressUpdateDebounceTimer: number | null = null;
     let pendingProgressUpdates: any[] = [];
     let windowCheckInterval: number | null = null;
+    
+    // Periodic status check intervals
+    let dockerCheckInterval: ReturnType<typeof setInterval> | null = null;
+    let internetCheckInterval: ReturnType<typeof setInterval> | null = null;
     
     // Performance optimization based on window state
     async function checkWindowState() {
@@ -1061,13 +1282,25 @@
             updateAvailable = true;
         });
         
-        // Check Docker availability on startup
-        // checkDockerAvailability(); // Commented out
+        // Check Docker and Internet availability on startup
+        checkDockerAvailability();
+        checkInternetConnectivity();
     });
 
     // Cleanup on component destruction
     onDestroy(() => {
         if (windowCheckInterval) clearInterval(windowCheckInterval);
+        
+        // Clear periodic status check intervals
+        if (dockerCheckInterval) {
+            clearInterval(dockerCheckInterval);
+            dockerCheckInterval = null;
+        }
+        if (internetCheckInterval) {
+            clearInterval(internetCheckInterval);
+            internetCheckInterval = null;
+        }
+        
         // Remove listeners added in onMount
         if (handleTransitionEnd) {
            document.removeEventListener('transitionend', handleTransitionEnd); 

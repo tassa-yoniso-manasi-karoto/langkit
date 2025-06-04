@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	
+	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
@@ -848,7 +849,11 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 				result["version"] = version
 			}
 		}
-		result["engine"] = "Docker Desktop"
+		
+		// Get the actual Docker backend name using dockerutil
+		engine := dockerutil.DockerBackendName()
+		result["engine"] = engine
+		a.logger.Debug().Str("engine", engine).Msg("Docker engine detected")
 	}
 	
 	a.logger.Debug().Interface("result", result).Msg("Docker check completed")
@@ -894,6 +899,63 @@ func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
 	}
 	
 	return result, nil
+}
+
+// LanguageRequiresDocker checks if a specific language requires Docker for linguistic processing
+func (a *App) LanguageRequiresDocker(languageTag string) bool {
+	// Languages that require Docker for linguistic processing
+	dockerRequiredLanguages := map[string]bool{
+		"jpn": true, // Japanese
+		"hin": true, // Hindi
+		"mar": true, // Marathi
+		"ben": true, // Bengali
+		"tam": true, // Tamil
+		"tel": true, // Telugu
+		"kan": true, // Kannada
+		"mal": true, // Malayalam
+		"guj": true, // Gujarati
+		"pan": true, // Punjabi
+		"ori": true, // Odia
+		"urd": true, // Urdu
+	}
+	
+	// Check if the language tag starts with any of the codes
+	for code := range dockerRequiredLanguages {
+		if strings.HasPrefix(languageTag, code) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// LanguageRequiresInternet checks if a specific language requires Internet for linguistic processing
+func (a *App) LanguageRequiresInternet(languageTag string) bool {
+	// Languages that require Internet for linguistic processing
+	internetRequiredLanguages := map[string]bool{
+		"tha": true, // Thai
+		"jpn": true, // Japanese
+		"hin": true, // Hindi
+		"mar": true, // Marathi
+		"ben": true, // Bengali
+		"tam": true, // Tamil
+		"tel": true, // Telugu
+		"kan": true, // Kannada
+		"mal": true, // Malayalam
+		"guj": true, // Gujarati
+		"pan": true, // Punjabi
+		"ori": true, // Odia
+		"urd": true, // Urdu
+	}
+	
+	// Check if the language tag starts with any of the codes
+	for code := range internetRequiredLanguages {
+		if strings.HasPrefix(languageTag, code) {
+			return true
+		}
+	}
+	
+	return false
 }
 
 // shutdown is called at application termination

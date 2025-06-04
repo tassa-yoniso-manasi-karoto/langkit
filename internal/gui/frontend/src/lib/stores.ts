@@ -289,3 +289,56 @@ function createUserActivityStateStore() {
 }
 
 export const userActivityState = createUserActivityStateStore();
+
+// Docker status store
+export interface DockerStatus {
+    available: boolean;
+    version?: string;
+    engine?: string;
+    error?: string;
+    checked: boolean;
+}
+
+function createDockerStatusStore() {
+    const { subscribe, set, update } = writable<DockerStatus>({
+        available: false,
+        checked: false
+    });
+    
+    return {
+        subscribe,
+        set: (value: DockerStatus) => {
+            logger.trace('store/dockerStatus', 'Docker status updated', value);
+            set(value);
+        },
+        update
+    };
+}
+
+export const dockerStatusStore = createDockerStatusStore();
+
+// Internet connectivity store
+export interface InternetStatus {
+    online: boolean;
+    latency?: number;
+    error?: string;
+    checked: boolean;
+}
+
+function createInternetStatusStore() {
+    const { subscribe, set, update } = writable<InternetStatus>({
+        online: false,
+        checked: false
+    });
+    
+    return {
+        subscribe,
+        set: (value: InternetStatus) => {
+            logger.trace('store/internetStatus', 'Internet status updated', value);
+            set(value);
+        },
+        update
+    };
+}
+
+export const internetStatusStore = createInternetStatusStore();
