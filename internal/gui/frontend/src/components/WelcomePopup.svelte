@@ -5,6 +5,7 @@
     import { CheckDockerAvailability, CheckInternetConnectivity } from '../../wailsjs/go/gui/App';
     import { statisticsStore } from '../lib/stores';
     import { logger } from '../lib/logger';
+    import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     
     // Custom slide projector transition
@@ -191,6 +192,7 @@
         setTimeout(async () => {
             try {
                 internetStatus = await CheckInternetConnectivity();
+                // internetStatus.online = false;
                 logger.debug('WelcomePopup', 'Internet check completed', internetStatus);
             } catch (error) {
                 logger.error('WelcomePopup', 'Internet check failed', { error });
@@ -262,12 +264,12 @@
             <div class="absolute -top-32 -right-32 w-64 h-64 rounded-full bg-primary/10 blur-3xl"></div>
             
             <!-- Content -->
-            <div class="relative p-8 md:p-12">
+            <div class="relative pt-8 md:pt-12 px-8 md:px-12 pb-6 md:pb-10">
                 <!-- Content container with 3D slide effect -->
-                <div class="min-h-[450px] relative slide-container overflow-hidden">
+                <div class="min-h-[520px] max-h-[60vh] relative slide-container overflow-x-hidden overflow-y-auto mask-fade">
                     <!-- Step 0: Welcome page -->
                     {#if showWelcome}
-                        <div class="absolute inset-0 flex flex-col items-center"
+                        <div class="absolute top-0 left-0 right-0 flex flex-col items-center pb-5"
                              in:slideProjector={{ yStart: 100, yEnd: 0, scaleStart: 0.8, scaleEnd: 1, opacityStart: 0, opacityEnd: 1, duration: 800 }}
                              out:slideProjectorOut={{ duration: 800 }}>
                             <!-- Welcome header -->
@@ -349,21 +351,20 @@
                                 </div>
                                 
                                 {#if dockerReady && dockerStatus && !dockerStatus.available}
-                                    <a href="https://docs.docker.com/get-docker/" 
-                                       target="_blank"
-                                       class="text-primary hover:text-primary/80 transition-colors">
-                                        <span class="material-icons text-sm">open_in_new</span>
-                                    </a>
+                                    <ExternalLink
+                                        href=https://docs.docker.com/get-docker/
+                                        className="text-primary hover:text-primary/80"
+                                        title="">
+                                        <span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
+                                    </ExternalLink>
                                 {/if}
                             </div>
                             
                             {#if dockerReady && dockerStatus && !dockerStatus.available}
-                                <div class="px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20"
+                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
                                      in:fade={{ duration: 300 }}>
-                                    <p class="text-sm"
-                                       style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
-                                        Without Docker, some advanced processing features will be unavailable.
-                                        Voice separation and certain subtitle operations require Docker to function.
+                                    <p class="text-sm text-red-200/80">
+                                        Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>.
                                     </p>
                                 </div>
                             {/if}
@@ -451,7 +452,7 @@
                                      in:fade={{ duration: 300 }}>
                                     <p class="text-sm text-red-200/80">
                                         An internet connection is required for AI-powered features.
-                                        Speech-to-Text and voice enhancing will not be available offline.
+                                        Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline.
                                     </p>
                                 </div>
                             {/if}
@@ -462,7 +463,7 @@
                     
                     <!-- Step 1: API Keys page -->
                     {#if showApiKeys}
-                        <div class="absolute inset-0 flex flex-col items-center justify-center"
+                        <div class="absolute top-0 left-0 right-0 flex flex-col items-center justify-center pt-5 pb-5"
                              in:slideProjector={{ yStart: 150, yEnd: 0, scaleStart: 0.65, scaleEnd: 1, opacityStart: 0, opacityEnd: 1, blurStart: 6, blurEnd: 0, duration: 800, delay: 0 }}
                              out:slideProjectorOut={{ duration: 800 }}>
                             
@@ -486,15 +487,14 @@
                                     <p class="text-base leading-relaxed"
                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         <strong>
-                                            An API key is like your private electricity meter number that tracks how much power you use so the company can bill you accurately.
+                                            An API key is like your private electricity meter number that tracks how much power you use so the company can bill you accurately.<br>
                                             Don't share it with anyone!
                                         </strong>
                                     </p>
                                     
                                     <p class="text-base leading-relaxed"
                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
-                                        They enable powerful features like speech-to-text, subtitle summarization and voice enhancement 
-                                        without requiring expensive local hardware.
+                                        They enable powerful features like speech-to-text, subtitle summarization and voice enhancement at a low cost without requiring expensive local hardware.
                                     </p>
                                 </div>
                             </div>
@@ -656,5 +656,34 @@
             rgba(255, 255, 255, 0.03) 65%, 
             transparent 100%
         );
+    }
+    
+    /* Smooth fade mask for scrollable content */
+    .mask-fade {
+        mask-image: linear-gradient(
+            to bottom,
+            transparent,
+            black 7%,
+            black 93%,
+            transparent
+        );
+        -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent,
+            black 7%,
+            black 93%,
+            transparent
+        );
+        scrollbar-gutter: stable;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        scrollbar-width: none;  /* Firefox */
+        -ms-overflow-style: none;  /* IE and Edge */
+    }
+
+    /* Hide scrollbar completely */
+    .mask-fade::-webkit-scrollbar {
+        display: none;  /* Chrome, Safari, Opera */
     }
 </style>

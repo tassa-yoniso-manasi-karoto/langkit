@@ -18,7 +18,6 @@
     import NumericInput from './NumericInput.svelte';
     import TextInput from './TextInput.svelte';
     import Slider from './Slider.svelte';
-    import ExternalLink from './ExternalLink.svelte';
     import GroupIcon from './icons/GroupIcon.svelte';
     import DockerIcon from './icons/DockerIcon.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';

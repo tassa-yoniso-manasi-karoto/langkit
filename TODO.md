@@ -1,7 +1,6 @@
 - 🚧🚧 add tlit in TSV/CSV
 - 🚧🚧 draft word frequency list feature
 
-color silder coffee mug
 .
 
 - don't use trimmed closed captions for summaries
@@ -12,8 +11,6 @@ color silder coffee mug
 .
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
-  - use ExternalLink
-  - 📌 📌 📌write "if ... then features X and Y are unavailable msg"
 
 .
 - 📌 📌 📌 test translit provider manager
