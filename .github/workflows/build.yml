@@ -270,9 +270,23 @@ jobs:
           
           mkdir -p dist
           
-          # Copy CLI
+          # Set platform suffix for file naming
+          PLATFORM_SUFFIX=""
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            PLATFORM_SUFFIX="windows-amd64"
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            PLATFORM_SUFFIX="macos-universal"
+          else
+            PLATFORM_SUFFIX="linux-amd64"
+          fi
+          
+          # Copy and rename CLI with platform suffix
           if ls langkit-cli* 1> /dev/null 2>&1; then
-            cp langkit-cli* dist/
+            if [[ "${{ runner.os }}" == "Windows" ]]; then
+              cp langkit-cli.exe "dist/langkit-cli-${PLATFORM_SUFFIX}.exe"
+            else
+              cp langkit-cli "dist/langkit-cli-${PLATFORM_SUFFIX}"
+            fi
           else
             echo "Warning: CLI binary not found"
           fi
@@ -281,16 +295,16 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             # Check multiple possible locations for Windows executable
             if ls langkit.exe 1> /dev/null 2>&1; then
-              cp langkit.exe dist/
+              cp langkit.exe "dist/langkit-${PLATFORM_SUFFIX}.exe"
             elif ls build/bin/langkit.exe 1> /dev/null 2>&1; then
-              cp build/bin/langkit.exe dist/
+              cp build/bin/langkit.exe "dist/langkit-${PLATFORM_SUFFIX}.exe"
             elif ls build/bin/langkit 1> /dev/null 2>&1; then
               # Found Windows executable without .exe extension - this is suspicious
               echo "WARNING: Found Windows executable without .exe extension at build/bin/langkit"
               echo "This suggests GOOS/GOARCH were not properly set during build"
-              cp build/bin/langkit dist/langkit.exe
+              cp build/bin/langkit "dist/langkit-${PLATFORM_SUFFIX}.exe"
             elif ls build/windows/*.exe 1> /dev/null 2>&1; then
-              cp build/windows/*.exe dist/
+              cp build/windows/*.exe "dist/langkit-${PLATFORM_SUFFIX}.exe"
             else
               echo "Error: Windows executable not found"
               echo "Searched: ./langkit.exe, build/bin/langkit.exe, build/bin/langkit, build/windows/*.exe"
@@ -298,12 +312,12 @@ jobs:
             fi
             # Copy installer if it exists (check both locations)
             if ls build/windows/*-installer.exe 1> /dev/null 2>&1; then
-              cp build/windows/*-installer.exe dist/
+              cp build/windows/*-installer.exe "dist/langkit-installer-${PLATFORM_SUFFIX}.exe"
             elif ls build/bin/*-installer.exe 1> /dev/null 2>&1; then
-              cp build/bin/*-installer.exe dist/
+              cp build/bin/*-installer.exe "dist/langkit-installer-${PLATFORM_SUFFIX}.exe"
             fi
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            # Copy app bundle
+            # Copy app bundle (keep original name for .app bundle)
             if ls build/bin/*.app 1> /dev/null 2>&1; then
               cp -r build/bin/*.app dist/
             else
@@ -312,16 +326,13 @@ jobs:
             fi
             # Copy pkg installer if it exists
             if ls build/bin/*.pkg 1> /dev/null 2>&1; then
-              cp build/bin/*.pkg dist/
+              cp build/bin/*.pkg "dist/langkit-installer-${PLATFORM_SUFFIX}.pkg"
             fi
-            # Copy app.zip if it exists
-            if ls build/bin/*.app.zip 1> /dev/null 2>&1; then
-              cp build/bin/*.app.zip dist/
-            fi
+            # Skip app.zip - it's redundant
           else
-            # Linux - copy all executables
-            if ls build/bin/* 1> /dev/null 2>&1; then
-              cp -r build/bin/* dist/
+            # Linux - copy executables with platform suffix
+            if ls build/bin/langkit 1> /dev/null 2>&1; then
+              cp build/bin/langkit "dist/langkit-${PLATFORM_SUFFIX}"
             else
               echo "Error: Linux binaries not found"
               exit 1
@@ -381,11 +392,13 @@ jobs:
           # Create directories for each platform
           mkdir -p release-files
           
-          # Move all downloaded files to release-files, preserving platform organization
+          # Move all downloaded files to release-files, excluding README.txt
           for dir in langkit-*/; do
             if [ -d "$dir" ]; then
-              platform=$(basename "$dir" | sed 's/-[^-]*$//')
-              cp -r "$dir"* release-files/
+              # Copy files except README.txt
+              find "$dir" -type f ! -name "README.txt" -exec cp {} release-files/ \;
+              # Copy .app bundles (directories) for macOS
+              find "$dir" -name "*.app" -type d -exec cp -r {} release-files/ \;
             fi
           done
           
@@ -411,14 +424,15 @@ jobs:
             
             ## What's included
             
-            - `langkit-cli` - Command line interface
-            - `langkit` - GUI application
+            - `langkit-cli-<platform>` - Command line interface
+            - `langkit-<platform>` - GUI application (can also be used as CLI with arguments)
+            - `langkit.app` - macOS application bundle (GUI)
             - Platform-specific installers (where applicable)
             
             ## Platforms
             
-            - **Linux (amd64)**: Download files ending in `-linux-amd64`
-            - **Windows (amd64)**: Download files ending in `-windows-amd64`
-            - **macOS (universal)**: Download files ending in `-darwin-universal` (Intel + Apple Silicon)
+            - **Linux (amd64)**: Files ending in `-linux-amd64`
+            - **Windows (amd64)**: Files ending in `-windows-amd64`
+            - **macOS (universal)**: Files ending in `-macos-universal` (Intel + Apple Silicon)
             
             See the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#readme) for detailed usage instructions.

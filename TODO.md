@@ -2,7 +2,6 @@
 - 🚧🚧 draft word frequency list feature
 
 .
-
 - don't use trimmed closed captions for summaries
 
 .
