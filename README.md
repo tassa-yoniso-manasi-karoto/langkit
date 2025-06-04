@@ -54,6 +54,9 @@ $ langkit subs2dubs --stt whisper media.mp4 (media.th.srt) -l "th"
 $ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep demucs --translit
 ```
 
+> [!WARNING]
+> The focus of my recent work has been the GUI therefore the CLI has been much less tested and is **much more unstable at this point**. Some features are not yet supported on the CLI.
+
 # Features in detail
 
 ## Subs2cards
