@@ -129,27 +129,70 @@ jobs:
           echo "CGO_ENABLED: $(go env CGO_ENABLED)"
           uname -a
           
+      # Prepare version information
+      - name: Prepare version info
+        id: version
+        shell: bash
+        run: |
+          # Get version from tag or use 'dev'
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            # Remove 'v' prefix if present
+            VERSION="${VERSION#v}"
+          else
+            VERSION="dev"
+          fi
+          
+          # Get commit SHA (short version)
+          COMMIT="${{ github.sha }}"
+          COMMIT="${COMMIT:0:7}"
+          
+          # Get branch name
+          if [[ "${{ github.ref_type }}" == "branch" ]]; then
+            BRANCH="${{ github.ref_name }}"
+          else
+            BRANCH="unknown"
+          fi
+          
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "COMMIT=$COMMIT" >> $GITHUB_OUTPUT
+          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+          
+          echo "Building with version info:"
+          echo "  Version: $VERSION"
+          echo "  Commit: $COMMIT"
+          echo "  Branch: $BRANCH"
+          
       # Build CLI binary
       - name: Build CLI
         shell: bash
         run: |
+          # Prepare ldflags with version information
+          LDFLAGS="-s -w"
+          LDFLAGS="$LDFLAGS -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }}"
+          LDFLAGS="$LDFLAGS -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }}"
+          LDFLAGS="$LDFLAGS -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
+          
           # Let Go detect the architecture on macOS (could be arm64 or amd64)
           if [[ "${{ runner.os }}" == "macOS" ]]; then
             echo "Building CLI for macOS (auto-detecting architecture)"
             # Ensure CGO is enabled for macOS
             export CGO_ENABLED=1
-            go build -ldflags="-s -w" -o langkit-cli ./cmd/cli
+            go build -ldflags="$LDFLAGS" -o langkit-cli ./cmd/cli
           else
             # Explicitly set for Windows and Linux
             export GOOS=${{ runner.os == 'Windows' && 'windows' || 'linux' }}
             export GOARCH=amd64
             echo "Building CLI for GOOS=$GOOS GOARCH=$GOARCH"
-            go build -ldflags="-s -w" -o langkit-cli${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/cli
+            go build -ldflags="$LDFLAGS" -o langkit-cli${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/cli
           fi
           
       # Build GUI with Wails using the action
       - name: Build GUI with Wails
         uses: dAppServer/wails-build-action@main
+        env:
+          # Pass ldflags via GOFLAGS environment variable - all -X flags in one -ldflags
+          GOFLAGS: "-ldflags=-X=github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X=github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X=github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
         with:
           build-name: ${{ matrix.build.name }}
           build-platform: ${{ matrix.build.platform }}
