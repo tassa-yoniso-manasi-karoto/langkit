@@ -413,9 +413,13 @@ import { isDeveloperMode } from '../lib/developerMode';
         backdropBlurReady = false;
     }
     
+    $: if (currentSettings.intermediaryFileMode !== "delete") {
+        currentSettings.deleteResumptionFiles = false;
+    }
+    
     // Clear interval on component destroy
     onDestroy(() => {
-        logger.info('Settings', 'Component unmounting');
+    logger.info('Settings', 'Component unmounting');
         if (wasmStateUpdateInterval) {
             clearInterval(wasmStateUpdateInterval);
         }
@@ -671,32 +675,35 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 </div>
                             </div>
                             
-                            <!-- Delete TSV/CSV Option -->
-                            <div class="setting-row">
-                                <div class="setting-label">
-                                    <div class="flex items-center justify-center gap-1">
-                                        <span>Delete Resumption Files</span>
-                                        <Hovertip position="right">
-                                            <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
-                                            <div class="max-w-xs">
-                                                <p>TSV/CSV files are used to track processing progress and enable resumption if processing is interrupted. Deleting these files will prevent resuming from where you left off.</p>
-                                            </div>
-                                        </Hovertip>
+                            {#if currentSettings.intermediaryFileMode === "delete"}
+                                <!-- Delete TSV/CSV Option -->
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span>Delete Resumption Files</span>
+                                            <Hovertip position="right">
+                                                <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                                <div class="max-w-xs">
+                                                    <p>TSV/CSV files are used to track processing progress and enable resumption if processing is interrupted. Deleting these files will prevent resuming from where you left off.</p>
+                                                </div>
+                                            </Hovertip>
+                                        </div>
+                                        <span class="setting-description">Also delete TSV/CSV files used for session resumption</span>
                                     </div>
-                                    <span class="setting-description">Also delete TSV/CSV files used for session resumption</span>
+                                    
+                                    <div class="setting-control">
+                                        <label class="toggle-switch">
+                                            <input
+                                                type="checkbox"
+                                                bind:checked={currentSettings.deleteResumptionFiles}
+                                                on:change={updateSettings}
+                                                disabled={currentSettings.intermediaryFileMode !== "delete"}
+                                            />
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
                                 </div>
-                                
-                                <div class="setting-control">
-                                    <label class="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            bind:checked={currentSettings.deleteResumptionFiles}
-                                            on:change={updateSettings}
-                                        />
-                                        <span class="slider round"></span>
-                                    </label>
-                                </div>
-                            </div>
+                            {/if}
                         </section>
                         
                         <!-- Performance Settings -->

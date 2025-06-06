@@ -101,7 +101,7 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("api_keys.google", "")
 
 	viper.SetDefault("target_language", "")
-	viper.SetDefault("native_languages", "en,en-US")
+	viper.SetDefault("native_languages", "en, en-US")
 
 	viper.SetDefault("enable_glow", true)
 	viper.SetDefault("show_log_viewer_default", false)
@@ -122,7 +122,7 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("event_throttling.max_interval", 250) // 250ms max interval
 	
 	// Default intermediary file mode
-	viper.SetDefault("intermediary_file_mode", string(KeepIntermediaryFiles))
+	viper.SetDefault("intermediary_file_mode", string(RecompressIntermediaryFiles))
 	viper.SetDefault("delete_resumption_files", false)
 
 	// Default WebAssembly settings
