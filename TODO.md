@@ -2,9 +2,6 @@
 - 🚧🚧 draft word frequency list feature
 
 .
-- unhandled logviewer error while closing toggling it off: 12:06:00 ERR FRONT: Unhandled error component=window fe_column=21081 fe_errorMessage="null is not an object (evaluating 'A(b).scrollTop=0')" fe_errorType=TypeError fe_line=167 fe_source=wails://wails/assets/index-lgx4dbjQ.js fe_stack=@wails://wails/assets/index-lgx4dbjQ.js:167:21081 module=app sessionId=mbkc4bz0cxmiew4
-
-.
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
 .
@@ -19,9 +16,6 @@
 .
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
-
-.
-- 📌 📌 📌 test translit provider manager
 
 .
 - remove useless go test files

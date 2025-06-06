@@ -943,7 +943,7 @@
         // Use rAF for better performance
         requestAnimationFrame(() => {
             // Check again in case conditions changed
-            if (!autoScroll || isUserScrolling || manualScrollLock) return;
+            if (!scrollContainer || !autoScroll || isUserScrolling || manualScrollLock) return;
             
             withProgrammaticScroll(() => {
                 if (scrollContainer) {
@@ -1961,6 +1961,7 @@
         
         // Set up ResizeObserver to detect size changes for the container and window
         const resizeObserver = new ResizeObserver(() => {
+            if (!scrollContainer) return;
             if (debug) logger.trace('logViewer', "Resize detected");
             
             // Save scroll position
