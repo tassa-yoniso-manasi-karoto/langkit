@@ -18,6 +18,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
 )
 
@@ -317,13 +318,13 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 				Str("model", tsk.SummaryModel).
 				Msg("Attempting to generate media summary for condensed audio...")
 
-			astiSubs := tsk.TargSubs.Subtitles
-			// FIXME: The comment about "trimmed close captions" is still relevant.
-			// If tsk.TargSubs.Subtitles was modified by TrimCC2Dubs in cards.go,
-			// the summary will be based on the trimmed version.
-			// If original is needed, a copy must be made before TrimCC2Dubs.
+			targSubs := tsk.TargSubs
+			// don't base the summary on the trimmed version, rely on CC for best context
+			if isClosedCaptions(tsk.TargSubFile) {
+				targSubs, _ = subs.OpenFile(tsk.TargSubFile, false)
+			}
 
-			subtitleTextForLLM := summary.PrepareSubtitlesForSummary(astiSubs)
+			subtitleTextForLLM := summary.PrepareSubtitlesForSummary(targSubs.Subtitles)
 
 			if subtitleTextForLLM != "" {
 				inputLangName := ""
@@ -367,7 +368,6 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 						Msg("Failed to generate summary for condensed audio")
 				} else {
 					if summaryText != "" {
-						// Use the new AddLyricsToAudioFile function
 						err = metadata.AddLyricsToAudioFile(out, summaryText, summaryLangCodeISO639_2)
 						if err != nil {
 							tsk.Handler.ZeroLog().Error().Err(err).

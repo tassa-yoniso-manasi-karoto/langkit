@@ -636,7 +636,7 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 // processClosedCaptions handles closed caption detection and processing
 func (tsk *Task) processClosedCaptions() {
 	// Check if subtitles are closed captions and process accordingly
-	if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") {
+	if isClosedCaptions(tsk.TargSubFile) {
 		tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
 		tsk.TargSubs.TrimCC2Dubs()
 	} else {
@@ -711,6 +711,10 @@ func (tsk *Task) processAudioEnhancement(ctx context.Context) *ProcessingError {
 			AbortAllTasks, "No separation API to isolate the voice's audio was specified.")
 	}
 	return nil
+}
+
+func isClosedCaptions(file string) bool {
+	return strings.Contains(strings.ToLower(file), "closedcaption")
 }
 
 func placeholder() {
