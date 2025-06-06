@@ -2439,7 +2439,7 @@
     {/if}
 
     <!-- Debug Auto-Scroll Overlay -->
-    {#if version === 'dev' && debugAutoScroll && scrollContainer}
+    {#if debugAutoScroll && scrollContainer}
         <!-- Debug overlay for auto-scroll and virtualization investigation -->
         <div class="fixed bottom-4 left-4 bg-black/80 p-3 text-white text-xs rounded shadow-lg z-50 pointer-events-none border-2 border-red-500 overflow-hidden max-h-[90vh] overflow-y-auto">
             <div class="text-sm font-bold mb-1 text-red-400 flex justify-between items-center">

@@ -1,14 +1,16 @@
-- 🚧🚧 add tlit in TSV/CSV
-- 🚧🚧 draft word frequency list feature
-
-.
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
 .
-- FAQ: explain binary size, link FAQ in releases
+- logviewer virt debug overlay
+- check settings panel from a non dev perspective
+
 
 .
+
 -  finish writing README.md
+  - FAQ: explain binary size, link FAQ in releases
+  - acknowledgements
+  - api keys
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE
@@ -21,18 +23,12 @@
 - remove useless go test files
 
 .
-
 - finish theme 
 
 .
 - final check to add strategic frontend logging for prod (2nd check)
-  - change levels of logs "Created new provider pool" in translit manager
 
 .
-- revoke API keys and make sure they are under no circumstances leaking in logs
-
-.
-
 - have claude scan for perf improvemnts / optimizations
 - manual GUI tests
   - make consistent progress bars between GUI and CLI
@@ -45,10 +41,12 @@
 - try offline to see if icon / fonts are missing
 
 - try a clean install
+
 .
 
 - fix newlines in builtin documentation
 - Browse / check FIXMEs in codebase
+
 .
 
 - chk memory management of WASM (remove 50Mib preallocated)
@@ -92,19 +90,25 @@ Looking at the logs, this error is not critical but shows a race condition durin
 
 <hr>
 
+### future implementations
+
+- 🚧🚧 add tlit in TSV/CSV
+- 🚧🚧 draft word frequency list feature
+
+.
 backoff requests using https://github.com/cenkalti/backoff
 
-*future implementations*
-
+.
 - condensed audio
   - multiple previous subtitle for summarization fully contextualized (Providing x previous subtitles or their summaries of previous episodes as context)
   - ENHANCE condensed audio
 
-,
+.
 
 - implement an explicit maxAbortTasks
 - add progressCallback to all providers in translitkit including go-natives
 
+.
 - hard limiter for workers num when making dubtitles from remote API (otherwise too many requests may induce delays and trigger timeouts)
 - ideally, scraper-providers should have exponential backoff both in timing and in their chunks' sizes
 

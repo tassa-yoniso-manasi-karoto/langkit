@@ -170,14 +170,14 @@ export function standardizeMemoryInfo(memInfo: any): any {
   // Log detailed info for debugging if needed in development mode
   if (typeof (window as any).__LANGKIT_VERSION === 'string' &&
       (window as any).__LANGKIT_VERSION === 'dev') {
-    logger.debug('store/wasm-state', 'Standardizing memory info', {
-      infoType: typeof memInfo,
-      isMap,
-      toStringResult: Object.prototype.toString.call(memInfo),
-      keys: isMap
-        ? Array.from((memInfo as Map<string, any>).keys())
-        : (memInfo ? Object.keys(memInfo) : [])
-    });
+    // logger.debug('store/wasm-state', 'Standardizing memory info', {
+    //   infoType: typeof memInfo,
+    //   isMap,
+    //   toStringResult: Object.prototype.toString.call(memInfo),
+    //   keys: isMap
+    //     ? Array.from((memInfo as Map<string, any>).keys())
+    //     : (memInfo ? Object.keys(memInfo) : [])
+    // });
   }
   
   // Check if the data is pre-validated

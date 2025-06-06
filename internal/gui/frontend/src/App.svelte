@@ -1308,16 +1308,6 @@
 
     <!-- Settings button container -->
     <div class="absolute top-4 right-4 z-20 flex items-center gap-4">
-        <!-- WASM Status Indicator -->
-        {#if isWasmEnabled()}
-          <div class="wasm-status-indicator flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary text-xs"
-               class:active={$wasmActive}
-               title={$wasmActive ? 'WebAssembly is currently processing' : 'WebAssembly is enabled'}>
-            <span class="material-icons text-xs">speed</span>
-            <span>WASM</span>
-          </div>
-        {/if}
-
         <button
             class="w-10 h-10 flex items-center justify-center rounded-xl
                    bg-white/5 backdrop-blur-md border border-white/10

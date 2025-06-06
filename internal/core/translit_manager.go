@@ -307,7 +307,7 @@ func (m *TranslitProviderManager) GetProvider(ctx context.Context, langCode, sty
 			// Create new pool
 			pool = NewProviderPool(key, m.config, m.logger)
 			m.pools[poolKey] = pool
-			m.logger.Info().
+			m.logger.Debug().
 				Str("pool_key", poolKey).
 				Msg("Created new provider pool")
 		}
@@ -388,7 +388,7 @@ func (m *TranslitProviderManager) performMaintenance() {
 	for key, pool := range m.pools {
 		if len(pool.Providers) == 0 && now.Sub(pool.LastUsed) > m.config.IdleTimeout*2 {
 			delete(m.pools, key)
-			m.logger.Info().
+			m.logger.Trace().
 				Str("pool_key", key).
 				Msg("Removed unused empty provider pool")
 		}
@@ -401,13 +401,13 @@ func (m *TranslitProviderManager) Shutdown() {
 	m.shutdownMu.Lock()
 	if m.isShutdown {
 		m.shutdownMu.Unlock()
-		m.logger.Info().Msg("TranslitProviderManager already shut down")
+		m.logger.Trace().Msg("TranslitProviderManager already shut down")
 		return
 	}
 	m.isShutdown = true
 	m.shutdownMu.Unlock()
 
-	m.logger.Info().Msg("Shutting down TranslitProviderManager")
+	m.logger.Debug().Msg("Shutting down TranslitProviderManager")
 	
 	// Signal maintenance goroutine to stop
 	// Check if channel is already closed to prevent panic
@@ -429,7 +429,7 @@ func (m *TranslitProviderManager) Shutdown() {
 	defer m.mu.Unlock()
 	
 	for key, pool := range m.pools {
-		m.logger.Info().Str("pool_key", key).Msg("Shutting down provider pool")
+		m.logger.Debug().Str("pool_key", key).Msg("Shutting down provider pool")
 		pool.Shutdown(ctx)
 	}
 	

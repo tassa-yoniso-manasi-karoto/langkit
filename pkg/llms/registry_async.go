@@ -128,8 +128,8 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 	r.logger.Trace().Msg("performFullInitialization: Released main mutex. Client and providerStates reset.")
 
 	// CRITICAL: Refresh the global APIKeys store with the current settings for this cycle.
-	r.logger.Trace().Interface("settings_api_keys", settings.APIKeys).Msg("performFullInitialization: Calling LoadAPIKeysFromSettings to refresh global API key store.")
-	LoadAPIKeysFromSettings(settings) // This uses the 'settings' parameter passed to this function.
+	r.logger.Trace().Msg("performFullInitialization: Calling LoadAPIKeysFromSettings to refresh global API key store.")
+	LoadAPIKeysFromSettings(settings)
 
 	providersToInit := make(map[string]string)
 	// Check global APIKeys store which was just updated
