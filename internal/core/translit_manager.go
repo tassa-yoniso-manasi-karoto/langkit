@@ -141,20 +141,10 @@ func (p *ProviderPool) createNewProvider(ctx context.Context) (*PooledProvider, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider for %s: %w", p.Key, err)
 	}
-
-	// Create a dummy task for initialization with DockerRecreate=false to reuse containers
-	dummyTask := &Task{
-		DockerRecreate: false,
-		Handler: &silentMessageHandler{
-			logger: p.logger,
-			ctx:    ctx,
-		},
-		RomanizationStyle: p.Key.Style,
-	}
-
+	
 	// Initialize the provider
 	initStartTime := time.Now()
-	err = rawProvider.Initialize(ctx, dummyTask)
+	err = rawProvider.Initialize(ctx)
 	initDuration := time.Since(initStartTime)
 
 	if err != nil {

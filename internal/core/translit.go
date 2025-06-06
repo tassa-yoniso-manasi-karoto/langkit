@@ -48,6 +48,13 @@ const (
 	TokenizedSelective
 )
 
+type contextKey string
+
+const (
+	kanjiThresholdKey contextKey = "kanjiThreshold"
+	dockerRecreateKey contextKey = "dockerRecreate"
+)
+
 func (m TranslitType) String() string {
 	return []string{"tokenized", "romanized", "selective", "selective_tokenized"}[m]
 }
@@ -73,9 +80,10 @@ type TranslitOutputType struct {
 	feature    string
 }
 
+
 // TranslitProvider defines an interface for transliteration providers
 type TranslitProvider interface {
-	Initialize(ctx context.Context, tsk *Task) error
+	Initialize(ctx context.Context) error
 	ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error)
 	Close(ctx context.Context, langCode, RomanizationStyle string) error
 	ProviderName() string
@@ -251,8 +259,10 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	
 	tsk.Handler.ZeroLog().Warn().Msgf("translit: using managed provider for language %s, please wait...", langCode)
 	
-	// Process the text using the provider manager
-	result, err := ProcessWithManagedProvider(ctx, langCode, tsk.RomanizationStyle, subtitleText, tsk.Handler, DefaultProviderManager)
+	ctxWithValues := context.WithValue(ctx, kanjiThresholdKey, tsk.KanjiThreshold)
+	ctxWithValues = context.WithValue(ctxWithValues, dockerRecreateKey, tsk.DockerRecreate)
+	
+	result, err := ProcessWithManagedProvider(ctxWithValues, langCode, tsk.RomanizationStyle, subtitleText, tsk.Handler, DefaultProviderManager)
 	
 	processDuration := time.Since(processStartTime)
 	
@@ -386,10 +396,15 @@ func NewGenericProvider(lang string, style string) (*GenericProvider, error) {
 	return &GenericProvider{module: m}, nil
 }
 
-func (p *GenericProvider) Initialize(ctx context.Context, tsk *Task) error {
-	if !tsk.DockerRecreate {
+func (p *GenericProvider) Initialize(ctx context.Context) error {
+	recreate := false
+	if val, ok := ctx.Value(dockerRecreateKey).(bool); ok {
+		recreate = val
+	}
+
+	if !recreate {
 		return p.module.InitWithContext(ctx)
-	} 
+	}
 	return p.module.InitRecreateWithContext(ctx, true)
 }
 
@@ -506,9 +521,19 @@ func NewJapaneseProvider() *JapaneseProvider {
 	return &JapaneseProvider{}
 }
 
-func (p *JapaneseProvider) Initialize(ctx context.Context, tsk *Task) error {
-	p.kanjiThreshold = tsk.KanjiThreshold
-	if !tsk.DockerRecreate {
+func (p *JapaneseProvider) Initialize(ctx context.Context) error {
+	p.kanjiThreshold = -1
+	if val := ctx.Value(kanjiThresholdKey); val != nil {
+		if threshold, ok := val.(int); ok {
+			p.kanjiThreshold = threshold
+		}
+	}
+	recreate := false
+	if val, ok := ctx.Value(dockerRecreateKey).(bool); ok {
+		recreate = val
+	}
+
+	if !recreate {
 		return ichiran.InitWithContext(ctx)
 	}
 	return ichiran.InitRecreateWithContext(ctx, true)

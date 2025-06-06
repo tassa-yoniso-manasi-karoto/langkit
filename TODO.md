@@ -11,9 +11,6 @@
 - FAQ: explain binary size, link FAQ in releases
 
 .
-- selective kanji number ignored, KanjiThreshold not propagated properly?
-
-.
 -  finish writing README.md
 
 .
