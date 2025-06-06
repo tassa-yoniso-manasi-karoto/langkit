@@ -10,6 +10,8 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
+// Note: merged enhanced opus audio is cleaned up in enhance.go independently (special case)
+
 // IntermediaryFileManager handles cleanup and recompression of intermediary files
 type IntermediaryFileManager struct {
 	mode        config.IntermediaryFileMode

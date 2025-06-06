@@ -5,6 +5,21 @@
 - don't use trimmed closed captions for summaries
 
 .
+- unhandled logviewer error while closing toggling it off: 12:06:00 ERR FRONT: Unhandled error component=window fe_column=21081 fe_errorMessage="null is not an object (evaluating 'A(b).scrollTop=0')" fe_errorType=TypeError fe_line=167 fe_source=wails://wails/assets/index-lgx4dbjQ.js fe_stack=@wails://wails/assets/index-lgx4dbjQ.js:167:21081 module=app sessionId=mbkc4bz0cxmiew4
+
+.
+- translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
+
+.
+- FAQ: explain binary size, link FAQ in releases
+
+.
+- selective kanji number ignored, KanjiThreshold not propagated properly?
+
+.
+-  finish writing README.md
+
+.
 - BROWSE FIXMEs / TODOs IN CODEBASE
 
 .

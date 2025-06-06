@@ -13,9 +13,9 @@ import (
 	"github.com/dustin/go-humanize"
 	iso "github.com/barbashov/iso639-3"
 	
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
-	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
@@ -57,7 +57,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	
 	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
 	audioPrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
-	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.ogg")
+	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.opus")
 	VoiceFile := audioPrefix + langkitMadeVocalsOnlyMarker(tsk.SeparationLib) + extPerProvider[tsk.SeparationLib]
 	
 	// Check if a recompressed version exists (from previous run with recompress mode)
@@ -83,8 +83,12 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	
 	stat, errOriginal := os.Stat(OriginalAudio)
 	_, errVoice := os.Stat(VoiceFile)
+	// Already register the voice file with the file manager for optional cleanup to support resumption scenarios
+	if tsk.fileManager != nil {
+		tsk.fileManager.RegisterFile(VoiceFile, "audio")
+	}
 	// 			no need to demux if isolate vocalfile exists already
-	if errors.Is(errOriginal, os.ErrNotExist) && errors.Is(errVoice, os.ErrNotExist) {
+	if errors.Is(errOriginal, os.ErrNotExist) {
 		tsk.Handler.ZeroLog().Info().Msg("Demuxing the audiotrack...")
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
@@ -145,9 +149,6 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		// Must write to disk so that it can be reused if ft error
 		if err := os.WriteFile(VoiceFile, audio, 0644); err != nil {
 			tsk.Handler.ZeroLog().Error().Err(err).Msg("File of separated vocals couldn't be written.")
-		} else if tsk.fileManager != nil {
-			// Register the voice file with the file manager for optional cleanup
-			tsk.fileManager.RegisterFile(VoiceFile, "audio")
 		}
 	} else {
 		tsk.Handler.ZeroLog().Info().Msg("Previously separated vocals audio was found and will be reused.")
@@ -155,34 +156,37 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	// MERGE THE ORIGINAL AUDIOTRACK WITH THE VOICE AUDIO FILE
 	// Using a lossless audio file in the video could induce A-V desync will playing
 	// because these format aren't designed to be audio tracks of videos, unlike opus.
-	MergedFile := audioPrefix + langkitMadeEnhancedMarker() + ".ogg"
-	_, err := os.Stat(MergedFile)
+	MergedFile := audioPrefix + langkitMadeEnhancedMarker() + ".opus"
+	// if the user requested a merged video file then this enhanced audio file is in fact an intermediary file, costless to recreate
+	settings, err := config.LoadSettings()
+	if err == nil && tsk.MergeOutputFiles && settings.IntermediaryFileMode != config.KeepIntermediaryFiles {
+		defer func() {
+			tsk.Handler.ZeroLog().Trace().Msg("Deleting merged enhanced opus audiofile.")
+			os.Remove(MergedFile)
+		}()
+	}
 	if strings.ToLower(tsk.SeparationLib) == "elevenlabs" {
 		tsk.Handler.ZeroLog().Info().Msg("No automatic merging possible with Elevenlabs. " +
 			"You may synchronize both tracks and merge them using an audio editor (ie. Audacity).")
 		return
 	}
-	if errors.Is(err, os.ErrNotExist) {
-		tsk.Handler.ZeroLog().Debug().Msg("Merging original and separated vocals track into an enhanced voice track...")
-		// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
-		err := media.FFmpeg(
-			[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
-					fmt.Sprintf("[0:a]volume=%fdB[a1];", tsk.VoiceBoost) +
-					fmt.Sprintf("[1:a]volume=%fdB[a2];", tsk.OriginalBoost) +
-					"[a1][a2]amix=inputs=2[amixed];" +
-					fmt.Sprintf("[amixed]alimiter=limit=%f[final]", tsk.Limiter),
-					"-map", "[final]", "-metadata:s:a:0", "language=" + tsk.Targ.String(),
-					"-acodec", "libopus", "-b:a", "128k",
-					MergedFile,
-			}...)
-		if err != nil {
-			reporter.SaveSnapshot("Audio merging failed", tsk.DebugVals()) // necessity: high
-			return tsk.Handler.LogErr(err, AbortTask, "Failed to merge original with separated vocals track.")
-		}
-		tsk.Handler.ZeroLog().Trace().Msg("Audio merging success.")
-	} else {
-		tsk.Handler.ZeroLog().Debug().Msg("Using existing enhanced audio file.")
+	tsk.Handler.ZeroLog().Debug().Msg("Merging original and separated vocals track into an enhanced voice track...")
+	// Apply positive gain on Voicefile and negative gain on Original, and add a limiter in case
+	err = media.FFmpeg(
+		[]string{"-loglevel", "error", "-y", "-i", VoiceFile, "-i", OriginalAudio, "-filter_complex",
+				fmt.Sprintf("[0:a]volume=%fdB[a1];", tsk.VoiceBoost) +
+				fmt.Sprintf("[1:a]volume=%fdB[a2];", tsk.OriginalBoost) +
+				"[a1][a2]amix=inputs=2[amixed];" +
+				fmt.Sprintf("[amixed]alimiter=limit=%f[final]", tsk.Limiter),
+				"-map", "[final]", "-metadata:s:a:0", "language=" + tsk.Targ.String(),
+				"-acodec", "libopus", "-b:a", "128k",
+				MergedFile,
+		}...)
+	if err != nil {
+		reporter.SaveSnapshot("Audio merging failed", tsk.DebugVals()) // necessity: high
+		return tsk.Handler.LogErr(err, AbortTask, "Failed to merge original with separated vocals track.")
 	}
+	tsk.Handler.ZeroLog().Trace().Msg("Audio merging success.")
 	
 	// Register the enhanced audio for final output merging if merging is enabled
 	if tsk.MergeOutputFiles {
