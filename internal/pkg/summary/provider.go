@@ -57,16 +57,16 @@ func (p *BaseProvider) GetSupportedModels() []llms.ModelInfo {
 // If options.CustomPrompt is set, it's used directly, and subtitleText is appended.
 // inputLanguageName is the English name of the subtitle's language (e.g., "Japanese").
 func GeneratePrompt(subtitleText string, inputLanguageName string, options Options) string {
-	if options.CustomPrompt != "" {
+	if strings.TrimSpace(options.CustomPrompt) != "" {
 		return options.CustomPrompt + "\n\n--- Subtitle Content ---\n" + subtitleText
 	}
 
 	var prompt strings.Builder
-	prompt.WriteString("Generate a pure factual summary of the narrative content below. ")
-	prompt.WriteString("Your response must consist solely of the story's plot and events - no preambles, ")
-	prompt.WriteString("no commentary, no thematic analysis, and no meta-statements about the content itself. ")
-	prompt.WriteString("Begin directly with what happens in the story, presenting events in chronological order. ")
-	prompt.WriteString("Focus exclusively on actions, dialogue, and plot developments that advance the narrative.")
+	prompt.WriteString("Generate a thorough, narrative plot summary of the content provided below. ")
+	prompt.WriteString("Your task is to synthesize the key events, character interactions, and significant dialogue into a coherent story. ")
+	prompt.WriteString("Focus on what is needed for understanding the plot's progression & development in detail.")
+	prompt.WriteString("Do not simply list events or transcribe dialogue. Instead, connect the dots for the reader into a summary. ")
+	prompt.WriteString("Your response must contain no preambles, no commentary, no thematic analysis, and no meta-statements about the content itself. ")
 
 	if inputLanguageName != "" {
 		prompt.WriteString(fmt.Sprintf(" The content is in %s.", inputLanguageName))
