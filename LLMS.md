@@ -1,8 +1,7 @@
-# CLAUDE.md - Langkit Development Guide
+# LLM Assitance Development Guide
 
 ## Build Commands
 - Build frontend only: `cd internal/gui/frontend && npm run build`
-- Dev frontend: `cd internal/gui/frontend && npm run dev`
 - Build GO: `go build -o langkit-cli ./cmd/cli`
 
 ## Code Style Guidelines
