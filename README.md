@@ -26,7 +26,7 @@ Langkit is an all-in-one tool designed to **facilitate language learning from na
 <br>
 <br>
 
-> [!NOTE]
+> [!IMPORTANT]
 > **Some features require an API key because certain processing tasks, such as speech-to-text, audio enhancement, are outsourced to an external provider** like Replicate. These companies offer cloud-based machine learning models that handle complex tasks remotely, allowing Langkit to leverage the models without requiring local computation. <br> The cost of running a few processing tasks using these models is typically very low. 
 
 > [!WARNING]
@@ -140,6 +140,16 @@ The frequency list comes from 6th edition of "Remembering the Kanji" by James W.
 
 Because I only have a 10 year old Pentium CPU with a graphic chipset.
 </details>
+
+<details>
+<summary> 
+
+#### Why is the executable/binary so heavy ?
+</summary>
+
+The official Docker + Docker Compose libraries and their dependencies make up most the size of the executable.
+</details>
+
 <details>
 <summary> 
     
@@ -200,7 +210,9 @@ For CLI users or those who prefer not to store keys in a file, you can use envir
 2.  **The GUI is designed to protect your keys.** When you open the settings panel, it will load and display keys from your environment variables. However, to avoid writing secrets from your environment to disk, it will only save a key to the configuration file if you **explicitly paste a new value** into an API key field in the GUI.
 3.  **The CLI does not write to the configuration file.** It will read and use keys from environment variables or the config file but will never save them.
 
-## Output
+# Output
+
+(section may be outdated)
 
 Before you can import the deck with Anki though, you must add a new
 [Note Type](https://docs.ankiweb.net/#/editing?id=adding-a-note-type)
@@ -233,15 +245,29 @@ regular deck for studying the language on a daily basis.
 See [DEV.md](https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/master/DEV.md)
 
 # Aknowledgements
-Fork of Bunkai, which reimplemented the functionality first pioneered by **cb4960** with [subs2srs](https://subs2srs.sourceforge.net/).
+ 
+-   Special thanks to [Matt vs Japan](https://www.youtube.com/@mattvsjapan) for his excellent video essays on language acquisition.
 
-$$
-\color{red}
-\text{TODO}
-$$
+### Linguistic Tools & Data
 
+-   The core `subs2cards` functionality was first pioneered by **cb4960** with the original [subs2srs](https://subs2srs.sourceforge.net/) project.
+-   Langkit began as a direct fork of [Bunkai](https://github.com/ustuehler/bunkai)) by ustuehler, which reimplemented `subs2srs` in Go.
+-   Japanese morphological analysis is provided by the [ichiran](https://github.com/tshatrov/ichiran) project.
+-   Indic scripts transliteration relies on the comprehensive [Aksharamukha](https://github.com/virtualvinodh/aksharamukha) script converter.
+-   Thai transliteration is made possible by the [go-rod](https://github.com/go-rod/rod) library for browser automation and [thai2english](https://www.thai2english.com/) website
 
+### Technical
+
+**This project stands on the shoulders of giants and would not be possible without numerous open-source projects' contributions:**
+
+-   Containerized linguistic analysis is managed with [Docker Compose](https://docs.docker.com/compose/).
+-   Essential media processing depends on the indispensable [FFmpeg](https://ffmpeg.org/) and [MediaInfo](https://mediaarea.net/en/MediaInfo) tools.
+-   The graphical user interface is:
+    -   powered by [Wails](https://github.com/wailsapp/wails) web UI framework,
+    -   built using the [Svelte](https://svelte.dev/) framework and styled using [Tailwind CSS](https://tailwindcss.com/).
 
 
 # License
 All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
+
+# Support the project
