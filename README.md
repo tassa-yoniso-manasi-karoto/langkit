@@ -147,7 +147,7 @@ Because I only have a 10 year old Pentium CPU with a graphic chipset.
 #### Why is the executable/binary so heavy ?
 </summary>
 
-The official Docker + Docker Compose libraries and their dependencies make up most the size of the executable.
+The official Docker + Docker Compose libraries and their dependencies make up most of the size of the executable.
 </details>
 
 <details>
