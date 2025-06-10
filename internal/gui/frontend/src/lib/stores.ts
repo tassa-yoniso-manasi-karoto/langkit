@@ -342,3 +342,57 @@ function createInternetStatusStore() {
 }
 
 export const internetStatusStore = createInternetStatusStore();
+
+// FFmpeg status store
+export interface FFmpegStatus {
+    available: boolean;
+    version?: string;
+    path?: string;
+    error?: string;
+    checked: boolean;
+}
+
+function createFFmpegStatusStore() {
+    const { subscribe, set, update } = writable<FFmpegStatus>({
+        available: false,
+        checked: false
+    });
+    
+    return {
+        subscribe,
+        set: (value: FFmpegStatus) => {
+            logger.trace('store/ffmpegStatus', 'FFmpeg status updated', value);
+            set(value);
+        },
+        update
+    };
+}
+
+export const ffmpegStatusStore = createFFmpegStatusStore();
+
+// MediaInfo status store
+export interface MediaInfoStatus {
+    available: boolean;
+    version?: string;
+    path?: string;
+    error?: string;
+    checked: boolean;
+}
+
+function createMediaInfoStatusStore() {
+    const { subscribe, set, update } = writable<MediaInfoStatus>({
+        available: false,
+        checked: false
+    });
+    
+    return {
+        subscribe,
+        set: (value: MediaInfoStatus) => {
+            logger.trace('store/mediainfoStatus', 'MediaInfo status updated', value);
+            set(value);
+        },
+        update
+    };
+}
+
+export const mediainfoStatusStore = createMediaInfoStatusStore();

@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"time"
 	
@@ -1001,6 +1003,136 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 	}
 	
 	return resp
+}
+
+// findBinaryPath searches for a binary in the langkit bin directory first, then in PATH
+func findBinaryPath(name string) (string, error) {
+	// Add .exe extension on Windows
+	if goruntime.GOOS == "windows" {
+		name += ".exe"
+	}
+	
+	// First, check if binary exists in langkit's bin directory
+	ex, err := os.Executable()
+	if err == nil {
+		localPath := filepath.Join(filepath.Dir(ex), "bin", name)
+		if _, err := os.Stat(localPath); err == nil {
+			return localPath, nil
+		}
+	}
+	
+	// Fall back to checking PATH
+	return exec.LookPath(name)
+}
+
+// CheckFFmpegAvailability checks if FFmpeg is available on the system
+func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
+	a.logger.Debug().Msg("Checking FFmpeg availability")
+	
+	result := map[string]interface{}{
+		"available": false,
+		"version":   "",
+		"path":      "",
+		"error":     "",
+	}
+	
+	// Try to find FFmpeg
+	ffmpegPath, err := findBinaryPath("ffmpeg")
+	if err != nil {
+		result["error"] = "FFmpeg is not installed or not in PATH"
+		a.logger.Debug().Err(err).Msg("FFmpeg not found")
+		return result, nil
+	}
+	
+	result["path"] = ffmpegPath
+	
+	// Try to get version
+	cmd := exec.Command(ffmpegPath, "-version")
+	output, err := cmd.Output()
+	if err != nil {
+		result["error"] = "FFmpeg found but could not determine version"
+		a.logger.Debug().Err(err).Msg("Failed to get FFmpeg version")
+		return result, nil
+	}
+	
+	// Parse version from output
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+	if len(lines) > 0 {
+		// First line typically contains version info
+		versionLine := lines[0]
+		if strings.Contains(versionLine, "ffmpeg version") {
+			parts := strings.Fields(versionLine)
+			if len(parts) >= 3 {
+				result["version"] = parts[2]
+			}
+		}
+	}
+	
+	result["available"] = true
+	a.logger.Debug().
+		Str("path", ffmpegPath).
+		Str("version", result["version"].(string)).
+		Msg("FFmpeg check completed")
+		
+	return result, nil
+}
+
+// CheckMediaInfoAvailability checks if MediaInfo is available on the system
+func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
+	a.logger.Debug().Msg("Checking MediaInfo availability")
+	
+	result := map[string]interface{}{
+		"available": false,
+		"version":   "",
+		"path":      "",
+		"error":     "",
+	}
+	
+	// Try to find MediaInfo
+	mediainfoPath, err := findBinaryPath("mediainfo")
+	if err != nil {
+		result["error"] = "MediaInfo is not installed or not in PATH"
+		a.logger.Debug().Err(err).Msg("MediaInfo not found")
+		return result, nil
+	}
+	
+	result["path"] = mediainfoPath
+	
+	// Try to get version
+	cmd := exec.Command(mediainfoPath, "--Version")
+	output, err := cmd.Output()
+	if err != nil {
+		result["error"] = "MediaInfo found but could not determine version"
+		a.logger.Debug().Err(err).Msg("Failed to get MediaInfo version")
+		return result, nil
+	}
+	
+	// Parse version from output
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "MediaInfo") && strings.Contains(line, "v") {
+			// Extract version number
+			if idx := strings.Index(line, "v"); idx != -1 {
+				version := strings.TrimSpace(line[idx+1:])
+				// Clean up version string
+				if spaceIdx := strings.Index(version, " "); spaceIdx != -1 {
+					version = version[:spaceIdx]
+				}
+				result["version"] = version
+				break
+			}
+		}
+	}
+	
+	result["available"] = true
+	a.logger.Debug().
+		Str("path", mediainfoPath).
+		Str("version", result["version"].(string)).
+		Msg("MediaInfo check completed")
+		
+	return result, nil
 }
 
 // shutdown is called at application termination

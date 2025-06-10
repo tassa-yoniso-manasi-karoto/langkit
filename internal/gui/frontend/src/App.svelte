@@ -5,7 +5,7 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { errorStore } from './lib/errorStore';
     import { logger } from './lib/logger';
@@ -44,7 +44,9 @@
         IncrementStatistic,
         CheckDockerAvailability,
         CheckInternetConnectivity,
-        GetLanguageRequirements
+        GetLanguageRequirements,
+        CheckFFmpegAvailability,
+        CheckMediaInfoAvailability
     } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
     import type { gui } from '../wailsjs/go/models';
@@ -404,6 +406,42 @@
         }
     }
     
+    // Check FFmpeg availability - required for all media processing
+    $: {
+        const ffmpegChecked = $ffmpegStatusStore.checked;
+        const ffmpegAvailable = $ffmpegStatusStore.available;
+        
+        if (ffmpegChecked && !ffmpegAvailable) {
+            errorStore.addError({
+                id: "ffmpeg-required",
+                message: "FFmpeg is required for media processing. Please install FFmpeg to use Langkit.",
+                severity: "critical",
+                dismissible: false,
+                docsUrl: "https://ffmpeg.org/download.html"
+            });
+        } else {
+            errorStore.removeError("ffmpeg-required");
+        }
+    }
+    
+    // Check MediaInfo availability - required for media analysis
+    $: {
+        const mediainfoChecked = $mediainfoStatusStore.checked;
+        const mediainfoAvailable = $mediainfoStatusStore.available;
+        
+        if (mediainfoChecked && !mediainfoAvailable) {
+            errorStore.addError({
+                id: "mediainfo-required",
+                message: "MediaInfo is required for media analysis. Please install MediaInfo to use Langkit.",
+                severity: "critical",
+                dismissible: false,
+                docsUrl: "https://mediaarea.net/en/MediaInfo/Download"
+            });
+        } else {
+            errorStore.removeError("mediainfo-required");
+        }
+    }
+    
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
         currentFeatureOptions = event.detail;
         logger.debug('app', 'Feature options changed', { options: event.detail });
@@ -706,6 +744,50 @@
         }
     }
     
+    async function checkFFmpegAvailability() {
+        try {
+            const ffmpegStatus = await CheckFFmpegAvailability();
+            ffmpegStatusStore.set({
+                available: ffmpegStatus.available || false,
+                version: ffmpegStatus.version,
+                path: ffmpegStatus.path,
+                error: ffmpegStatus.error,
+                checked: true
+            });
+            
+            logger.debug('app', 'FFmpeg check completed', ffmpegStatus);
+        } catch (error) {
+            logger.error('app', 'FFmpeg check failed', { error });
+            ffmpegStatusStore.set({
+                available: false,
+                error: 'Check failed',
+                checked: true
+            });
+        }
+    }
+    
+    async function checkMediaInfoAvailability() {
+        try {
+            const mediainfoStatus = await CheckMediaInfoAvailability();
+            mediainfoStatusStore.set({
+                available: mediainfoStatus.available || false,
+                version: mediainfoStatus.version,
+                path: mediainfoStatus.path,
+                error: mediainfoStatus.error,
+                checked: true
+            });
+            
+            logger.debug('app', 'MediaInfo check completed', mediainfoStatus);
+        } catch (error) {
+            logger.error('app', 'MediaInfo check failed', { error });
+            mediainfoStatusStore.set({
+                available: false,
+                error: 'Check failed',
+                checked: true
+            });
+        }
+    }
+    
     // Set up periodic Docker checks when unavailable
     $: {
         if ($dockerStatusStore.checked && !$dockerStatusStore.available && $dockerStatusStore.error !== 'Debug: Forced state') {
@@ -741,6 +823,42 @@
             }
         }
     }
+    
+    // Set up periodic FFmpeg checks when unavailable
+    $: {
+        if ($ffmpegStatusStore.checked && !$ffmpegStatusStore.available && $ffmpegStatusStore.error !== 'Debug: Forced state') {
+            // Start checking every 5 seconds if not already checking
+            if (!ffmpegCheckInterval) {
+                logger.debug('app', 'Starting periodic FFmpeg availability checks');
+                ffmpegCheckInterval = setInterval(checkFFmpegAvailability, 5000);
+            }
+        } else {
+            // Stop checking when available or forced
+            if (ffmpegCheckInterval) {
+                logger.debug('app', 'Stopping periodic FFmpeg availability checks');
+                clearInterval(ffmpegCheckInterval);
+                ffmpegCheckInterval = null;
+            }
+        }
+    }
+    
+    // Set up periodic MediaInfo checks when unavailable
+    $: {
+        if ($mediainfoStatusStore.checked && !$mediainfoStatusStore.available && $mediainfoStatusStore.error !== 'Debug: Forced state') {
+            // Start checking every 5 seconds if not already checking
+            if (!mediainfoCheckInterval) {
+                logger.debug('app', 'Starting periodic MediaInfo availability checks');
+                mediainfoCheckInterval = setInterval(checkMediaInfoAvailability, 5000);
+            }
+        } else {
+            // Stop checking when available or forced
+            if (mediainfoCheckInterval) {
+                logger.debug('app', 'Stopping periodic MediaInfo availability checks');
+                clearInterval(mediainfoCheckInterval);
+                mediainfoCheckInterval = null;
+            }
+        }
+    }
 
     // Use a more efficient approach to handle events, with debouncing for frequent events
     let progressUpdateDebounceTimer: number | null = null;
@@ -750,6 +868,8 @@
     // Periodic status check intervals
     let dockerCheckInterval: ReturnType<typeof setInterval> | null = null;
     let internetCheckInterval: ReturnType<typeof setInterval> | null = null;
+    let ffmpegCheckInterval: ReturnType<typeof setInterval> | null = null;
+    let mediainfoCheckInterval: ReturnType<typeof setInterval> | null = null;
     
     // Performance optimization based on window state
     async function checkWindowState() {
@@ -1214,9 +1334,11 @@
             updateAvailable = true;
         });
         
-        // Check Docker and Internet availability on startup
+        // Check Docker, Internet, FFmpeg and MediaInfo availability on startup
         checkDockerAvailability();
         checkInternetConnectivity();
+        checkFFmpegAvailability();
+        checkMediaInfoAvailability();
     });
 
     // Cleanup on component destruction
@@ -1231,6 +1353,14 @@
         if (internetCheckInterval) {
             clearInterval(internetCheckInterval);
             internetCheckInterval = null;
+        }
+        if (ffmpegCheckInterval) {
+            clearInterval(ffmpegCheckInterval);
+            ffmpegCheckInterval = null;
+        }
+        if (mediainfoCheckInterval) {
+            clearInterval(mediainfoCheckInterval);
+            mediainfoCheckInterval = null;
         }
         
         // Remove listeners added in onMount

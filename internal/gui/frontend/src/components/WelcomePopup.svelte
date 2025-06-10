@@ -2,7 +2,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { fade, scale, fly } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
-    import { statisticsStore, dockerStatusStore, internetStatusStore } from '../lib/stores';
+    import { statisticsStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from '../lib/stores';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
@@ -76,8 +76,12 @@
     // Reactive variables from stores
     $: dockerStatus = $dockerStatusStore;
     $: internetStatus = $internetStatusStore;
+    $: ffmpegStatus = $ffmpegStatusStore;
+    $: mediainfoStatus = $mediainfoStatusStore;
     $: dockerReady = dockerStatus.checked;
     $: internetReady = internetStatus.checked;
+    $: ffmpegReady = ffmpegStatus.checked;
+    $: mediainfoReady = mediainfoStatus.checked;
     
     // Animation states
     let titleVisible = false;
@@ -421,6 +425,200 @@
                                     <p class="text-sm text-red-200/80">
                                         An internet connection is required for AI-powered features.
                                         Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline.
+                                    </p>
+                                </div>
+                            {/if}
+                        </div>
+                        
+                        <!-- FFmpeg Status -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-4 rounded-2xl
+                                        backdrop-blur-md border border-white/10
+                                        transition-all duration-300
+                                        relative overflow-hidden"
+                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
+                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
+                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
+                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
+                                 in:fly={{ y: 20, duration: 400, delay: 150, easing: cubicOut }}>
+                                
+                                {#if !ffmpegReady}
+                                    <!-- Skeleton loader overlay -->
+                                    <div class="absolute inset-0 animate-skeleton-sweep"></div>
+                                {/if}
+                                
+                                <div class="flex items-center gap-3 relative">
+                                    <div class="w-8 h-8 flex items-center justify-center">
+                                        {#if ffmpegReady}
+                                            {#if ffmpegStatus?.available}
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
+                                                    <mask id="ffmpegCheckMask">
+                                                        <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                            <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
+                                                                <animate fill="freeze" attributeName="fill-opacity" begin="0.6s" dur="0.5s" values="0;1"/>
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
+                                                            </path>
+                                                            <path stroke="#000" stroke-dasharray="14" stroke-dashoffset="14" d="M8 12l3 3l5 -5">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="1.1s" dur="0.2s" values="14;0"/>
+                                                            </path>
+                                                        </g>
+                                                    </mask>
+                                                    <rect width="24" height="24" fill="currentColor" mask="url(#ffmpegCheckMask)"/>
+                                                </svg>
+                                            {:else if ffmpegStatus}
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" class="text-red-500">
+                                                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                        <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
+                                                        </path>
+                                                        <path stroke-dasharray="8" stroke-dashoffset="8" d="M12 7v6">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="8;0"/>
+                                                            <animate attributeName="stroke-width" begin="1.8s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
+                                                        </path>
+                                                        <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0"/>
+                                                            <animate attributeName="stroke-width" begin="2.1s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
+                                                        </path>
+                                                    </g>
+                                                </svg>
+                                            {:else}
+                                                <span class="material-icons text-3xl text-gray-400">pending</span>
+                                            {/if}
+                                        {:else}
+                                            <div class="w-8 h-8 rounded-full bg-white/10"></div>
+                                        {/if}
+                                    </div>
+                                    <div>
+                                        {#if ffmpegReady}
+                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">FFmpeg</h3>
+                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
+                                                {#if ffmpegStatus?.available}
+                                                    v{ffmpegStatus.version || 'detected'}
+                                                {:else if ffmpegStatus?.error}
+                                                    {ffmpegStatus.error}
+                                                {:else}
+                                                    Checking availability...
+                                                {/if}
+                                            </p>
+                                        {:else}
+                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
+                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
+                                        {/if}
+                                    </div>
+                                </div>
+                                
+                                {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
+                                    <ExternalLink
+                                        href="https://ffmpeg.org/download.html"
+                                        className="text-primary hover:text-primary/80"
+                                        title="">
+                                        <span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
+                                    </ExternalLink>
+                                {/if}
+                            </div>
+                            
+                            {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
+                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
+                                     in:fade={{ duration: 300 }}>
+                                    <p class="text-sm text-red-200/80">
+                                        <strong>FFmpeg is required</strong> for all media processing operations. Without it, Langkit cannot function.
+                                    </p>
+                                </div>
+                            {/if}
+                        </div>
+                        
+                        <!-- MediaInfo Status -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-4 rounded-2xl
+                                        backdrop-blur-md border border-white/10
+                                        transition-all duration-300
+                                        relative overflow-hidden"
+                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
+                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
+                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
+                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
+                                 in:fly={{ y: 20, duration: 400, delay: 200, easing: cubicOut }}>
+                                
+                                {#if !mediainfoReady}
+                                    <!-- Skeleton loader overlay -->
+                                    <div class="absolute inset-0 animate-skeleton-sweep"></div>
+                                {/if}
+                                
+                                <div class="flex items-center gap-3 relative">
+                                    <div class="w-8 h-8 flex items-center justify-center">
+                                        {#if mediainfoReady}
+                                            {#if mediainfoStatus?.available}
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
+                                                    <mask id="mediainfoCheckMask">
+                                                        <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                            <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
+                                                                <animate fill="freeze" attributeName="fill-opacity" begin="0.6s" dur="0.5s" values="0;1"/>
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
+                                                            </path>
+                                                            <path stroke="#000" stroke-dasharray="14" stroke-dashoffset="14" d="M8 12l3 3l5 -5">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="1.1s" dur="0.2s" values="14;0"/>
+                                                            </path>
+                                                        </g>
+                                                    </mask>
+                                                    <rect width="24" height="24" fill="currentColor" mask="url(#mediainfoCheckMask)"/>
+                                                </svg>
+                                            {:else if mediainfoStatus}
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" class="text-red-500">
+                                                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                        <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
+                                                        </path>
+                                                        <path stroke-dasharray="8" stroke-dashoffset="8" d="M12 7v6">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="8;0"/>
+                                                            <animate attributeName="stroke-width" begin="1.8s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
+                                                        </path>
+                                                        <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0"/>
+                                                            <animate attributeName="stroke-width" begin="2.1s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
+                                                        </path>
+                                                    </g>
+                                                </svg>
+                                            {:else}
+                                                <span class="material-icons text-3xl text-gray-400">pending</span>
+                                            {/if}
+                                        {:else}
+                                            <div class="w-8 h-8 rounded-full bg-white/10"></div>
+                                        {/if}
+                                    </div>
+                                    <div>
+                                        {#if mediainfoReady}
+                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">MediaInfo</h3>
+                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
+                                                {#if mediainfoStatus?.available}
+                                                    v{mediainfoStatus.version || 'detected'}
+                                                {:else if mediainfoStatus?.error}
+                                                    {mediainfoStatus.error}
+                                                {:else}
+                                                    Checking availability...
+                                                {/if}
+                                            </p>
+                                        {:else}
+                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
+                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
+                                        {/if}
+                                    </div>
+                                </div>
+                                
+                                {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
+                                    <ExternalLink
+                                        href="https://mediaarea.net/en/MediaInfo/Download"
+                                        className="text-primary hover:text-primary/80"
+                                        title="">
+                                        <span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
+                                    </ExternalLink>
+                                {/if}
+                            </div>
+                            
+                            {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
+                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
+                                     in:fade={{ duration: 300 }}>
+                                    <p class="text-sm text-red-200/80">
+                                        <strong>MediaInfo is required</strong> for media file analysis. Without it, Langkit cannot process media files.
                                     </p>
                                 </div>
                             {/if}

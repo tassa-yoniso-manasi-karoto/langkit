@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
@@ -78,6 +78,22 @@
         currentInternetStatus = value;
         // Check if it's forced by looking for special markers
         internetForced = value.error === 'Debug: Forced state';
+    });
+    
+    // Store current FFmpeg status
+    let currentFFmpegStatus;
+    let ffmpegForced = false;
+    const unsubscribeFFmpeg = ffmpegStatusStore.subscribe(value => {
+        currentFFmpegStatus = value;
+        ffmpegForced = value.error === 'Debug: Forced state';
+    });
+    
+    // Store current MediaInfo status
+    let currentMediaInfoStatus;
+    let mediainfoForced = false;
+    const unsubscribeMediaInfo = mediainfoStatusStore.subscribe(value => {
+        currentMediaInfoStatus = value;
+        mediainfoForced = value.error === 'Debug: Forced state';
     });
     
     // Show when in dev mode or developer mode is enabled
@@ -238,6 +254,60 @@
                     checked: true
                 });
                 logger.debug('devDashboard', 'Reset Internet status to real state', status);
+            });
+        });
+    }
+    
+    // FFmpeg control functions
+    function forceFFmpegStatus(available: boolean) {
+        ffmpegStatusStore.set({
+            available: available,
+            version: available ? 'Debug Mode' : '',
+            path: available ? '/debug/ffmpeg' : '',
+            error: available ? '' : 'Debug: Forced state',
+            checked: true
+        });
+        logger.debug('devDashboard', `Forced FFmpeg status to: ${available ? 'available' : 'unavailable'}`);
+    }
+    
+    function resetFFmpegStatus() {
+        import('../../wailsjs/go/gui/App').then(({ CheckFFmpegAvailability }) => {
+            CheckFFmpegAvailability().then(status => {
+                ffmpegStatusStore.set({
+                    available: status.available || false,
+                    version: status.version,
+                    path: status.path,
+                    error: status.error,
+                    checked: true
+                });
+                logger.debug('devDashboard', 'Reset FFmpeg status to real state', status);
+            });
+        });
+    }
+    
+    // MediaInfo control functions
+    function forceMediaInfoStatus(available: boolean) {
+        mediainfoStatusStore.set({
+            available: available,
+            version: available ? 'Debug Mode' : '',
+            path: available ? '/debug/mediainfo' : '',
+            error: available ? '' : 'Debug: Forced state',
+            checked: true
+        });
+        logger.debug('devDashboard', `Forced MediaInfo status to: ${available ? 'available' : 'unavailable'}`);
+    }
+    
+    function resetMediaInfoStatus() {
+        import('../../wailsjs/go/gui/App').then(({ CheckMediaInfoAvailability }) => {
+            CheckMediaInfoAvailability().then(status => {
+                mediainfoStatusStore.set({
+                    available: status.available || false,
+                    version: status.version,
+                    path: status.path,
+                    error: status.error,
+                    checked: true
+                });
+                logger.debug('devDashboard', 'Reset MediaInfo status to real state', status);
             });
         });
     }
@@ -649,6 +719,8 @@
         unsubscribeUserActivity();
         unsubscribeDocker();
         unsubscribeInternet();
+        unsubscribeFFmpeg();
+        unsubscribeMediaInfo();
     });
     
     // Keep dashboard in viewport when window is resized
@@ -1065,6 +1137,88 @@
                                 </div>
                                 <div class="text-xs text-gray-500 mt-2">
                                     Controls Internet connectivity checks for AI-powered features
+                                </div>
+                            </div>
+
+                            <!-- FFmpeg Status Control section -->
+                            <div class="control-section mb-4">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">FFmpeg Status Control</h5>
+                                <div class="text-xs text-gray-400 mb-2">
+                                    Status: <span class="font-mono {currentFFmpegStatus?.available ? 'text-green-400' : 'text-red-400'}">{currentFFmpegStatus?.available ? 'Available' : 'Unavailable'}</span>
+                                    {#if ffmpegForced}
+                                        <span class="text-purple-400 ml-2">(forced)</span>
+                                    {:else if currentFFmpegStatus?.checked}
+                                        <span class="text-green-400 ml-2">(real)</span>
+                                    {:else}
+                                        <span class="text-yellow-400 ml-2">(checking...)</span>
+                                    {/if}
+                                    {#if currentFFmpegStatus?.version}
+                                        <span class="text-gray-500 ml-2">v{currentFFmpegStatus.version}</span>
+                                    {/if}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceFFmpegStatus(true)}
+                                    >
+                                        Force Available
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceFFmpegStatus(false)}
+                                    >
+                                        Force Unavailable
+                                    </button>
+                                    <button
+                                        class="control-button reset-button"
+                                        on:click={() => resetFFmpegStatus()}
+                                    >
+                                        Reset to Real
+                                    </button>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-2">
+                                    Controls FFmpeg availability checks - required for all media processing
+                                </div>
+                            </div>
+
+                            <!-- MediaInfo Status Control section -->
+                            <div class="control-section mb-4">
+                                <h5 class="text-xs font-semibold mb-2 opacity-80">MediaInfo Status Control</h5>
+                                <div class="text-xs text-gray-400 mb-2">
+                                    Status: <span class="font-mono {currentMediaInfoStatus?.available ? 'text-green-400' : 'text-red-400'}">{currentMediaInfoStatus?.available ? 'Available' : 'Unavailable'}</span>
+                                    {#if mediainfoForced}
+                                        <span class="text-purple-400 ml-2">(forced)</span>
+                                    {:else if currentMediaInfoStatus?.checked}
+                                        <span class="text-green-400 ml-2">(real)</span>
+                                    {:else}
+                                        <span class="text-yellow-400 ml-2">(checking...)</span>
+                                    {/if}
+                                    {#if currentMediaInfoStatus?.version}
+                                        <span class="text-gray-500 ml-2">v{currentMediaInfoStatus.version}</span>
+                                    {/if}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceMediaInfoStatus(true)}
+                                    >
+                                        Force Available
+                                    </button>
+                                    <button
+                                        class="control-button"
+                                        on:click={() => forceMediaInfoStatus(false)}
+                                    >
+                                        Force Unavailable
+                                    </button>
+                                    <button
+                                        class="control-button reset-button"
+                                        on:click={() => resetMediaInfoStatus()}
+                                    >
+                                        Reset to Real
+                                    </button>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-2">
+                                    Controls MediaInfo availability checks - required for media analysis
                                 </div>
                             </div>
 
