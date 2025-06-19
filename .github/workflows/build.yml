@@ -424,25 +424,15 @@ jobs:
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
           generate_release_notes: true
           body: |
-            ## Installation
+            **Prior to use, please read the "FAQ", "Requirements", and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
             
-            1. Download the appropriate files for your platform
-            2. Ensure you have the required runtime dependencies:
-               - FFmpeg v6+ (dev builds recommended)
-               - MediaInfo
-               - Replicate API token (for voice enhancement and STT features)
+            #### What's included
             
-            ## What's included
-            
-            - `langkit-cli-<platform>` - Command line interface
             - `langkit-<platform>` - GUI application (can also be used as CLI with arguments)
-            - `langkit.app` - macOS application bundle (GUI)
-            - Platform-specific installers (where applicable)
+            - `langkit-cli-<platform>` - Command line interface (for power users)
+            - `langkit.app` - macOS application bundle (GUI) 
             
-            ## Platforms
+            Note MacOS:
+            - Files ending in `-macos-universal` should support both Intel and Apple Silicon.
+            - **All binaries for MacOS are provided as-is and are entirely untested.**
             
-            - **Linux (amd64)**: Files ending in `-linux-amd64`
-            - **Windows (amd64)**: Files ending in `-windows-amd64`
-            - **macOS (universal)**: Files ending in `-macos-universal` (Intel + Apple Silicon)
-            
-            See the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#readme) for detailed usage instructions.

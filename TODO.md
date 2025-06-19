@@ -14,10 +14,6 @@
 - finish theme 
 
 .
-- final check to add strategic frontend logging for prod (2nd check)
-
-.
-- have claude scan for perf improvemnts / optimizations
 - manual GUI tests
   - make consistent progress bars between GUI and CLI
   - double check translateReq2Tsk against DEV.md

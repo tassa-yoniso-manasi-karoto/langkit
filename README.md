@@ -172,8 +172,8 @@ There are several additional tools I made to accomplish this but they are hardco
 # Requirements
 - FFmpeg **v6 or higher (dev builds being preferred)**,
   - The FFmpeg dev team recommends end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
-- Mediainfo,
-- *(optional)* Docker Desktop/Engine (only if you need to process subtitles in Japanese or any Indic languags).
+- [MediaInfo](https://mediaarea.net/en/MediaInfo/Download),
+- *(optional)* [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/MacOS) / Engine (Linux): only if you need to process subtitles in Japanese or any Indic languages
 
 The binary's location for FFmpeg and Mediainfo can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is. 
 
