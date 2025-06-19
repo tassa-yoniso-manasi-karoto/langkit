@@ -16,7 +16,6 @@ import (
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
@@ -78,15 +77,11 @@ type Task struct {
 	Meta                 Meta
 	Mode                 Mode
 	
-	// Injected services for testability
-	LanguageDetector     LanguageDetector
-	MediaInfoProvider    MediaInfoProvider
-	SubtitleProvider     SubtitleProvider
-	TrackSelector        TrackSelector
-	WorkerPool           WorkerPool
-	ResumptionService    ResumptionService
-	PathService          PathService
-	ProgressTracker      ProgressTracker
+	// // Injected services for testability
+	// LanguageDetector     LanguageDetector
+	// MediaInfoProvider    MediaInfoProvider
+	// TrackSelector        TrackSelector
+	// PathService          PathService
 	
 	// Language settings
 	OriginalLang         string // FIXME what for?
@@ -176,23 +171,9 @@ type Task struct {
 }
 
 func NewTask(handler MessageHandler) (tsk *Task) {
-	// Initialize task with default services
-	fileScanner := NewFileScanner(handler)
-	pathSanitizer := NewPathSanitizer()
-	
 	tsk = &Task{
 		Handler: handler,
 		Meta: Meta { WorkersMax: runtime.NumCPU()-2 },
-		
-		// Initialize service interfaces with default implementations
-		LanguageDetector:  NewLanguageDetector(),
-		MediaInfoProvider: NewMediaInfoProvider("mediainfo", crash.Reporter), // Use crash.Reporter as it implements Reporter interface
-		SubtitleProvider:  NewSubtitleProvider(handler),
-		TrackSelector:     NewTrackSelector(handler),
-		PathService:       NewPathService(pathSanitizer),
-		ProgressTracker:   NewProgressTracker(handler, "item-bar"),
-		ResumptionService: NewResumptionService(fileScanner, "\t", handler),
-		// WorkerPool is created on demand with task-specific configuration
 		
 		// Default task settings
 		UseAudiotrack: -1,
@@ -473,14 +454,6 @@ func (tsk *Task) DebugVals() string {
 	cp := *tsk // shallow copy
 	
 	cp.Handler = nil
-	cp.LanguageDetector = nil
-	cp.MediaInfoProvider = nil
-	cp.SubtitleProvider = nil
-	cp.TrackSelector = nil
-	cp.WorkerPool = nil
-	cp.ResumptionService = nil
-	cp.PathService = nil
-	cp.ProgressTracker = nil
 	
 	cp.NativeSubs = &subs.Subtitles{}
 	cp.TargSubs = &subs.Subtitles{}

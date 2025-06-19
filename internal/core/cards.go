@@ -8,15 +8,14 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"regexp"
 	"time"
 
 	"github.com/gookit/color"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/k0kubun/pp"
 
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
@@ -360,107 +359,8 @@ func write(outStream *os.File, item *ProcessedItem) {
 	fmt.Fprintf(outStream, "%s\n", escape(item.NativeNext))
 }
 
-// Audio track selection functions
-func (tsk *Task) ChooseAudio(helper func(tsk *Task, i int, track AudioTrack) error) (err error) {
-	if tsk.UseAudiotrack < 0 {
-		for i, track := range tsk.Meta.MediaInfo.AudioTracks {
-			if err = helper(tsk, i, track); err != nil {
-				return
-			}
-		}
-	}
-	return
-}
 
-type SelectionHelper func(*Task, int, AudioTrack) error
 
-func getIdealTrack(tsk *Task, i int, track AudioTrack) error {
-	num, _ := strconv.Atoi(track.Channels)
-	tsk.Handler.ZeroLog().Trace().
-		Bool("isTargLang?", *track.Language == *tsk.Targ.Language).
-		Bool("isTargetChanNum?", num == tsk.TargetChan).
-		Bool("track.Title_empty?", track.Title == "").
-		Bool("track.Title_notEmpty_notAudioDescr", track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")).
-		Msg("getIdealTrack")
-	if *track.Language == *tsk.Targ.Language && num == tsk.TargetChan &&
-		(track.Title == "" || track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")) {
-			tsk.UseAudiotrack = i
-			tsk.Handler.ZeroLog().Debug().Msg("getIdealTrack selected UseAudiotrack")
-	}
-	return nil
-}
-
-func getAnyTargLangMatch(tsk *Task, i int, track AudioTrack) error {
-	tsk.Handler.ZeroLog().Trace().
-		Bool("isTargLang?", *track.Language == *tsk.Targ.Language).Msg("getAnyTargLangMatch")
-	if *track.Language == *tsk.Targ.Language {
-		tsk.UseAudiotrack = i
-		tsk.Handler.ZeroLog().Debug().Msg("getAnyTargLangMatch selected UseAudiotrack")
-	}
-	return nil
-}
-
-func getFirstTrack(tsk *Task, i int, track AudioTrack) error {
-	tsk.Handler.ZeroLog().Trace().
-		Bool("hasLang", track.Language != nil).
-		Bool("lang_isn't_target", *track.Language != *tsk.Targ.Language).Msg("getFirstTrack")
-	if track.Language != nil && *track.Language != *tsk.Targ.Language {
-		return fmt.Errorf("No audiotrack tagged with the requested target language exists. " +
-			"If it isn't a misinput please use the audiotrack override to set a track number manually.")
-	}
-	// Having found no audiotrack tagged with target language, we can
-	// assume first audiotrack is the target if it doesn't have a language tag
-	tsk.UseAudiotrack = i
-	tsk.Handler.ZeroLog().Debug().Msg("getFirstTrack selected UseAudiotrack")
-	return nil
-}
-
-// Utility functions
-func Base2Absolute(s, dir string) string {
-	if s != "" {
-		return path.Join(dir, s)
-	}
-	return ""
-}
-
-// FIXME No gui support
-func userConfirmed() bool {
-	reader := bufio.NewReader(os.Stdin)
-
-	for {
-		fmt.Print("Continue? (y/n): ")
-
-		// Read user input
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Error reading input:", err)
-			return false
-		}
-
-		// Convert to lowercase and trim spaces/newlines
-		response = strings.ToLower(strings.TrimSpace(response))
-
-		// Check for confirmation
-		if response == "y" || response == "yes" {
-			return true
-		} else if response == "n" || response == "no" {
-			return false
-		} else {
-			fmt.Println("Please type 'y' or 'n' and press enter.")
-		}
-	}
-}
-
-func escape(s string) string {
-	// https://datatracker.ietf.org/doc/html/rfc4180.html#section-2
-	if strings.Contains(s, `"`) || strings.Contains(s, "\t") || strings.Contains(s, "\n") {
-		var quoted = strings.ReplaceAll(s, `"`, `""`)
-		return fmt.Sprintf(`"%s"`, quoted)
-	}
-	return s
-}
-
-// Helper functions for testability
 
 // validateBasicRequirements validates the basic requirements for task execution
 func (tsk *Task) validateBasicRequirements() *ProcessingError {
@@ -618,7 +518,6 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 			AbortTask, fmt.Sprintf("ignoring file '%s'", path.Base(tsk.MediaSourceFile)))
 	}
 	
-	// Select appropriate audio track using selection helpers
 	for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
 		if err := tsk.ChooseAudio(fn); err != nil {
 			return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
@@ -711,6 +610,51 @@ func (tsk *Task) processAudioEnhancement(ctx context.Context) *ProcessingError {
 			AbortAllTasks, "No separation API to isolate the voice's audio was specified.")
 	}
 	return nil
+}
+
+// Utility functions
+func Base2Absolute(s, dir string) string {
+	if s != "" {
+		return path.Join(dir, s)
+	}
+	return ""
+}
+
+// FIXME No gui support
+func userConfirmed() bool {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Print("Continue? (y/n): ")
+
+		// Read user input
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input:", err)
+			return false
+		}
+
+		// Convert to lowercase and trim spaces/newlines
+		response = strings.ToLower(strings.TrimSpace(response))
+
+		// Check for confirmation
+		if response == "y" || response == "yes" {
+			return true
+		} else if response == "n" || response == "no" {
+			return false
+		} else {
+			fmt.Println("Please type 'y' or 'n' and press enter.")
+		}
+	}
+}
+
+func escape(s string) string {
+	// https://datatracker.ietf.org/doc/html/rfc4180.html#section-2
+	if strings.Contains(s, `"`) || strings.Contains(s, "\t") || strings.Contains(s, "\n") {
+		var quoted = strings.ReplaceAll(s, `"`, `""`)
+		return fmt.Sprintf(`"%s"`, quoted)
+	}
+	return s
 }
 
 func isClosedCaptions(file string) bool {

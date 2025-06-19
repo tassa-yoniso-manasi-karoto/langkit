@@ -1,16 +1,7 @@
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
 .
-- logviewer virt debug overlay
-- check settings panel from a non dev perspective
-
-
-.
-
--  finish writing README.md
-  - FAQ: explain binary size, link FAQ in releases
-  - acknowledgements
-  - api keys
+- link FAQ in releases
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE
@@ -18,9 +9,6 @@
 .
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
-
-.
-- remove useless go test files
 
 .
 - finish theme 
@@ -33,6 +21,7 @@
 - manual GUI tests
   - make consistent progress bars between GUI and CLI
   - double check translateReq2Tsk against DEV.md
+  - check settings panel from a non dev perspective
   - watch for combinations that should spawn an error and disallow processing:
     - no docker but japanese transliteration selected
     - Speech-to-Text and voice enhancing will not be available offline

@@ -9,6 +9,13 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
+// NOTE:
+// this file was created during a previous refactor attempt whose scope was
+// ultimately scaled back, as a result most interfaces here are unused but could
+// serve as a basis for a future refactor.
+// 
+// related file: test_helpers.go
+
 // LanguageDetector provides methods for detecting and parsing languages from various sources
 type LanguageDetector interface {
 	// GuessLangFromFilename attempts to detect language from a file name
