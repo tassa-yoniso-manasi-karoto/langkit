@@ -183,6 +183,11 @@ jobs:
             # Explicitly set for Windows and Linux
             export GOOS=${{ runner.os == 'Windows' && 'windows' || 'linux' }}
             export GOARCH=amd64
+            # Statically link for Windows to avoid DLL issues
+            if [[ "${{ runner.os }}" == "Windows" ]]; then
+              LDFLAGS="$LDFLAGS -extldflags=-static"
+            fi
+            
             echo "Building CLI for GOOS=$GOOS GOARCH=$GOARCH"
             go build -ldflags="$LDFLAGS" -o langkit-cli${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/cli
           fi
@@ -196,6 +201,11 @@ jobs:
           
           # Prepare ldflags
           LDFLAGS="-s -w -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
+          
+          # Statically link for Windows to avoid DLL issues
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            LDFLAGS="$LDFLAGS -extldflags=-static"
+          fi
           
           # Use jq if available, otherwise use a simple sed approach
           if command -v jq &> /dev/null; then
