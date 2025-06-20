@@ -130,8 +130,26 @@ The frequency list comes from 6th edition of "Remembering the Kanji" by James W.
 
 
 # FAQ
+<details>
+<summary> 
+    
+#### On Windows I get a blue popup that says "This app can't run on your PC" error when trying to run Langkit.
+</summary>
+
+When running for the first time, Windows may show "This app can't run on your PC":
+1. Click "More info" 
+2. Click "Run anyway"
+
+This is normal for unsigned software that isn't widely used and should only happen once.
+
+For a more technical explanation: This error is triggered by Windows Defender SmartScreen, a security feature that protects against unknown applications. Langkit is flagged because it  is not a widely-used application, it has not been seen by Microsoft's telemetry systems and therefore has no history of being safe.
+
+Additionally, Langkit is a "statically linked" application, meaning it includes all of its necessary component (notably for language processing!) in a single, large executable file. While this makes installaton simple for users, it can sometimes make it appear more suspicious to Defender.
+
+</details>
 
 <details>
+
 <summary> 
 
 #### Why isn't there the possibility to run the speech-to-text or voice separation locally?
