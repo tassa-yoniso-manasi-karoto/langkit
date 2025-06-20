@@ -185,7 +185,8 @@ jobs:
             export GOARCH=amd64
             # Statically link for Windows to avoid DLL issues
             if [[ "${{ runner.os }}" == "Windows" ]]; then
-              LDFLAGS="$LDFLAGS -extldflags=-static"
+              export CGO_ENABLED=1
+              export CGO_LDFLAGS="-static"
             fi
             
             echo "Building CLI for GOOS=$GOOS GOARCH=$GOARCH"
@@ -201,11 +202,6 @@ jobs:
           
           # Prepare ldflags
           LDFLAGS="-s -w -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
-          
-          # Statically link for Windows to avoid DLL issues
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            LDFLAGS="$LDFLAGS -extldflags=-static"
-          fi
           
           # Use jq if available, otherwise use a simple sed approach
           if command -v jq &> /dev/null; then
@@ -224,8 +220,12 @@ jobs:
           cat wails.json
           
       # Build GUI with Wails using the action
-      - name: Build GUI with Wails
+      - name: Build GUI with Wails (Windows)
         uses: dAppServer/wails-build-action@main
+        if: runner.os == 'Windows'
+        env:
+          CGO_ENABLED: 1
+          CGO_LDFLAGS: "-static"
         with:
           build-name: ${{ matrix.build.name }}
           build-platform: ${{ matrix.build.platform }}
@@ -233,9 +233,20 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           sign: false
-          package: false  # We'll handle packaging ourselves
+          package: false
           app-working-directory: "."
-          # Let the action handle webkit2_41 tag automatically
+      - name: Build GUI with Wails (non-Windows)
+        uses: dAppServer/wails-build-action@main
+        if: runner.os != 'Windows'
+        with:
+          build-name: ${{ matrix.build.name }}
+          build-platform: ${{ matrix.build.platform }}
+          wails-version: ${{ env.WAILS_VERSION }}
+          go-version: ${{ env.GO_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+          sign: false
+          package: false
+          app-working-directory: "."
           
       # Debug: Check what was actually built
       - name: Debug - Check build output
@@ -426,13 +437,22 @@ jobs:
           body: |
             **Prior to use, please read the "FAQ", "Requirements", and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
             
+            ## Windows Installation
+            When running for the first time, Windows **may show a blue popup** that says "This app can't run on your PC":
+            1. Click **"More info"** 
+            2. Click **"Run anyway"**
+
+            This is normal for unsigned software that isn't widely used and should only happen once.
+            
+            Langkit also requires WebView2 but it comes pre-installed with all modern versions of Windows.
+            
+            ## MacOS Installation
+            - Files ending in `-macos-universal` should support both Intel and Apple Silicon.
+            - **All binaries for MacOS are provided as-is and are entirely untested.**
+            
             #### What's included
             
             - `langkit-<platform>` - GUI application (can also be used as CLI with arguments)
             - `langkit-cli-<platform>` - Command line interface (for power users)
-            - `langkit.app` - macOS application bundle (GUI) 
-            
-            Note MacOS:
-            - Files ending in `-macos-universal` should support both Intel and Apple Silicon.
-            - **All binaries for MacOS are provided as-is and are entirely untested.**
+            - `langkit.app` - macOS application bundle (GUI)
             
