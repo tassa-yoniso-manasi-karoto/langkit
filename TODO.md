@@ -1,10 +1,10 @@
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
 .
-- link FAQ in releases
+- BROWSE FIXMEs / TODOs IN CODEBASE
 
 .
-- BROWSE FIXMEs / TODOs IN CODEBASE
+-  rename Dubtitle to Dubtitles
 
 .
 - welcome.svelte component w/ checks for binary needed:

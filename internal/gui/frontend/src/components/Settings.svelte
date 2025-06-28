@@ -3,8 +3,7 @@
     import { slide, fade } from 'svelte/transition';
     import { settings, showSettings } from '../lib/stores';
 import { isDeveloperMode } from '../lib/developerMode';
-    import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
-    import { ExportDebugReport } from '../../wailsjs/go/gui/App';
+    import { ValidateLanguageTag, ExportDebugReport, OpenExecutableDialog } from '../../wailsjs/go/gui/App';
     import { logger } from '../lib/logger';
     
     import TextInput from './TextInput.svelte';
@@ -424,6 +423,23 @@ import { isDeveloperMode } from '../lib/developerMode';
             clearInterval(wasmStateUpdateInterval);
         }
     });
+
+    async function handleLocate(dependency: 'ffmpeg' | 'mediainfo') {
+        const title = `Select ${dependency} executable`;
+        try {
+            const path = await OpenExecutableDialog(title);
+            if (path) {
+                if (dependency === 'ffmpeg') {
+                    currentSettings.ffmpegPath = path;
+                } else {
+                    currentSettings.mediainfoPath = path;
+                }
+                await updateSettings();
+            }
+        } catch (err) {
+            logger.error('Settings', `Failed to open file dialog for ${dependency}`, { error: err });
+        }
+    }
 </script>
 
 {#if $showSettings}
@@ -983,6 +999,34 @@ import { isDeveloperMode } from '../lib/developerMode';
                                                 focus:border-primary focus:ring-1
                                                 focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
                                     />
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Diagnostic / Debug Export Section with improved styling -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">build</span>
+                                Dependency Paths
+                            </h3>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>FFmpeg Path</span>
+                                    <span class="setting-description">Path to the FFmpeg executable</span>
+                                </div>
+                                <div class="setting-control">
+                                    <TextInput bind:value={currentSettings.ffmpegPath} className="w-full" />
+                                    <button on:click={() => handleLocate('ffmpeg')} class="ml-2 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
+                                </div>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>MediaInfo Path</span>
+                                    <span class="setting-description">Path to the MediaInfo executable</span>
+                                </div>
+                                <div class="setting-control">
+                                    <TextInput bind:value={currentSettings.mediainfoPath} className="w-full" />
+                                    <button on:click={() => handleLocate('mediainfo')} class="ml-2 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
                                 </div>
                             </div>
                         </section>

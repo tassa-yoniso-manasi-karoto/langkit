@@ -349,9 +349,13 @@
         // 2. Linguistic features are selected AND
         // 3. The current language actually requires Docker
         if (dockerChecked && !dockerAvailable && linguisticFeaturesSelected && languageRequiresDocker) {
+            let message = "Without Docker, linguistic processing for Japanese & Indic languages will not be available.";
+            if (window.navigator.platform.includes("Win")) {
+                message += " On Windows Home, Docker requires WSL. See the 'A Note on Specific Languages' page for more info.";
+            }
             errorStore.addError({
                 id: "docker-required",
-                message: "Without Docker, linguistic processing for Japanese & Indic languages will not be available.",
+                message: message,
                 severity: "critical",
                 dismissible: false,
                 docsUrl: "https://docs.docker.com/get-docker/"
@@ -684,9 +688,9 @@
             const stats = await LoadStatistics();
             statisticsStore.set(stats);
             
-            // Check if this is the first app start
-            if (stats.countAppStart === 0 || version == "dev") {
-                logger.info('app', 'First app start detected, showing welcome popup');
+            // Check if this is the first app start or if deps are missing
+            if (stats.countAppStart === 0 || version == "dev" || !$ffmpegStatusStore.available || !$mediainfoStatusStore.available) {
+                logger.info('app', 'First app start or missing dependencies, showing welcome popup');
                 showWelcomePopup = true;
             }
             

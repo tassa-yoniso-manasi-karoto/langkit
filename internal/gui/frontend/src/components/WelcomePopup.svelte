@@ -2,10 +2,14 @@
     import { onMount, onDestroy } from 'svelte';
     import { fade, scale, fly } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
-    import { statisticsStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from '../lib/stores';
+import { get } from 'svelte/store';
+    import { statisticsStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, settings } from '../lib/stores';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
+    import DownloadProgress from './DownloadProgress.svelte';
+    import { OpenExecutableDialog, DownloadFFmpeg, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../../wailsjs/go/gui/App';
+    import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
     
     // Custom slide projector transition
     function slideProjector(node, {
@@ -72,6 +76,7 @@
     // State variables
     let showWelcome = true;
     let showApiKeys = false;
+    let showLanguages = false;
     
     // Reactive variables from stores
     $: dockerStatus = $dockerStatusStore;
@@ -179,12 +184,18 @@
         if (showWelcome) {
             logger.info('WelcomePopup', 'Moving to API keys explanation');
             showWelcome = false;
-            // Start showing API keys almost immediately to create overlap effect
             setTimeout(() => {
                 showApiKeys = true;
                 currentStep = 1;
             }, 50);
         } else if (showApiKeys) {
+            logger.info('WelcomePopup', 'Moving to languages explanation');
+            showApiKeys = false;
+            setTimeout(() => {
+                showLanguages = true;
+                currentStep = 2;
+            }, 50);
+        } else if (showLanguages) {
             logger.info('WelcomePopup', 'User clicked Get Started');
             onClose();
         }
@@ -194,6 +205,7 @@
         if (page === 0 && !showWelcome) {
             logger.info('WelcomePopup', 'Switching to Welcome page');
             showApiKeys = false;
+            showLanguages = false;
             setTimeout(() => {
                 showWelcome = true;
                 currentStep = 0;
@@ -201,14 +213,65 @@
         } else if (page === 1 && !showApiKeys) {
             logger.info('WelcomePopup', 'Switching to API Keys page');
             showWelcome = false;
+            showLanguages = false;
             setTimeout(() => {
                 showApiKeys = true;
                 currentStep = 1;
             }, 50);
+        } else if (page === 2 && !showLanguages) {
+            logger.info('WelcomePopup', 'Switching to Languages page');
+            showWelcome = false;
+            showApiKeys = false;
+            setTimeout(() => {
+                showLanguages = true;
+                currentStep = 2;
+            }, 50);
         }
     }
     
-    $: buttonText = showWelcome ? 'Continue' : 'Get Started';
+    let ffmpeg_downloading = false;
+
+    async function handleDownload(dependency: 'ffmpeg' | 'mediainfo') {
+        if (dependency === 'ffmpeg') {
+            ffmpeg_downloading = true;
+            try {
+                await DownloadFFmpeg();
+            } catch (err) {
+                logger.error('WelcomePopup', 'FFmpeg download failed', { error: err });
+            } finally {
+                ffmpeg_downloading = false;
+            }
+        } else {
+            BrowserOpenURL('https://mediaarea.net/en/MediaInfo/Download');
+        }
+    }
+
+    async function handleLocate(dependency: 'ffmpeg' | 'mediainfo') {
+        const title = `Select ${dependency} executable`;
+        try {
+            const path = await OpenExecutableDialog(title);
+            if (path) {
+                const newSettings = { ...get(settings) };
+                if (dependency === 'ffmpeg') {
+                    newSettings.ffmpegPath = path;
+                } else {
+                    newSettings.mediainfoPath = path;
+                }
+                await window.go.gui.App.SaveSettings(newSettings);
+                settings.set(newSettings);
+
+                if (dependency === 'ffmpeg') {
+                    checkFFmpegAvailability();
+                } else {
+                    checkMediaInfoAvailability();
+                }
+            }
+        } catch (err) {
+            logger.error('WelcomePopup', `Failed to open file dialog for ${dependency}`, { error: err });
+        }
+    }
+
+    $: buttonText = showWelcome ? 'Continue' : showApiKeys ? 'Continue' : 'Get Started';
 </script>
 
 <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
@@ -507,13 +570,16 @@
                                     </div>
                                 </div>
                                 
+                            <div class="flex items-center gap-4">
                                 {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
-                                    <ExternalLink
-                                        href="https://ffmpeg.org/download.html"
-                                        className="text-primary hover:text-primary/80"
-                                        title="">
-                                        <span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
-                                    </ExternalLink>
+                                    <div class="flex gap-2">
+                                        <button on:click={() => handleDownload('ffmpeg')} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80">Download Automatically</button>
+                                        <button on:click={() => handleLocate('ffmpeg')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
+                                    </div>
+                                {/if}
+                                </div>
+                                {#if ffmpeg_downloading}
+                                    <DownloadProgress taskId="ffmpeg-download" />
                                 {/if}
                             </div>
                             
@@ -604,24 +670,24 @@
                                     </div>
                                 </div>
                                 
+                            <div class="flex items-center gap-4">
                                 {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
-                                    <ExternalLink
-                                        href="https://mediaarea.net/en/MediaInfo/Download"
-                                        className="text-primary hover:text-primary/80"
-                                        title="">
-                                        <span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
-                                    </ExternalLink>
+                                    <div class="flex gap-2">
+                                        <button on:click={() => handleDownload('mediainfo')} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80">Download from Website</button>
+                                        <button on:click={() => handleLocate('mediainfo')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
+                                    </div>
                                 {/if}
                             </div>
-                            
-                            {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
-                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
-                                     in:fade={{ duration: 300 }}>
-                                    <p class="text-sm text-red-200/80">
-                                        <strong>MediaInfo is required</strong> for media file analysis. Without it, Langkit cannot process media files.
-                                    </p>
-                                </div>
-                            {/if}
+                        </div>
+                        
+                        {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
+                            <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
+                                 in:fade={{ duration: 300 }}>
+                                <p class="text-sm text-red-200/80">
+                                    <strong>MediaInfo is required</strong> for media file analysis. Without it, Langkit cannot process media files.
+                                </p>
+                            </div>
+                        {/if}
                             </div>
                             </div>
                         </div>
@@ -666,6 +732,40 @@
                             </div>
                         </div>
                     {/if}
+
+                    <!-- Step 2: Languages page -->
+                    {#if showLanguages}
+                        <div class="absolute top-0 left-0 right-0 flex flex-col items-center justify-center pt-5 pb-5"
+                                in:slideProjector={{ yStart: 150, yEnd: 0, scaleStart: 0.65, scaleEnd: 1, opacityStart: 0, opacityEnd: 1, blurStart: 6, blurEnd: 0, duration: 800, delay: 0 }}
+                                out:slideProjectorOut={{ duration: 800 }}>
+                            <div class="text-center max-w-lg mx-auto px-4">
+                                <h2 class="text-3xl font-semibold mb-6 flex items-center justify-center gap-2"
+                                    style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                    <span class="material-icons text-primary">translate</span>
+                                    A Note on Specific Languages
+                                </h2>
+                                <div class="space-y-4">
+                                    <p class="text-base leading-relaxed"
+                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                        For some languages with complex writing systems (like Japanese and Indic scripts), Langkit uses powerful external tools.
+                                    </p>
+                                    <p class="text-base leading-relaxed"
+                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                        These tools run inside a system called <strong>Docker Desktop</strong>.
+                                    </p>
+                                    <p class="text-base leading-relaxed"
+                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
+                                        Windows Home users that Docker requires a one-time setup of the <strong>Windows Subsystem for Linux (WSL)</strong>.
+                                    </p>
+                                    <div class="pt-4">
+                                        <button on:click={() => BrowserOpenURL('https://docs.microsoft.com/en-us/windows/wsl/install')} class="px-6 py-2.5 rounded-lg font-medium transition-colors duration-300 relative overflow-hidden hover:shadow-lg hover:shadow-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-[0.97] will-change-transform border" style="background-color: rgba(159, 110, 247, var(--style-welcome-button-bg-opacity, 0.7)); border-color: rgba(159, 110, 247, var(--style-welcome-button-border-opacity, 0.5)); color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                            View Official Installation Guides
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {/if}
                 </div>
                 
                 <!-- Actions -->
@@ -676,14 +776,19 @@
                         <!-- Progress dots -->
                         <div class="flex gap-2">
                             <div 
-                                class="w-2 h-2 rounded-full transition-all duration-300 {showWelcome ? 'bg-primary' : ''}"
-                                style="{!showWelcome ? 'background-color: rgba(255, 255, 255, var(--style-welcome-progress-dot-opacity, 0.3))' : ''}"
+                                class="w-2 h-2 rounded-full transition-all duration-300 {currentStep === 0 ? 'bg-primary' : ''}"
+                                style="{currentStep !== 0 ? 'background-color: rgba(255, 255, 255, var(--style-welcome-progress-dot-opacity, 0.3))' : ''}"
                                 on:click={() => goToPage(0)}>
                             </div>
                             <div 
-                                class="w-2 h-2 rounded-full transition-all duration-300 {showApiKeys ? 'bg-primary' : ''}"
-                                style="{!showApiKeys ? 'background-color: rgba(255, 255, 255, var(--style-welcome-progress-dot-opacity, 0.3))' : ''}"
+                                class="w-2 h-2 rounded-full transition-all duration-300 {currentStep === 1 ? 'bg-primary' : ''}"
+                                style="{currentStep !== 1 ? 'background-color: rgba(255, 255, 255, var(--style-welcome-progress-dot-opacity, 0.3))' : ''}"
                                 on:click={() => goToPage(1)}>
+                            </div>
+                            <div 
+                                class="w-2 h-2 rounded-full transition-all duration-300 {currentStep === 2 ? 'bg-primary' : ''}"
+                                style="{currentStep !== 2 ? 'background-color: rgba(255, 255, 255, var(--style-welcome-progress-dot-opacity, 0.3))' : ''}"
+                                on:click={() => goToPage(2)}>
                             </div>
                         </div>
                         <!--

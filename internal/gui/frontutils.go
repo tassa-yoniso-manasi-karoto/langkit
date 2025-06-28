@@ -3,6 +3,7 @@ package gui
 import (
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"fmt"
 	"time"
@@ -64,6 +65,33 @@ func (a *App) OpenVideoDialog() (string, error) {
 				Pattern:     "*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.m4v",
 			},
 		},
+	})
+}
+
+func (a *App) OpenExecutableDialog(title string) (string, error) {
+	var filters []runtime.FileFilter
+	if goruntime.GOOS == "windows" {
+		filters = []runtime.FileFilter{
+			{
+				DisplayName: "Executables",
+				Pattern:     "*.exe",
+			},
+			{
+				DisplayName: "All Files",
+				Pattern:     "*.*",
+			},
+		}
+	} else {
+		filters = []runtime.FileFilter{
+			{
+				DisplayName: "All Files",
+				Pattern:     "*.*",
+			},
+		}
+	}
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:   title,
+		Filters: filters,
 	})
 }
 

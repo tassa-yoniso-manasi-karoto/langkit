@@ -63,6 +63,10 @@ type Settings struct {
 	UseWasm           bool   `json:"useWasm" mapstructure:"use_wasm"`
 	WasmSizeThreshold int    `json:"wasmSizeThreshold" mapstructure:"wasm_size_threshold"`
 	ForceWasmMode     string `json:"forceWasmMode" mapstructure:"force_wasm_mode"`
+
+	// Paths for binaries
+	FFmpegPath    string `json:"ffmpegPath" mapstructure:"ffmpeg_path"`
+	MediaInfoPath string `json:"mediainfoPath" mapstructure:"mediainfo_path"`
 }
 
 func GetConfigDir() (string, error) {
@@ -71,6 +75,14 @@ func GetConfigDir() (string, error) {
 		return "", err
 	}
 	return configDir, nil
+}
+
+func GetToolsDir() (string, error) {
+	toolsDir := filepath.Join(xdg.DataHome, "langkit", "tools")
+	if err := os.MkdirAll(toolsDir, 0755); err != nil {
+		return "", err
+	}
+	return toolsDir, nil
 }
 
 func getConfigPath() (string, error) {
@@ -129,6 +141,9 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("use_wasm", true)
 	viper.SetDefault("wasm_size_threshold", 500)
 	viper.SetDefault("force_wasm_mode", "enabled")
+
+	viper.SetDefault("ffmpeg_path", "")
+	viper.SetDefault("mediainfo_path", "")
 
 	// Create config if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -202,6 +217,10 @@ func SaveSettings(settings Settings) error {
 	viper.Set("use_wasm", settings.UseWasm)
 	viper.Set("wasm_size_threshold", settings.WasmSizeThreshold)
 	viper.Set("force_wasm_mode", settings.ForceWasmMode)
+
+	// Save binary paths
+	viper.Set("ffmpeg_path", settings.FFmpegPath)
+	viper.Set("mediainfo_path", settings.MediaInfoPath)
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()

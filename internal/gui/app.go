@@ -1,17 +1,21 @@
 package gui
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
 	"time"
-	
+
+	"github.com/dustin/go-humanize"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -21,6 +25,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/ffmpeg"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
@@ -1005,25 +1010,58 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 	return resp
 }
 
-// findBinaryPath searches for a binary in the langkit bin directory first, then in PATH
-func findBinaryPath(name string) (string, error) {
+func (a *App) getPathFromSettings(name string) string {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		a.logger.Warn().Err(err).Msg("Could not load settings to get binary path")
+		return ""
+	}
+	if strings.HasPrefix(name, "ffmpeg") {
+		return settings.FFmpegPath
+	} else if strings.HasPrefix(name, "mediainfo") {
+		return settings.MediaInfoPath
+	}
+	return ""
+}
+
+// we searches for a binary with a 4-tier priority:
+// 1. CLI flag (handled in core.Task)
+// 2. Saved path setting
+// 3. Local `bin` folder
+// 4. System `PATH`
+func (a *App) findBinaryPath(name string) (string, error) {
 	// Add .exe extension on Windows
-	if goruntime.GOOS == "windows" {
+	if goruntime.GOOS == "windows" && !strings.HasSuffix(name, ".exe") {
 		name += ".exe"
 	}
-	
-	// First, check if binary exists in langkit's bin directory
+
+	// 2. Check saved path in settings
+	if savedPath := a.getPathFromSettings(name); savedPath != "" {
+		if _, err := os.Stat(savedPath); err == nil {
+			a.logger.Debug().Str("path", savedPath).Msgf("Found %s via saved settings", name)
+			return savedPath, nil
+		}
+	}
+
+	// 3. Check local bin folder
 	ex, err := os.Executable()
 	if err == nil {
 		localPath := filepath.Join(filepath.Dir(ex), "bin", name)
 		if _, err := os.Stat(localPath); err == nil {
+			a.logger.Debug().Str("path", localPath).Msgf("Found %s in local bin folder", name)
 			return localPath, nil
 		}
 	}
-	
-	// Fall back to checking PATH
-	return exec.LookPath(name)
+
+	// 4. Fall back to checking PATH
+	if path, err := exec.LookPath(name); err == nil {
+		a.logger.Debug().Str("path", path).Msgf("Found %s in system PATH", name)
+		return path, nil
+	}
+
+	return "", fmt.Errorf("%s not found in standard locations", name)
 }
+
 
 // CheckFFmpegAvailability checks if FFmpeg is available on the system
 func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
@@ -1037,7 +1075,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	}
 	
 	// Try to find FFmpeg
-	ffmpegPath, err := findBinaryPath("ffmpeg")
+	ffmpegPath, err := a.findBinaryPath("ffmpeg")
 	if err != nil {
 		result["error"] = "FFmpeg is not installed or not in PATH"
 		a.logger.Debug().Err(err).Msg("FFmpeg not found")
@@ -1090,7 +1128,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	}
 	
 	// Try to find MediaInfo
-	mediainfoPath, err := findBinaryPath("mediainfo")
+	mediainfoPath, err := a.findBinaryPath("mediainfo")
 	if err != nil {
 		result["error"] = "MediaInfo is not installed or not in PATH"
 		a.logger.Debug().Err(err).Msg("MediaInfo not found")
@@ -1138,4 +1176,126 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 // shutdown is called at application termination
 func (a *App) shutdown(ctx context.Context) {
 	a.logger.Info().Msg("Application shutdown")
+}
+
+// DownloadFFmpeg automatically downloads and extracts FFmpeg
+func (a *App) DownloadFFmpeg() (string, error) {
+	a.logger.Info().Msg("Starting FFmpeg download")
+
+	// 1. Get OS-specific download URL from ffmpeg package
+	url, err := ffmpeg.GetDownloadURL()
+	if err != nil {
+		a.logger.Error().Err(err).Msg("Failed to get FFmpeg download URL")
+		return "", err
+	}
+	a.logger.Debug().Str("url", url).Msg("Got FFmpeg download URL")
+
+	// 2. Download the zip file with progress
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	// Create a temporary file to store the download
+	tmpFile, err := os.CreateTemp("", "ffmpeg-*.zip")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmpFile.Name())
+
+	// Create a progress reader
+	progressReader := &ffmpeg.ProgressReader{
+		Reader: resp.Body,
+		Total:  resp.ContentLength,
+		Handler: func(p float64, read, total int64, speed float64) {
+			runtime.EventsEmit(a.ctx, "ffmpeg-download-progress", map[string]interface{}{
+				"progress":    p,
+				"read":        read,
+				"total":       total,
+				"speed":       speed,
+				"description": fmt.Sprintf("%s / %s (%s/s)", humanize.Bytes(uint64(read)), humanize.Bytes(uint64(total)), humanize.Bytes(uint64(speed))),
+			})
+		},
+	}
+
+	if _, err = io.Copy(tmpFile, progressReader); err != nil {
+		return "", err
+	}
+	tmpFile.Close() // Close the file so we can unzip it
+
+	a.logger.Info().Msg("FFmpeg download complete, starting extraction")
+
+	// 3. Extract the binaries to a managed folder
+	toolsDir, err := config.GetToolsDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(toolsDir, 0755); err != nil {
+		return "", err
+	}
+
+	r, err := zip.OpenReader(tmpFile.Name())
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	var ffmpegPath string
+
+	for _, f := range r.File {
+		// Look for the binaries inside the 'bin' directory of the zip's root folder
+		isExecutable := strings.HasSuffix(f.Name, "ffmpeg.exe") || (goruntime.GOOS != "windows" && strings.HasSuffix(f.Name, "ffmpeg"))
+		if strings.Contains(f.Name, "/bin/") && isExecutable {
+			rc, err := f.Open()
+			if err != nil {
+				return "", err
+			}
+
+			// The final path for the binary
+			ffmpegPath = filepath.Join(toolsDir, filepath.Base(f.Name))
+			outFile, err := os.OpenFile(ffmpegPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				return "", err
+			}
+
+			_, err = io.Copy(outFile, rc)
+			rc.Close()
+			outFile.Close()
+			if err != nil {
+				return "", err
+			}
+			break // Found what we need
+		}
+	}
+
+	if ffmpegPath == "" {
+		return "", fmt.Errorf("could not find ffmpeg binary in downloaded archive")
+	}
+
+	a.logger.Info().Str("path", ffmpegPath).Msg("FFmpeg extracted successfully")
+
+	// 4. Save the path to settings
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return "", err
+	}
+	settings.FFmpegPath = ffmpegPath
+	if err := config.SaveSettings(settings); err != nil {
+		return "", err
+	}
+	a.logger.Info().Msg("Saved new FFmpeg path to settings")
+
+	// 5. Re-run availability check to confirm
+	a.CheckFFmpegAvailability()
+
+	return ffmpegPath, nil
 }
