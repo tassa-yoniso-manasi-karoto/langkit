@@ -60,7 +60,6 @@ func Run() {
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
-			DisableWindowIcon:    true,
 			BackdropType:         windows.Auto,
 			Theme:	              windows.Dark,
 			WebviewUserDataPath:  "",

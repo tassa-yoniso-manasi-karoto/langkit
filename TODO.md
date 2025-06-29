@@ -7,9 +7,6 @@
 - sub romanization not disabled when no language provided
 
 .
-- fix windows commands with SysProcAttr HideWindow: true
-
-.
 - No logs on windows (!!!)
 
 .
