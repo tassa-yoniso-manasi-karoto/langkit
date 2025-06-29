@@ -288,7 +288,22 @@ import { get } from 'svelte/store';
     }
 
     $: buttonText = showWelcome ? 'Continue' : showApiKeys ? 'Continue' : 'Get Started';
-</script>
+   
+    function formatFFmpegVersion(version: string | undefined): string {
+    	if (!version) {
+    		return 'detected';
+    	}
+    	const match = version.match(/-(\d{8})$/);
+    	if (match && match[1]) {
+    		const dateStr = match[1];
+    		const year = dateStr.substring(0, 4);
+    		const month = dateStr.substring(4, 6);
+    		const day = dateStr.substring(6, 8);
+    		return `Master build (${year}-${month}-${day})`;
+    	}
+    	return `v${version}`;
+    }
+   </script>
 
 <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
      in:fade={{ duration: 300 }}
@@ -317,7 +332,7 @@ import { get } from 'svelte/store';
             <!-- Content -->
             <div class="relative pt-8 md:pt-12 px-8 md:px-12 pb-6 md:pb-10">
                 <!-- Content container with 3D slide effect -->
-                <div class="min-h-[520px] max-h-[60vh] relative slide-container overflow-x-hidden overflow-y-auto mask-fade">
+                <div class="min-h-[630px] max-h-[60vh] relative slide-container overflow-x-hidden overflow-y-auto mask-fade">
                     <!-- Step 0: Welcome page -->
                     {#if showWelcome}
                         <div class="absolute top-0 left-0 right-0 flex flex-col items-center pb-5"
@@ -338,180 +353,6 @@ import { get } from 'svelte/store';
                             
                             <!-- System requirements cards -->
                             <div class="space-y-6 px-4 w-full max-w-xl">
-                        <!-- Docker Status -->
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between p-4 rounded-2xl
-                                        backdrop-blur-md border border-white/10
-                                        transition-all duration-300
-                                        relative overflow-hidden"
-                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
-                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
-                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
-                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
-                                 in:fly={{ y: 20, duration: 400, delay: 50, easing: cubicOut }}>
-                                
-                                {#if !dockerReady}
-                                    <!-- Skeleton loader overlay -->
-                                    <div class="absolute inset-0 animate-skeleton-sweep"></div>
-                                {/if}
-                                
-                                <div class="flex items-center gap-3 relative">
-                                    <div class="w-8 h-8 flex items-center justify-center">
-                                        {#if dockerReady}
-                                            {#if dockerStatus?.available}
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
-                                                    <mask id="dockerCheckMask">
-                                                        <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
-                                                            <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
-                                                                <animate fill="freeze" attributeName="fill-opacity" begin="0.6s" dur="0.5s" values="0;1"/>
-                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
-                                                            </path>
-                                                            <path stroke="#000" stroke-dasharray="14" stroke-dashoffset="14" d="M8 12l3 3l5 -5">
-                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="1.1s" dur="0.2s" values="14;0"/>
-                                                            </path>
-                                                        </g>
-                                                    </mask>
-                                                    <rect width="24" height="24" fill="currentColor" mask="url(#dockerCheckMask)"/>
-                                                </svg>
-                                            {:else if dockerStatus}
-                                                <DockerUnavailableIcon size="48" className="text-blue-400" />
-                                            {:else}
-                                                <span class="material-icons text-3xl text-gray-400">pending</span>
-                                            {/if}
-                                        {:else}
-                                            <div class="w-8 h-8 rounded-full bg-white/10"></div>
-                                        {/if}
-                                    </div>
-                                    <div>
-                                        {#if dockerReady}
-                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">{dockerStatus?.engine || 'Docker Desktop'}</h3>
-                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
-                                                {#if dockerStatus?.available}
-                                                    {dockerStatus.engine || 'Docker'} v{dockerStatus.version || 'detected'}
-                                                {:else if dockerStatus?.error}
-                                                    {dockerStatus.error}
-                                                {:else}
-                                                    Checking availability...
-                                                {/if}
-                                            </p>
-                                        {:else}
-                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
-                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
-                                        {/if}
-                                    </div>
-                                </div>
-                                
-                                {#if dockerReady && dockerStatus && !dockerStatus.available}
-                                	{#if systemInfo.os === 'linux'}
-                                		<p class="text-xs text-gray-400">Please install Docker using your distribution's package manager.</p>
-                                	{:else}
-                                	<ExternalLink
-                                		href=https://docs.docker.com/get-docker/
-                                		className="text-primary hover:text-primary/80"
-                                		title="">
-                                		<span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
-                                	</ExternalLink>
-                                	{/if}
-                                {/if}
-                            </div>
-                            
-                            {#if dockerReady && dockerStatus && !dockerStatus.available}
-                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
-                                     in:fade={{ duration: 300 }}>
-                                    <p class="text-sm text-red-200/80">
-                                        Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>.
-                                    </p>
-                                </div>
-                            {/if}
-                        </div>
-                        
-                        <!-- Internet Status -->
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between p-4 rounded-2xl
-                                        backdrop-blur-md border border-white/10
-                                        transition-all duration-300
-                                        relative overflow-hidden"
-                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
-                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
-                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
-                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
-                                 in:fly={{ y: 20, duration: 400, delay: 100, easing: cubicOut }}>
-                                
-                                {#if !internetReady}
-                                    <!-- Skeleton loader overlay -->
-                                    <div class="absolute inset-0 animate-skeleton-sweep"></div>
-                                {/if}
-                                
-                                <div class="flex items-center gap-3 relative">
-                                    <div class="w-8 h-8 flex items-center justify-center">
-                                        {#if internetReady}
-                                            {#if internetStatus?.online}
-                                                <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="text-pale-green">
-                                                    <style>
-                                                        .wifi_anim1{animation:wifi_fade 3s linear infinite}
-                                                        .wifi_anim2{animation:wifi_fade2 3s linear infinite}
-                                                        .wifi_anim3{animation:wifi_fade3 3s linear infinite}
-                                                        @keyframes wifi_fade{0%,32.26%,100%{opacity:0}48.39%,93.55%{opacity:1}}
-                                                        @keyframes wifi_fade2{0%,48.39%,100%{opacity:0}64.52%,93.55%{opacity:1}}
-                                                        @keyframes wifi_fade3{0%,64.52%,100%{opacity:0}80.65%,93.55%{opacity:1}}
-                                                    </style>
-                                                    <path class="wifi_anim1" fill="currentColor" d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21" opacity="0"/>
-                                                    <path class="wifi_anim1 wifi_anim2" fill="currentColor" d="M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z" opacity="0"/>
-                                                    <path class="wifi_anim1 wifi_anim3" fill="currentColor" d="M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3" opacity="0"/>
-                                                </svg>
-                                            {:else if internetStatus}
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" class="text-red-500">
-                                                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
-                                                        <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
-                                                            <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
-                                                        </path>
-                                                        <path stroke-dasharray="8" stroke-dashoffset="8" d="M12 7v6">
-                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="8;0"/>
-                                                            <animate attributeName="stroke-width" begin="1.8s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
-                                                        </path>
-                                                        <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
-                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0"/>
-                                                            <animate attributeName="stroke-width" begin="2.1s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
-                                                        </path>
-                                                    </g>
-                                                </svg>
-                                            {:else}
-                                                <span class="material-icons text-3xl text-gray-400">pending</span>
-                                            {/if}
-                                        {:else}
-                                            <div class="w-8 h-8 rounded-full bg-white/10"></div>
-                                        {/if}
-                                    </div>
-                                    <div>
-                                        {#if internetReady}
-                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">Internet Connection</h3>
-                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
-                                                {#if internetStatus?.online}
-                                                    Connected ({internetStatus.latency}ms latency)
-                                                {:else if internetStatus?.error}
-                                                    {internetStatus.error}
-                                                {:else}
-                                                    Checking connectivity...
-                                                {/if}
-                                            </p>
-                                        {:else}
-                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
-                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {#if internetReady && internetStatus && !internetStatus.online}
-                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
-                                     in:fade={{ duration: 300 }}>
-                                    <p class="text-sm text-red-200/80">
-                                        An internet connection is required for AI-powered features.
-                                        Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline.
-                                    </p>
-                                </div>
-                            {/if}
-                        </div>
                         
                         <!-- FFmpeg Status -->
                         <div class="space-y-3">
@@ -571,14 +412,14 @@ import { get } from 'svelte/store';
                                             <div class="w-8 h-8 rounded-full bg-white/10"></div>
                                         {/if}
                                     </div>
-                                    <div>
-                                        {#if ffmpegReady}
-                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">FFmpeg</h3>
+                                    <div class="text-left">
+                                    	{#if ffmpegReady}
+                                    		<h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">FFmpeg</h3>
                                             <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
-                                                {#if ffmpegStatus?.available}
-                                                    v{ffmpegStatus.version || 'detected'}
-                                                {:else if ffmpegStatus?.error}
-                                                    {ffmpegStatus.error}
+                                            	{#if ffmpegStatus?.available}
+                                            		{formatFFmpegVersion(ffmpegStatus.version)}
+                                            	{:else if ffmpegStatus?.error}
+                                            		{ffmpegStatus.error}
                                                 {:else}
                                                     Checking availability...
                                                 {/if}
@@ -675,9 +516,9 @@ import { get } from 'svelte/store';
                                             <div class="w-8 h-8 rounded-full bg-white/10"></div>
                                         {/if}
                                     </div>
-                                    <div>
-                                        {#if mediainfoReady}
-                                            <h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">MediaInfo</h3>
+                                    <div class="text-left">
+                                    	{#if mediainfoReady}
+                                    		<h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">MediaInfo</h3>
                                             <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
                                                 {#if mediainfoStatus?.available}
                                                     v{mediainfoStatus.version || 'detected'}
@@ -720,6 +561,181 @@ import { get } from 'svelte/store';
                             </div>
                         {/if}
                             </div>
+                            
+                        <!-- Docker Status -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-4 rounded-2xl
+                                        backdrop-blur-md border border-white/10
+                                        transition-all duration-300
+                                        relative overflow-hidden"
+                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
+                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
+                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
+                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
+                                 in:fly={{ y: 20, duration: 400, delay: 50, easing: cubicOut }}>
+                                
+                                {#if !dockerReady}
+                                    <!-- Skeleton loader overlay -->
+                                    <div class="absolute inset-0 animate-skeleton-sweep"></div>
+                                {/if}
+                                
+                                <div class="flex items-center gap-3 relative">
+                                    <div class="w-8 h-8 flex items-center justify-center">
+                                        {#if dockerReady}
+                                            {#if dockerStatus?.available}
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
+                                                    <mask id="dockerCheckMask">
+                                                        <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                            <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
+                                                                <animate fill="freeze" attributeName="fill-opacity" begin="0.6s" dur="0.5s" values="0;1"/>
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
+                                                            </path>
+                                                            <path stroke="#000" stroke-dasharray="14" stroke-dashoffset="14" d="M8 12l3 3l5 -5">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="1.1s" dur="0.2s" values="14;0"/>
+                                                            </path>
+                                                        </g>
+                                                    </mask>
+                                                    <rect width="24" height="24" fill="currentColor" mask="url(#dockerCheckMask)"/>
+                                                </svg>
+                                            {:else if dockerStatus}
+                                                <DockerUnavailableIcon size="48" className="text-blue-400" />
+                                            {:else}
+                                                <span class="material-icons text-3xl text-gray-400">pending</span>
+                                            {/if}
+                                        {:else}
+                                            <div class="w-8 h-8 rounded-full bg-white/10"></div>
+                                        {/if}
+                                    </div>
+                                    <div class="text-left">
+                                    	{#if dockerReady}
+                                    		<h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">{dockerStatus?.engine || 'Docker Desktop'}</h3>
+                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
+                                                {#if dockerStatus?.available}
+                                                    v{dockerStatus.version || 'detected'}
+                                                {:else if dockerStatus?.error}
+                                                    {dockerStatus.error}
+                                                {:else}
+                                                    Checking availability...
+                                                {/if}
+                                            </p>
+                                        {:else}
+                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
+                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
+                                        {/if}
+                                    </div>
+                                </div>
+                                
+                                {#if dockerReady && dockerStatus && !dockerStatus.available}
+                                	{#if systemInfo.os === 'linux'}
+                                		<p class="text-xs text-gray-400">Please install Docker using your distribution's package manager.</p>
+                                	{:else}
+                                	<ExternalLink
+                                		href=https://docs.docker.com/get-docker/
+                                		className="text-primary hover:text-primary/80"
+                                		title="">
+                                		<span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
+                                	</ExternalLink>
+                                	{/if}
+                                {/if}
+                            </div>
+                            
+                            {#if dockerReady && dockerStatus && !dockerStatus.available}
+                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
+                                     in:fade={{ duration: 300 }}>
+                                    <p class="text-sm text-red-200/80">
+                                        Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>.
+                                    </p>
+                                </div>
+                            {/if}
+                        </div>
+                        
+                        <!-- Internet Status -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-4 rounded-2xl
+                                        backdrop-blur-md border border-white/10
+                                        transition-all duration-300
+                                        relative overflow-hidden"
+                                 style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
+                                        border-color: rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))"
+                                 on:mouseover={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-hover-opacity, 0.15))'}
+                                 on:mouseout={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))'}
+                                 in:fly={{ y: 20, duration: 400, delay: 100, easing: cubicOut }}>
+                                
+                                {#if !internetReady}
+                                    <!-- Skeleton loader overlay -->
+                                    <div class="absolute inset-0 animate-skeleton-sweep"></div>
+                                {/if}
+                                
+                                <div class="flex items-center gap-3 relative">
+                                    <div class="w-8 h-8 flex items-center justify-center">
+                                        {#if internetReady}
+                                            {#if internetStatus?.online}
+                                                <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="text-pale-green">
+                                                    <style>
+                                                        .wifi_anim1{animation:wifi_fade 3s linear infinite}
+                                                        .wifi_anim2{animation:wifi_fade2 3s linear infinite}
+                                                        .wifi_anim3{animation:wifi_fade3 3s linear infinite}
+                                                        @keyframes wifi_fade{0%,32.26%,100%{opacity:0}48.39%,93.55%{opacity:1}}
+                                                        @keyframes wifi_fade2{0%,48.39%,100%{opacity:0}64.52%,93.55%{opacity:1}}
+                                                        @keyframes wifi_fade3{0%,64.52%,100%{opacity:0}80.65%,93.55%{opacity:1}}
+                                                    </style>
+                                                    <path class="wifi_anim1" fill="currentColor" d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21" opacity="0"/>
+                                                    <path class="wifi_anim1 wifi_anim2" fill="currentColor" d="M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z" opacity="0"/>
+                                                    <path class="wifi_anim1 wifi_anim3" fill="currentColor" d="M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3" opacity="0"/>
+                                                </svg>
+                                            {:else if internetStatus}
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" class="text-red-500">
+                                                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                                        <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0"/>
+                                                        </path>
+                                                        <path stroke-dasharray="8" stroke-dashoffset="8" d="M12 7v6">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="8;0"/>
+                                                            <animate attributeName="stroke-width" begin="1.8s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
+                                                        </path>
+                                                        <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                            <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0"/>
+                                                            <animate attributeName="stroke-width" begin="2.1s" dur="3s" keyTimes="0;0.1;0.2;0.3;1" repeatCount="indefinite" values="2;3;3;2;2"/>
+                                                        </path>
+                                                    </g>
+                                                </svg>
+                                            {:else}
+                                                <span class="material-icons text-3xl text-gray-400">pending</span>
+                                            {/if}
+                                        {:else}
+                                            <div class="w-8 h-8 rounded-full bg-white/10"></div>
+                                        {/if}
+                                    </div>
+                                    <div class="text-left">
+                                    	{#if internetReady}
+                                    		<h3 class="font-medium" style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">Internet Connection</h3>
+                                            <p class="text-sm" style="color: rgba(255, 255, 255, var(--style-welcome-text-tertiary-opacity, 0.6))">
+                                                {#if internetStatus?.online}
+                                                    Connected ({internetStatus.latency}ms latency)
+                                                {:else if internetStatus?.error}
+                                                    {internetStatus.error}
+                                                {:else}
+                                                    Checking connectivity...
+                                                {/if}
+                                            </p>
+                                        {:else}
+                                            <div class="h-5 rounded w-32 mb-1" style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1))"></div>
+                                            <div class="h-3.5 rounded w-48" style="background-color: rgba(255, 255, 255, 0.05)"></div>
+                                        {/if}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {#if internetReady && internetStatus && !internetStatus.online}
+                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
+                                     in:fade={{ duration: 300 }}>
+                                    <p class="text-sm text-red-200/80">
+                                        An internet connection is required for AI-powered features.
+                                        Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline.
+                                    </p>
+                                </div>
+                            {/if}
+                        </div>
                             </div>
                         </div>
                     {/if}
@@ -750,8 +766,7 @@ import { get } from 'svelte/store';
                                     <p class="text-base leading-relaxed"
                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         <strong>
-                                            An API key is like your private electricity meter number that tracks how much power you use so the company can bill you accurately.<br>
-                                            Don't share it with anyone!
+                                            An API key is like your private electricity meter number that tracks how much power you use so the company can bill you accurately. Don't share it with anyone!
                                         </strong>
                                     </p>
                                     
@@ -778,21 +793,25 @@ import { get } from 'svelte/store';
                                 <div class="space-y-4">
                                     <p class="text-base leading-relaxed"
                                         style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
-                                        For some languages with complex writing systems (like Japanese and Indic scripts), Langkit uses powerful external tools.
-                                    </p>
-                                    <p class="text-base leading-relaxed"
-                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                        For some languages with complex writing systems (like Japanese and Indic scripts), Langkit rely on external tools.
                                         These tools run inside a system called <strong>Docker Desktop</strong>.
                                     </p>
                                     <p class="text-base leading-relaxed"
-                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
-                                        Windows Home users that Docker requires a one-time setup of the <strong>Windows Subsystem for Linux (WSL)</strong>.
+                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                        Docker solves the problem of "this tool is too complicated for normal people to install". 
+                                        Docker packages these nightmare-to-install tools into something that works out-of-the-box.
+                                    </p>
+                                    {#if systemInfo.os === 'windows'}
+                                    <p class="text-base leading-relaxed"
+                                    	style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
+                                    	⚠️ In addition to installing Docker Desktop itself, Windows users require a one-time setup of the <strong>Windows Subsystem for Linux (WSL)</strong> for Docker to work.
                                     </p>
                                     <div class="pt-4">
-                                        <button on:click={() => BrowserOpenURL('https://docs.microsoft.com/en-us/windows/wsl/install')} class="px-6 py-2.5 rounded-lg font-medium transition-colors duration-300 relative overflow-hidden hover:shadow-lg hover:shadow-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-[0.97] will-change-transform border" style="background-color: rgba(159, 110, 247, var(--style-welcome-button-bg-opacity, 0.7)); border-color: rgba(159, 110, 247, var(--style-welcome-button-border-opacity, 0.5)); color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
-                                            View Official Installation Guides
-                                        </button>
+                                    	<button on:click={() => BrowserOpenURL('https://docs.microsoft.com/en-us/windows/wsl/install')} class="px-6 py-2.5 rounded-lg font-medium transition-colors duration-300 relative overflow-hidden hover:shadow-lg hover:shadow-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-[0.97] will-change-transform border" style="background-color: rgba(159, 110, 247, var(--style-welcome-button-bg-opacity, 0.7)); border-color: rgba(159, 110, 247, var(--style-welcome-button-border-opacity, 0.5)); color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                    		View official WSL Installation Guide
+                                    	</button>
                                     </div>
+                                    {/if}
                                 </div>
                             </div>
                         </div>

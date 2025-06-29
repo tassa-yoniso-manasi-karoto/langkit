@@ -7,8 +7,7 @@
 - sub romanization not disabled when no language provided
 
 .
-- COMMIT RECENT CHANGES
-- fix docker exploration
+- fix windows commands with SysProcAttr HideWindow: true
 - put ffmpeg and mediainfo before docker/internet
 - rework download layout
 - smaller coffee icon + fix colors
