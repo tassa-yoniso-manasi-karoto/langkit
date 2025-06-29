@@ -8,7 +8,6 @@
 
 .
 - fix windows commands with SysProcAttr HideWindow: true
-- put ffmpeg and mediainfo before docker/internet
 - rework download layout
 - smaller coffee icon + fix colors
 - in DevDashboard
@@ -17,7 +16,6 @@
 
 .
 - No logs on windows (!!!)
-- API keys still leaking in log "Determined providers to initialize based on refreshed APIKeys."
 
 .
 - on windows wrong icon

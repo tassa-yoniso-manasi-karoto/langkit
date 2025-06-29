@@ -127,23 +127,24 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 	r.mu.Unlock()
 	r.logger.Trace().Msg("performFullInitialization: Released main mutex. Client and providerStates reset.")
 
-	// CRITICAL: Refresh the global APIKeys store with the current settings for this cycle.
+	// Refresh the global APIKeys store with the current settings for this cycle.
 	r.logger.Trace().Msg("performFullInitialization: Calling LoadAPIKeysFromSettings to refresh global API key store.")
 	LoadAPIKeysFromSettings(settings)
 
 	providersToInit := make(map[string]string)
-	// Check global APIKeys store which was just updated
-	if APIKeys.Has("openai") {
-		providersToInit["openai"] = APIKeys.Get("openai")
-	}
-	if APIKeys.Has("openrouter") {
-		providersToInit["openrouter"] = APIKeys.Get("openrouter")
-	}
-	if APIKeys.Has("google") {
-		providersToInit["google"] = APIKeys.Get("google")
-	}
-	r.logger.Trace().Interface("providers_to_init", providersToInit).Msg("performFullInitialization: Determined providers to initialize based on refreshed APIKeys.")
+	providersLogDict := zerolog.Dict()
 
+	for _, providerName := range []string{"openai", "openrouter", "google"} {
+		if APIKeys.Has(providerName) {
+			providersToInit[providerName] = APIKeys.Get(providerName)
+			// Add a safe, sanitized field to the log dictionary.
+			providersLogDict.Bool(providerName, true)
+		}
+	}
+	r.logger.Trace().
+		Dict("providers_to_init", providersLogDict).
+		Msg("performFullInitialization: Determined providers to initialize based on refreshed APIKeys.")
+	
 	if len(providersToInit) == 0 {
 		r.logger.Warn().Msg("performFullInitialization: No LLM providers to initialize (no API keys configured or found in current settings).")
 		r.setGlobalStateAndNotify(GSReady, "No LLM providers available for initialization.", nil)
@@ -309,7 +310,7 @@ func (r *Registry) initializeSingleProvider(providerName, apiKey string, wg *syn
 	r.logger.Trace().Str("provider", providerName).Msg("initializeSingleProvider: Provider instance created.")
 
 	// Create a context with timeout for model fetching for this specific provider
-	modelFetchCtx, modelFetchCancel := context.WithTimeout(context.Background(), 60*time.Second) // Increased timeout for model fetching
+	modelFetchCtx, modelFetchCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer modelFetchCancel()
 
 	r.logger.Trace().Str("provider", providerName).Msg("initializeSingleProvider: Calling GetAvailableModels...")
