@@ -8,8 +8,8 @@ import { get } from 'svelte/store';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import DownloadProgress from './DownloadProgress.svelte';
-    import { OpenExecutableDialog, DownloadFFmpeg, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../../wailsjs/go/gui/App';
-    import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
+    import { OpenExecutableDialog, DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability, GetSystemInfo } from '../../wailsjs/go/gui/App';
+    import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime';
     
     // Custom slide projector transition
     function slideProjector(node, {
@@ -72,6 +72,8 @@ import { get } from 'svelte/store';
     }
     
     export let onClose: () => void = () => {};
+    export let recheckFFmpeg: () => Promise<void>;
+    export let recheckMediaInfo: () => Promise<void>;
     
     // State variables
     let showWelcome = true;
@@ -87,6 +89,8 @@ import { get } from 'svelte/store';
     $: internetReady = internetStatus.checked;
     $: ffmpegReady = ffmpegStatus.checked;
     $: mediainfoReady = mediainfoStatus.checked;
+    
+    let systemInfo = { os: '', arch: '' };
     
     // Animation states
     let titleVisible = false;
@@ -165,15 +169,17 @@ import { get } from 'svelte/store';
     
     // Check statuses on mount
     onMount(async () => {
-        logger.info('WelcomePopup', 'Welcome popup mounted');
-        
-        // Start reveal animation sequence
-        setTimeout(() => titleVisible = true, 100);
-        setTimeout(() => contentVisible = true, 300);
-        setTimeout(() => actionsVisible = true, 500);
-        
-        // Add keyboard listener
-        window.addEventListener('keydown', handleKeydown);
+    	logger.info('WelcomePopup', 'Welcome popup mounted');
+    	
+    	systemInfo = await GetSystemInfo();
+    	
+    	// Start reveal animation sequence
+    	setTimeout(() => titleVisible = true, 100);
+    	setTimeout(() => contentVisible = true, 300);
+    	setTimeout(() => actionsVisible = true, 500);
+    	
+    	// Add keyboard listener
+    	window.addEventListener('keydown', handleKeydown);
     });
     
     onDestroy(() => {
@@ -230,20 +236,30 @@ import { get } from 'svelte/store';
     }
     
     let ffmpeg_downloading = false;
-
+    let mediainfo_downloading = false;
+   
     async function handleDownload(dependency: 'ffmpeg' | 'mediainfo') {
-        if (dependency === 'ffmpeg') {
-            ffmpeg_downloading = true;
-            try {
-                await DownloadFFmpeg();
-            } catch (err) {
-                logger.error('WelcomePopup', 'FFmpeg download failed', { error: err });
-            } finally {
-                ffmpeg_downloading = false;
-            }
-        } else {
-            BrowserOpenURL('https://mediaarea.net/en/MediaInfo/Download');
-        }
+    	if (dependency === 'ffmpeg') {
+    		ffmpeg_downloading = true;
+    		try {
+    			await DownloadFFmpeg();
+    			if (recheckFFmpeg) await recheckFFmpeg();
+    		} catch (err) {
+    			logger.error('WelcomePopup', 'FFmpeg download failed', { error: err });
+    		} finally {
+    			ffmpeg_downloading = false;
+    		}
+    	} else {
+    		mediainfo_downloading = true;
+    		try {
+    			await DownloadMediaInfo();
+    			if (recheckMediaInfo) await recheckMediaInfo();
+    		} catch (err) {
+    			logger.error('WelcomePopup', 'MediaInfo download failed', { error: err });
+    		} finally {
+    			mediainfo_downloading = false;
+    		}
+    	}
     }
 
     async function handleLocate(dependency: 'ffmpeg' | 'mediainfo') {
@@ -261,11 +277,11 @@ import { get } from 'svelte/store';
                 settings.set(newSettings);
 
                 if (dependency === 'ffmpeg') {
-                    checkFFmpegAvailability();
+                	if (recheckFFmpeg) await recheckFFmpeg();
                 } else {
-                    checkMediaInfoAvailability();
+                	if (recheckMediaInfo) await recheckMediaInfo();
                 }
-            }
+               }
         } catch (err) {
             logger.error('WelcomePopup', `Failed to open file dialog for ${dependency}`, { error: err });
         }
@@ -386,12 +402,16 @@ import { get } from 'svelte/store';
                                 </div>
                                 
                                 {#if dockerReady && dockerStatus && !dockerStatus.available}
-                                    <ExternalLink
-                                        href=https://docs.docker.com/get-docker/
-                                        className="text-primary hover:text-primary/80"
-                                        title="">
-                                        <span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
-                                    </ExternalLink>
+                                	{#if systemInfo.os === 'linux'}
+                                		<p class="text-xs text-gray-400">Please install Docker using your distribution's package manager.</p>
+                                	{:else}
+                                	<ExternalLink
+                                		href=https://docs.docker.com/get-docker/
+                                		className="text-primary hover:text-primary/80"
+                                		title="">
+                                		<span class="material-icons text-sm text-primary hover:text-primary/80">open_in_new</span>
+                                	</ExternalLink>
+                                	{/if}
                                 {/if}
                             </div>
                             
@@ -572,14 +592,18 @@ import { get } from 'svelte/store';
                                 
                             <div class="flex items-center gap-4">
                                 {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
-                                    <div class="flex gap-2">
-                                        <button on:click={() => handleDownload('ffmpeg')} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80">Download Automatically</button>
-                                        <button on:click={() => handleLocate('ffmpeg')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
-                                    </div>
+                                	{#if systemInfo.os === 'linux'}
+                                		<p class="text-xs text-gray-400">Please install ffmpeg using your distribution's package manager.</p>
+                                	{:else}
+                                		<div class="flex gap-2">
+                                			<button on:click={() => handleDownload('ffmpeg')} disabled={ffmpeg_downloading} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80 disabled:bg-gray-500">Download Automatically</button>
+                                			<button on:click={() => handleLocate('ffmpeg')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
+                                		</div>
+                                	{/if}
                                 {/if}
                                 </div>
                                 {#if ffmpeg_downloading}
-                                    <DownloadProgress taskId="ffmpeg-download" />
+                                	<DownloadProgress taskId="ffmpeg-download-progress" />
                                 {/if}
                             </div>
                             
@@ -672,13 +696,20 @@ import { get } from 'svelte/store';
                                 
                             <div class="flex items-center gap-4">
                                 {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
-                                    <div class="flex gap-2">
-                                        <button on:click={() => handleDownload('mediainfo')} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80">Download from Website</button>
-                                        <button on:click={() => handleLocate('mediainfo')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
-                                    </div>
+                                	{#if systemInfo.os === 'linux'}
+                                		<p class="text-xs text-gray-400">Please install mediainfo using your distribution's package manager.</p>
+                                	{:else}
+                                		<div class="flex gap-2">
+                                			<button on:click={() => handleDownload('mediainfo')} disabled={mediainfo_downloading} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80 disabled:bg-gray-500">Download Automatically</button>
+                                			<button on:click={() => handleLocate('mediainfo')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
+                                		</div>
+                                	{/if}
                                 {/if}
-                            </div>
-                        </div>
+                               </div>
+                               {#if mediainfo_downloading}
+                                <DownloadProgress taskId="mediainfo-download-progress" />
+                               {/if}
+                              </div>
                         
                         {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
                             <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"

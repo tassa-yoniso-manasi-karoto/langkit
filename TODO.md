@@ -1,19 +1,40 @@
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
 .
-- BROWSE FIXMEs / TODOs IN CODEBASE
+-  rename Dubtitle to Dubtitles
 
 .
--  rename Dubtitle to Dubtitles
+- sub romanization not disabled when no language provided
+
+.
+- COMMIT RECENT CHANGES
+- fix docker exploration
+- put ffmpeg and mediainfo before docker/internet
+- rework download layout
+- smaller coffee icon + fix colors
+- in DevDashboard
+  - allow frontend logs in logviewer
+  - enable TRACE logging
+
+.
+- No logs on windows (!!!)
+- API keys still leaking in log "Determined providers to initialize based on refreshed APIKeys."
+
+.
+- on windows wrong icon
 
 .
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
 
 .
-- finish theme 
+- finish theme
+  - reduce feature cards's gradient border width
+  - enable pulse opacity
+  - fix blurred settings reveal on WebView2
 
 .
+- BROWSE FIXMEs / TODOs IN CODEBASE
 - manual GUI tests
   - make consistent progress bars between GUI and CLI
   - double check translateReq2Tsk against DEV.md

@@ -11,8 +11,8 @@
     let unlisten: () => void;
 
     onMount(() => {
-        unlisten = EventsOn(`${taskId}-progress`, (data: any) => {
-            progress = data.progress;
+        unlisten = EventsOn(taskId, (data: any) => {
+        	progress = data.progress;
             description = data.description;
             if (progress >= 100) {
                 setTimeout(() => {

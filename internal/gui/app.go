@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"archive/zip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -19,13 +18,13 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	
+
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/ffmpeg"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/downloader"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
@@ -34,12 +33,12 @@ var handler *core.GUIHandler
 var appThrottler *batch.AdaptiveEventThrottler
 
 type App struct {
-	ctx		     context.Context
-	procCancel	 context.CancelFunc
-	throttler    *batch.AdaptiveEventThrottler
-	logger       *zerolog.Logger
-	llmRegistry  *llms.Registry  // LLM Registry for async provider management
-	wsServer     *WebSocketServer // WebSocket server for state updates
+	ctx         context.Context
+	procCancel  context.CancelFunc
+	throttler   *batch.AdaptiveEventThrottler
+	logger      *zerolog.Logger
+	llmRegistry *llms.Registry   // LLM Registry for async provider management
+	wsServer    *WebSocketServer // WebSocket server for state updates
 }
 
 func NewApp() *App {
@@ -49,7 +48,7 @@ func NewApp() *App {
 		TimeFormat: time.TimeOnly,
 	}
 	logger := zerolog.New(writer).With().Timestamp().Str("module", "app").Logger()
-	
+
 	return &App{
 		logger: &logger,
 	}
@@ -57,15 +56,15 @@ func NewApp() *App {
 
 func (a *App) bindEnvironmentVariables() {
 	a.logger.Debug().Msg("Binding environment variables to config")
-	
+
 	// Set environment prefix and automatic env
 	viper.SetEnvPrefix("LANGKIT")
 	viper.AutomaticEnv()
-	
+
 	// Bind specific environment variables to their config counterparts
 	envBindings := map[string]string{
-		"REPLICATE_API_KEY":  "api_keys.replicate",
- 
+		"REPLICATE_API_KEY": "api_keys.replicate",
+
 		"ELEVENLABS_API_KEY": "api_keys.elevenlabs",
 		"OPENAI_API_KEY":     "api_keys.openai",
 		"OPENROUTER_API_KEY": "api_keys.openrouter",
@@ -83,9 +82,9 @@ func (a *App) bindEnvironmentVariables() {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	
+
 	a.logger.Info().Msg("Application starting up")
-	
+
 	// Initialize the throttler with default settings
 	// These will be updated when settings are loaded
 	a.throttler = batch.NewAdaptiveEventThrottler(
@@ -96,15 +95,15 @@ func (a *App) startup(ctx context.Context) {
 		true,                 // enabled by default
 		a.logger,             // Logger for throttler
 	)
-	
+
 	// Store throttler references for global access
 	appThrottler = a.throttler
-	
+
 	// Initialize handler with throttler
 	handler = core.NewGUIHandler(ctx, a.throttler)
-	
+
 	a.logger.Debug().Msg("Event throttler initialized")
-	
+
 	// Create WebSocket server for LLM state updates
 	wsServer, err := NewWebSocketServer(*a.logger)
 	if err != nil {
@@ -116,36 +115,36 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) domReady(ctx context.Context) {
 	a.logger.Debug().Msg("DOM ready, initializing settings")
-	
+
 	// Bind environment variables to config
 	a.bindEnvironmentVariables()
-	
+
 	// Load settings
 	settings, err := config.LoadSettings()
 	if err != nil {
 		a.logger.Error().Err(err).Msg("Failed to load settings")
 	}
-	
+
 	if err := config.InitConfig(""); err != nil {
 		a.logger.Error().Err(err).Msg("Failed to initialize config")
 		runtime.LogError(ctx, "Failed to initialize config: "+err.Error())
 		return
 	}
-	
+
 	// Update throttler settings from config
 	a.updateThrottlerSettings(settings)
 
 	// Emit settings to frontend
 	runtime.EventsEmit(ctx, "settings-loaded", settings)
-	
+
 	if settings.ShowLogViewerByDefault {
 		runtime.WindowMaximise(ctx)
 	}
-	
+
 	// Initialize LLM system with async registry and WebSocket server
 	a.llmRegistry = core.InitLLM(handler, a.ctx, a.wsServer)
 	a.logger.Info().Msg("LLM registry initialized")
-	
+
 	a.logger.Info().Msg("Application initialization complete")
 }
 
@@ -155,11 +154,11 @@ func (a *App) updateThrottlerSettings(settings config.Settings) {
 		a.logger.Warn().Msg("Cannot update throttler settings: throttler is nil")
 		return
 	}
-	
+
 	// Convert milliseconds to time.Duration
 	minInterval := time.Duration(settings.EventThrottling.MinInterval) * time.Millisecond
 	maxInterval := time.Duration(settings.EventThrottling.MaxInterval) * time.Millisecond
-	
+
 	// Enforce reasonable limits
 	if maxInterval < 50*time.Millisecond {
 		maxInterval = 50 * time.Millisecond
@@ -167,12 +166,12 @@ func (a *App) updateThrottlerSettings(settings config.Settings) {
 	if maxInterval > 1000*time.Millisecond {
 		maxInterval = 1000 * time.Millisecond
 	}
-	
+
 	// Set the throttler parameters
 	a.throttler.SetMinInterval(minInterval)
 	a.throttler.SetMaxInterval(maxInterval)
 	a.throttler.SetEnabled(settings.EventThrottling.Enabled)
-	
+
 	a.logger.Debug().
 		Bool("enabled", settings.EventThrottling.Enabled).
 		Dur("minInterval", minInterval).
@@ -195,13 +194,13 @@ func (a *App) GetEventThrottlingStatus() map[string]interface{} {
 	if a.throttler == nil {
 		a.logger.Warn().Msg("Cannot get throttling status: throttler is nil")
 		return map[string]interface{}{
-			"enabled": false,
-			"currentRate": 0.0,
+			"enabled":         false,
+			"currentRate":     0.0,
 			"currentInterval": 0,
-			"error": "Throttler not initialized",
+			"error":           "Throttler not initialized",
 		}
 	}
-	
+
 	return a.throttler.GetStatus()
 }
 
@@ -212,8 +211,6 @@ func (a *App) GetWebSocketPort() (int, error) {
 	}
 	return a.wsServer.GetPort(), nil
 }
-
-
 
 // BackendLoggerBatch handles batched log entries from the frontend
 func (a *App) BackendLoggerBatch(component string, logsJson string) {
@@ -295,7 +292,7 @@ func (a *App) processLogEntry(component string, logEntry map[string]interface{})
 			level = zerolog.FatalLevel
 		}
 	}
-	
+
 	fields := map[string]interface{}{}
 
 	// Extract component from log entry, fallback to function parameter
@@ -341,12 +338,12 @@ func (a *App) processLogEntry(component string, logEntry map[string]interface{})
 // RecordWasmLog receives and processes WebAssembly log entries from the frontend
 func (a *App) RecordWasmLog(logJson string) {
 	var logEntry map[string]interface{}
-	
+
 	if err := json.Unmarshal([]byte(logJson), &logEntry); err != nil {
 		a.logger.Error().Err(err).Msg("Failed to parse WebAssembly log entry")
 		return
 	}
-	
+
 	// Convert to Zerolog level
 	level := zerolog.InfoLevel
 	if levelVal, ok := logEntry["level"].(float64); ok {
@@ -363,28 +360,28 @@ func (a *App) RecordWasmLog(logJson string) {
 			level = zerolog.ErrorLevel
 		}
 	}
-	
+
 	// Extract fields for structured logging
 	fields := map[string]interface{}{
 		"origin": "gui",
 	}
-	
+
 	if component, ok := logEntry["component"].(string); ok {
 		fields["component"] = component
 	}
-	
+
 	if metrics, ok := logEntry["metrics"].(map[string]interface{}); ok {
 		for k, v := range metrics {
 			fields["wasm_"+k] = v
 		}
 	}
-	
+
 	// Log through the throttler
 	message := "WebAssembly log"
 	if msg, ok := logEntry["message"].(string); ok {
 		message = msg
 	}
-	
+
 	// Use the handler to log the message with fields
 	// FIXME USING ZEROLOG DIRECTLY IS LIKELY THE BEST WAY, NOT SURE.
 	handler.LogFields(int8(level), "wasm", message, fields)
@@ -396,22 +393,22 @@ func (a *App) RecordWasmState(stateJson string) {
 	if crash.Reporter != nil {
 		crash.Reporter.SaveSnapshot("wasm_state", stateJson)
 	}
-	
+
 	// Log state changes at debug level (to avoid spamming logs)
 	a.logger.Debug().Msg("WebAssembly state updated")
-	
+
 	// Optional: Parse and log specific state changes (init status changes, errors, etc.)
 	var state map[string]interface{}
 	if err := json.Unmarshal([]byte(stateJson), &state); err != nil {
 		a.logger.Error().Err(err).Msg("Failed to parse WebAssembly state")
 		return
 	}
-	
+
 	if status, ok := state["initStatus"].(string); ok {
 		// Log status changes at info level
 		a.logger.Info().Str("status", status).Msg("WebAssembly status updated")
 	}
-	
+
 	// If there's an error, log it
 	if lastError, ok := state["lastError"].(map[string]interface{}); ok {
 		if errMsg, ok := lastError["message"].(string); ok {
@@ -423,7 +420,7 @@ func (a *App) RecordWasmState(stateJson string) {
 // GetInitialLLMState returns the current state of LLM providers
 func (a *App) GetInitialLLMState() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Getting initial LLM state")
-	
+
 	if a.llmRegistry == nil {
 		err := fmt.Errorf("LLM registry not initialized")
 		a.logger.Error().Err(err).Msg("Failed to get LLM state")
@@ -432,43 +429,43 @@ func (a *App) GetInitialLLMState() (map[string]interface{}, error) {
 			"message":     "LLM registry not initialized",
 		}, err
 	}
-	
+
 	// Get the current state snapshot
 	stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
-	
+
 	// Convert to map for JSON serialization
 	response := map[string]interface{}{
-		"globalState":     stateSnapshot.GlobalState.String(),
-		"timestamp":       stateSnapshot.Timestamp,
-		"message":         stateSnapshot.Message,
-		"providerStates":  make(map[string]interface{}),
+		"globalState":    stateSnapshot.GlobalState.String(),
+		"timestamp":      stateSnapshot.Timestamp,
+		"message":        stateSnapshot.Message,
+		"providerStates": make(map[string]interface{}),
 	}
-	
+
 	// Convert provider states to serializable format
 	providerStates := make(map[string]interface{})
 	for name, state := range stateSnapshot.ProviderStatesSnapshot {
 		providerState := map[string]interface{}{
-			"status":       state.Status,
-			"lastUpdated":  state.LastUpdated,
-			"modelCount":   len(state.Models),
+			"status":      state.Status,
+			"lastUpdated": state.LastUpdated,
+			"modelCount":  len(state.Models),
 		}
-		
+
 		if state.Error != "" {
 			providerState["error"] = state.Error
 		}
-		
+
 		providerStates[name] = providerState
 	}
-	
+
 	response["providerStates"] = providerStates
-	
+
 	return response, nil
 }
 
 // GetAvailableSummaryProviders returns a list of available LLM providers for summarization
 func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Fetching available summary providers")
-	
+
 	// First check LLM registry state
 	if a.llmRegistry == nil {
 		a.logger.Warn().Msg("LLM registry not initialized")
@@ -481,15 +478,15 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 			"message":   "LLM registry not initialized yet",
 		}, nil
 	}
-	
+
 	stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
-	
+
 	// If registry is not ready, return appropriate status
 	if stateSnapshot.GlobalState != llms.GSReady {
 		a.logger.Info().
 			Str("global_state", stateSnapshot.GlobalState.String()).
 			Msg("LLM registry not ready yet")
-			
+
 		return map[string]interface{}{
 			"providers": []map[string]string{},
 			"names":     []string{},
@@ -499,7 +496,7 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 			"message":   "LLM providers are still initializing",
 		}, nil
 	}
-	
+
 	// Get the summary service
 	summaryService := summary.GetDefaultService()
 	if summaryService == nil {
@@ -514,10 +511,10 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 			"message":   "Summary service not initialized yet",
 		}, nil
 	}
-	
+
 	// Get the list of providers
 	providers := summaryService.ListProviders()
-	
+
 	// Create the response structure
 	response := map[string]interface{}{
 		"providers": []map[string]string{},
@@ -526,21 +523,21 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 		"suggested": "",
 		"status":    "ready",
 	}
-	
+
 	// Add provider details
 	providersList := make([]map[string]string, 0, len(providers))
 	namesList := make([]string, 0, len(providers))
-	
+
 	for _, provider := range providers {
 		providerName := provider.GetName()
 		namesList = append(namesList, providerName)
-		
+
 		providerInfo := map[string]string{
 			"name":        providerName,
 			"displayName": displayNameForProvider(providerName),
 			"description": descriptionForProvider(providerName),
 		}
-		
+
 		// Add status information from provider states if available
 		if providerState, exists := stateSnapshot.ProviderStatesSnapshot[providerName]; exists {
 			providerInfo["status"] = providerState.Status
@@ -548,13 +545,13 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 				providerInfo["error"] = providerState.Error
 			}
 		}
-		
+
 		providersList = append(providersList, providerInfo)
 	}
-	
+
 	response["providers"] = providersList
 	response["names"] = namesList
-	
+
 	// Set suggested provider - prioritize openrouter-free only
 	// First check for openrouter-free
 	for _, name := range namesList {
@@ -563,23 +560,23 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 			break
 		}
 	}
-	
+
 	// If no openrouter-free and there's at least one available, use the first one
 	if response["suggested"] == "" && len(namesList) > 0 {
 		response["suggested"] = namesList[0]
 	}
-	
+
 	return response, nil
 }
 
 // GetAvailableSummaryModels returns a list of available models for a specified provider
 func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interface{}, error) {
 	a.logger.Debug().Str("provider", providerName).Msg("Fetching available summary models")
-	
+
 	// First check LLM registry state
 	if a.llmRegistry != nil {
 		stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
-		
+
 		// If registry is not ready, return appropriate status
 		if stateSnapshot.GlobalState != llms.GSReady {
 			return map[string]interface{}{
@@ -591,7 +588,7 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 				"message":   "LLM providers are still initializing",
 			}, nil
 		}
-		
+
 		// If this specific provider is in error state, return that info
 		if providerState, exists := stateSnapshot.ProviderStatesSnapshot[providerName]; exists {
 			if providerState.Status == "error" {
@@ -599,7 +596,7 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 				if providerState.Error != "" {
 					errMsg = providerState.Error
 				}
-				
+
 				return map[string]interface{}{
 					"models":    []map[string]interface{}{},
 					"names":     []string{},
@@ -611,7 +608,7 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 			}
 		}
 	}
-	
+
 	// Get the summary service
 	summaryService := summary.GetDefaultService()
 	if summaryService == nil {
@@ -619,14 +616,14 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 		a.logger.Error().Err(err).Msg("Failed to get summary models")
 		return nil, err
 	}
-	
+
 	// Get models for the specified provider
 	models, err := summaryService.GetModelsForProvider(providerName)
 	if err != nil {
 		a.logger.Error().Err(err).Str("provider", providerName).Msg("Failed to get models for provider")
 		return nil, err
 	}
-	
+
 	// Create the response structure
 	response := map[string]interface{}{
 		"models":    []map[string]interface{}{},
@@ -635,22 +632,22 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 		"suggested": "",
 		"status":    "ready",
 	}
-	
+
 	// Add model details
 	modelsList := make([]map[string]interface{}, 0, len(models))
 	namesList := make([]string, 0, len(models))
-	
+
 	for _, model := range models {
 		namesList = append(namesList, model.ID)
-		
+
 		modelInfo := map[string]interface{}{
-			"id":          model.ID,
-			"name":        model.Name,
-			"description": model.Description,
+			"id":           model.ID,
+			"name":         model.Name,
+			"description":  model.Description,
 			"providerName": model.ProviderName,
 		}
 		modelsList = append(modelsList, modelInfo)
-		
+
 		// Look for GPT-4o or Claude models to set as suggested
 		if response["suggested"] == "" {
 			if strings.Contains(strings.ToLower(model.ID), "gpt-4o") ||
@@ -659,15 +656,15 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 			}
 		}
 	}
-	
+
 	response["models"] = modelsList
 	response["names"] = namesList
-	
+
 	// If no suggested model yet and there's at least one available, use the first one
 	if response["suggested"] == "" && len(namesList) > 0 {
 		response["suggested"] = namesList[0]
 	}
-	
+
 	return response, nil
 }
 
@@ -716,17 +713,17 @@ func (a *App) RequestWasmState() {
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	// Request WebAssembly state for diagnostic purposes
 	a.RequestWasmState()
-	
+
 	// Small delay to allow frontend to respond with state
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Properly shut down the LLM registry
 	if a.llmRegistry != nil {
 		a.logger.Info().Msg("Application closing, shutting down LLM registry")
 		core.ShutdownLLM(handler)
 		a.llmRegistry = nil
 	}
-	
+
 	// Properly shut down the WebSocket server
 	if a.wsServer != nil {
 		a.logger.Info().Msg("Application closing, shutting down WebSocket server")
@@ -735,15 +732,28 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 		}
 		a.wsServer = nil
 	}
-	
+
 	// Properly shut down the throttler
 	if a.throttler != nil {
 		a.logger.Info().Msg("Application closing, shutting down throttler")
 		a.throttler.Shutdown()
 		a.throttler = nil
 	}
-	
+
 	return false
+}
+
+// GetOperatingSystem returns the user's operating system.
+func (a *App) GetOperatingSystem() string {
+	return goruntime.GOOS
+}
+
+// GetSystemInfo returns the user's operating system and architecture.
+func (a *App) GetSystemInfo() map[string]string {
+	return map[string]string{
+		"os":   goruntime.GOOS,
+		"arch": goruntime.GOARCH,
+	}
 }
 
 // GenerateSummary generates a summary using the specified options
@@ -765,31 +775,31 @@ func (a *App) GenerateSummary(text string, inputLanguage string, options map[str
 
 	// Convert map options to typed struct
 	summaryOpts := summary.DefaultOptions()
-	
+
 	if provider, ok := options["provider"].(string); ok && provider != "" {
 		summaryOpts.Provider = provider
 	} else {
 		return "", fmt.Errorf("provider is required")
 	}
-	
+
 	if model, ok := options["model"].(string); ok && model != "" {
 		summaryOpts.Model = model
 	} else {
 		return "", fmt.Errorf("model is required")
 	}
-	
+
 	if outputLang, ok := options["outputLanguage"].(string); ok {
 		summaryOpts.OutputLanguage = outputLang
 	}
-	
+
 	if maxLength, ok := options["maxLength"].(float64); ok && maxLength > 0 {
 		summaryOpts.MaxLength = int(maxLength)
 	}
-	
+
 	if temperature, ok := options["temperature"].(float64); ok && temperature >= 0 {
 		summaryOpts.Temperature = temperature
 	}
-	
+
 	if customPrompt, ok := options["customPrompt"].(string); ok {
 		summaryOpts.CustomPrompt = customPrompt
 	}
@@ -824,18 +834,18 @@ func (a *App) GenerateSummary(text string, inputLanguage string, options map[str
 // CheckDockerAvailability checks if Docker is available on the system
 func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Checking Docker availability")
-	
+
 	// Try to run docker version command
 	cmd := exec.Command("docker", "version", "--format", "json")
 	output, err := cmd.Output()
-	
+
 	result := map[string]interface{}{
 		"available": false,
 		"version":   "",
 		"engine":    "",
 		"error":     "",
 	}
-	
+
 	if err != nil {
 		// Check if it's a command not found error
 		if strings.Contains(err.Error(), "executable file not found") {
@@ -846,7 +856,7 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 		a.logger.Debug().Err(err).Msg("Docker check failed")
 		return result, nil
 	}
-	
+
 	// Parse docker version output
 	var versionInfo map[string]interface{}
 	if err := json.Unmarshal(output, &versionInfo); err == nil {
@@ -856,13 +866,13 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 				result["version"] = version
 			}
 		}
-		
+
 		// Get the actual Docker backend name using dockerutil
 		engine := dockerutil.DockerBackendName()
 		result["engine"] = engine
 		a.logger.Debug().Str("engine", engine).Msg("Docker engine detected")
 	}
-	
+
 	a.logger.Debug().Interface("result", result).Msg("Docker check completed")
 	return result, nil
 }
@@ -870,20 +880,20 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 // CheckInternetConnectivity checks if the system has internet connectivity
 func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Checking internet connectivity")
-	
+
 	result := map[string]interface{}{
-		"online":   false,
-		"latency":  0,
-		"error":    "",
+		"online":  false,
+		"latency": 0,
+		"error":   "",
 	}
-	
+
 	// Try to connect to multiple reliable hosts
 	hosts := []string{
 		"1.1.1.1:443",        // Cloudflare DNS
 		"8.8.8.8:443",        // Google DNS
 		"208.67.222.222:443", // OpenDNS
 	}
-	
+
 	for _, host := range hosts {
 		start := time.Now()
 		conn, err := net.DialTimeout("tcp", host, 3*time.Second)
@@ -894,7 +904,7 @@ func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
 			break
 		}
 	}
-	
+
 	if !result["online"].(bool) {
 		result["error"] = "No internet connection detected"
 		a.logger.Debug().Msg("Internet connectivity check failed")
@@ -904,17 +914,17 @@ func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
 			Int("latency", result["latency"].(int)).
 			Msg("Internet connectivity check passed")
 	}
-	
+
 	return result, nil
 }
 
 // LanguageRequirements holds the requirements for a specific language
 type LanguageRequirements struct {
 	StandardTag      string `json:"standardTag"`
-	IsValid         bool   `json:"isValid"`
-	RequiresDocker  bool   `json:"requiresDocker"`
+	IsValid          bool   `json:"isValid"`
+	RequiresDocker   bool   `json:"requiresDocker"`
 	RequiresInternet bool   `json:"requiresInternet"`
-	Error           string `json:"error,omitempty"`
+	Error            string `json:"error,omitempty"`
 }
 
 // validateLanguageTag is an internal helper to validate and standardize a language tag
@@ -922,23 +932,23 @@ func validateLanguageTag(tag string) (standardTag string, isValid bool, err erro
 	if tag == "" {
 		return "", false, fmt.Errorf("language tag is empty")
 	}
-	
+
 	// Validate the language tag using core
 	langs, err := core.ParseLanguageTags([]string{strings.TrimSpace(tag)})
 	if err != nil {
 		return "", false, err
 	}
-	
+
 	if len(langs) == 0 {
 		return "", false, fmt.Errorf("invalid language tag")
 	}
-	
+
 	// Get the standardized tag
 	std := langs[0].Part3
 	if langs[0].Subtag != "" {
 		std += "-" + langs[0].Subtag
 	}
-	
+
 	return std, true, nil
 }
 
@@ -947,17 +957,17 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 	resp := LanguageRequirements{
 		IsValid: false,
 	}
-	
+
 	// Use the internal validation helper
 	std, isValid, err := validateLanguageTag(languageTag)
 	if err != nil {
 		resp.Error = err.Error()
 		return resp
 	}
-	
+
 	resp.StandardTag = std
 	resp.IsValid = isValid
-	
+
 	// TODO slap translitkit get default scheme for lang & remove hardcoded maps
 	// Languages that require Docker for linguistic processing
 	dockerRequiredLanguages := map[string]bool{
@@ -974,7 +984,7 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 		"ori": true, // Odia
 		"urd": true, // Urdu
 	}
-	
+
 	// Languages that require Internet for linguistic processing
 	internetRequiredLanguages := map[string]bool{
 		"tha": true, // Thai
@@ -991,7 +1001,7 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 		"ori": true, // Odia
 		"urd": true, // Urdu
 	}
-	
+
 	// Check requirements based on the ISO 639-3 code
 	for code := range dockerRequiredLanguages {
 		if strings.HasPrefix(std, code) {
@@ -999,14 +1009,14 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 			break
 		}
 	}
-	
+
 	for code := range internetRequiredLanguages {
 		if strings.HasPrefix(std, code) {
 			resp.RequiresInternet = true
 			break
 		}
 	}
-	
+
 	return resp
 }
 
@@ -1062,18 +1072,17 @@ func (a *App) findBinaryPath(name string) (string, error) {
 	return "", fmt.Errorf("%s not found in standard locations", name)
 }
 
-
 // CheckFFmpegAvailability checks if FFmpeg is available on the system
 func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Checking FFmpeg availability")
-	
+
 	result := map[string]interface{}{
 		"available": false,
 		"version":   "",
 		"path":      "",
 		"error":     "",
 	}
-	
+
 	// Try to find FFmpeg
 	ffmpegPath, err := a.findBinaryPath("ffmpeg")
 	if err != nil {
@@ -1081,9 +1090,9 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 		a.logger.Debug().Err(err).Msg("FFmpeg not found")
 		return result, nil
 	}
-	
+
 	result["path"] = ffmpegPath
-	
+
 	// Try to get version
 	cmd := exec.Command(ffmpegPath, "-version")
 	output, err := cmd.Output()
@@ -1092,7 +1101,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 		a.logger.Debug().Err(err).Msg("Failed to get FFmpeg version")
 		return result, nil
 	}
-	
+
 	// Parse version from output
 	outputStr := string(output)
 	lines := strings.Split(outputStr, "\n")
@@ -1106,27 +1115,27 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 			}
 		}
 	}
-	
+
 	result["available"] = true
 	a.logger.Debug().
 		Str("path", ffmpegPath).
 		Str("version", result["version"].(string)).
 		Msg("FFmpeg check completed")
-		
+
 	return result, nil
 }
 
 // CheckMediaInfoAvailability checks if MediaInfo is available on the system
 func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Checking MediaInfo availability")
-	
+
 	result := map[string]interface{}{
 		"available": false,
 		"version":   "",
 		"path":      "",
 		"error":     "",
 	}
-	
+
 	// Try to find MediaInfo
 	mediainfoPath, err := a.findBinaryPath("mediainfo")
 	if err != nil {
@@ -1134,9 +1143,9 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 		a.logger.Debug().Err(err).Msg("MediaInfo not found")
 		return result, nil
 	}
-	
+
 	result["path"] = mediainfoPath
-	
+
 	// Try to get version
 	cmd := exec.Command(mediainfoPath, "--Version")
 	output, err := cmd.Output()
@@ -1145,7 +1154,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 		a.logger.Debug().Err(err).Msg("Failed to get MediaInfo version")
 		return result, nil
 	}
-	
+
 	// Parse version from output
 	outputStr := string(output)
 	lines := strings.Split(outputStr, "\n")
@@ -1163,13 +1172,13 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 			}
 		}
 	}
-	
+
 	result["available"] = true
 	a.logger.Debug().
 		Str("path", mediainfoPath).
 		Str("version", result["version"].(string)).
 		Msg("MediaInfo check completed")
-		
+
 	return result, nil
 }
 
@@ -1178,19 +1187,104 @@ func (a *App) shutdown(ctx context.Context) {
 	a.logger.Info().Msg("Application shutdown")
 }
 
-// DownloadFFmpeg automatically downloads and extracts FFmpeg
+// DownloadFFmpeg automatically downloads and extracts FFmpeg using a primary/fallback strategy.
 func (a *App) DownloadFFmpeg() (string, error) {
-	a.logger.Info().Msg("Starting FFmpeg download")
+	a.logger.Info().Msg("Starting FFmpeg download...")
 
-	// 1. Get OS-specific download URL from ffmpeg package
-	url, err := ffmpeg.GetDownloadURL()
+	// --- Primary Method: BtbN/FFmpeg-Builds ---
+	var url string
+	var err error
+
+	a.logger.Info().Msg("Attempting to download from primary source: BtbN/FFmpeg-Builds")
+	var keywords []string
+	switch goruntime.GOOS {
+	case "windows":
+		switch goruntime.GOARCH {
+		case "amd64":
+			keywords = []string{"win64", "master-latest", "gpl.zip"}
+		case "arm64":
+			keywords = []string{"winarm64", "master-latest", "gpl.zip"}
+		default:
+			err = fmt.Errorf("unsupported architecture for Windows: %s", goruntime.GOARCH)
+		}
+		if err == nil {
+			url, err = downloader.GetDownloadURLForAsset("BtbN/FFmpeg-Builds", keywords)
+		}
+	case "darwin":
+		url = "https://evermeet.cx/ffmpeg/get/zip" // This source is reliable for macOS
+	default:
+		err = fmt.Errorf("automatic download not supported for this OS")
+	}
+
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to get FFmpeg download URL")
+		a.logger.Warn().Err(err).Msg("Primary download source failed, attempting fallback")
+		// --- Fallback Method: langkit-assets ---
+		var fallbackAssetPrefix string
+		switch goruntime.GOOS {
+		case "windows":
+			switch goruntime.GOARCH {
+			case "amd64":
+				fallbackAssetPrefix = "ffmpeg-windows-amd64"
+			case "arm64":
+				fallbackAssetPrefix = "ffmpeg-windows-arm64"
+			}
+		case "darwin":
+			fallbackAssetPrefix = "ffmpeg-macos-universal"
+		}
+
+		if fallbackAssetPrefix != "" {
+			url, err = downloader.GetDownloadURLForAsset("tassa-yoniso-manasi-karoto/langkit-assets", []string{fallbackAssetPrefix, ".zip"})
+			if err != nil {
+				a.logger.Error().Err(err).Msg("Fallback download source also failed")
+				return "", err
+			}
+		} else {
+			return "", err // Return the original error if no fallback is available
+		}
+	}
+
+	return a.downloadAndExtract("ffmpeg", url, []string{"ffmpeg", "ffmpeg.exe"})
+}
+
+// DownloadMediaInfo automatically downloads and extracts MediaInfo CLI from the self-hosted repo.
+func (a *App) DownloadMediaInfo() (string, error) {
+	a.logger.Info().Msg("Starting MediaInfo CLI download...")
+
+	var assetPrefix string
+	var filesToExtract []string
+
+	switch goruntime.GOOS {
+	case "windows":
+		switch goruntime.GOARCH {
+		case "amd64":
+			assetPrefix = "mediainfo-windows-amd64"
+		case "arm64":
+			assetPrefix = "mediainfo-windows-arm64"
+		default:
+			return "", fmt.Errorf("unsupported architecture for Windows: %s", goruntime.GOARCH)
+		}
+		filesToExtract = []string{"MediaInfo.exe"}
+	case "darwin":
+		assetPrefix = "mediainfo-macos-universal"
+		filesToExtract = []string{"mediainfo"}
+	default:
+		return "", fmt.Errorf("automatic download not supported for this OS")
+	}
+
+	url, err := downloader.GetDownloadURLForAsset("tassa-yoniso-manasi-karoto/langkit-assets", []string{assetPrefix, ".zip"})
+	if err != nil {
+		a.logger.Error().Err(err).Msg("Failed to get MediaInfo download URL from langkit-assets")
 		return "", err
 	}
-	a.logger.Debug().Str("url", url).Msg("Got FFmpeg download URL")
 
-	// 2. Download the zip file with progress
+	return a.downloadAndExtract("mediainfo", url, filesToExtract)
+}
+
+// downloadAndExtract is a helper function to handle the download and extraction process.
+func (a *App) downloadAndExtract(dependencyName, url string, filesToExtract []string) (string, error) {
+	a.logger.Debug().Str("url", url).Msgf("Got %s download URL", dependencyName)
+
+	// Download the zip file with progress
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
@@ -1205,19 +1299,17 @@ func (a *App) DownloadFFmpeg() (string, error) {
 		return "", fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	// Create a temporary file to store the download
-	tmpFile, err := os.CreateTemp("", "ffmpeg-*.zip")
+	tmpFile, err := os.CreateTemp("", dependencyName+"-*.zip")
 	if err != nil {
 		return "", err
 	}
 	defer os.Remove(tmpFile.Name())
 
-	// Create a progress reader
-	progressReader := &ffmpeg.ProgressReader{
+	progressReader := &downloader.ProgressReader{
 		Reader: resp.Body,
 		Total:  resp.ContentLength,
 		Handler: func(p float64, read, total int64, speed float64) {
-			runtime.EventsEmit(a.ctx, "ffmpeg-download-progress", map[string]interface{}{
+			runtime.EventsEmit(a.ctx, dependencyName+"-download-progress", map[string]interface{}{
 				"progress":    p,
 				"read":        read,
 				"total":       total,
@@ -1230,11 +1322,10 @@ func (a *App) DownloadFFmpeg() (string, error) {
 	if _, err = io.Copy(tmpFile, progressReader); err != nil {
 		return "", err
 	}
-	tmpFile.Close() // Close the file so we can unzip it
+	tmpFile.Close()
 
-	a.logger.Info().Msg("FFmpeg download complete, starting extraction")
+	a.logger.Info().Msgf("%s download complete, starting extraction", dependencyName)
 
-	// 3. Extract the binaries to a managed folder
 	toolsDir, err := config.GetToolsDir()
 	if err != nil {
 		return "", err
@@ -1243,59 +1334,37 @@ func (a *App) DownloadFFmpeg() (string, error) {
 		return "", err
 	}
 
-	r, err := zip.OpenReader(tmpFile.Name())
-	if err != nil {
+	if err := downloader.ExtractZip(tmpFile.Name(), toolsDir, filesToExtract); err != nil {
 		return "", err
 	}
-	defer r.Close()
 
-	var ffmpegPath string
-
-	for _, f := range r.File {
-		// Look for the binaries inside the 'bin' directory of the zip's root folder
-		isExecutable := strings.HasSuffix(f.Name, "ffmpeg.exe") || (goruntime.GOOS != "windows" && strings.HasSuffix(f.Name, "ffmpeg"))
-		if strings.Contains(f.Name, "/bin/") && isExecutable {
-			rc, err := f.Open()
-			if err != nil {
-				return "", err
-			}
-
-			// The final path for the binary
-			ffmpegPath = filepath.Join(toolsDir, filepath.Base(f.Name))
-			outFile, err := os.OpenFile(ffmpegPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-			if err != nil {
-				return "", err
-			}
-
-			_, err = io.Copy(outFile, rc)
-			rc.Close()
-			outFile.Close()
-			if err != nil {
-				return "", err
-			}
-			break // Found what we need
+	var executablePath string
+	for _, file := range filesToExtract {
+		if strings.HasSuffix(file, ".exe") || (goruntime.GOOS != "windows" && !strings.HasSuffix(file, ".dll")) {
+			executablePath = filepath.Join(toolsDir, file)
+			break
 		}
 	}
 
-	if ffmpegPath == "" {
-		return "", fmt.Errorf("could not find ffmpeg binary in downloaded archive")
+	if executablePath == "" {
+		return "", fmt.Errorf("could not find executable in extracted files for %s", dependencyName)
 	}
 
-	a.logger.Info().Str("path", ffmpegPath).Msg("FFmpeg extracted successfully")
+	a.logger.Info().Str("path", executablePath).Msgf("%s extracted successfully", dependencyName)
 
-	// 4. Save the path to settings
 	settings, err := config.LoadSettings()
 	if err != nil {
 		return "", err
 	}
-	settings.FFmpegPath = ffmpegPath
+	if dependencyName == "ffmpeg" {
+		settings.FFmpegPath = executablePath
+	} else if dependencyName == "mediainfo" {
+		settings.MediaInfoPath = executablePath
+	}
 	if err := config.SaveSettings(settings); err != nil {
 		return "", err
 	}
-	a.logger.Info().Msg("Saved new FFmpeg path to settings")
-
-	// 5. Re-run availability check to confirm
-	a.CheckFFmpegAvailability()
-
-	return ffmpegPath, nil
+	a.logger.Info().Msgf("Saved new %s path to settings", dependencyName)
+	
+	return executablePath, nil
 }
