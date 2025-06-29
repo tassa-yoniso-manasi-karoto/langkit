@@ -22,6 +22,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/downloader"
@@ -836,7 +837,7 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Checking Docker availability")
 
 	// Try to run docker version command
-	cmd := exec.Command("docker", "version", "--format", "json")
+	cmd := executil.NewCommand("docker", "version", "--format", "json")
 	output, err := cmd.Output()
 
 	result := map[string]interface{}{
@@ -1094,7 +1095,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	result["path"] = ffmpegPath
 
 	// Try to get version
-	cmd := exec.Command(ffmpegPath, "-version")
+	cmd := executil.NewCommand(ffmpegPath, "-version")
 	output, err := cmd.Output()
 	if err != nil {
 		result["error"] = "FFmpeg found but could not determine version"
@@ -1147,7 +1148,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	result["path"] = mediainfoPath
 
 	// Try to get version
-	cmd := exec.Command(mediainfoPath, "--Version")
+	cmd := executil.NewCommand(mediainfoPath, "--Version")
 	output, err := cmd.Output()
 	if err != nil {
 		result["error"] = "MediaInfo found but could not determine version"

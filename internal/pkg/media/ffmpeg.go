@@ -1,24 +1,24 @@
 package media
 
 import (
-	"fmt"
-	"os"
-	"os/exec"
-	"time"
-	"io/fs"
 	"bytes"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
-	"path/filepath"
+	"time"
 
-	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
 )
 
 var (
 	FFmpegPath = "ffmpeg"
-	MaxWidth = 1000
-	MaxHeight = 562
+	MaxWidth   = 1000
+	MaxHeight  = 562
 )
 
 func ffmpegExtractAudio(tracknum int, offset, startAt, endAt time.Duration, inFile, outFile string, outArgs []string) error {
@@ -128,16 +128,14 @@ func RunFFmpegConvert(inputWav, outputFile string) error {
 	default:
 		args = append(args, []string{"libmp3lame", "-b:a", "192k", outputFile}...)
 	}
-	
+
 	return FFmpeg(args...)
 }
-
-
 
 func FFmpeg(arg ...string) error {
 	arg = append(arg, "-hide_banner")
 	arg = append(arg, "-y")
-	cmd := exec.Command(FFmpegPath, arg...)
+	cmd := executil.NewCommand(FFmpegPath, arg...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
@@ -148,9 +146,8 @@ func FFmpeg(arg ...string) error {
 	return nil
 }
 
-
 func GetFFmpegVersion() (string, error) {
-	cmd := exec.Command(FFmpegPath, "-version")
+	cmd := executil.NewCommand(FFmpegPath, "-version")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -169,9 +166,8 @@ func GetFFmpegVersion() (string, error) {
 	return match[1], nil
 }
 
-
 func CheckValidData(filepath string) (bool, error) {
-	cmd := exec.Command(FFmpegPath,
+	cmd := executil.NewCommand(FFmpegPath,
 		"-loglevel", "error",
 		"-i", filepath,
 		// all ↓ needed to suppress "At least one output file must be specified"

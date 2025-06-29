@@ -2,34 +2,33 @@ package crash
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
+	nurl "net/url"
+	"os"
+	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
-	"io"
-	"io/ioutil"
-	"context"
-	nurl "net/url"
-	"crypto/tls"
-	"slices"
-	
-	"github.com/k0kubun/pp"
-	"github.com/gookit/color"
-	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
-	
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
-)
 
+	"github.com/dustin/go-humanize"
+	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
+	"github.com/olekukonko/tablewriter"
+
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
+
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
+)
 
 func GetCrashDir() string {
 	dir, _ := config.GetConfigDir()
@@ -44,7 +43,7 @@ func captureDockerInfo(w io.Writer) {
 	fmt.Fprintln(w, "=============")
 
 	// Check if Docker is available first
-	_, versionErr := exec.Command("docker", "version", "--format", "{{json .}}").Output()
+	_, versionErr := executil.NewCommand("docker", "version", "--format", "{{json .}}").Output()
 	if versionErr != nil {
 		fmt.Fprintf(w, "Docker not available or not running: %v\n\n", versionErr)
 		return
@@ -53,7 +52,7 @@ func captureDockerInfo(w io.Writer) {
 	// If Docker is available, capture both version and info
 	fmt.Fprintln(w, "Docker Version Output:")
 	fmt.Fprintln(w, "---------------------")
-	versionCmd := exec.Command("docker", "version")
+	versionCmd := executil.NewCommand("docker", "version")
 	versionOutput, err := versionCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error getting Docker version: %v\n", err)
@@ -63,7 +62,7 @@ func captureDockerInfo(w io.Writer) {
 
 	fmt.Fprintln(w, "\nDocker Info Output:")
 	fmt.Fprintln(w, "------------------")
-	infoCmd := exec.Command("docker", "info")
+	infoCmd := executil.NewCommand("docker", "info")
 	infoOutput, err := infoCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error getting Docker info: %v\n", err)
@@ -79,7 +78,7 @@ func captureDockerInfo(w io.Writer) {
 		"aksharamukha",
 	}
 
-	imagesCmd := exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}} ({{.Size}})")
+	imagesCmd := executil.NewCommand("docker", "images", "--format", "{{.Repository}}:{{.Tag}} ({{.Size}})")
 	imagesOutput, err := imagesCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error listing Docker images: %v\n", err)

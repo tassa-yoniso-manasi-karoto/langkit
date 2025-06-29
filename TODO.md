@@ -8,17 +8,19 @@
 
 .
 - fix windows commands with SysProcAttr HideWindow: true
-- rework download layout
-- smaller coffee icon + fix colors
-- in DevDashboard
-  - allow frontend logs in logviewer
-  - enable TRACE logging
 
 .
 - No logs on windows (!!!)
 
 .
 - on windows wrong icon
+
+
+- rework download layout
+- smaller coffee icon + fix colors
+- in DevDashboard
+  - allow frontend logs in logviewer
+  - enable TRACE logging
 
 .
 - welcome.svelte component w/ checks for binary needed:

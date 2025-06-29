@@ -23,7 +23,7 @@ The `Task` struct will be the central point for dependency injection. Instead of
     *   **Suggested Action**: Create a `Filesystem` service interface that provides methods for these operations. The `Task` struct will hold an instance of this service.
 
 2.  **External Process Execution**:
-    *   **What**: All direct calls to `exec.Command` for `ffmpeg` and `mediainfo`.
+    *   **What**: All direct calls to `executil.Command` for `ffmpeg` and `mediainfo`.
     *   **Suggested Action**: Create a `MediaToolProvider` or similar service. This service will be responsible for building and executing commands for `ffmpeg` (`media.FFmpeg`) and `mediainfo` (`core.Mediainfo`). This centralizes command execution and makes it easy to mock in tests.
 
 3.  **Path Management**:

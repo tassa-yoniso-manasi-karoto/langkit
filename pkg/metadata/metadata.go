@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/bogem/id3v2" // Official import path for the ID3 library
-	"github.com/rs/zerolog" // Assuming a logger is available, e.g., from llms pkg
+	"github.com/rs/zerolog"  // Assuming a logger is available, e.g., from llms pkg
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms" // For Logger, adjust if logger is elsewhere
 )
 
@@ -155,8 +155,8 @@ func runFFmpegCommand(args ...string) error {
 	finalArgs = append(finalArgs, "-hide_banner") // Suppress version banner
 
 	logger.Debug().Strs("ffmpeg_args", finalArgs).Msg("Executing FFmpeg command")
-	
-	cmd := exec.Command(FFmpegPath, finalArgs...)
+
+	cmd := executil.NewCommand(FFmpegPath, finalArgs...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr // Capture stderr for error reporting
 

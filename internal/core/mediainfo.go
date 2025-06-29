@@ -6,12 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	
+
+	iso "github.com/barbashov/iso639-3"
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
-	iso "github.com/barbashov/iso639-3"
 	"github.com/tidwall/pretty"
-	
+
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
@@ -208,12 +209,10 @@ func Mediainfo(path string) (media MediaInfo) {
 	return
 }
 
-
 func getMediaInfoJSON(filePath string) ([]byte, error) {
-	cmd := exec.Command(MediainfoPath, "--Output=JSON", filePath)
+	cmd := executil.NewCommand(MediainfoPath, "--Output=JSON", filePath)
 	return cmd.Output()
 }
-
 
 func isMediainfoInstalled() bool {
 	cmdName := "mediainfo"
