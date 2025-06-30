@@ -305,7 +305,7 @@ import { get } from 'svelte/store';
     }
    </script>
 
-<div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
+<div class="welcome-popup fixed inset-0 flex items-center justify-center p-4 backdrop-blur-sm"
      in:fade={{ duration: 300 }}
      out:fade={{ duration: 200 }}>
     
