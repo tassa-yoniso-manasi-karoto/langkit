@@ -5,7 +5,7 @@
     
     import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
     import { errorStore } from '../lib/errorStore';
-    import { showSettings, llmStateStore, settings, type LLMStateChange } from '../lib/stores';
+    import { showSettings, llmStateStore, settings, type LLMStateChange, dockerStatusStore } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
@@ -90,6 +90,10 @@
     let llmState: LLMStateChange | null = null;
     let llmStateUnsubscribe: () => void;
     
+    // Docker status tracking for debug override
+    let dockerStatus: { available?: boolean; error?: string } | null = null;
+    let dockerStatusUnsubscribe: () => void;
+    
     // Debug override state
     let debugLLMState: string | null = null;
     
@@ -141,6 +145,10 @@
     $: isLLMError = debugLLMState ? debugLLMState === 'error' : llmState?.globalState === 'error';
     $: llmErrorMessage = isLLMError ? (llmState?.message || 'LLM system error') : null;
     
+    // Reactive computation for Docker state (respecting debug override)
+    $: isDockerStatusForced = dockerStatus?.error === 'Debug: Forced state';
+    $: isDockerUnavailable = isDockerStatusForced ? !dockerStatus?.available : dockerUnreachable;
+    
     // Reactive computation for missing LLM providers
     $: missingProviders = (() => {
         if (feature.id !== 'condensedAudio' || !isLLMReady) return [];
@@ -174,6 +182,10 @@
         });
         
         // Subscribe to LLM state for summary options
+        dockerStatusUnsubscribe = dockerStatusStore.subscribe(value => {
+            dockerStatus = value;
+        });
+        
         llmStateUnsubscribe = llmStateStore.subscribe(state => {
             llmState = state;
             logger.trace('featureCard', `LLM state update in FeatureCard ${feature.id}:`, state?.globalState);
@@ -238,6 +250,9 @@
         }
         if (llmStateUnsubscribe) {
             llmStateUnsubscribe();
+        }
+        if (dockerStatusUnsubscribe) {
+            dockerStatusUnsubscribe();
         }
         if (settingsUnsubscribe) {
             settingsUnsubscribe();
@@ -627,7 +642,7 @@
     
     // Mark cache as dirty when dependencies change
     $: {
-        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError || isNativeLanguageEnglish || enabled) {
+        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError || isNativeLanguageEnglish || enabled || needsDocker || isDockerUnavailable) {
             visibleOptionsDirty = true;
         }
     }
@@ -778,22 +793,22 @@
         
         // Feature-specific messages
         if (feature.id === 'subtitleRomanization') {
-            if ((enabled && hasVisibleOptions() && needsDocker && !dockerUnreachable) ||
-                (needsDocker && dockerUnreachable) ||
+            if ((enabled && hasVisibleOptions() && needsDocker && !isDockerUnavailable) ||
+                    (needsDocker && isDockerUnavailable) ||
                 (!standardTag) ||
                 (!isRomanizationAvailable)) {
                 return true;
             }
         } else if (feature.id === 'selectiveTransliteration') {
-            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable) ||
-                (needsDocker && dockerUnreachable) ||
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
+                    (needsDocker && isDockerUnavailable) ||
                 (!standardTag) ||
                 (standardTag !== 'jpn' && showNonJpnMessage)) {
                 return true;
             }
         } else if (feature.id === 'subtitleTokenization') {
-            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable) ||
-                (needsDocker && dockerUnreachable) ||
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
+                    (needsDocker && isDockerUnavailable) ||
                 showNotAvailableMessage) {
                 return true;
             }
@@ -890,7 +905,7 @@
                     <!-- Feature-specific messages -->
                     {#if feature.id === 'subtitleRomanization'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasVisibleOptions() && needsDocker && !dockerUnreachable}
+                        {#if enabled && hasVisibleOptions() && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -899,7 +914,7 @@
                             </div>
                         {/if}
                         
-                        {#if needsDocker && dockerUnreachable}
+                        {#if needsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
@@ -940,7 +955,7 @@
                     
                     {:else if feature.id === 'selectiveTransliteration'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -949,7 +964,7 @@
                             </div>
                         {/if}
                         
-                        {#if needsDocker && dockerUnreachable}
+                        {#if needsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
@@ -978,7 +993,7 @@
                     
                     {:else if feature.id === 'subtitleTokenization'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !dockerUnreachable}
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -987,7 +1002,7 @@
                             </div>
                         {/if}
                         
-                        {#if needsDocker && dockerUnreachable}
+                        {#if needsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
