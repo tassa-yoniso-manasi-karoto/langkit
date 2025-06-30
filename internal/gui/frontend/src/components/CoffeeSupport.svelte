@@ -19,7 +19,7 @@
         on:click={handleClick}
         class="ml-2 inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200"
         title="Support the project!">
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" class="coffee-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="coffee-icon h-7 w-7">
             <defs>
                 <mask id="steamWispMotionMask">
                     <g stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
