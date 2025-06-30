@@ -1442,7 +1442,7 @@
     }
     
     .animated-border-right {
-        width: 4.5px;
+        width: 3.5px;
         top: 0;
         bottom: 0;
         right: 0;
@@ -1459,7 +1459,7 @@
     }
     
     .animated-border-bottom {
-        height: 4px;
+        height: 3px;
         left: 0;
         right: 0;
         bottom: 0;

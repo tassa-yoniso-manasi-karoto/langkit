@@ -63,7 +63,7 @@
         right: 0;
         bottom: 0;
         border-radius: inherit; /* Inherit rounded corners from parent */
-        padding: 1.5px; /* Border width */
+        padding: 1px; /* Border width */
         background: linear-gradient(
             to bottom right, 
             rgba(255, 255, 255, 0) 0%, 
@@ -90,7 +90,7 @@
     filter: brightness(1.15) saturate(1.1);
     /* Brighter border for selected state using pseudo-element */
     &::before {
-        padding: 1.5px;
+        padding: 1px;
         background: linear-gradient(
             to bottom right, 
             rgba(255, 255, 255, 0.0) 0%, /* while enable keep it all around this time & use the box-shadow to keep bottom-right more proeminent */
@@ -103,7 +103,7 @@
     box-shadow: 
         1px 1px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2),      /* Subtle overall border highlight */
         2px 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),     /* Right-bottom purple glow */
-        3px 3px 0 0 hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.2), /* Bottom-right corner pink accent */
+        2px 2px 0 0 hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.15), /* Bottom-right corner pink accent */
         0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1),          /* Subtle overall glow */
         2px 2px 8px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15); /* Bottom-right shadow */
     z-index: 5;
