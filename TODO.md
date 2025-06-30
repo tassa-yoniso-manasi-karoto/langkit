@@ -2,16 +2,10 @@
 
 .
 -  rename Dubtitle to Dubtitles
-
-.
-- sub romanization not disabled when no language provided
-
 .
 - No logs on windows (!!!)
 
 .
-- rework download layout
-- smaller coffee icon + fix colors
 - in DevDashboard
   - allow frontend logs in logviewer
   - enable TRACE logging
@@ -22,9 +16,6 @@
 
 .
 - finish theme
-  - reduce feature cards's gradient border width
-  - enable pulse opacity
-  - fix blurred settings reveal on WebView2
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE

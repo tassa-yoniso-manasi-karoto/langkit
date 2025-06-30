@@ -66,7 +66,7 @@
     let validationError = '';
     
     let romanizationSchemes: RomanizationScheme[] = [];
-    let isRomanizationAvailable = true;
+    let isRomanizationAvailable = false;
     let isSelectiveTransliterationAvailable = false;
     
     let dockerUnreachable = false;
