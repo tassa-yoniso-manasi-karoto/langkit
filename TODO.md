@@ -10,9 +10,6 @@
 - No logs on windows (!!!)
 
 .
-- on windows wrong icon
-
-
 - rework download layout
 - smaller coffee icon + fix colors
 - in DevDashboard

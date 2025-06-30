@@ -353,24 +353,24 @@
     //
     let styleControls = {
         bgHue: 280,
-        bgSaturation: 8,
-        bgLightness: 4.81,
+        bgSaturation: 0,
+        bgLightness: 2.15,
         bgOpacity: 1,
-        featureCardSaturation: 10,
-        featureCardLightness: 25,
+        featureCardSaturation: 8,
+        featureCardLightness: 21,
         featureCardOpacity: 1,
-        featureCardGradientStartOpacity: 1,
+        featureCardGradientStartOpacity: 0.82,
         featureCardGradientEndOpacity: 0,
         mediaInputSaturation: 10,
         mediaInputLightness: 20,
         mediaInputOpacity: 0.06,
-        glowOpacity: 0, // User's new default - this slider exists
-        glowPositionX: 78, // Default: calc(73vw + 5vw) = 78vw
-        glowPositionY: -10, // Default: calc(-15vw + 5vh) ≈ -10vw
-        glowSize: 26, // Default: 26vmax
-        glowBlur: 100, // Default: blur(100px)
-        glowAnimationScale: 1.2, // Default pulse scale
-        glowAnimationSpeed: 10, // Default: 10s
+        glowOpacity: 0.26,
+        glowPositionX: 78,
+        glowPositionY: -10,
+        glowSize: 26,
+        glowBlur: 100,
+        glowAnimationScale: 1.8,
+        glowAnimationSpeed: 10,
         bgGradientPosX: 19,
         bgGradientPosY: 90,
         bgGradientStop1Hue: 280,
@@ -389,24 +389,22 @@
         bgGradientStop4Sat: 20,
         bgGradientStop4Light: 35,
         bgGradientStop4Alpha: 0.18,
-        // Welcome Popup controls
-        welcomeOverlayOpacity: 0.4, // bg-black/40
-        welcomePanelBgOpacity: 0.3, // bg-black/30
-        welcomePanelBlur: 24, // backdrop-blur-2xl (24px)
-        welcomeBorderOpacity: 0.1, // border-white/10
-        welcomeCardBgOpacity: 0.1, // bg-white/10
-        welcomeCardHoverOpacity: 0.15, // hover:bg-white/[0.15]
-        welcomeButtonBgOpacity: 0.7, // bg-primary/70
-        welcomeButtonBorderOpacity: 0.5, // border-primary/50
-        welcomeProgressDotOpacity: 0.3, // bg-white/30
-        welcomeTextPrimaryOpacity: 1, // text-white
-        welcomeTextSecondaryOpacity: 0.7, // text-white/70
-        welcomeTextTertiaryOpacity: 0.6, // text-white/60
-        // Coffee mug controls
-        coffeeMugHue: 220, // Default gray-blue hue (from #6B7280)
-        coffeeMugSaturation: 9, // Low saturation for gray
-        coffeeMugLightness: 51, // Medium lightness
-        coffeeMugOpacity: 1 // Full opacity
+        welcomeOverlayOpacity: 0.4,
+        welcomePanelBgOpacity: 0.3,
+        welcomePanelBlur: 24,
+        welcomeBorderOpacity: 0.1,
+        welcomeCardBgOpacity: 0.1,
+        welcomeCardHoverOpacity: 0.15,
+        welcomeButtonBgOpacity: 0.7,
+        welcomeButtonBorderOpacity: 0.5,
+        welcomeProgressDotOpacity: 0.3,
+        welcomeTextPrimaryOpacity: 1,
+        welcomeTextSecondaryOpacity: 0.7,
+        welcomeTextTertiaryOpacity: 0.6,
+        coffeeMugHue: 220,
+        coffeeMugSaturation: 9,
+        coffeeMugLightness: 43,
+        coffeeMugOpacity: 0.67
     };
     
     // Target color input
@@ -639,23 +637,23 @@
     // Default values for individual reset
     const defaultValues = {
         bgHue: 280,
-        bgSaturation: 8,
-        bgLightness: 4.81,
+        bgSaturation: 0,
+        bgLightness: 2.15,
         bgOpacity: 1,
-        featureCardSaturation: 10,
-        featureCardLightness: 25,
+        featureCardSaturation: 8,
+        featureCardLightness: 21,
         featureCardOpacity: 1,
-        featureCardGradientStartOpacity: 1,
+        featureCardGradientStartOpacity: 0.82,
         featureCardGradientEndOpacity: 0,
         mediaInputSaturation: 10,
         mediaInputLightness: 20,
         mediaInputOpacity: 0.06,
-        glowOpacity: 0, // User's new default
+        glowOpacity: 0.26,
         glowPositionX: 78,
         glowPositionY: -10,
         glowSize: 26,
         glowBlur: 100,
-        glowAnimationScale: 1.2,
+        glowAnimationScale: 1.8,
         glowAnimationSpeed: 10,
         bgGradientPosX: 19,
         bgGradientPosY: 90,
@@ -675,24 +673,22 @@
         bgGradientStop4Sat: 20,
         bgGradientStop4Light: 35,
         bgGradientStop4Alpha: 0.18,
-        // Welcome Popup controls
-        welcomeOverlayOpacity: 0.4, // bg-black/40
-        welcomePanelBgOpacity: 0.3, // bg-black/30
-        welcomePanelBlur: 24, // backdrop-blur-2xl (24px)
-        welcomeBorderOpacity: 0.1, // border-white/10
-        welcomeCardBgOpacity: 0.1, // bg-white/10
-        welcomeCardHoverOpacity: 0.15, // hover:bg-white/[0.15]
-        welcomeButtonBgOpacity: 0.7, // bg-primary/70
-        welcomeButtonBorderOpacity: 0.5, // border-primary/50
-        welcomeProgressDotOpacity: 0.3, // bg-white/30
-        welcomeTextPrimaryOpacity: 1, // text-white
-        welcomeTextSecondaryOpacity: 0.7, // text-white/70
-        welcomeTextTertiaryOpacity: 0.6, // text-white/60
-        // Coffee mug controls
-        coffeeMugHue: 220, // Default gray-blue hue (from #6B7280)
-        coffeeMugSaturation: 9, // Low saturation for gray
-        coffeeMugLightness: 51, // Medium lightness
-        coffeeMugOpacity: 1 // Full opacity
+        welcomeOverlayOpacity: 0.4,
+        welcomePanelBgOpacity: 0.3,
+        welcomePanelBlur: 24,
+        welcomeBorderOpacity: 0.1,
+        welcomeCardBgOpacity: 0.1,
+        welcomeCardHoverOpacity: 0.15,
+        welcomeButtonBgOpacity: 0.7,
+        welcomeButtonBorderOpacity: 0.5,
+        welcomeProgressDotOpacity: 0.3,
+        welcomeTextPrimaryOpacity: 1,
+        welcomeTextSecondaryOpacity: 0.7,
+        welcomeTextTertiaryOpacity: 0.6,
+        coffeeMugHue: 220,
+        coffeeMugSaturation: 9,
+        coffeeMugLightness: 43,
+        coffeeMugOpacity: 0.67
     };
 
     // Reset individual property to default
