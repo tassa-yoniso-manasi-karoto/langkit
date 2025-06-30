@@ -82,6 +82,11 @@ func (pr *ProgressReader) Read(p []byte) (int, error) {
 
 // ExtractZip extracts specific files from a zip archive to a destination directory.
 func ExtractZip(zipPath, destDir string, filesToExtract []string) error {
+	foundFiles := make(map[string]bool)
+	for _, f := range filesToExtract {
+		foundFiles[f] = false
+	}
+
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("failed to open zip archive: %w", err)
@@ -92,6 +97,7 @@ func ExtractZip(zipPath, destDir string, filesToExtract []string) error {
 		for _, fileToExtract := range filesToExtract {
 			// Check if the file inside the zip matches what we want to extract
 			if filepath.Base(f.Name) == fileToExtract {
+				foundFiles[fileToExtract] = true
 				outFile, err := os.OpenFile(
 					filepath.Join(destDir, filepath.Base(f.Name)),
 					os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
@@ -123,6 +129,12 @@ func ExtractZip(zipPath, destDir string, filesToExtract []string) error {
 					}
 				}
 			}
+		}
+	}
+
+	for file, found := range foundFiles {
+		if !found {
+			return fmt.Errorf("file '%s' not found in zip archive", file)
 		}
 	}
 	return nil

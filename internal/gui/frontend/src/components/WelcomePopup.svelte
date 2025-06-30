@@ -7,7 +7,6 @@ import { get } from 'svelte/store';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
-    import DownloadProgress from './DownloadProgress.svelte';
     import { OpenExecutableDialog, DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability, GetSystemInfo } from '../../wailsjs/go/gui/App';
     import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime';
     
@@ -237,30 +236,54 @@ import { get } from 'svelte/store';
     
     let ffmpeg_downloading = false;
     let mediainfo_downloading = false;
-   
+  
+   let ffmpeg_progress = 0;
+   let ffmpeg_description = 'Starting download...';
+   let ffmpeg_error: string | null = null;
+   let mediainfo_progress = 0;
+   let mediainfo_description = 'Starting download...';
+   let mediainfo_error: string | null = null;
+  
+   let unlisten_ffmpeg: () => void;
+   let unlisten_mediainfo: () => void;
+    
     async function handleDownload(dependency: 'ffmpeg' | 'mediainfo') {
-    	if (dependency === 'ffmpeg') {
-    		ffmpeg_downloading = true;
-    		try {
-    			await DownloadFFmpeg();
-    			if (recheckFFmpeg) await recheckFFmpeg();
-    		} catch (err) {
-    			logger.error('WelcomePopup', 'FFmpeg download failed', { error: err });
-    		} finally {
-    			ffmpeg_downloading = false;
-    		}
-    	} else {
-    		mediainfo_downloading = true;
-    		try {
-    			await DownloadMediaInfo();
-    			if (recheckMediaInfo) await recheckMediaInfo();
-    		} catch (err) {
-    			logger.error('WelcomePopup', 'MediaInfo download failed', { error: err });
-    		} finally {
-    			mediainfo_downloading = false;
-    		}
+    if (dependency === 'ffmpeg') {
+    ffmpeg_error = null;
+    	ffmpeg_downloading = true;
+    unlisten_ffmpeg = EventsOn('ffmpeg-download-progress', (data: any) => {
+    	ffmpeg_progress = data.progress;
+    	ffmpeg_description = data.description;
+    });
+    	try {
+    		await DownloadFFmpeg();
+    		if (recheckFFmpeg) await recheckFFmpeg();
+    	} catch (err) {
+    		logger.error('WelcomePopup', 'FFmpeg download failed', { error: err });
+    	ffmpeg_error = err as string;
+    	} finally {
+    		ffmpeg_downloading = false;
+    	if (unlisten_ffmpeg) unlisten_ffmpeg();
+    	}
+    } else {
+    mediainfo_error = null;
+    	mediainfo_downloading = true;
+    unlisten_mediainfo = EventsOn('mediainfo-download-progress', (data: any) => {
+    	mediainfo_progress = data.progress;
+    	mediainfo_description = data.description;
+    });
+    	try {
+    		await DownloadMediaInfo();
+    		if (recheckMediaInfo) await recheckMediaInfo();
+    	} catch (err) {
+    		logger.error('WelcomePopup', 'MediaInfo download failed', { error: err });
+    	mediainfo_error = err as string;
+    	} finally {
+    		mediainfo_downloading = false;
+    	if (unlisten_mediainfo) unlisten_mediainfo();
     	}
     }
+   }
 
     async function handleLocate(dependency: 'ffmpeg' | 'mediainfo') {
         const title = `Select ${dependency} executable`;
@@ -431,22 +454,29 @@ import { get } from 'svelte/store';
                                     </div>
                                 </div>
                                 
-                            <div class="flex items-center gap-4">
-                                {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
-                                	{#if systemInfo.os === 'linux'}
-                                		<p class="text-xs text-gray-400">Please install ffmpeg using your distribution's package manager.</p>
-                                	{:else}
-                                		<div class="flex gap-2">
-                                			<button on:click={() => handleDownload('ffmpeg')} disabled={ffmpeg_downloading} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80 disabled:bg-gray-500">Download Automatically</button>
-                                			<button on:click={() => handleLocate('ffmpeg')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
-                                		</div>
-                                	{/if}
-                                {/if}
-                                </div>
-                                {#if ffmpeg_downloading}
-                                	<DownloadProgress taskId="ffmpeg-download-progress" />
-                                {/if}
-                            </div>
+                            <div class="flex-shrink-0 ml-auto w-2/5">
+                            {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
+                            	{#if ffmpeg_downloading}
+                            		<div class="flex flex-col items-center">
+                            			<div class="text-xs text-gray-400 text-center mb-1">{ffmpeg_description}</div>
+                            			<div class="w-full bg-gray-700 rounded-full h-2.5">
+                            				<div class="bg-primary h-2.5 rounded-full" style="width: {ffmpeg_progress}%"></div>
+                            			</div>
+                            		</div>
+                            	{:else if systemInfo.os === 'linux'}
+                            		<p class="text-xs text-gray-400 text-center">Please install using your package manager.</p>
+                            	{:else}
+                            		<div class="flex flex-col items-end gap-2">
+                            			{#if ffmpeg_error}
+                            				<p class="text-xs text-red-400 text-right">Error: {ffmpeg_error}</p>
+                            			{/if}
+                            			<button on:click={() => handleDownload('ffmpeg')} disabled={ffmpeg_downloading} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80 disabled:bg-gray-500 w-full text-center">Download Automatically</button>
+                            			<button on:click={() => handleLocate('ffmpeg')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500 w-full text-center">Locate Manually</button>
+                            		</div>
+                            	{/if}
+                            {/if}
+                           </div>
+                          </div>
                             
                             {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
                                 <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
@@ -535,22 +565,29 @@ import { get } from 'svelte/store';
                                     </div>
                                 </div>
                                 
-                            <div class="flex items-center gap-4">
-                                {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
-                                	{#if systemInfo.os === 'linux'}
-                                		<p class="text-xs text-gray-400">Please install mediainfo using your distribution's package manager.</p>
-                                	{:else}
-                                		<div class="flex gap-2">
-                                			<button on:click={() => handleDownload('mediainfo')} disabled={mediainfo_downloading} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80 disabled:bg-gray-500">Download Automatically</button>
-                                			<button on:click={() => handleLocate('mediainfo')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Locate Manually</button>
-                                		</div>
-                                	{/if}
-                                {/if}
-                               </div>
-                               {#if mediainfo_downloading}
-                                <DownloadProgress taskId="mediainfo-download-progress" />
-                               {/if}
-                              </div>
+       <div class="flex-shrink-0 ml-auto w-2/5">
+       {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
+       	{#if mediainfo_downloading}
+       		<div class="flex flex-col items-center">
+       			<div class="text-xs text-gray-400 text-center mb-1">{mediainfo_description}</div>
+       			<div class="w-full bg-gray-700 rounded-full h-2.5">
+       				<div class="bg-primary h-2.5 rounded-full" style="width: {mediainfo_progress}%"></div>
+       			</div>
+       		</div>
+       	{:else if systemInfo.os === 'linux'}
+       		<p class="text-xs text-gray-400 text-center">Please install using your package manager.</p>
+       	{:else}
+       		<div class="flex flex-col items-end gap-2">
+       			{#if mediainfo_error}
+       				<p class="text-xs text-red-400 text-right">Error: {mediainfo_error}</p>
+       			{/if}
+       			<button on:click={() => handleDownload('mediainfo')} disabled={mediainfo_downloading} class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/80 disabled:bg-gray-500 w-full text-center">Download Automatically</button>
+       			<button on:click={() => handleLocate('mediainfo')} class="px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500 w-full text-center">Locate Manually</button>
+       		</div>
+       	{/if}
+       {/if}
+      </div>
+     </div>
                         
                         {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
                             <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"

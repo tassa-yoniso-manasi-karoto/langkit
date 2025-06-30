@@ -3,7 +3,7 @@
     import { statisticsStore } from '../lib/stores';
     
     export let version = '';
-    export let github_url = 'https://github.com/tassa-yoniso-manasi-karoto/langkit';
+    export let github_url = 'https://github.com/tassa-yoniso-manasi-karoto/langkit/#support-the-project';
     
     const handleClick = (event) => {
         event.preventDefault();
