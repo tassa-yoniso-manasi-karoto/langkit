@@ -1011,7 +1011,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             </h3>
                             <div class="setting-row">
                                 <div class="setting-label">
-                                    <span>FFmpeg Path</span>
+                                    <span>Custom FFmpeg Path</span>
                                     <span class="setting-description">Path to the FFmpeg executable</span>
                                 </div>
                                 <div class="setting-control">
@@ -1021,7 +1021,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             </div>
                             <div class="setting-row">
                                 <div class="setting-label">
-                                    <span>MediaInfo Path</span>
+                                    <span>Custom MediaInfo Path</span>
                                     <span class="setting-description">Path to the MediaInfo executable</span>
                                 </div>
                                 <div class="setting-control">

@@ -407,7 +407,7 @@ func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler)
 	bufferWriter := zerolog.ConsoleWriter{
 		Out:        &h.buffer, // Write DIRECTLY to the buffer
 		TimeFormat: time.TimeOnly,
-		NoColor:    true,
+		NoColor:    false,
 	}
 
 	// 3. Writer for the developer's console (os.Stderr).
