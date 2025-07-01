@@ -286,7 +286,7 @@ See [DEV.md](https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/master/D
 -   The graphical user interface is:
     -   powered by [Wails](https://github.com/wailsapp/wails) web UI framework,
     -   built using the [Svelte](https://svelte.dev/) framework and styled using [Tailwind CSS](https://tailwindcss.com/).
-
+- Shout out to the excellent [pyglossary](https://github.com/ilius/pyglossary) dictionary files conversion tool which inspired me to create a log viewer inside the GUI as well
 
 # License
 All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
