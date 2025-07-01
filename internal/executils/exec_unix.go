@@ -1,6 +1,6 @@
 //go:build !windows
 
-package executil
+package executils
 
 import (
 	"os/exec"

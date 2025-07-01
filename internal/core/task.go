@@ -1,28 +1,27 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
-	"time"
 	"runtime"
-	"fmt"
-	"os/exec"
-	
+	"time"
+
+	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
-	"github.com/k0kubun/pp"
-	"github.com/gookit/color"
-	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
 )
 
-
-func init() {	
+func init() {
 	zerolog.SetGlobalLevel(zerolog.TraceLevel)
 }
 
@@ -214,43 +213,29 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 			tsk.OutputFileExtension = ".csv"
 		}
 	}
-	
-	for _, name := range []string{"ffmpeg", "mediainfo"} {
-		dest := ""
-		bin := name
-		if runtime.GOOS == "windows" {
-			bin += ".exe"
-		}
-		// get dir of langkit bin
-		ex, err := os.Executable()
-		if err != nil {
-			tsk.Handler.ZeroLog().Debug().Err(err).Msg("failed to access directory where langkit is " +
-				bin + " path must be provided by PATH or specified manually")
-		}
-		local := path.Join(filepath.Dir(ex), "bin", bin)
-		path, _ := exec.LookPath(bin)
-		if _, err := os.Stat(local); err == nil {
-			dest = local
-			tsk.Handler.ZeroLog().Debug().Msg("found a local binary for " + name)
-		} else {
-			dest = path
-			tsk.Handler.ZeroLog().Trace().Msg("PATH provided binary path for " + name)
-		}
-		switch bin {
-		case "ffmpeg":
-			media.FFmpegPath = dest
-			metadata.FFmpegPath = dest
-		case "mediainfo":
-			MediainfoPath = dest
-		}
+
+	// Find and set binary paths using the unified finder
+	if ffmpegPath, err := executils.FindBinary("ffmpeg"); err == nil {
+		media.FFmpegPath = ffmpegPath
+		metadata.FFmpegPath = ffmpegPath
+		tsk.Handler.ZeroLog().Debug().Str("path", ffmpegPath).Msg("Found ffmpeg for CLI task")
+	} else {
+		tsk.Handler.ZeroLog().Warn().Err(err).Msg("ffmpeg not found for CLI task")
 	}
-	
+
+	if mediainfoPath, err := executils.FindBinary("mediainfo"); err == nil {
+		MediainfoPath = mediainfoPath
+		tsk.Handler.ZeroLog().Debug().Str("path", mediainfoPath).Msg("Found mediainfo for CLI task")
+	} else {
+		tsk.Handler.ZeroLog().Warn().Err(err).Msg("mediainfo not found for CLI task")
+	}
+
 	if settings, err := config.LoadSettings(); err == nil {
 		tsk.ApplyConfig(settings)
 	} else {
 		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to load settings")
 	}
-	
+
 	return tsk
 }
 

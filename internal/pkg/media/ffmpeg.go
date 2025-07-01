@@ -12,7 +12,7 @@ import (
 
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 )
 
 var (
@@ -135,7 +135,7 @@ func RunFFmpegConvert(inputWav, outputFile string) error {
 func FFmpeg(arg ...string) error {
 	arg = append(arg, "-hide_banner")
 	arg = append(arg, "-y")
-	cmd := executil.NewCommand(FFmpegPath, arg...)
+	cmd := executils.NewCommand(FFmpegPath, arg...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
@@ -147,7 +147,7 @@ func FFmpeg(arg ...string) error {
 }
 
 func GetFFmpegVersion() (string, error) {
-	cmd := executil.NewCommand(FFmpegPath, "-version")
+	cmd := executils.NewCommand(FFmpegPath, "-version")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -167,7 +167,7 @@ func GetFFmpegVersion() (string, error) {
 }
 
 func CheckValidData(filepath string) (bool, error) {
-	cmd := executil.NewCommand(FFmpegPath,
+	cmd := executils.NewCommand(FFmpegPath,
 		"-loglevel", "error",
 		"-i", filepath,
 		// all ↓ needed to suppress "At least one output file must be specified"

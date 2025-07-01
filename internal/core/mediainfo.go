@@ -12,7 +12,7 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/tidwall/pretty"
 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
 
@@ -210,7 +210,7 @@ func Mediainfo(path string) (media MediaInfo) {
 }
 
 func getMediaInfoJSON(filePath string) ([]byte, error) {
-	cmd := executil.NewCommand(MediainfoPath, "--Output=JSON", filePath)
+	cmd := executils.NewCommand(MediainfoPath, "--Output=JSON", filePath)
 	return cmd.Output()
 }
 

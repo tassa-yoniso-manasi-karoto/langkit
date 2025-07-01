@@ -9,7 +9,7 @@ import (
 
 	"github.com/bogem/id3v2" // Official import path for the ID3 library
 	"github.com/rs/zerolog"  // Assuming a logger is available, e.g., from llms pkg
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms" // For Logger, adjust if logger is elsewhere
 )
 
@@ -156,7 +156,7 @@ func runFFmpegCommand(args ...string) error {
 
 	logger.Debug().Strs("ffmpeg_args", finalArgs).Msg("Executing FFmpeg command")
 
-	cmd := executil.NewCommand(FFmpegPath, finalArgs...)
+	cmd := executils.NewCommand(FFmpegPath, finalArgs...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr // Capture stderr for error reporting
 

@@ -27,7 +27,7 @@ import (
 	"github.com/docker/docker/client"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 )
 
 func GetCrashDir() string {
@@ -43,7 +43,7 @@ func captureDockerInfo(w io.Writer) {
 	fmt.Fprintln(w, "=============")
 
 	// Check if Docker is available first
-	_, versionErr := executil.NewCommand("docker", "version", "--format", "{{json .}}").Output()
+	_, versionErr := executils.NewCommand("docker", "version", "--format", "{{json .}}").Output()
 	if versionErr != nil {
 		fmt.Fprintf(w, "Docker not available or not running: %v\n\n", versionErr)
 		return
@@ -52,7 +52,7 @@ func captureDockerInfo(w io.Writer) {
 	// If Docker is available, capture both version and info
 	fmt.Fprintln(w, "Docker Version Output:")
 	fmt.Fprintln(w, "---------------------")
-	versionCmd := executil.NewCommand("docker", "version")
+	versionCmd := executils.NewCommand("docker", "version")
 	versionOutput, err := versionCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error getting Docker version: %v\n", err)
@@ -62,7 +62,7 @@ func captureDockerInfo(w io.Writer) {
 
 	fmt.Fprintln(w, "\nDocker Info Output:")
 	fmt.Fprintln(w, "------------------")
-	infoCmd := executil.NewCommand("docker", "info")
+	infoCmd := executils.NewCommand("docker", "info")
 	infoOutput, err := infoCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error getting Docker info: %v\n", err)
@@ -78,7 +78,7 @@ func captureDockerInfo(w io.Writer) {
 		"aksharamukha",
 	}
 
-	imagesCmd := executil.NewCommand("docker", "images", "--format", "{{.Repository}}:{{.Tag}} ({{.Size}})")
+	imagesCmd := executils.NewCommand("docker", "images", "--format", "{{.Repository}}:{{.Tag}} ({{.Size}})")
 	imagesOutput, err := imagesCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error listing Docker images: %v\n", err)

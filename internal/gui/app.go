@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
@@ -22,7 +21,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/downloader"
@@ -837,7 +836,7 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Checking Docker availability")
 
 	// Try to run docker version command
-	cmd := executil.NewCommand("docker", "version", "--format", "json")
+	cmd := executils.NewCommand("docker", "version", "--format", "json")
 	output, err := cmd.Output()
 
 	result := map[string]interface{}{
@@ -1021,58 +1020,6 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 	return resp
 }
 
-func (a *App) getPathFromSettings(name string) string {
-	settings, err := config.LoadSettings()
-	if err != nil {
-		a.logger.Warn().Err(err).Msg("Could not load settings to get binary path")
-		return ""
-	}
-	if strings.HasPrefix(name, "ffmpeg") {
-		return settings.FFmpegPath
-	} else if strings.HasPrefix(name, "mediainfo") {
-		return settings.MediaInfoPath
-	}
-	return ""
-}
-
-// we searches for a binary with a 4-tier priority:
-// 1. CLI flag (handled in core.Task)
-// 2. Saved path setting
-// 3. Local `bin` folder
-// 4. System `PATH`
-func (a *App) findBinaryPath(name string) (string, error) {
-	// Add .exe extension on Windows
-	if goruntime.GOOS == "windows" && !strings.HasSuffix(name, ".exe") {
-		name += ".exe"
-	}
-
-	// 2. Check saved path in settings
-	if savedPath := a.getPathFromSettings(name); savedPath != "" {
-		if _, err := os.Stat(savedPath); err == nil {
-			a.logger.Debug().Str("path", savedPath).Msgf("Found %s via saved settings", name)
-			return savedPath, nil
-		}
-	}
-
-	// 3. Check local bin folder
-	ex, err := os.Executable()
-	if err == nil {
-		localPath := filepath.Join(filepath.Dir(ex), "bin", name)
-		if _, err := os.Stat(localPath); err == nil {
-			a.logger.Debug().Str("path", localPath).Msgf("Found %s in local bin folder", name)
-			return localPath, nil
-		}
-	}
-
-	// 4. Fall back to checking PATH
-	if path, err := exec.LookPath(name); err == nil {
-		a.logger.Debug().Str("path", path).Msgf("Found %s in system PATH", name)
-		return path, nil
-	}
-
-	return "", fmt.Errorf("%s not found in standard locations", name)
-}
-
 // CheckFFmpegAvailability checks if FFmpeg is available on the system
 func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	a.logger.Debug().Msg("Checking FFmpeg availability")
@@ -1085,7 +1032,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	}
 
 	// Try to find FFmpeg
-	ffmpegPath, err := a.findBinaryPath("ffmpeg")
+	ffmpegPath, err := executils.FindBinary("ffmpeg")
 	if err != nil {
 		result["error"] = "FFmpeg is not installed or not in PATH"
 		a.logger.Debug().Err(err).Msg("FFmpeg not found")
@@ -1095,7 +1042,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	result["path"] = ffmpegPath
 
 	// Try to get version
-	cmd := executil.NewCommand(ffmpegPath, "-version")
+	cmd := executils.NewCommand(ffmpegPath, "-version")
 	output, err := cmd.Output()
 	if err != nil {
 		result["error"] = "FFmpeg found but could not determine version"
@@ -1138,7 +1085,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	}
 
 	// Try to find MediaInfo
-	mediainfoPath, err := a.findBinaryPath("mediainfo")
+	mediainfoPath, err := executils.FindBinary("mediainfo")
 	if err != nil {
 		result["error"] = "MediaInfo is not installed or not in PATH"
 		a.logger.Debug().Err(err).Msg("MediaInfo not found")
@@ -1148,7 +1095,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	result["path"] = mediainfoPath
 
 	// Try to get version
-	cmd := executil.NewCommand(mediainfoPath, "--Version")
+	cmd := executils.NewCommand(mediainfoPath, "--Version")
 	output, err := cmd.Output()
 	if err != nil {
 		result["error"] = "MediaInfo found but could not determine version"
