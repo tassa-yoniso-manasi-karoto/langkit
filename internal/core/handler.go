@@ -397,24 +397,31 @@ func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler)
 	}
 	crash.InitReporter(ctx)
 	
-	// Setup multi-writer for both console and crash buffer
-	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
-	
-	// Create a throttled log writer
-	logWriter := &LogWriter{
+	// 1. Writer for the GUI Log Viewer (sends raw JSON to the throttler)
+	guiLogWriter := &LogWriter{
 		ctx:       ctx,
 		throttler: throttler,
 	}
-	
-	// Use the throttled writer in the MultiLevelWriter setup
+
+	// 2. Writer for the in-memory crash/debug report buffer.
+	bufferWriter := zerolog.ConsoleWriter{
+		Out:        &h.buffer, // Write DIRECTLY to the buffer
+		TimeFormat: time.TimeOnly,
+		NoColor:    true,
+	}
+
+	// 3. Writer for the developer's console (os.Stderr).
+	// This is for live debugging and will fail silently on Windows GUI, which is fine.
+	consoleWriter := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: time.TimeOnly,
+	}
+
+	// Each writer now operates independently: failure of one won't affect others.
 	multiWriter := zerolog.MultiLevelWriter(
-		// Raw JSON through the throttler to the frontend
-		logWriter,
-		// Formatted output for console output & crash reports
-		zerolog.ConsoleWriter{
-			Out:        multiOut,
-			TimeFormat: time.TimeOnly,
-		},
+		guiLogWriter,
+		bufferWriter,
+		consoleWriter,
 	)
 	
 	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
