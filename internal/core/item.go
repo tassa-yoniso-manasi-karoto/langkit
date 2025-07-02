@@ -1,24 +1,23 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"time"
-	"path/filepath"
-	"io/fs"
-	"errors"
-	"context"
 
-	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary" 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
+	"github.com/k0kubun/pp"
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
 )
 
@@ -122,13 +121,13 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 			}
 		}
 	}
-	
+
 	item.Time = timePosition(foreignItem.StartAt)
-	item.Image = fmt.Sprintf("<img src=\"%s\">", path.Base(imageFile))
-	
+	item.Image = fmt.Sprintf("<img src=\"%s\">", filepath.Base(imageFile))
+
 	// Only set Sound field if we extracted an OGG file
 	if audiofile != "" {
-		item.Sound = fmt.Sprintf("[sound:%s]", path.Base(audiofile))
+		item.Sound = fmt.Sprintf("[sound:%s]", filepath.Base(audiofile))
 	} else {
 		item.Sound = ""
 	}
@@ -264,9 +263,9 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 
 	// Create a unique temp file name based on the media prefix
 	// This allows reuse across runs with different output formats
-	tempBaseName := path.Base(tsk.MediaPrefix) + ".concatenated.wav"
+	tempBaseName := filepath.Base(tsk.MediaPrefix) + ".concatenated.wav"
 	tempWavFile := filepath.Join(os.TempDir(), tempBaseName)
-	
+
 	// Check if concatenated WAV already exists in temp
 	if _, err := os.Stat(tempWavFile); err == nil {
 		tsk.Handler.ZeroLog().Info().

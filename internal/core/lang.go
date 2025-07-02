@@ -2,26 +2,25 @@ package core
 
 import (
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
-	"unicode"
 	"time"
+	"unicode"
 
+	iso "github.com/barbashov/iso639-3"
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
-	iso "github.com/barbashov/iso639-3"
 	"github.com/rs/zerolog"
 )
 
 // TODO May make sense to move some functions to translitkit/pkg
 
-
 const (
 	// for now the only ranking requirement is to have Sub at the bottom
-	Sub = iota  // Regular subtitles (lowest priority)
-	StrippedSDH // Stripped SDH
-	Dub         // Dubtitles
-	CC          // Closed captions
+	Sub         = iota // Regular subtitles (lowest priority)
+	StrippedSDH        // Stripped SDH
+	Dub                // Dubtitles
+	CC                 // Closed captions
 )
 
 const unknownLang = "und" // = undetermined, special code part of the ISO639 spec
@@ -182,10 +181,9 @@ https://github.com/mpv-player/mpv/blob/master/LICENSE.LGPL
 
 The implementation here is provided under GPL3 as the rest of this project.
 You can test if your subs are found by their algo with "mpv --sub-auto=fuzzy --msg-level=find_files=trace video.mp4"
-
 */
 func guessLangFromFilename(name string, langStart *int) string {
-	stripname := stripCommonSubsMention(path.Base(name))
+	stripname := stripCommonSubsMention(filepath.Base(name))
 	var ok bool
 	var i, langLength int
 	// this iter decorticates some more in case lang isn't located at the end of the name
@@ -194,7 +192,7 @@ func guessLangFromFilename(name string, langStart *int) string {
 		// Trim ext during 1st loop and then in further loops, attempt to
 		// decorticate any potential dot-separated irrelevant info such as:
 		// movie version (director's cut...), video quality, rip method used or whatnot
-		stripname = strings.TrimSuffix(stripname, path.Ext(stripname))
+		stripname = strings.TrimSuffix(stripname, filepath.Ext(stripname))
 		stripname = strings.TrimSpace(stripname)
 
 		if len(stripname) < 2 {

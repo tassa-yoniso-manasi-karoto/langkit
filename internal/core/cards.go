@@ -5,18 +5,17 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
-	"regexp"
 	"time"
 
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
 
@@ -24,20 +23,20 @@ var AstisubSupportedExt = []string{".srt", ".ass", ".ssa", "vtt", ".stl", ".ttml
 
 // Path utility functions
 func (tsk *Task) outputBase() string {
-	base := strings.TrimSuffix(path.Base(tsk.TargSubFile), path.Ext(tsk.TargSubFile))
+	base := strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
 	return strings.ReplaceAll(base, "'", " ")
 }
 
 func (tsk *Task) outputFile() string {
-	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase()+tsk.OutputFileExtension)
+	return filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.outputBase()+tsk.OutputFileExtension)
 }
 
 func (tsk *Task) mediaOutputDir() string {
-	return path.Join(path.Dir(tsk.MediaSourceFile), tsk.outputBase()+".media")
+	return filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.outputBase()+".media")
 }
 
 func (tsk *Task) audioBase() string {
-	base := strings.TrimSuffix(path.Base(tsk.MediaSourceFile), path.Ext(tsk.MediaSourceFile))
+	base := strings.TrimSuffix(filepath.Base(tsk.MediaSourceFile), filepath.Ext(tsk.MediaSourceFile))
 	return base
 }
 
@@ -53,7 +52,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	reporter.ClearExecutionRecords()
 	reporter.SaveSnapshot("Starting execution", tsk.DebugVals())
 	reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
-		es.ParentDirPath = path.Dir(tsk.MediaSourceFile)
+		es.ParentDirPath = filepath.Dir(tsk.MediaSourceFile)
 	})
 
 	if procErr := tsk.validateBasicRequirements(); procErr != nil {
@@ -178,65 +177,66 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		return procErr
 	}
 
-
 goodEnd:
 	// Handle condensed audio generation for Translit mode if requested
 	// Note: Enhance mode does not support condensed audio according to the design
 	if tsk.Mode == Translit && tsk.WantCondensedAudio {
 		if tsk.TargSubs == nil || len(tsk.TargSubs.Items) == 0 {
 			procErr = tsk.Handler.Log(Warn, AbortTask, "Cannot generate condensed audio: Target subtitles are required but not available/loaded for Translit mode with condensed audio option.")
-				if procErr != nil { return procErr }
+			if procErr != nil {
+				return procErr
+			}
 		} else {
 			// Ensure media output directory exists for WAV segments
 			mediaOutDir := tsk.mediaOutputDir()
 			if err := os.MkdirAll(mediaOutDir, os.ModePerm); err != nil {
 				// This is a critical error for the requested feature
 				procErr = tsk.Handler.LogErr(err, AbortTask, fmt.Sprintf("Failed to create media output directory for condensed audio: %s", mediaOutDir))
-				if procErr != nil { 
+				if procErr != nil {
 					return procErr
 				}
 				// Continue processing even if condensed audio creation fails
 			} else {
 				// Ensure MediaPrefix is set properly for Translit mode with condensed audio
-					if tsk.TargSubFile == "" {
-						// This is a critical error - we need TargSubFile for outputBase
-						procErr = tsk.Handler.Log(Error, AbortTask, "Cannot generate condensed audio: TargSubFile is not set, cannot determine output base.")
-						if procErr != nil { 
-							return procErr
-						}
+				if tsk.TargSubFile == "" {
+					// This is a critical error - we need TargSubFile for outputBase
+					procErr = tsk.Handler.Log(Error, AbortTask, "Cannot generate condensed audio: TargSubFile is not set, cannot determine output base.")
+					if procErr != nil {
+						return procErr
 					}
-					
-					// Set MediaPrefix for extraction
-					tsk.MediaPrefix = path.Join(mediaOutDir, tsk.outputBase())
-					tsk.Handler.ZeroLog().Debug().
-						Str("MediaPrefix", tsk.MediaPrefix).
-						Msg("MediaPrefix set for Translit + WantCondensedAudio")
-					
-					// Check if we can skip WAV extraction due to existing concatenated file
-					tsk.CheckConcatenatedWAV()
-					
-					if !tsk.SkipWAVExtraction {
-						tsk.Handler.ZeroLog().Info().Msg("Extracting WAV segments for condensed audio (auxiliary output)...")
-					
-						// Extract WAV segments for each subtitle item
-						for _, foreignItem := range tsk.TargSubs.Items {
-							select {
-							case <-ctx.Done():
-								tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "Condensed audio WAV extraction canceled by user")
-								goto mergeOutputs
-							default:
-								_, err := media.ExtractAudio("wav", tsk.UseAudiotrack,
-									time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
-									tsk.MediaSourceFile, tsk.MediaPrefix, false) // dryRun = false
-								if err != nil && !os.IsExist(err) {
-									tsk.Handler.ZeroLog().Error().Err(err).
-										Str("time", timePosition(foreignItem.StartAt)).
-										Msg("Failed to extract WAV segment for condensed audio")
-								}
+				}
+
+				// Set MediaPrefix for extraction
+				tsk.MediaPrefix = filepath.Join(mediaOutDir, tsk.outputBase())
+				tsk.Handler.ZeroLog().Debug().
+					Str("MediaPrefix", tsk.MediaPrefix).
+					Msg("MediaPrefix set for Translit + WantCondensedAudio")
+
+				// Check if we can skip WAV extraction due to existing concatenated file
+				tsk.CheckConcatenatedWAV()
+
+				if !tsk.SkipWAVExtraction {
+					tsk.Handler.ZeroLog().Info().Msg("Extracting WAV segments for condensed audio (auxiliary output)...")
+
+					// Extract WAV segments for each subtitle item
+					for _, foreignItem := range tsk.TargSubs.Items {
+						select {
+						case <-ctx.Done():
+							tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "Condensed audio WAV extraction canceled by user")
+							goto mergeOutputs
+						default:
+							_, err := media.ExtractAudio("wav", tsk.UseAudiotrack,
+								time.Duration(0), foreignItem.StartAt, foreignItem.EndAt,
+								tsk.MediaSourceFile, tsk.MediaPrefix, false) // dryRun = false
+							if err != nil && !os.IsExist(err) {
+								tsk.Handler.ZeroLog().Error().Err(err).
+									Str("time", timePosition(foreignItem.StartAt)).
+									Msg("Failed to extract WAV segment for condensed audio")
 							}
 						}
 					}
-				
+				}
+
 				// Call concatenation to create the final condensed audio file
 				tsk.Handler.ZeroLog().Info().Msg("Creating condensed audio file (auxiliary output)...")
 				if err := tsk.ConcatWAVsToAudio("CONDENSED"); err != nil {
@@ -297,29 +297,29 @@ mergeOutputs:
 func (tsk *Task) Autosub() *ProcessingError {
 	files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
 	tsk.Handler.ZeroLog().Debug().
-			Int("num_files", len(files)).
-			Str("MediaSourceFile", tsk.MediaSourceFile).
-			Msgf("Reading parent dir of media file: \"%s\"", filepath.Dir(tsk.MediaSourceFile))
+		Int("num_files", len(files)).
+		Str("MediaSourceFile", tsk.MediaSourceFile).
+		Msgf("Reading parent dir of media file: \"%s\"", filepath.Dir(tsk.MediaSourceFile))
 
 	fileNames := make([]string, len(files))
 	for i, entry := range files {
-		fileNames[i] = entry.Name() 
+		fileNames[i] = entry.Name()
 	}
 
 	tsk.Handler.ZeroLog().Trace().
-			Strs("files", fileNames).
-			Msg("File list of parent dir of media file")
-			
+		Strs("files", fileNames).
+		Msg("File list of parent dir of media file")
+
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to read directory")
 	} else if len(files) == 0 {
 		return tsk.Handler.LogErr(err, AbortTask, "autosub: read directory but retrieved file list is empty")
 	}
-	trimmedMedia := strings.TrimSuffix(path.Base(tsk.MediaSourceFile), path.Ext(tsk.MediaSourceFile))
-	
+	trimmedMedia := strings.TrimSuffix(filepath.Base(tsk.MediaSourceFile), filepath.Ext(tsk.MediaSourceFile))
+
 	for _, file := range files {
 		ext := strings.ToLower(filepath.Ext(file.Name()))
-		trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
+		trimmed := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
 
 		if file.IsDir() {
 			tsk.Handler.ZeroLog().Debug().
@@ -378,24 +378,24 @@ func (tsk *Task) Autosub() *ProcessingError {
 
 		// Check if subtitle name matches our target language
 		tsk.SetPreferred([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile, &tsk.Targ)
-		
+
 		// Check if subtitle name matches any of our native/reference languages
 		for _, RefLang := range tsk.RefLangs {
 			tsk.IsCCorDubs = tsk.SetPreferred(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile, &tsk.Native)
 		}
 	}
 	tsk.Handler.ZeroLog().Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
-	tsk.NativeSubFile  = Base2Absolute(tsk.NativeSubFile, path.Dir(tsk.MediaSourceFile))
-	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, path.Dir(tsk.MediaSourceFile))
+	tsk.NativeSubFile = Base2Absolute(tsk.NativeSubFile, filepath.Dir(tsk.MediaSourceFile))
+	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, filepath.Dir(tsk.MediaSourceFile))
 	if tsk.TargSubFile == "" {
 		return tsk.Handler.LogErrFields(fmt.Errorf("no subtitle file in %s was found", tsk.Targ.Name), AbortTask,
-			"autosubs failed", map[string]interface{}{"video": path.Base(tsk.MediaSourceFile)})
+			"autosubs failed", map[string]interface{}{"video": filepath.Base(tsk.MediaSourceFile)})
 	}
 	if tsk.Mode != Subs2Cards {
 		return nil
 	}
 	if tsk.NativeSubFile == "" {
-		tsk.Handler.ZeroLog().Warn().Str("video", path.Base(tsk.MediaSourceFile)).Msg("No sub file for reference/native language was found")
+		tsk.Handler.ZeroLog().Warn().Str("video", filepath.Base(tsk.MediaSourceFile)).Msg("No sub file for reference/native language was found")
 	} else {
 		tsk.Handler.ZeroLog().Info().Str("Automatically chosen Native subtitle", tsk.NativeSubFile).Msg("")
 	}
@@ -517,8 +517,8 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 				fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
 		}
 		
-		// Set media prefix for file output
-		tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
+ 		// Set media prefix for file output
+		tsk.MediaPrefix = filepath.Join(tsk.mediaOutputDir(), tsk.outputBase())
 		
 		return nil, nil
 	}
@@ -530,11 +530,11 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 		}
 		if tsk.NativeSubFile == "" {
 			tsk.Handler.ZeroLog().Warn().
-				Str("video", path.Base(tsk.MediaSourceFile)).
+				Str("video", filepath.Base(tsk.MediaSourceFile)).
 				Msg("No sub file for any of the desired reference language(s) were found")
 		}
 	}
-	
+
 	// Load native subtitles if available
 	if tsk.NativeSubFile != "" {
 		tsk.NativeSubs, err = subs.OpenFile(tsk.NativeSubFile, false)
@@ -561,20 +561,20 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 	}
 
 	// Set media prefix for file output
-	tsk.MediaPrefix = path.Join(tsk.mediaOutputDir(), tsk.outputBase())
-	
+	tsk.MediaPrefix = filepath.Join(tsk.mediaOutputDir(), tsk.outputBase())
+
 	return outStream, nil
 }
 
 // processMediaInfo handles media info extraction and audio track selection
 func (tsk *Task) processMediaInfo() *ProcessingError {
 	tsk.Meta.MediaInfo = Mediainfo(tsk.MediaSourceFile)
-	
+
 	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
 		return tsk.Handler.LogErr(fmt.Errorf("no audiotracks exists in file"),
-			AbortTask, fmt.Sprintf("ignoring file '%s'", path.Base(tsk.MediaSourceFile)))
+			AbortTask, fmt.Sprintf("ignoring file '%s'", filepath.Base(tsk.MediaSourceFile)))
 	}
-	
+
 	for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
 		if err := tsk.ChooseAudio(fn); err != nil {
 			return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
@@ -672,7 +672,7 @@ func (tsk *Task) processAudioEnhancement(ctx context.Context) *ProcessingError {
 // Utility functions
 func Base2Absolute(s, dir string) string {
 	if s != "" {
-		return path.Join(dir, s)
+		return filepath.Join(dir, s)
 	}
 	return ""
 }

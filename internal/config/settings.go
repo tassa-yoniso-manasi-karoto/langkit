@@ -219,8 +219,8 @@ func SaveSettings(settings Settings) error {
 	viper.Set("force_wasm_mode", settings.ForceWasmMode)
 
 	// Save binary paths
-	viper.Set("ffmpeg_path", settings.FFmpegPath)
-	viper.Set("mediainfo_path", settings.MediaInfoPath)
+	viper.Set("ffmpeg_path", filepath.ToSlash(settings.FFmpegPath))
+	viper.Set("mediainfo_path", filepath.ToSlash(settings.MediaInfoPath))
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()
