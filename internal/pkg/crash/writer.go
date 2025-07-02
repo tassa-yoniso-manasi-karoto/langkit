@@ -162,6 +162,11 @@ func writeReportContent(
 	// 5. Crash reporter scopes (if any)
 	if Reporter != nil {
 		globalScope, execScope := Reporter.GetScopes()
+			
+		fmt.Fprintln(w, "PARENT DIR OF MEDIA FILE")
+		fmt.Fprintln(w, "========================")
+		FormatDirectoryListing(w, execScope.ParentDirPath)
+		fmt.Fprint(w, "\n\n")
 
 		fmt.Fprintln(w, "GLOBAL SCOPE")
 		fmt.Fprintln(w, "============")
@@ -175,17 +180,12 @@ func writeReportContent(
 			fmt.Fprintln(w, "=========================")
 			fmt.Fprintf(w, "Processing Start Time: %s\n", execScope.StartTime.Format(time.RFC3339))
 			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n\n", execScope.MediaInfoDump)
-			
-			fmt.Fprintln(w, "PARENT DIR OF MEDIA FILE")
-			fmt.Fprintln(w, "========================")
-			FormatDirectoryListing(w, execScope.ParentDirPath)
-			fmt.Fprint(w, "\n\n")
 		}
 
 		// 6. Execution snapshots
 		fmt.Fprintf(w, "%s\n", Reporter.GetSnapshotsString())
 	}
-
+	
 	// 6.5 WebAssembly status (if available)
 	if Reporter != nil {
 		fmt.Fprintln(w, "WEBASSEMBLY STATUS")

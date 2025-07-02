@@ -296,32 +296,89 @@ mergeOutputs:
 // Autosub automatically discovers subtitle files based on the media filename
 func (tsk *Task) Autosub() *ProcessingError {
 	files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
+	tsk.Handler.ZeroLog().Debug().
+			Int("num_files", len(files)).
+			Str("MediaSourceFile", tsk.MediaSourceFile).
+			Msgf("Reading parent dir of media file: \"%s\"", filepath.Dir(tsk.MediaSourceFile))
+
+	fileNames := make([]string, len(files))
+	for i, entry := range files {
+		fileNames[i] = entry.Name() 
+	}
+
+	tsk.Handler.ZeroLog().Trace().
+			Strs("files", fileNames).
+			Msg("File list of parent dir of media file")
+			
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to read directory")
+	} else if len(files) == 0 {
+		return tsk.Handler.LogErr(err, AbortTask, "autosub: read directory but retrieved file list is empty")
 	}
 	trimmedMedia := strings.TrimSuffix(path.Base(tsk.MediaSourceFile), path.Ext(tsk.MediaSourceFile))
+	
 	for _, file := range files {
 		ext := strings.ToLower(filepath.Ext(file.Name()))
 		trimmed := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
-		if isLangkitMadeDubtitles(file.Name()) || isLangkitMadeTranslit(file.Name()) ||
-			!slices.Contains(AstisubSupportedExt, ext) ||
-				strings.Contains(strings.ToLower(trimmed), "forced") ||
-					!strings.HasPrefix(trimmed, trimmedMedia) ||
-						file.IsDir()  {
-						continue
+
+		if file.IsDir() {
+			tsk.Handler.ZeroLog().Debug().
+				Str("directory", file.Name()).
+				Msg("Skipping: Entry is a directory")
+			continue
 		}
+		
+		if isLangkitMadeDubtitles(file.Name()) {
+			tsk.Handler.ZeroLog().Debug().
+				Str("file", file.Name()).
+				Msg("Skipping: Is a Langkit-generated dubtitle file")
+			continue
+		}
+
+		if isLangkitMadeTranslit(file.Name()) {
+			tsk.Handler.ZeroLog().Debug().
+				Str("file", file.Name()).
+				Msg("Skipping: Is a Langkit-generated transliteration file")
+			continue
+		}
+		
+		if !slices.Contains(AstisubSupportedExt, ext) {
+			tsk.Handler.ZeroLog().Debug().
+				Str("file", file.Name()).
+				Str("extension", ext).
+				Msg("Skipping: Unsupported subtitle extension")
+			continue
+		}
+
+		if strings.Contains(strings.ToLower(trimmed), "forced") {
+			tsk.Handler.ZeroLog().Debug().
+				Str("file", file.Name()).
+				Msg("Skipping: Filename contains 'forced'")
+			continue
+		}
+
+		if !strings.HasPrefix(trimmed, trimmedMedia) {
+			tsk.Handler.ZeroLog().Debug().
+				Str("file", file.Name()).
+				Str("media_prefix", trimmedMedia).
+				Msg("Skipping: Filename does not match the media file's prefix")
+			continue
+		}
+		
 		l, err := GuessLangFromFilename(file.Name())
 		if err != nil {
 			tsk.Handler.ZeroLog().Debug().Err(err).Msg("guessing lang")
 			continue
 		}
+		
 		tsk.Handler.ZeroLog().Debug().
 			Str("Guessed lang", l.Part3).
 			Str("Subtag", l.Subtag).
 			Msgf("File: %s", file.Name())
-		
+
 		// Check if subtitle name matches our target language
 		tsk.SetPreferred([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile, &tsk.Targ)
+		
 		// Check if subtitle name matches any of our native/reference languages
 		for _, RefLang := range tsk.RefLangs {
 			tsk.IsCCorDubs = tsk.SetPreferred(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile, &tsk.Native)

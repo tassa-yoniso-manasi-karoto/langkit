@@ -2,13 +2,12 @@
 
 .
 -  rename Dubtitle to Dubtitles
-.
-- No logs on windows (!!!)
 
 .
-- in DevDashboard
-  - allow frontend logs in logviewer
-  - enable TRACE logging
+- on WINDOWS: auto-subs failed
+
+.
+- sanitize AssetServer: in report
 
 .
 - welcome.svelte component w/ checks for binary needed:
@@ -29,7 +28,6 @@
   - test use case BrowserAccessURL not set 2 time in a row (test logger.go with already downloaded binary)
 - manual CLI tests
 - try offline to see if icon / fonts are missing
-
 - try a clean install
 
 .
