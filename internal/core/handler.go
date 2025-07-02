@@ -1,17 +1,18 @@
 package core
 
 import (
-	"fmt"
-	"os"
-	"io"
-	"time"
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"math"
+	"os"
+	"sync/atomic"
+	"time"
 
-	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
+	"github.com/k0kubun/pp"
 
 	"github.com/rs/zerolog"
 	"github.com/schollz/progressbar/v3"
@@ -337,71 +338,81 @@ func (h *CLIHandler) GetContext() context.Context {
 	return h.ctx
 }
 
-
 // #############################################################################
 // #############################################################################
 // #############################################################################
-
-
 
 // GUI implementation
 type GUIHandler struct {
-	ctx	       context.Context
-	logger       *zerolog.Logger
-	buffer       bytes.Buffer
-	progressMap  map[string]int
-	throttler    *batch.AdaptiveEventThrottler
+	ctx            context.Context
+	logger         *zerolog.Logger
+	buffer         bytes.Buffer
+	progressMap    map[string]int
+	throttler      *batch.AdaptiveEventThrottler
 	etaCalculators map[string]eta.Provider
+	guiLogWriter   *LogWriter
 }
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
-	ctx       context.Context
-	throttler *batch.AdaptiveEventThrottler
+	ctx           context.Context
+	throttler     *batch.AdaptiveEventThrottler
+	sendTraceLogs atomic.Bool
 }
 
 func (w *LogWriter) Write(p []byte) (n int, err error) {
-	// Parse the log message
-	var logMessage map[string]interface{}
-	if err := json.Unmarshal(p, &logMessage); err != nil {
-		return 0, err
+	// By default, we assume the log should be sent.
+	shouldSend := true
+
+	// If the trace log toggle is OFF, we need to inspect the message
+	// and specifically discard trace-level logs.
+	if !w.sendTraceLogs.Load() {
+		var logMessage map[string]interface{}
+		// Performance optimization: only unmarshal if we need to check the level.
+		if err := json.Unmarshal(p, &logMessage); err == nil {
+			// Zerolog encodes the level as a number. When unmarshalled into an interface{},
+			// JSON numbers become float64. We must do a type assertion to compare correctly.
+			if levelValue, ok := logMessage["level"].(float64); ok {
+				// If the log's level is TRACE, mark it to be discarded.
+				if levelValue == float64(zerolog.TraceLevel) { // Compare float64 to float64
+					shouldSend = false
+				}
+			}
+		}
+		// If unmarshalling fails, we let it pass through (shouldSend remains true).
 	}
 
-	// Check the log level
-	if level, ok := logMessage["level"]; ok {
-		// If it's TRACE (-1), don't send to frontend
-		if level == -1 {
-			// Return the original length to satisfy the Writer interface
-			return len(p), nil
+	// If the log was not marked for discard, send it to the frontend.
+	if shouldSend {
+		if w.throttler != nil {
+			w.throttler.AddLog(string(p))
+		} else {
+			// Fallback to direct emission if throttler isn't available.
+			runtime.EventsEmit(w.ctx, "log", string(p))
 		}
 	}
 
-	// Send logs through the throttler if available
-	if w.throttler != nil {
-		w.throttler.AddLog(string(p))
-	} else {
-		// Fall back to direct emission if throttler isn't available
-		runtime.EventsEmit(w.ctx, "log", string(p))
-	}
-	
+	// Return the original length to satisfy the io.Writer interface.
+	// We "pretend" we wrote the bytes even if we discarded them.
 	return len(p), nil
 }
 
-
 func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler) *GUIHandler {
 	h := &GUIHandler{
-		ctx:         ctx,
-		progressMap: make(map[string]int),
-		throttler:   throttler,
+		ctx:            ctx,
+		progressMap:    make(map[string]int),
+		throttler:      throttler,
 		etaCalculators: make(map[string]eta.Provider),
 	}
 	crash.InitReporter(ctx)
-	
+
 	// 1. Writer for the GUI Log Viewer (sends raw JSON to the throttler)
 	guiLogWriter := &LogWriter{
 		ctx:       ctx,
 		throttler: throttler,
 	}
+	guiLogWriter.sendTraceLogs.Store(false) // Initially disable trace logs
+	h.guiLogWriter = guiLogWriter
 
 	// 2. Writer for the in-memory crash/debug report buffer.
 	bufferWriter := zerolog.ConsoleWriter{
@@ -914,6 +925,24 @@ func (h *GUIHandler) SetHighLoadMode(durations ...time.Duration) {
 // GetContext returns the handler's context for use in crash handling
 func (h *GUIHandler) GetContext() context.Context {
 	return h.ctx
+}
+
+// SetTraceLogs enables or disables sending trace-level logs to the GUI.
+func (h *GUIHandler) SetTraceLogs(enable bool) {
+	if h.guiLogWriter != nil {
+		h.guiLogWriter.sendTraceLogs.Store(enable)
+		if h.logger != nil {
+			h.logger.Info().Msgf("Trace logs for GUI set to: %v", enable)
+		}
+	}
+}
+
+// GetTraceLogs returns the current state of the trace log setting.
+func (h *GUIHandler) GetTraceLogs() bool {
+	if h.guiLogWriter != nil {
+		return h.guiLogWriter.sendTraceLogs.Load()
+	}
+	return false
 }
 
 // GetScraperLibLogForwarder returns a callback function that logs messages with a [scraper-lib] prefix

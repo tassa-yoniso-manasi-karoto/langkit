@@ -131,6 +131,7 @@ export default {
         'welcome-gradient-start': `hsl(${primaryHue}, 95%, 75%)`,
         'welcome-gradient-end': `hsl(${secondaryHue}, 95%, 70%)`,
         
+        'log-trace': 'hsl(240, 100%, 33.33%)',
         'log-debug': violet,
         'log-info': green,
         'log-warn': yellow,

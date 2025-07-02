@@ -3,11 +3,12 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
     import MemoryTestButton from './MemoryTestButton.svelte';
+    import { SetTraceLogs, GetTraceLogs } from '../../wailsjs/go/gui/App';
     
     // Props
     export let version: string = '';
@@ -98,6 +99,13 @@
     
     // Show when in dev mode or developer mode is enabled
     $: showDashboard = (!!version && (version === 'dev' || version.includes('dev'))) || $isDeveloperMode;
+   
+    // When the trace logs store changes, call the backend
+    $: {
+    	if ($enableTraceLogsStore !== undefined) {
+    		SetTraceLogs($enableTraceLogsStore);
+    	}
+    }
     
     // Handle dragging for both the icon and expanded dashboard
     function handleMouseDown(event: MouseEvent) {
@@ -767,8 +775,14 @@
             clearInterval(checkVersion);
             window.removeEventListener('progress-state-change', handleStateChange);
         };
-    });
-</script>
+       });
+      
+       onMount(async () => {
+        // Sync the trace log state from the backend when the component mounts
+        const traceLogsEnabled = await GetTraceLogs();
+        enableTraceLogsStore.set(traceLogsEnabled);
+       });
+      </script>
 
 {#if showDashboard}
     <!-- Floating bubble icon (minimized state) -->
@@ -905,50 +919,63 @@
                             </div>
                     {:else if activeTab === 'logs'}
                         <h4>Log Viewer Controls</h4>
-
-                            <div class="control-section mb-4">
-                                <h5 class="text-xs font-semibold mb-2 opacity-80">Virtualization</h5>
-                                <div class="flex flex-wrap gap-2">
-                                    <button
-                                        class="control-button"
-                                        on:click={() => {
-                                            // Toggle virtualization via document event
-                                            const evt = new CustomEvent('dev:toggle-virtualization');
-                                            document.dispatchEvent(evt);
-                                        }}
-                                    >
-                                        Toggle Virtualization
-                                    </button>
-
-                                </div>
-                            </div>
-
-                            <div class="control-section mb-4">
-                                <h5 class="text-xs font-semibold mb-2 opacity-80">Debug Tools</h5>
-                                <div class="flex flex-wrap gap-2">
-                                    <button
-                                        class="control-button"
-                                        on:click={() => {
-                                            // Toggle debug overlay via document event
-                                            const evt = new CustomEvent('dev:toggle-debug-scroll');
-                                            document.dispatchEvent(evt);
-                                        }}
-                                    >
-                                        Debug Scroll Overlay
-                                    </button>
-
-                                    <button
-                                        class="control-button"
-                                        on:click={() => {
-                                            // Force scroll to bottom
-                                            const evt = new CustomEvent('dev:force-scroll-bottom');
-                                            document.dispatchEvent(evt);
-                                        }}
-                                    >
-                                        Force Scroll to Bottom
-                                    </button>
-                                </div>
-                            </div>
+                        <div class="control-section mb-4">
+                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Trace Logs</h5>
+                        	<div class="flex items-center gap-2">
+                        		<label class="switch">
+                        			<input type="checkbox" bind:checked={$enableTraceLogsStore}>
+                        			<span class="slider round"></span>
+                        		</label>
+                        		<span class="text-xs text-gray-400">Enable Trace Logs</span>
+                        	</div>
+                        	<p class="text-xs text-gray-500 mt-1">
+                        		Streams verbose trace logs to the frontend. May impact performance.
+                        	</p>
+                        </div>
+                  
+                        <div class="control-section mb-4">
+                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Virtualization</h5>
+                        	<div class="flex flex-wrap gap-2">
+                        		<button
+                        			class="control-button"
+                        			on:click={() => {
+                        				// Toggle virtualization via document event
+                        				const evt = new CustomEvent('dev:toggle-virtualization');
+                        				document.dispatchEvent(evt);
+                        			}}
+                        		>
+                        			Toggle Virtualization
+                        		</button>
+                  
+                        	</div>
+                        </div>
+                  
+                        <div class="control-section mb-4">
+                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Debug Tools</h5>
+                        	<div class="flex flex-wrap gap-2">
+                        		<button
+                        			class="control-button"
+                        			on:click={() => {
+                        				// Toggle debug overlay via document event
+                        				const evt = new CustomEvent('dev:toggle-debug-scroll');
+                        				document.dispatchEvent(evt);
+                        			}}
+                        		>
+                        			Debug Scroll Overlay
+                        		</button>
+                  
+                        		<button
+                        			class="control-button"
+                        			on:click={() => {
+                        				// Force scroll to bottom
+                        				const evt = new CustomEvent('dev:force-scroll-bottom');
+                        				document.dispatchEvent(evt);
+                        			}}
+                        		>
+                        			Force Scroll to Bottom
+                        		</button>
+                        	</div>
+                        </div>
                     {:else if activeTab === 'debug'}
                         <h4>Debug Controls</h4>
 
@@ -4297,7 +4324,63 @@
     }
     
     .slider::-moz-range-thumb:hover {
-        transform: scale(1.1);
-        box-shadow: 0 0 8px rgba(159, 110, 247, 0.5);
+    	transform: scale(1.1);
+    	box-shadow: 0 0 8px rgba(159, 110, 247, 0.5);
     }
-</style>
+   
+    /* Toggle Switch Styles */
+    .switch {
+    	position: relative;
+    	display: inline-block;
+    	width: 34px;
+    	height: 20px;
+    }
+   
+    .switch input {
+    	opacity: 0;
+    	width: 0;
+    	height: 0;
+    }
+   
+    .switch .slider {
+    	position: absolute;
+    	cursor: pointer;
+    	top: 0;
+    	left: 0;
+    	right: 0;
+    	bottom: 0;
+    	background-color: #4b5563; /* gray-600 */
+    	transition: .4s;
+    }
+   
+    .switch .slider:before {
+    	position: absolute;
+    	content: "";
+    	height: 12px;
+    	width: 12px;
+    	left: 4px;
+    	bottom: 4px;
+    	background-color: white;
+    	transition: .4s;
+    }
+   
+    .switch input:checked + .slider {
+    	background-color: #3b82f6; /* blue-500 */
+    }
+   
+    .switch input:focus + .slider {
+    	box-shadow: 0 0 1px #3b82f6;
+    }
+   
+    .switch input:checked + .slider:before {
+    	transform: translateX(14px);
+    }
+   
+    .switch .slider.round {
+    	border-radius: 20px;
+    }
+   
+    .switch .slider.round:before {
+    	border-radius: 50%;
+    }
+   </style>

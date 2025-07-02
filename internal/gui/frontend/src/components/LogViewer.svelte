@@ -1,7 +1,8 @@
 <script lang="ts">
-    import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
-    import { get } from 'svelte/store';
-    import { settings } from '../lib/stores';
+	import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
+	import { get } from 'svelte/store';
+	import { settings, enableTraceLogsStore } from '../lib/stores';
+	import { GetTraceLogs } from '../../wailsjs/go/gui/App';
     import { logStore, type LogMessage } from '../lib/logStore';
     import { logger } from '../lib/logger';
     import { slide, fade } from 'svelte/transition';
@@ -74,18 +75,20 @@
     import { isDeveloperMode } from '../lib/developerMode';
     
     // Decide initial log filter based on dev mode or developer mode
-    let selectedLogLevel = (version === "dev" || $isDeveloperMode) ? "DEBUG" : "INFO";
+    let selectedLogLevel = (version === "dev" || $isDeveloperMode) ? "TRACE" : "INFO";
     let previousLogLevel = selectedLogLevel;
     
     // Log levels available
-    const logLevels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
-
+    const logLevels = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
+   
     // Priority map for numeric comparisons
+    // Priority map matching zerolog's levels.
     const logLevelPriority: Record<string, number> = {
-        'debug': 1,
-        'info': 2,
-        'warn': 3,
-        'error': 4,
+    	'trace': -1,
+    	'debug': 0,
+    	'info': 1,
+    	'warn': 2,
+    	'error': 3,
     };
 
     // Match certain behaviors to text colors using the centralized colors
@@ -104,6 +107,7 @@
     let debugAutoScroll = false; // Developer option for auto-scroll debug overlay
     
     // --- Core Auto-Scroll State ---
+    let isReady = false; // Prevent rendering until all async states are initialized
     let autoScroll = true; // Default: ON. Single source of truth.
     let viewportAnchor: { 
       type?: string,
@@ -193,27 +197,24 @@
     let autoScrollToastMessage = "";
     let autoScrollToastTimer: number | null = null;
 
-    // Memoize filtered logs to prevent excessive reactive updates
-    let previousLogStoreLength = 0;
-    let previousSelectedLogLevel = selectedLogLevel;
-    let memoizedFilteredLogs: LogMessage[] = [];
-    
-    // Filter logs by level - only re-compute when necessary
-    $: {
-        // Only recompute if log store changed or filter level changed
-        if ($logStore.length !== previousLogStoreLength || selectedLogLevel !== previousSelectedLogLevel) {
-            previousLogStoreLength = $logStore.length;
-            previousSelectedLogLevel = selectedLogLevel;
-            
-            memoizedFilteredLogs = $logStore.filter(log => 
-                logLevelPriority[log.level?.toLowerCase() || 'info'] >= 
-                logLevelPriority[selectedLogLevel.toLowerCase()]
-            );
+    // Create a derived store for filtered logs.
+    // This will automatically and efficiently re-filter whenever a dependency changes.
+    $: filteredLogs = $logStore.filter(log => {
+        const level = log.level?.toLowerCase() || 'info';
+        
+        // Primary filter: Check against the trace log toggle.
+        // If the toggle is OFF, no trace logs should ever be shown.
+        if (!$enableTraceLogsStore && level === 'trace') {
+            return false;
         }
-    }
-    
-    // Use the memoized version
-    $: filteredLogs = memoizedFilteredLogs;
+        
+        // Secondary filter: Check against the selected log level from the dropdown.
+        const selectedPriority = logLevelPriority[selectedLogLevel.toLowerCase()];
+        const logPriority = logLevelPriority[level];
+        
+        // A log is shown if its priority is greater than or equal to the selected priority.
+        return logPriority >= selectedPriority;
+    });
     
     // Use the centralized threshold from settings
     $: {
@@ -1747,18 +1748,20 @@
     // Helper function to get log level styling
     function getLevelClass(level: string): string {
         switch (level?.toUpperCase()) {
-            case 'DEBUG':
-                return 'text-log-debug log-level-debug';
-            case 'INFO':
-                return 'text-log-info log-level-info';
-            case 'WARN':
-                return 'text-log-warn log-level-warn';
-            case 'ERROR':
-                return 'text-log-error log-level-error';
-            default:
-                return 'text-log-info log-level-info';
+        	case 'TRACE':
+        		return 'text-log-trace log-level-trace';
+        	case 'DEBUG':
+        		return 'text-log-debug log-level-debug';
+        	case 'INFO':
+        		return 'text-log-info log-level-info';
+        	case 'WARN':
+        		return 'text-log-warn log-level-warn';
+        	case 'ERROR':
+        		return 'text-log-error log-level-error';
+        	default:
+        		return 'text-log-info log-level-info';
         }
-    }
+       }
     
     // Helper function to determine if a log is new (for animation)
     function isNewLog(log: LogMessage): boolean {
@@ -1767,13 +1770,14 @@
     
     // Helper function to get flash animation class based on log level
     function getFlashClass(level: string): string {
-        switch (level?.toUpperCase()) {
-            case 'DEBUG': return 'flash-debug';
-            case 'INFO': return 'flash-info';
-            case 'WARN': return 'flash-warn';
-            case 'ERROR': return 'flash-error';
-            default: return 'flash-info';
-        }
+    	switch (level?.toUpperCase()) {
+    		case 'TRACE': return 'flash-trace';
+    		case 'DEBUG': return 'flash-debug';
+    		case 'INFO': return 'flash-info';
+    		case 'WARN': return 'flash-warn';
+    		case 'ERROR': return 'flash-error';
+    		default: return 'flash-info';
+    	}
     }
 
     // Helper function: format additional fields
@@ -1821,9 +1825,18 @@
     }
 
     onMount(async () => {
-        if (debug) logger.trace('logViewer', "LogViewer component mounting");
-        
-        // CRITICAL FIX: Set up a velocity decay timer that aggressively decays velocity
+    	// --- Initialization Fix ---
+    	// This is the definitive fix for the initialization race condition.
+    	// We explicitly fetch the initial state of the trace log toggle from the backend.
+    	// We do not attempt to render any logs until this state is confirmed.
+    	const traceLogsEnabled = await GetTraceLogs();
+    	enableTraceLogsStore.set(traceLogsEnabled);
+    	isReady = true; // Signal that the component is ready to render logs.
+    	// --- End Initialization Fix ---
+   
+    	if (debug) logger.trace('logViewer', "LogViewer component mounting");
+    	
+    	// CRITICAL FIX: Set up a velocity decay timer that aggressively decays velocity
         // This ensures velocity goes to zero quickly when scrolling stops
         velocityDecayTimer = window.setInterval(() => {
             // If no scrolling happens, velocity should decay toward zero
@@ -2214,16 +2227,17 @@
             aria-label="Log entries"
             style="overscroll-behavior: contain; will-change: scroll-position;"
         >
-            {#if filteredLogs.length === 0}
-                <!-- Empty state -->
-                <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-                    <span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg" aria-live="polite">
-                        No logs to display
-                    </span>
-                </div>
-            {:else}
-                <!-- Virtual scroller container -->
-                <div 
+        	{#if isReady}
+        		{#if filteredLogs.length === 0}
+        			<!-- Empty state -->
+        			<div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+        				<span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg" aria-live="polite">
+        					No logs to display
+        				</span>
+        			</div>
+        		{:else}
+        			<!-- Virtual scroller container -->
+        			<div
                     class="relative w-full" 
                     style="height: {virtualEnabled && virtualizationReady ? `${virtualContainerHeight}px` : 'auto'}"
                     aria-hidden={virtualEnabled ? "true" : "false"}
@@ -2403,10 +2417,18 @@
                             </div>
                         {/each}
                     {/if}
-                </div>
-            {/if}
-        </div>
-    </div>
+                	</div>
+                {/if}
+    {:else}
+     <!-- Loading state before initialization is complete -->
+     <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+      <span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg">
+       Initializing Log Viewer...
+      </span>
+     </div>
+    {/if}
+   </div>
+  </div>
 
     <!-- Return to bottom button -->
     {#if showReturnToBottomButton}
@@ -2581,9 +2603,12 @@
     }
     
     /* Styled log levels with enhanced visual treatment */
+    .log-level-trace {
+    	color: hsl(240, 100%, 33.33%);
+    }
     .log-level-debug {
-        text-shadow: 0 0 6px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4);
-        font-weight: 500;
+    	text-shadow: 0 0 6px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.4);
+    	font-weight: 500;
     }
     
     .log-level-info {
@@ -2668,8 +2693,12 @@
     }
     
     /* Flash border animations for each log level */
+    .flash-trace {
+    	animation: flashTraceBorder 1s ease-out;
+    }
+   
     .flash-debug {
-        animation: flashDebugBorder 1s ease-out;
+    	animation: flashDebugBorder 1s ease-out;
     }
     
     .flash-info {
@@ -2684,13 +2713,22 @@
         animation: flashErrorBorder 1s ease-out;
     }
     
+    @keyframes flashTraceBorder {
+    	0%, 10% {
+    		box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.5);
+    	}
+    	100% {
+    		box-shadow: 0 0 0 0 rgba(156, 163, 175, 0);
+    	}
+    }
+   
     @keyframes flashDebugBorder {
-        0%, 10% {
-            box-shadow: 0 0 0 2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6);
-        }
-        100% {
-            box-shadow: 0 0 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0);
-        }
+    	0%, 10% {
+    		box-shadow: 0 0 0 2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6);
+    	}
+    	100% {
+    		box-shadow: 0 0 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0);
+    	}
     }
     
     @keyframes flashInfoBorder {

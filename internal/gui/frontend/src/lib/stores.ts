@@ -396,3 +396,6 @@ function createMediaInfoStatusStore() {
 }
 
 export const mediainfoStatusStore = createMediaInfoStatusStore();
+
+// Store to control whether trace logs are sent to the frontend
+export const enableTraceLogsStore = writable<boolean>(false);

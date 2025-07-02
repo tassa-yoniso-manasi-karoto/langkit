@@ -54,6 +54,21 @@ func NewApp() *App {
 	}
 }
 
+// SetTraceLogs forwards the call to the GUI handler to toggle trace logs.
+func (a *App) SetTraceLogs(enable bool) {
+	if handler != nil {
+		handler.SetTraceLogs(enable)
+	}
+}
+
+// GetTraceLogs returns the current state of the trace log setting.
+func (a *App) GetTraceLogs() bool {
+	if handler != nil {
+		return handler.GetTraceLogs()
+	}
+	return false
+}
+
 func (a *App) bindEnvironmentVariables() {
 	a.logger.Debug().Msg("Binding environment variables to config")
 
