@@ -176,8 +176,11 @@ func (a *App) CheckMediaLanguageTags(path string) (MediaLanguageInfo, error) {
         path = videos[0].Path
     }
 
-    // Now check the media info
-    mediaInfo := core.Mediainfo(path)
+	mediaInfo, err := core.Mediainfo(path)
+	if err != nil {
+		return info, err
+	}
+
     
     // Check if any audio tracks have language tags
     for _, track := range mediaInfo.AudioTracks {

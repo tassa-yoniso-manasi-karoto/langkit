@@ -3,9 +3,6 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"runtime"
 
 	iso "github.com/barbashov/iso639-3"
 	"github.com/gookit/color"
@@ -140,35 +137,27 @@ type RawMedia struct {
 
 type RawMediaInfo struct {
 	CreatingLibrary CreatingLibrary `json:"creatingLibrary"`
-	Media           RawMedia           `json:"media"`
+	Media           RawMedia        `json:"media"`
 }
 
 // Mediainfo() processes each track by dynamically determining the type based on the @type field
-func Mediainfo(path string) (media MediaInfo) {
-	if !isMediainfoInstalled() {
-		fmt.Println("mediainfo is not installed or not available in PATH")
-		os.Exit(1)
-	}
-
-	// Call mediainfo to get JSON output
+func Mediainfo(path string) (media MediaInfo, err error) {
 	output, err := getMediaInfoJSON(path)
 	if err != nil {
-		fmt.Printf("Error calling mediainfo: %v\n", err)
-		os.Exit(1)
+		return media, fmt.Errorf("error calling mediainfo: %w", err)
 	}
-	// Parse the JSON output
+	
 	var RawMediaInfo RawMediaInfo
 	err = json.Unmarshal(output, &RawMediaInfo)
 	if err != nil {
-		fmt.Printf("Error parsing mediainfo JSON: %v\n", err)
-		os.Exit(1)
+		return media, fmt.Errorf("error parsing mediainfo JSON: %w", err)
 	}
-	
+
 	crash.Reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 		gs.MediaInfoVer = RawMediaInfo.CreatingLibrary.Version
 		es.MediaInfoDump = string(pretty.Pretty(output))
 	})
-	
+
 	media.CreatingLibrary = RawMediaInfo.CreatingLibrary
 	// Iterate through the tracks and dynamically unmarshal based on the @type field
 	for _, rawTrack := range RawMediaInfo.Media.Track {
@@ -212,15 +201,6 @@ func Mediainfo(path string) (media MediaInfo) {
 func getMediaInfoJSON(filePath string) ([]byte, error) {
 	cmd := executils.NewCommand(MediainfoPath, "--Output=JSON", filePath)
 	return cmd.Output()
-}
-
-func isMediainfoInstalled() bool {
-	cmdName := "mediainfo"
-	if runtime.GOOS == "windows" {
-		cmdName = "mediainfo.exe"
-	}
-	_, err := exec.LookPath(cmdName)
-	return err == nil
 }
 
 var CodecToExtension = map[string]string{

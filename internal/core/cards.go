@@ -568,7 +568,11 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 
 // processMediaInfo handles media info extraction and audio track selection
 func (tsk *Task) processMediaInfo() *ProcessingError {
-	tsk.Meta.MediaInfo = Mediainfo(tsk.MediaSourceFile)
+	var err error
+	tsk.Meta.MediaInfo, err = Mediainfo(tsk.MediaSourceFile)
+	if err != nil {
+		return tsk.Handler.LogErr(err, AbortTask, "failed to get media info")
+	}
 
 	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {
 		return tsk.Handler.LogErr(fmt.Errorf("no audiotracks exists in file"),

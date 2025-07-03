@@ -4,9 +4,6 @@
 -  rename Dubtitle to Dubtitles
 
 .
-- on WINDOWS: auto-subs failed
-
-.
 - sanitize AssetServer: in report
 
 .
@@ -37,7 +34,7 @@
 
 .
 
-- chk memory management of WASM (remove 50Mib preallocated)
+- test more memory management of WASM (remove 50Mib preallocated)
 
 
 
