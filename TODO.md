@@ -12,6 +12,7 @@
 
 .
 - finish theme
+  - scale up on hover for cards + ideally a black shadow
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE

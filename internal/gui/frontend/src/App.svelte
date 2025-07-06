@@ -1300,6 +1300,11 @@
         });
 
         // Efficient progress batch handler with smart grouping
+        // Handle individual progress events (sent in direct-pass mode)
+        EventsOn("progress", (data) => {
+            updateProgressBar(data);
+        });
+
         EventsOn("progress-batch", (progressBatch) => {
             if (!Array.isArray(progressBatch) || progressBatch.length === 0) return;
             
