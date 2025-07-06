@@ -7,6 +7,9 @@
 - sanitize AssetServer: in report
 
 .
+- provide real time update to ichiran init
+
+.
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
 

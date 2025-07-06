@@ -56,6 +56,12 @@ func Run() {
 		Bind: []interface{}{
 			app,
 		},
+		DragAndDrop: &options.DragAndDrop{
+			EnableFileDrop:       true,
+			DisableWebViewDrop:   false,
+			CSSDropProperty:      "--wails-drop-target",
+			CSSDropValue:         "drop",
+		},
 		// Windows platform specific options
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,

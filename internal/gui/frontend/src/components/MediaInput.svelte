@@ -1,6 +1,8 @@
 <script lang="ts">
     import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../../wailsjs/go/gui/App';
+    import { OnFileDrop, OnFileDropOff } from '../../wailsjs/runtime/runtime';
     import { logger } from '../lib/logger';
+    import { onMount, onDestroy } from 'svelte';
 
     export let mediaSource: MediaSource | null = null;  // Single selected video/directory
     export let previewFiles: MediaSource[] = [];        // Preview only for directories
@@ -63,63 +65,71 @@
         }
     }
 
-    async function handleDrop(e: DragEvent) {
-        e.preventDefault();
-        dragOver = false;
+    // Set up Wails drag and drop handler
+    onMount(() => {
+        OnFileDrop(handleWailsFileDrop, true);
+    });
+
+    onDestroy(() => {
+        OnFileDropOff();
+    });
+
+    async function handleWailsFileDrop(x: number, y: number, paths: string[]) {
+        logger.debug('MediaInput', 'Files dropped via Wails', { 
+            x, 
+            y, 
+            pathCount: paths.length,
+            paths 
+        });
         
-        const files = Array.from(e.dataTransfer?.files || []);
-        if (files.length !== 1) {
-            logger.trace('MediaInput', 'Multiple files dropped, ignoring', { fileCount: files.length });
+        if (paths.length !== 1) {
+            logger.trace('MediaInput', 'Multiple files dropped, ignoring', { fileCount: paths.length });
             return;
         }
 
-        const file = files[0];
-        logger.debug('MediaInput', 'File dropped', { 
-            name: file.name, 
-            type: file.type, 
-            size: file.size 
-        });
+        const filePath = paths[0];
+        const fileName = filePath.split('/').pop() || filePath;
         
-        // The path property isn't standard in browsers but is available in desktop contexts
-        const filePath = file.path || (file as any).webkitRelativePath;
+        // Check if it's a video file by extension first
+        const videoExts = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v'];
+        const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
         
-        if (file.type.startsWith('video/')) {
+        if (videoExts.includes(ext)) {
+            // It's a video file
             isDirectory = false;
             mediaSource = {
-                name: file.name,
-                path: filePath || file.name
+                name: fileName,
+                path: filePath
             };
             previewFiles = [];
             logger.info('MediaInput', 'Video file dropped', { 
                 path: filePath, 
-                name: file.name, 
-                type: file.type 
+                name: fileName 
             });
         } else {
+            // Not a video file, check if it's a directory
             try {
+                const videos = await GetVideosInDirectory(filePath);
+                // It's a directory
                 isDirectory = true;
                 mediaSource = {
-                    name: file.name,
-                    path: filePath || file.name
+                    name: fileName,
+                    path: filePath
                 };
-                // Only attempt to get videos in directory if we have a valid path
-                if (filePath) {
-                    const videos = await GetVideosInDirectory(filePath);
-                    previewFiles = videos.map(v => ({
-                        name: v.name,
-                        path: v.path,
-                        size: v.size
-                    }));
-                    logger.info('MediaInput', 'Directory dropped', { 
-                        path: filePath, 
-                        videoCount: previewFiles.length 
-                    });
-                } else {
-                    previewFiles = [];
-                    logger.warn('MediaInput', 'Cannot get directory contents from drag and drop: path unavailable');
-                }
+                previewFiles = videos.map(v => ({
+                    name: v.name,
+                    path: v.path,
+                    size: v.size
+                }));
+                logger.info('MediaInput', 'Directory dropped', { 
+                    path: filePath, 
+                    videoCount: previewFiles.length 
+                });
             } catch (error) {
-                logger.error('MediaInput', 'Error handling directory drop', { error });
+                logger.warn('MediaInput', 'Dropped item is neither a video file nor an accessible directory', { 
+                    path: filePath,
+                    error 
+                });
             }
         }
     }
@@ -131,50 +141,21 @@
         previewFiles = [];
     }
 
-    function preventDefaults(e: Event) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    // Use debounce for drag events to reduce event handler overhead
-    let dragEnterCount = 0;
-    
+    // Visual feedback for drag over - simplified since Wails handles the actual drop
     function handleDragEnter(e: DragEvent) {
-        preventDefaults(e);
-        dragEnterCount++;
-        
-        // Only set dragOver state once - avoid excessive state updates
-        if (dragEnterCount === 1) {
-            dragOver = true;
-            logger.trace('MediaInput', 'Drag entered drop zone');
-        }
+        e.preventDefault();
+        dragOver = true;
+        logger.trace('MediaInput', 'Drag entered drop zone');
     }
 
     function handleDragLeave(e: DragEvent) {
-        preventDefaults(e);
-        dragEnterCount--;
-
-        // Reset counter if out of bounds - handles edge cases with child elements
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const { clientX, clientY } = e;
-        
-        if (clientX <= rect.left || clientX >= rect.right || 
-            clientY <= rect.top || clientY >= rect.bottom) {
-            dragEnterCount = 0;
-        }
-        
-        // Only update UI state when truly leaving the drop zone
-        if (dragEnterCount <= 0) {
-            dragOver = false;
-            dragEnterCount = 0; // Ensure counter never goes negative
-            logger.trace('MediaInput', 'Drag left drop zone');
-        }
+        e.preventDefault();
+        dragOver = false;
+        logger.trace('MediaInput', 'Drag left drop zone');
     }
     
-    // Handle drag end to reset counters if drop doesn't occur
-    function handleDragEnd() {
-        dragEnterCount = 0;
-        dragOver = false;
+    function handleDragOver(e: DragEvent) {
+        e.preventDefault(); // Still needed to allow drop
     }
 </script>
 
@@ -186,11 +167,10 @@
                hover:border-primary/50 hover:bg-ui-element-hover
                {dragOver ? 'border-primary bg-primary/10 scale-[1.01]' : ''}
                {mediaSource ? 'opacity-95' : ''}"
+        style="--wails-drop-target: drop;"
         on:dragenter={handleDragEnter}
         on:dragleave={handleDragLeave}
-        on:dragover={preventDefaults}
-        on:dragend={handleDragEnd}
-        on:drop={handleDrop}
+        on:dragover={handleDragOver}
     >
         {#if !mediaSource}
             <!-- No media selected state -->
