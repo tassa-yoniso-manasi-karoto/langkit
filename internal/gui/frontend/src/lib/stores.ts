@@ -399,3 +399,6 @@ export const mediainfoStatusStore = createMediaInfoStatusStore();
 
 // Store to control whether trace logs are sent to the frontend
 export const enableTraceLogsStore = writable<boolean>(false);
+
+// Store to control whether frontend logs are sent to the backend
+export const enableFrontendLoggingStore = writable<boolean>(true);

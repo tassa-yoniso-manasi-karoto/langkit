@@ -1,6 +1,9 @@
 /* IMPORTANT: make sure to specify a component whenever you use the logger
 component inform from which part of the frontend was a given log emitted from
 */
+import { get } from 'svelte/store';
+import { enableFrontendLoggingStore } from './stores';
+
 export enum Lvl {
     TRACE = -1,
     DEBUG = 0,
@@ -515,6 +518,11 @@ export class Logger {
     }
 
     private _relayBE(e: LEntry): void {
+        // Check if frontend logging is enabled
+        if (!get(enableFrontendLoggingStore)) {
+            return;
+        }
+        
         try {
             const eCopy = { ...e };
             if (eCopy.ctx) {
@@ -539,6 +547,12 @@ export class Logger {
 
     private _relayBatchBE(entries: LEntry[]): void {
         if (entries.length === 0) return;
+        
+        // Check if frontend logging is enabled
+        if (!get(enableFrontendLoggingStore)) {
+            return;
+        }
+        
         try {
             const component = entries[0].comp;
             const sanEntries = entries.map(e => {

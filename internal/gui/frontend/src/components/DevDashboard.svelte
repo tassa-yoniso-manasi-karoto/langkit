@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore, enableFrontendLoggingStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
@@ -921,15 +921,29 @@
                         <h4>Log Viewer Controls</h4>
                         <div class="control-section mb-4">
                         	<h5 class="text-xs font-semibold mb-2 opacity-80">Trace Logs</h5>
-                        	<div class="flex items-center gap-2">
+                        	<div class="flex items-center gap-3">
                         		<label class="switch">
                         			<input type="checkbox" bind:checked={$enableTraceLogsStore}>
-                        			<span class="slider round"></span>
+                        			<span class="toggle-slider round"></span>
                         		</label>
-                        		<span class="text-xs text-gray-400">Enable Trace Logs</span>
+                        		<span class="text-sm text-gray-300">Enable Trace Logs</span>
                         	</div>
                         	<p class="text-xs text-gray-500 mt-1">
                         		Streams verbose trace logs to the frontend. May impact performance.
+                        	</p>
+                        </div>
+                        
+                        <div class="control-section mb-4">
+                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Frontend Logging</h5>
+                        	<div class="flex items-center gap-3">
+                        		<label class="switch">
+                        			<input type="checkbox" bind:checked={$enableFrontendLoggingStore}>
+                        			<span class="toggle-slider round"></span>
+                        		</label>
+                        		<span class="text-sm text-gray-300">Send Frontend Logs to Backend</span>
+                        	</div>
+                        	<p class="text-xs text-gray-500 mt-1">
+                        		Forwards frontend logs to the backend for logging through zerolog. Disable to reduce backend load.
                         	</p>
                         </div>
                   
@@ -4332,8 +4346,8 @@
     .switch {
     	position: relative;
     	display: inline-block;
-    	width: 34px;
-    	height: 20px;
+    	width: 48px;
+    	height: 26px;
     }
    
     .switch input {
@@ -4342,7 +4356,7 @@
     	height: 0;
     }
    
-    .switch .slider {
+    .switch .toggle-slider {
     	position: absolute;
     	cursor: pointer;
     	top: 0;
@@ -4353,34 +4367,35 @@
     	transition: .4s;
     }
    
-    .switch .slider:before {
+    .switch .toggle-slider:before {
     	position: absolute;
     	content: "";
-    	height: 12px;
-    	width: 12px;
+    	height: 18px;
+    	width: 18px;
     	left: 4px;
     	bottom: 4px;
     	background-color: white;
     	transition: .4s;
     }
    
-    .switch input:checked + .slider {
-    	background-color: #3b82f6; /* blue-500 */
+    .switch input:checked + .toggle-slider {
+    	background-color: hsl(261, 90%, 70%); /* primary violet */
+    	box-shadow: 0 0 8px hsla(261, 90%, 70%, 0.4);
     }
    
-    .switch input:focus + .slider {
-    	box-shadow: 0 0 1px #3b82f6;
+    .switch input:focus + .toggle-slider {
+    	box-shadow: 0 0 1px hsl(261, 90%, 70%);
     }
    
-    .switch input:checked + .slider:before {
-    	transform: translateX(14px);
+    .switch input:checked + .toggle-slider:before {
+    	transform: translateX(22px);
     }
    
-    .switch .slider.round {
-    	border-radius: 20px;
+    .switch .toggle-slider.round {
+    	border-radius: 26px;
     }
    
-    .switch .slider.round:before {
+    .switch .toggle-slider.round:before {
     	border-radius: 50%;
     }
    </style>
