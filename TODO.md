@@ -1,9 +1,6 @@
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
 .
--  rename Dubtitle to Dubtitles
-
-.
 - provide real time update to ichiran init (20-25min)
 
 .
@@ -106,6 +103,6 @@ backoff requests using https://github.com/cenkalti/backoff
 
 - with [libvips binding](https://github.com/h2non/bimg) or imagor: fuzz trim to remove black padding if ratio is different => REQUIRE LIBS TO BE INSTALLED
 - use Enhanced voice audiotrack as basis for audio clips
-- use lower bitrate opus with DRED & LBRR that were just standardized [1](https://opus-codec.org/),[2](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/)
-- lossless AVIF extraction from AV1 (HQ but worst than JPEG in size)
+- use lower bitrate opus with DRED & LBRR that are not yet standardized [ietf draft](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/),expires October 31 2025, check again later
+- lossless AVIF extraction from AV1 (HQ but worse than JPEG in size)
 

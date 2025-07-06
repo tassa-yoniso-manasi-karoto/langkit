@@ -58,7 +58,7 @@ func Run() {
 		},
 		DragAndDrop: &options.DragAndDrop{
 			EnableFileDrop:       true,
-			DisableWebViewDrop:   false,
+			DisableWebViewDrop:   false, // keeps this true or else drag & drop will be entirely disabled(!)
 			CSSDropProperty:      "--wails-drop-target",
 			CSSDropValue:         "drop",
 		},

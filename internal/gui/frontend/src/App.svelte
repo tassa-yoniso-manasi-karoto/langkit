@@ -14,7 +14,7 @@
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
     // Import window API from Wails
-    import { WindowIsMinimised, WindowIsMaximised } from '../wailsjs/runtime/runtime';
+    import { WindowIsMinimised, WindowIsMaximised, OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime';
 
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -176,6 +176,10 @@
     
     // Sync welcome popup state with store
     $: welcomePopupVisible.set(showWelcomePopup);
+    
+    // Global drag and drop state
+    let globalDragOver = false;
+    let droppedFilePath: string | null = null;
     
     // Combined activity state: window minimized = immediate AFK (unless forced)
     $: {
@@ -1001,6 +1005,26 @@
     let handleTransitionEnd: (e: TransitionEvent) => void;
     let updateLogViewerButtonPosition: () => void;
     let uiSettingsSubscription: () => void;
+    
+    // Global drag and drop handler
+    async function handleGlobalFileDrop(x: number, y: number, paths: string[]) {
+        logger.debug('app', 'Global file drop detected', { 
+            x, 
+            y, 
+            pathCount: paths.length,
+            paths 
+        });
+        
+        // Reset visual feedback
+        globalDragOver = false;
+        
+        if (paths.length === 1) {
+            droppedFilePath = paths[0];
+            // The MediaInput component will handle the file processing
+        } else {
+            logger.trace('app', 'Multiple files dropped, ignoring', { fileCount: paths.length });
+        }
+    }
 
     onMount(async () => { // Make onMount async
         // Get initial version and pass it to WebAssembly for environment-aware loading
@@ -1039,6 +1063,10 @@
                 updateLogViewerButtonPosition();
             }
         };
+        
+        // Set up global drag and drop handling
+        OnFileDrop(handleGlobalFileDrop, true);
+        logger.trace('app', 'Global drag and drop handler set up');
         document.addEventListener('transitionend', handleTransitionEnd);
         
         // Log initialization of performance monitoring
@@ -1375,6 +1403,10 @@
            window.removeEventListener('resize', updateLogViewerButtonPosition); 
         }
         
+        // Clean up global drag and drop handler
+        OnFileDropOff();
+        logger.trace('app', 'Global drag and drop handler cleaned up');
+        
         // Clean up user activity event listeners
         const activityEvents = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'wheel', 'click'];
         activityEvents.forEach(event => {
@@ -1434,7 +1466,12 @@
 </div>
 
 <!-- Main container now spans full viewport -->
-<div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0">
+<div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0
+     {globalDragOver ? 'ring-2 ring-primary ring-opacity-50' : ''}"
+     style="--wails-drop-target: drop;"
+     on:dragenter={(e) => { e.preventDefault(); globalDragOver = true; }}
+     on:dragleave={(e) => { e.preventDefault(); if (e.currentTarget === e.target) globalDragOver = false; }}
+     on:dragover={(e) => { e.preventDefault(); }}>
     <BackgroundGradient />
     {#if showGlow && !isWindowMinimized && userActivityState !== UserActivityState.AFK}
         <GlowEffect {isProcessing} />
@@ -1472,6 +1509,7 @@
                         <MediaInput
                             bind:mediaSource
                             bind:previewFiles
+                            bind:droppedFilePath
                             class="drop-zone"
                         />
                         

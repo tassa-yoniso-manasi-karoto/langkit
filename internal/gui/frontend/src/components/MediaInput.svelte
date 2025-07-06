@@ -1,11 +1,10 @@
 <script lang="ts">
     import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../../wailsjs/go/gui/App';
-    import { OnFileDrop, OnFileDropOff } from '../../wailsjs/runtime/runtime';
     import { logger } from '../lib/logger';
-    import { onMount, onDestroy } from 'svelte';
 
     export let mediaSource: MediaSource | null = null;  // Single selected video/directory
     export let previewFiles: MediaSource[] = [];        // Preview only for directories
+    export let droppedFilePath: string | null = null;   // File path from global drag and drop
 
     interface VideoInfo {
         name: string;
@@ -65,29 +64,14 @@
         }
     }
 
-    // Set up Wails drag and drop handler
-    onMount(() => {
-        OnFileDrop(handleWailsFileDrop, true);
-    });
-
-    onDestroy(() => {
-        OnFileDropOff();
-    });
-
-    async function handleWailsFileDrop(x: number, y: number, paths: string[]) {
-        logger.debug('MediaInput', 'Files dropped via Wails', { 
-            x, 
-            y, 
-            pathCount: paths.length,
-            paths 
-        });
+    // React to dropped file from global drag and drop
+    $: if (droppedFilePath) {
+        handleDroppedFile(droppedFilePath);
+    }
+    
+    async function handleDroppedFile(filePath: string) {
+        logger.debug('MediaInput', 'Processing dropped file', { filePath });
         
-        if (paths.length !== 1) {
-            logger.trace('MediaInput', 'Multiple files dropped, ignoring', { fileCount: paths.length });
-            return;
-        }
-
-        const filePath = paths[0];
         const fileName = filePath.split('/').pop() || filePath;
         
         // Check if it's a video file by extension first
@@ -132,6 +116,9 @@
                 });
             }
         }
+        
+        // Reset the dropped file path after processing
+        droppedFilePath = null;
     }
 
     function resetSelection() {
@@ -167,7 +154,6 @@
                hover:border-primary/50 hover:bg-ui-element-hover
                {dragOver ? 'border-primary bg-primary/10 scale-[1.01]' : ''}
                {mediaSource ? 'opacity-95' : ''}"
-        style="--wails-drop-target: drop;"
         on:dragenter={handleDragEnter}
         on:dragleave={handleDragLeave}
         on:dragover={handleDragOver}
