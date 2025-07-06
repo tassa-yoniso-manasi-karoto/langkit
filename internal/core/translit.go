@@ -446,7 +446,7 @@ func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler 
 	m.WithProgressCallback(func(idx, length int) {
 		handler.IncrementProgress(
 			taskID,
-			idx+1,
+			1,
 			length,
 			30,
 			"Transliterating",
@@ -616,7 +616,7 @@ func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler
 		// Update progress
 		handler.IncrementProgress(
 			taskID,
-			i+1,
+			1,
 			totalChunks,
 			30,
 			"Analyzing Japanese",

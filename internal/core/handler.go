@@ -202,6 +202,12 @@ func (h *CLIHandler) incrementProgressInternal(
 	// Update absolute progress tracking
 	h.progressValues[taskID] += increment
 	current := h.progressValues[taskID]
+	
+	// Cap progress at total to prevent exceeding 100%
+	if total > 0 && current > total {
+		current = total
+		h.progressValues[taskID] = total
+	}
 
 	// Get or create ETA calculator for this task
 	var provider eta.Provider
@@ -709,6 +715,12 @@ func (h *GUIHandler) incrementProgressInternal(
 	// Update local progress tracking
 	h.progressMap[taskID] += increment
 	current := h.progressMap[taskID]
+	
+	// Cap progress at total to prevent exceeding 100%
+	if total > 0 && current > total {
+		current = total
+		h.progressMap[taskID] = total
+	}
 
 	// Get or create ETA calculator
 	var etaStr string
