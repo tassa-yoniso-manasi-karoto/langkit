@@ -7,7 +7,10 @@
 - sanitize AssetServer: in report
 
 .
-- provide real time update to ichiran init
+- provide real time update to ichiran init (20-25min)
+
+.
+- progress bar updates DOA after the 1st update
 
 .
 - welcome.svelte component w/ checks for binary needed:
