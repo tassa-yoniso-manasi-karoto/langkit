@@ -92,7 +92,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		return procErr
 	}
 	
-	// case where no dubtitle/STT is involved
+	// case where no STT is involved
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
 		if tsk.WantTranslit {
 			tsk.processClosedCaptions()

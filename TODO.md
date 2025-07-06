@@ -4,9 +4,6 @@
 -  rename Dubtitle to Dubtitles
 
 .
-- sanitize AssetServer: in report
-
-.
 - provide real time update to ichiran init (20-25min)
 
 .

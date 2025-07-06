@@ -49,17 +49,17 @@ Feature selection must be 'translated' into a Task mode. These modes ***for the 
     <td>yes</td>
   </tr>
   <tr>
-    <td>Make tokenized dubtitle</td>
+    <td>Make tokenized dubtitles</td>
     <td>yes</td>
     <td>yes</td>
   </tr>
   <tr>
-    <td>Make translit dubtitle</td>
+    <td>Make translit dubtitles</td>
     <td>yes</td>
     <td>yes</td>
   </tr>
   <tr>
-    <td>Make dubtitle</td>
+    <td>Make dubtitles</td>
     <td>yes</td>
     <td>yes</td>
   </tr>
@@ -130,7 +130,7 @@ Feature selection must be 'translated' into a Task mode. These modes ***for the 
     <td>❌</td>
   </tr>
   <tr>
-    <td>Make tokenized dubtitle</td>
+    <td>Make tokenized dubtitles</td>
     <td>🔳</td>
     <td>🔳</td>
     <td>🚫<br></td>
@@ -138,7 +138,7 @@ Feature selection must be 'translated' into a Task mode. These modes ***for the 
     <td>🚫</td>
   </tr>
   <tr>
-    <td>Make translit dubtitle</td>
+    <td>Make translit dubtitles</td>
     <td>🔳</td>
     <td>🔳</td>
     <td>🚫<br></td>
@@ -146,7 +146,7 @@ Feature selection must be 'translated' into a Task mode. These modes ***for the 
     <td>🚫</td>
   </tr>
   <tr>
-    <td>Make dubtitle</td>
+    <td>Make dubtitles</td>
     <td>🔳</td>
     <td>✅</td>
     <td>❌</td>

@@ -57,7 +57,7 @@ func (subs *Subtitles) Subs2Dubs(outputFile, FieldSep string) (err error) {
 }
 
 
-// Parsing the TSV instead of processing on the fly ensure dubtitle integrity
+// Parsing the TSV instead of processing on the fly ensure dubtitles integrity
 // in cases where the processing is restarted after an interruption or crash
 func loadSTTfromTSV(outputFile, FieldSep string) (transcriptedLines []string) {
 	file, _ := os.Open(outputFile)
