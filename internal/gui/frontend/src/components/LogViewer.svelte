@@ -196,6 +196,9 @@
     let showAutoScrollToast = false;
     let autoScrollToastMessage = "";
     let autoScrollToastTimer: number | null = null;
+    
+    // Track filtered logs length for change detection
+    let previousFilteredLogsLength = 0;
 
     // Create a derived store for filtered logs.
     // This will automatically and efficiently re-filter whenever a dependency changes.
@@ -398,7 +401,9 @@
     }
     
     // React to new logs being added
-    $: if (filteredLogs.length > 0 && scrollContainer) {
+    $: if (filteredLogs.length !== previousFilteredLogsLength && scrollContainer) {
+        // Update the tracked length
+        previousFilteredLogsLength = filteredLogs.length;
         // Check auto-scroll state and scroll position
         const exactlyAtBottom = scrollContainer.scrollTop === 0;
         
