@@ -15,11 +15,11 @@ import (
 )
 
 func (a *App) ExportDebugReport() error {
-	a.logger.Info().Msg("Exporting debug report")
+	a.getLogger().Info().Msg("Exporting debug report")
 	
 	// Flush any pending events before generating report
 	if a.throttler != nil {
-		a.logger.Debug().Msg("Flushing throttler before generating debug report")
+		a.getLogger().Debug().Msg("Flushing throttler before generating debug report")
 		a.throttler.SyncFlush()
 	}
 	
@@ -27,13 +27,13 @@ func (a *App) ExportDebugReport() error {
 	a.RequestWasmState()
 	
 	// Small delay to allow frontend to respond with state
-	a.logger.Debug().Msg("Waiting for WebAssembly state response...")
+	a.getLogger().Debug().Msg("Waiting for WebAssembly state response...")
 	time.Sleep(300 * time.Millisecond) // Slightly longer delay for debug report to ensure response
 	
 	settings, err := config.LoadSettings()
 	if err != nil {
 		// Continue with empty settings if loading fails
-		a.logger.Warn().Err(err).Msg("Failed to load settings for debug report")
+		a.getLogger().Warn().Err(err).Msg("Failed to load settings for debug report")
 		fmt.Printf("Warning: Failed to load settings: %v\n", err)
 	}
 	zipPath, err := crash.WriteReport(
@@ -44,7 +44,7 @@ func (a *App) ExportDebugReport() error {
 		false,
 	)
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to write debug report")
+		a.getLogger().Error().Err(err).Msg("Failed to write debug report")
 		return err
 	}
 
@@ -61,19 +61,19 @@ func (a *App) ExportDebugReport() error {
 	})
 	if err != nil || savePath == "" {
 		// user canceled or error
-		a.logger.Info().Msg("User canceled debug report save dialog or error occurred")
+		a.getLogger().Info().Msg("User canceled debug report save dialog or error occurred")
 		return err
 	}
 
 	// Copy the file from `zipPath` to `savePath`
 	err = copyFile(zipPath, savePath)
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to copy debug report file")
+		a.getLogger().Error().Err(err).Msg("Failed to copy debug report file")
 		return err
 	}
 
 	// Let the user know it's done
-	a.logger.Info().Str("path", savePath).Msg("Debug report exported successfully")
+	a.getLogger().Info().Str("path", savePath).Msg("Debug report exported successfully")
 	runtime.EventsEmit(a.ctx, "debugReportExported", savePath)
 	return nil
 }

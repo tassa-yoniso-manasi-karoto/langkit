@@ -15,12 +15,12 @@ func (a *App) LoadSettings() (config.Settings, error) {
 
 // SaveSettings saves the user settings and updates components that depend on settings
 func (a *App) SaveSettings(settings config.Settings) error {
-	a.logger.Debug().Msg("Saving settings")
+	a.getLogger().Debug().Msg("Saving settings")
 	
 	// Save the settings to disk
 	err := config.SaveSettings(settings)
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to save settings")
+		a.getLogger().Error().Err(err).Msg("Failed to save settings")
 		return err
 	}
 	
@@ -29,7 +29,7 @@ func (a *App) SaveSettings(settings config.Settings) error {
 	
 	// Trigger registry update with new settings if available
 	if a.llmRegistry != nil {
-		a.logger.Info().Msg("Triggering LLM registry update with new settings")
+		a.getLogger().Info().Msg("Triggering LLM registry update with new settings")
 		a.llmRegistry.TriggerUpdate(settings)
 	}
 	
@@ -106,11 +106,11 @@ func (a *App) RefreshSTTModelsAfterSettingsUpdate() STTModelsResponse {
     // Force reload of API keys in the voice package
     settings, err := config.LoadSettings()
     if err != nil {
-        // a.logger.Error("Failed to load settings for API key refresh", err)
+        // a.getLogger().Error("Failed to load settings for API key refresh", err)
     } else {
         // Explicitly load API keys to voice package
         settings.LoadKeys()
-        // a.logger.Info("API keys reloaded for STT model refresh")
+        // a.getLogger().Info("API keys reloaded for STT model refresh")
     }
     
     // Clear any provider caches in the voice package
@@ -164,7 +164,7 @@ func (a *App) RefreshSTTModelsAfterSettingsUpdate() STTModelsResponse {
 func (a *App) LoadStatistics() (map[string]interface{}, error) {
 	stats, err := config.LoadStatistics()
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to load statistics")
+		a.getLogger().Error().Err(err).Msg("Failed to load statistics")
 		return nil, err
 	}
 	
@@ -175,7 +175,7 @@ func (a *App) LoadStatistics() (map[string]interface{}, error) {
 func (a *App) UpdateStatistics(updates map[string]interface{}) error {
 	stats, err := config.LoadStatistics()
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to load statistics for update")
+		a.getLogger().Error().Err(err).Msg("Failed to load statistics for update")
 		return err
 	}
 	
@@ -184,11 +184,11 @@ func (a *App) UpdateStatistics(updates map[string]interface{}) error {
 	
 	// Save back to disk
 	if err := stats.Save(); err != nil {
-		a.logger.Error().Err(err).Msg("Failed to save statistics")
+		a.getLogger().Error().Err(err).Msg("Failed to save statistics")
 		return err
 	}
 	
-	a.logger.Debug().Interface("updates", updates).Msg("Statistics updated")
+	a.getLogger().Debug().Interface("updates", updates).Msg("Statistics updated")
 	return nil
 }
 
@@ -196,7 +196,7 @@ func (a *App) UpdateStatistics(updates map[string]interface{}) error {
 func (a *App) IncrementStatistic(key string) (int, error) {
 	stats, err := config.LoadStatistics()
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to load statistics for increment")
+		a.getLogger().Error().Err(err).Msg("Failed to load statistics for increment")
 		return 0, err
 	}
 	
@@ -205,10 +205,10 @@ func (a *App) IncrementStatistic(key string) (int, error) {
 	
 	// Save back to disk
 	if err := stats.Save(); err != nil {
-		a.logger.Error().Err(err).Msg("Failed to save statistics after increment")
+		a.getLogger().Error().Err(err).Msg("Failed to save statistics after increment")
 		return 0, err
 	}
 	
-	a.logger.Debug().Str("key", key).Int("newValue", newValue).Msg("Statistic incremented")
+	a.getLogger().Debug().Str("key", key).Int("newValue", newValue).Msg("Statistic incremented")
 	return newValue, nil
 }

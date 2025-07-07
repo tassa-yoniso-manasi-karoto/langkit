@@ -36,7 +36,7 @@ type App struct {
 	ctx         context.Context
 	procCancel  context.CancelFunc
 	throttler   *batch.AdaptiveEventThrottler
-	logger      *zerolog.Logger
+	logger      *zerolog.Logger  // Only for early initialization before handler is ready
 	llmRegistry *llms.Registry   // LLM Registry for async provider management
 	wsServer    *WebSocketServer // WebSocket server for state updates
 }
@@ -69,8 +69,16 @@ func (a *App) GetTraceLogs() bool {
 	return false
 }
 
+// getLogger returns the appropriate logger - handler's logger if available, otherwise app's logger
+func (a *App) getLogger() *zerolog.Logger {
+	if handler != nil {
+		return handler.ZeroLog()
+	}
+	return a.logger
+}
+
 func (a *App) bindEnvironmentVariables() {
-	a.logger.Debug().Msg("Binding environment variables to config")
+	a.getLogger().Debug().Msg("Binding environment variables to config")
 
 	// Set environment prefix and automatic env
 	viper.SetEnvPrefix("LANGKIT")
@@ -88,9 +96,9 @@ func (a *App) bindEnvironmentVariables() {
 
 	for env, conf := range envBindings {
 		if err := viper.BindEnv(conf, env); err != nil {
-			a.logger.Error().Str("env", env).Err(err).Msg("Failed to bind environment variable")
+			a.getLogger().Error().Str("env", env).Err(err).Msg("Failed to bind environment variable")
 		} else {
-			a.logger.Debug().Str("env", env).Str("config", conf).Msg("Bound environment variable to config")
+			a.getLogger().Debug().Str("env", env).Str("config", conf).Msg("Bound environment variable to config")
 		}
 	}
 }
@@ -98,7 +106,7 @@ func (a *App) bindEnvironmentVariables() {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	a.logger.Info().Msg("Application starting up")
+	a.getLogger().Info().Msg("Application starting up")
 
 	// Initialize the throttler with default settings
 	// These will be updated when settings are loaded
@@ -108,7 +116,7 @@ func (a *App) startup(ctx context.Context) {
 		250*time.Millisecond, // maxInterval - will be updated from settings
 		500*time.Millisecond, // rateWindow for measuring event frequency
 		true,                 // enabled by default
-		a.logger,             // Logger for throttler
+		a.getLogger(),        // Logger for throttler
 	)
 
 	// Store throttler references for global access
@@ -117,19 +125,19 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize handler with throttler
 	handler = core.NewGUIHandler(ctx, a.throttler)
 
-	a.logger.Debug().Msg("Event throttler initialized")
+	a.getLogger().Debug().Msg("Event throttler initialized")
 
 	// Create WebSocket server for LLM state updates
-	wsServer, err := NewWebSocketServer(*a.logger)
+	wsServer, err := NewWebSocketServer(*a.getLogger())
 	if err != nil {
-		a.logger.Fatal().Err(err).Msg("Failed to create WebSocket server")
+		a.getLogger().Fatal().Err(err).Msg("Failed to create WebSocket server")
 	}
 	a.wsServer = wsServer
-	a.logger.Info().Int("port", wsServer.GetPort()).Msg("WebSocket server created")
+	a.getLogger().Info().Int("port", wsServer.GetPort()).Msg("WebSocket server created")
 }
 
 func (a *App) domReady(ctx context.Context) {
-	a.logger.Debug().Msg("DOM ready, initializing settings")
+	a.getLogger().Debug().Msg("DOM ready, initializing settings")
 
 	// Bind environment variables to config
 	a.bindEnvironmentVariables()
@@ -137,11 +145,11 @@ func (a *App) domReady(ctx context.Context) {
 	// Load settings
 	settings, err := config.LoadSettings()
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to load settings")
+		a.getLogger().Error().Err(err).Msg("Failed to load settings")
 	}
 
 	if err := config.InitConfig(""); err != nil {
-		a.logger.Error().Err(err).Msg("Failed to initialize config")
+		a.getLogger().Error().Err(err).Msg("Failed to initialize config")
 		runtime.LogError(ctx, "Failed to initialize config: "+err.Error())
 		return
 	}
@@ -158,15 +166,15 @@ func (a *App) domReady(ctx context.Context) {
 
 	// Initialize LLM system with async registry and WebSocket server
 	a.llmRegistry = core.InitLLM(handler, a.ctx, a.wsServer)
-	a.logger.Info().Msg("LLM registry initialized")
+	a.getLogger().Info().Msg("LLM registry initialized")
 
-	a.logger.Info().Msg("Application initialization complete")
+	a.getLogger().Info().Msg("Application initialization complete")
 }
 
 // Update throttler settings when config changes
 func (a *App) updateThrottlerSettings(settings config.Settings) {
 	if a.throttler == nil {
-		a.logger.Warn().Msg("Cannot update throttler settings: throttler is nil")
+		a.getLogger().Warn().Msg("Cannot update throttler settings: throttler is nil")
 		return
 	}
 
@@ -187,7 +195,7 @@ func (a *App) updateThrottlerSettings(settings config.Settings) {
 	a.throttler.SetMaxInterval(maxInterval)
 	a.throttler.SetEnabled(settings.EventThrottling.Enabled)
 
-	a.logger.Debug().
+	a.getLogger().Debug().
 		Bool("enabled", settings.EventThrottling.Enabled).
 		Dur("minInterval", minInterval).
 		Dur("maxInterval", maxInterval).
@@ -198,16 +206,16 @@ func (a *App) updateThrottlerSettings(settings config.Settings) {
 func (a *App) SetEventThrottling(enabled bool) {
 	if a.throttler != nil {
 		a.throttler.SetEnabled(enabled)
-		a.logger.Debug().Bool("enabled", enabled).Msg("Event throttling toggled")
+		a.getLogger().Debug().Bool("enabled", enabled).Msg("Event throttling toggled")
 	} else {
-		a.logger.Warn().Msg("Cannot set throttling state: throttler is nil")
+		a.getLogger().Warn().Msg("Cannot set throttling state: throttler is nil")
 	}
 }
 
 // GetEventThrottlingStatus returns the current throttling status
 func (a *App) GetEventThrottlingStatus() map[string]interface{} {
 	if a.throttler == nil {
-		a.logger.Warn().Msg("Cannot get throttling status: throttler is nil")
+		a.getLogger().Warn().Msg("Cannot get throttling status: throttler is nil")
 		return map[string]interface{}{
 			"enabled":         false,
 			"currentRate":     0.0,
@@ -231,7 +239,7 @@ func (a *App) GetWebSocketPort() (int, error) {
 func (a *App) BackendLoggerBatch(component string, logsJson string) {
 	// Validate input size
 	if len(logsJson) > 1024*1024 { // 1MB max batch size
-		a.logger.Error().
+		a.getLogger().Error().
 			Str("component", component).
 			Int("size", len(logsJson)).
 			Msg("Rejected oversized log batch")
@@ -241,7 +249,7 @@ func (a *App) BackendLoggerBatch(component string, logsJson string) {
 	var logEntries []map[string]interface{}
 
 	if err := json.Unmarshal([]byte(logsJson), &logEntries); err != nil {
-		a.logger.Error().
+		a.getLogger().Error().
 			Err(err).
 			Str("component", component).
 			Msg("Failed to parse frontend log batch")
@@ -250,7 +258,7 @@ func (a *App) BackendLoggerBatch(component string, logsJson string) {
 
 	// Only log batch processing for actual batches (more than 1 entry)
 	if len(logEntries) > 1 {
-		a.logger.Debug().
+		a.getLogger().Debug().
 			Str("component", component).
 			Int("count", len(logEntries)).
 			Msg("Processing frontend log batch")
@@ -266,7 +274,7 @@ func (a *App) BackendLoggerBatch(component string, logsJson string) {
 func (a *App) BackendLogger(component string, logJson string) {
 	// Validate input size
 	if len(logJson) > 100*1024 { // 100KB max for individual log
-		a.logger.Error().
+		a.getLogger().Error().
 			Str("component", component).
 			Int("size", len(logJson)).
 			Msg("Rejected oversized log entry")
@@ -276,7 +284,7 @@ func (a *App) BackendLogger(component string, logJson string) {
 	var logEntry map[string]interface{}
 
 	if err := json.Unmarshal([]byte(logJson), &logEntry); err != nil {
-		a.logger.Error().
+		a.getLogger().Error().
 			Err(err).
 			Str("component", component).
 			Msg("Failed to parse frontend log entry")
@@ -340,14 +348,19 @@ func (a *App) processLogEntry(component string, logEntry map[string]interface{})
 		message += msg
 	}
 
-	// Log through the handler or directly to zerolog
-	event := a.logger.WithLevel(level)
-
-	// Add fields
-	event = event.Fields(fields)
-
-	// Log the message
-	event.Msg(message)
+	// Log through the handler's logger to use its filtering pipeline
+	if handler != nil {
+		event := handler.ZeroLog().WithLevel(zerolog.Level(level))
+		// Add fields
+		event = event.Fields(fields)
+		// Log the message
+		event.Msg(message)
+	} else {
+		// Fallback to app logger if handler not initialized
+		event := a.getLogger().WithLevel(level)
+		event = event.Fields(fields)
+		event.Msg(message)
+	}
 }
 
 // RecordWasmLog receives and processes WebAssembly log entries from the frontend
@@ -355,7 +368,7 @@ func (a *App) RecordWasmLog(logJson string) {
 	var logEntry map[string]interface{}
 
 	if err := json.Unmarshal([]byte(logJson), &logEntry); err != nil {
-		a.logger.Error().Err(err).Msg("Failed to parse WebAssembly log entry")
+		a.getLogger().Error().Err(err).Msg("Failed to parse WebAssembly log entry")
 		return
 	}
 
@@ -410,35 +423,35 @@ func (a *App) RecordWasmState(stateJson string) {
 	}
 
 	// Log state changes at debug level (to avoid spamming logs)
-	a.logger.Debug().Msg("WebAssembly state updated")
+	a.getLogger().Debug().Msg("WebAssembly state updated")
 
 	// Optional: Parse and log specific state changes (init status changes, errors, etc.)
 	var state map[string]interface{}
 	if err := json.Unmarshal([]byte(stateJson), &state); err != nil {
-		a.logger.Error().Err(err).Msg("Failed to parse WebAssembly state")
+		a.getLogger().Error().Err(err).Msg("Failed to parse WebAssembly state")
 		return
 	}
 
 	if status, ok := state["initStatus"].(string); ok {
 		// Log status changes at info level
-		a.logger.Info().Str("status", status).Msg("WebAssembly status updated")
+		a.getLogger().Info().Str("status", status).Msg("WebAssembly status updated")
 	}
 
 	// If there's an error, log it
 	if lastError, ok := state["lastError"].(map[string]interface{}); ok {
 		if errMsg, ok := lastError["message"].(string); ok {
-			a.logger.Error().Str("source", "wasm").Msg(errMsg)
+			a.getLogger().Error().Str("source", "wasm").Msg(errMsg)
 		}
 	}
 }
 
 // GetInitialLLMState returns the current state of LLM providers
 func (a *App) GetInitialLLMState() (map[string]interface{}, error) {
-	a.logger.Debug().Msg("Getting initial LLM state")
+	a.getLogger().Debug().Msg("Getting initial LLM state")
 
 	if a.llmRegistry == nil {
 		err := fmt.Errorf("LLM registry not initialized")
-		a.logger.Error().Err(err).Msg("Failed to get LLM state")
+		a.getLogger().Error().Err(err).Msg("Failed to get LLM state")
 		return map[string]interface{}{
 			"globalState": "error",
 			"message":     "LLM registry not initialized",
@@ -479,11 +492,11 @@ func (a *App) GetInitialLLMState() (map[string]interface{}, error) {
 
 // GetAvailableSummaryProviders returns a list of available LLM providers for summarization
 func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
-	a.logger.Debug().Msg("Fetching available summary providers")
+	a.getLogger().Debug().Msg("Fetching available summary providers")
 
 	// First check LLM registry state
 	if a.llmRegistry == nil {
-		a.logger.Warn().Msg("LLM registry not initialized")
+		a.getLogger().Warn().Msg("LLM registry not initialized")
 		return map[string]interface{}{
 			"providers": []map[string]string{},
 			"names":     []string{},
@@ -498,7 +511,7 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 
 	// If registry is not ready, return appropriate status
 	if stateSnapshot.GlobalState != llms.GSReady {
-		a.logger.Info().
+		a.getLogger().Info().
 			Str("global_state", stateSnapshot.GlobalState.String()).
 			Msg("LLM registry not ready yet")
 
@@ -516,7 +529,7 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 	summaryService := summary.GetDefaultService()
 	if summaryService == nil {
 		err := fmt.Errorf("summary service not initialized")
-		a.logger.Error().Err(err).Msg("Failed to get summary providers")
+		a.getLogger().Error().Err(err).Msg("Failed to get summary providers")
 		return map[string]interface{}{
 			"providers": []map[string]string{},
 			"names":     []string{},
@@ -586,7 +599,7 @@ func (a *App) GetAvailableSummaryProviders() (map[string]interface{}, error) {
 
 // GetAvailableSummaryModels returns a list of available models for a specified provider
 func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interface{}, error) {
-	a.logger.Debug().Str("provider", providerName).Msg("Fetching available summary models")
+	a.getLogger().Debug().Str("provider", providerName).Msg("Fetching available summary models")
 
 	// First check LLM registry state
 	if a.llmRegistry != nil {
@@ -628,14 +641,14 @@ func (a *App) GetAvailableSummaryModels(providerName string) (map[string]interfa
 	summaryService := summary.GetDefaultService()
 	if summaryService == nil {
 		err := fmt.Errorf("summary service not initialized")
-		a.logger.Error().Err(err).Msg("Failed to get summary models")
+		a.getLogger().Error().Err(err).Msg("Failed to get summary models")
 		return nil, err
 	}
 
 	// Get models for the specified provider
 	models, err := summaryService.GetModelsForProvider(providerName)
 	if err != nil {
-		a.logger.Error().Err(err).Str("provider", providerName).Msg("Failed to get models for provider")
+		a.getLogger().Error().Err(err).Str("provider", providerName).Msg("Failed to get models for provider")
 		return nil, err
 	}
 
@@ -718,7 +731,7 @@ func descriptionForProvider(providerName string) string {
 // RequestWasmState requests the WebAssembly state from the frontend for crash reports
 func (a *App) RequestWasmState() {
 	// Send an event to the frontend requesting the WebAssembly state
-	a.logger.Debug().Msg("Requesting WebAssembly state from frontend")
+	a.getLogger().Debug().Msg("Requesting WebAssembly state from frontend")
 	runtime.EventsEmit(a.ctx, "request-wasm-state")
 }
 
@@ -734,23 +747,23 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 
 	// Properly shut down the LLM registry
 	if a.llmRegistry != nil {
-		a.logger.Info().Msg("Application closing, shutting down LLM registry")
+		a.getLogger().Info().Msg("Application closing, shutting down LLM registry")
 		core.ShutdownLLM(handler)
 		a.llmRegistry = nil
 	}
 
 	// Properly shut down the WebSocket server
 	if a.wsServer != nil {
-		a.logger.Info().Msg("Application closing, shutting down WebSocket server")
+		a.getLogger().Info().Msg("Application closing, shutting down WebSocket server")
 		if err := a.wsServer.Shutdown(); err != nil {
-			a.logger.Error().Err(err).Msg("Failed to shutdown WebSocket server")
+			a.getLogger().Error().Err(err).Msg("Failed to shutdown WebSocket server")
 		}
 		a.wsServer = nil
 	}
 
 	// Properly shut down the throttler
 	if a.throttler != nil {
-		a.logger.Info().Msg("Application closing, shutting down throttler")
+		a.getLogger().Info().Msg("Application closing, shutting down throttler")
 		a.throttler.Shutdown()
 		a.throttler = nil
 	}
@@ -773,7 +786,7 @@ func (a *App) GetSystemInfo() map[string]string {
 
 // GenerateSummary generates a summary using the specified options
 func (a *App) GenerateSummary(text string, inputLanguage string, options map[string]interface{}) (string, error) {
-	a.logger.Debug().
+	a.getLogger().Debug().
 		Str("input_language", inputLanguage).
 		Int("text_length", len(text)).
 		Msg("Generating summary")
@@ -830,14 +843,14 @@ func (a *App) GenerateSummary(text string, inputLanguage string, options map[str
 
 	result, err := summaryService.GenerateSummary(ctx, text, inputLanguage, summaryOpts)
 	if err != nil {
-		a.logger.Error().Err(err).
+		a.getLogger().Error().Err(err).
 			Str("provider", summaryOpts.Provider).
 			Str("model", summaryOpts.Model).
 			Msg("Summary generation failed")
 		return "", fmt.Errorf("failed to generate summary: %w", err)
 	}
 
-	a.logger.Info().
+	a.getLogger().Info().
 		Str("provider", summaryOpts.Provider).
 		Str("model", summaryOpts.Model).
 		Int("result_length", len(result)).
@@ -848,7 +861,7 @@ func (a *App) GenerateSummary(text string, inputLanguage string, options map[str
 
 // CheckDockerAvailability checks if Docker is available on the system
 func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
-	a.logger.Debug().Msg("Checking Docker availability")
+	a.getLogger().Debug().Msg("Checking Docker availability")
 
 	// Try to run docker version command
 	cmd := executils.NewCommand("docker", "version", "--format", "json")
@@ -868,7 +881,7 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 		} else {
 			result["error"] = "Cannot connect to Docker daemon"
 		}
-		a.logger.Debug().Err(err).Msg("Docker check failed")
+		a.getLogger().Debug().Err(err).Msg("Docker check failed")
 		return result, nil
 	}
 
@@ -885,16 +898,16 @@ func (a *App) CheckDockerAvailability() (map[string]interface{}, error) {
 		// Get the actual Docker backend name using dockerutil
 		engine := dockerutil.DockerBackendName()
 		result["engine"] = engine
-		a.logger.Debug().Str("engine", engine).Msg("Docker engine detected")
+		a.getLogger().Debug().Str("engine", engine).Msg("Docker engine detected")
 	}
 
-	a.logger.Debug().Interface("result", result).Msg("Docker check completed")
+	a.getLogger().Debug().Interface("result", result).Msg("Docker check completed")
 	return result, nil
 }
 
 // CheckInternetConnectivity checks if the system has internet connectivity
 func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
-	a.logger.Debug().Msg("Checking internet connectivity")
+	a.getLogger().Debug().Msg("Checking internet connectivity")
 
 	result := map[string]interface{}{
 		"online":  false,
@@ -922,9 +935,9 @@ func (a *App) CheckInternetConnectivity() (map[string]interface{}, error) {
 
 	if !result["online"].(bool) {
 		result["error"] = "No internet connection detected"
-		a.logger.Debug().Msg("Internet connectivity check failed")
+		a.getLogger().Debug().Msg("Internet connectivity check failed")
 	} else {
-		a.logger.Debug().
+		a.getLogger().Debug().
 			Bool("online", true).
 			Int("latency", result["latency"].(int)).
 			Msg("Internet connectivity check passed")
@@ -1037,7 +1050,7 @@ func (a *App) GetLanguageRequirements(languageTag string) LanguageRequirements {
 
 // CheckFFmpegAvailability checks if FFmpeg is available on the system
 func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
-	a.logger.Debug().Msg("Checking FFmpeg availability")
+	a.getLogger().Debug().Msg("Checking FFmpeg availability")
 
 	result := map[string]interface{}{
 		"available": false,
@@ -1050,7 +1063,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	ffmpegPath, err := executils.FindBinary("ffmpeg")
 	if err != nil {
 		result["error"] = "FFmpeg is not installed or not in PATH"
-		a.logger.Debug().Err(err).Msg("FFmpeg not found")
+		a.getLogger().Debug().Err(err).Msg("FFmpeg not found")
 		return result, nil
 	}
 
@@ -1061,7 +1074,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		result["error"] = "FFmpeg found but could not determine version"
-		a.logger.Debug().Err(err).Msg("Failed to get FFmpeg version")
+		a.getLogger().Debug().Err(err).Msg("Failed to get FFmpeg version")
 		return result, nil
 	}
 
@@ -1080,7 +1093,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	}
 
 	result["available"] = true
-	a.logger.Debug().
+	a.getLogger().Debug().
 		Str("path", ffmpegPath).
 		Str("version", result["version"].(string)).
 		Msg("FFmpeg check completed")
@@ -1090,7 +1103,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 
 // CheckMediaInfoAvailability checks if MediaInfo is available on the system
 func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
-	a.logger.Debug().Msg("Checking MediaInfo availability")
+	a.getLogger().Debug().Msg("Checking MediaInfo availability")
 
 	result := map[string]interface{}{
 		"available": false,
@@ -1103,7 +1116,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	mediainfoPath, err := executils.FindBinary("mediainfo")
 	if err != nil {
 		result["error"] = "MediaInfo is not installed or not in PATH"
-		a.logger.Debug().Err(err).Msg("MediaInfo not found")
+		a.getLogger().Debug().Err(err).Msg("MediaInfo not found")
 		return result, nil
 	}
 
@@ -1114,7 +1127,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		result["error"] = "MediaInfo found but could not determine version"
-		a.logger.Debug().Err(err).Msg("Failed to get MediaInfo version")
+		a.getLogger().Debug().Err(err).Msg("Failed to get MediaInfo version")
 		return result, nil
 	}
 
@@ -1137,7 +1150,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	}
 
 	result["available"] = true
-	a.logger.Debug().
+	a.getLogger().Debug().
 		Str("path", mediainfoPath).
 		Str("version", result["version"].(string)).
 		Msg("MediaInfo check completed")
@@ -1147,18 +1160,18 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 
 // shutdown is called at application termination
 func (a *App) shutdown(ctx context.Context) {
-	a.logger.Info().Msg("Application shutdown")
+	a.getLogger().Info().Msg("Application shutdown")
 }
 
 // DownloadFFmpeg automatically downloads and extracts FFmpeg using a primary/fallback strategy.
 func (a *App) DownloadFFmpeg() (string, error) {
-	a.logger.Info().Msg("Starting FFmpeg download...")
+	a.getLogger().Info().Msg("Starting FFmpeg download...")
 
 	// --- Primary Method: BtbN/FFmpeg-Builds ---
 	var url string
 	var err error
 
-	a.logger.Info().Msg("Attempting to download from primary source: BtbN/FFmpeg-Builds")
+	a.getLogger().Info().Msg("Attempting to download from primary source: BtbN/FFmpeg-Builds")
 	var keywords []string
 	switch goruntime.GOOS {
 	case "windows":
@@ -1180,7 +1193,7 @@ func (a *App) DownloadFFmpeg() (string, error) {
 	}
 
 	if err != nil {
-		a.logger.Warn().Err(err).Msg("Primary download source failed, attempting fallback")
+		a.getLogger().Warn().Err(err).Msg("Primary download source failed, attempting fallback")
 		// --- Fallback Method: langkit-assets ---
 		var fallbackAssetPrefix string
 		switch goruntime.GOOS {
@@ -1198,7 +1211,7 @@ func (a *App) DownloadFFmpeg() (string, error) {
 		if fallbackAssetPrefix != "" {
 			url, err = downloader.GetDownloadURLForAsset("tassa-yoniso-manasi-karoto/langkit-assets", []string{fallbackAssetPrefix, ".zip"})
 			if err != nil {
-				a.logger.Error().Err(err).Msg("Fallback download source also failed")
+				a.getLogger().Error().Err(err).Msg("Fallback download source also failed")
 				return "", err
 			}
 		} else {
@@ -1211,7 +1224,7 @@ func (a *App) DownloadFFmpeg() (string, error) {
 
 // DownloadMediaInfo automatically downloads and extracts MediaInfo CLI from the self-hosted repo.
 func (a *App) DownloadMediaInfo() (string, error) {
-	a.logger.Info().Msg("Starting MediaInfo CLI download...")
+	a.getLogger().Info().Msg("Starting MediaInfo CLI download...")
 
 	var assetPrefix string
 	var filesToExtract []string
@@ -1236,7 +1249,7 @@ func (a *App) DownloadMediaInfo() (string, error) {
 
 	url, err := downloader.GetDownloadURLForAsset("tassa-yoniso-manasi-karoto/langkit-assets", []string{assetPrefix, ".zip"})
 	if err != nil {
-		a.logger.Error().Err(err).Msg("Failed to get MediaInfo download URL from langkit-assets")
+		a.getLogger().Error().Err(err).Msg("Failed to get MediaInfo download URL from langkit-assets")
 		return "", err
 	}
 
@@ -1245,7 +1258,7 @@ func (a *App) DownloadMediaInfo() (string, error) {
 
 // downloadAndExtract is a helper function to handle the download and extraction process.
 func (a *App) downloadAndExtract(dependencyName, url string, filesToExtract []string) (string, error) {
-	a.logger.Debug().Str("url", url).Msgf("Got %s download URL", dependencyName)
+	a.getLogger().Debug().Str("url", url).Msgf("Got %s download URL", dependencyName)
 
 	// Download the zip file with progress
 	req, err := http.NewRequest("GET", url, nil)
@@ -1287,7 +1300,7 @@ func (a *App) downloadAndExtract(dependencyName, url string, filesToExtract []st
 	}
 	tmpFile.Close()
 
-	a.logger.Info().Msgf("%s download complete, starting extraction", dependencyName)
+	a.getLogger().Info().Msgf("%s download complete, starting extraction", dependencyName)
 
 	toolsDir, err := config.GetToolsDir()
 	if err != nil {
@@ -1313,7 +1326,7 @@ func (a *App) downloadAndExtract(dependencyName, url string, filesToExtract []st
 		return "", fmt.Errorf("could not find executable in extracted files for %s", dependencyName)
 	}
 
-	a.logger.Info().Str("path", executablePath).Msgf("%s extracted successfully", dependencyName)
+	a.getLogger().Info().Str("path", executablePath).Msgf("%s extracted successfully", dependencyName)
 
 	settings, err := config.LoadSettings()
 	if err != nil {
@@ -1327,7 +1340,7 @@ func (a *App) downloadAndExtract(dependencyName, url string, filesToExtract []st
 	if err := config.SaveSettings(settings); err != nil {
 		return "", err
 	}
-	a.logger.Info().Msgf("Saved new %s path to settings", dependencyName)
+	a.getLogger().Info().Msgf("Saved new %s path to settings", dependencyName)
 	
 	return executablePath, nil
 }
