@@ -3,8 +3,9 @@
     import { slide, fade } from 'svelte/transition';
     import { settings, showSettings } from '../lib/stores';
 import { isDeveloperMode } from '../lib/developerMode';
-    import { ValidateLanguageTag, ExportDebugReport, OpenExecutableDialog } from '../../wailsjs/go/gui/App';
+    import { ExportDebugReport, OpenExecutableDialog, ValidateLanguageTag } from '../../wailsjs/go/gui/App';
     import { logger } from '../lib/logger';
+    import { debounce } from 'lodash';
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
@@ -223,6 +224,11 @@ import { isDeveloperMode } from '../lib/developerMode';
         isValid = targetLangValid && nativeLangValid; // Both must be valid if provided
     }
 
+    // Create debounced version of validateLanguages to prevent rapid calls
+    const debouncedValidateLanguages = debounce(async () => {
+        await validateLanguages();
+    }, 300);
+
     async function saveSettings() {
         logger.info('Settings', 'Saving settings');
         await validateLanguages();
@@ -358,7 +364,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     $: {
         if (currentSettings.targetLanguage !== undefined ||
             currentSettings.nativeLanguages !== undefined) {
-            validateLanguages();
+            debouncedValidateLanguages();
         }
     }
 

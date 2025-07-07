@@ -30,13 +30,14 @@
     } from '../lib/featureGroupStore';
     import { 
         GetRomanizationStyles, 
-        ValidateLanguageTag, 
+        ValidateLanguageTag,
         CheckMediaLanguageTags,
         NeedsTokenization,
         GetAvailableSTTModelsForUI,
         GetAvailableSummaryProviders,
         GetAvailableSummaryModels
     } from '../../wailsjs/go/gui/App';
+    import { debounce } from 'lodash';
     
     import FeatureCard from './FeatureCard.svelte';
     import QuickAccessLangSelector from './QuickAccessLangSelector.svelte';
@@ -428,6 +429,9 @@
             isProcessingLanguage = false;
         }
     }
+    
+    // Debounced version of processLanguageChange to prevent rapid calls
+    const debouncedProcessLanguageChange = debounce(processLanguageChange, 300);
     
     /**
      * Update error messages based on feature availability
@@ -1027,7 +1031,7 @@
         
         // Process language change if it's different (case-insensitive)
         if (lastProcessedLangTag.toLowerCase() !== quickAccessLangTag.toLowerCase()) {
-            processLanguageChange(quickAccessLangTag);
+            debouncedProcessLanguageChange(quickAccessLangTag);
         }
         
         // Update the last processed value
@@ -1719,7 +1723,7 @@
             });
             
             // Process the language change
-            processLanguageChange(quickAccessLangTag);
+            debouncedProcessLanguageChange(quickAccessLangTag);
             
             // Update the previous value
             previousQuickAccessLangTag = quickAccessLangTag;
