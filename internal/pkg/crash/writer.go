@@ -43,6 +43,31 @@ func init() {
 	log = zerolog.New(writer).With().Timestamp().Logger()
 }
 
+// runWithTimeout executes a function with a timeout. If the function doesn't complete
+// within the timeout, it logs a warning and continues. This prevents any single
+// operation from hanging the entire report generation.
+func runWithTimeout(timeout time.Duration, name string, w io.Writer, fn func()) {
+	done := make(chan struct{})
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Msgf("Panic in %s: %v", name, r)
+				fmt.Fprintf(w, "%s: ERROR - panic occurred: %v\n", name, r)
+			}
+			close(done)
+		}()
+		fn()
+	}()
+	
+	select {
+	case <-done:
+		// Operation completed successfully
+	case <-time.After(timeout):
+		log.Warn().Msgf("%s timed out after %v", name, timeout)
+		fmt.Fprintf(w, "%s: TIMEOUT - operation did not complete within %v\n", name, timeout)
+	}
+}
+
 func WriteReport(
 	reportMode ReportMode,
 	mainErr error, // may be nil if ModeDebug
@@ -165,7 +190,12 @@ func writeReportContent(
 			
 		fmt.Fprintln(w, "PARENT DIR OF MEDIA FILE")
 		fmt.Fprintln(w, "========================")
-		FormatDirectoryListing(w, execScope.ParentDirPath)
+		runWithTimeout(5*time.Second, "FormatDirectoryListing", w, func() {
+			err := FormatDirectoryListing(w, execScope.ParentDirPath)
+			if err != nil {
+				fmt.Fprintf(w, "Error listing directory: %v\n", err)
+			}
+		})
 		fmt.Fprint(w, "\n\n")
 
 		fmt.Fprintln(w, "GLOBAL SCOPE")
@@ -222,7 +252,9 @@ func writeReportContent(
 	// 7. System / runtime info
 	fmt.Fprintln(w, "RUNTIME INFORMATION")
 	fmt.Fprintln(w, "==================")
-	fmt.Fprintln(w, NewRuntimeInfo().String())
+	runWithTimeout(10*time.Second, "RuntimeInfo", w, func() {
+		fmt.Fprintln(w, NewRuntimeInfo().String())
+	})
 
 	// 8. Environment
 	fmt.Fprintln(w, "ENVIRONMENT")
@@ -253,19 +285,32 @@ func writeReportContent(
 	
 	fmt.Fprintln(w, "DOCKER INFORMATION")
 	fmt.Fprintln(w, "==================")
-	captureDockerInfo(w)
+	runWithTimeout(15*time.Second, "DockerInfo", w, func() {
+		captureDockerInfo(w)
+	})
 	fmt.Fprint(w, "\n")
 
 	// 12. Connectivity status
 	fmt.Fprintln(w, "CONNECTIVITY STATUS")
 	fmt.Fprintln(w, "==================")
 	// Not sure if some AI API services have georestrictions but when in doubt
-	if country, err := GetUserCountry(); err == nil {
-		fmt.Fprintln(w, "Requests originate from:", country)
-	}
-	checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
-	checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
-	DockerNslookupCheck(w, "example.com")
+	runWithTimeout(5*time.Second, "GetUserCountry", w, func() {
+		if country, err := GetUserCountry(); err == nil {
+			fmt.Fprintln(w, "Requests originate from:", country)
+		}
+	})
+	
+	runWithTimeout(5*time.Second, "CheckReplicate", w, func() {
+		checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
+	})
+	
+	runWithTimeout(5*time.Second, "CheckElevenLabs", w, func() {
+		checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
+	})
+	
+	runWithTimeout(10*time.Second, "DockerNslookup", w, func() {
+		DockerNslookupCheck(w, "example.com")
+	})
 	fmt.Fprint(w, "\n")
 
 	fmt.Fprintln(w, "==================")

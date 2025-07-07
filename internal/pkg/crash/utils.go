@@ -43,7 +43,11 @@ func captureDockerInfo(w io.Writer) {
 	fmt.Fprintln(w, "=============")
 
 	// Check if Docker is available first
-	_, versionErr := executils.NewCommand("docker", "version", "--format", "{{json .}}").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	
+	cmd := executils.CommandContext(ctx, "docker", "version", "--format", "{{json .}}")
+	_, versionErr := cmd.Output()
 	if versionErr != nil {
 		fmt.Fprintf(w, "Docker not available or not running: %v\n\n", versionErr)
 		return
@@ -52,7 +56,10 @@ func captureDockerInfo(w io.Writer) {
 	// If Docker is available, capture both version and info
 	fmt.Fprintln(w, "Docker Version Output:")
 	fmt.Fprintln(w, "---------------------")
-	versionCmd := executils.NewCommand("docker", "version")
+	
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
+	versionCmd := executils.CommandContext(ctx2, "docker", "version")
 	versionOutput, err := versionCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error getting Docker version: %v\n", err)
@@ -62,7 +69,10 @@ func captureDockerInfo(w io.Writer) {
 
 	fmt.Fprintln(w, "\nDocker Info Output:")
 	fmt.Fprintln(w, "------------------")
-	infoCmd := executils.NewCommand("docker", "info")
+	
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel3()
+	infoCmd := executils.CommandContext(ctx3, "docker", "info")
 	infoOutput, err := infoCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error getting Docker info: %v\n", err)
@@ -78,7 +88,9 @@ func captureDockerInfo(w io.Writer) {
 		"aksharamukha",
 	}
 
-	imagesCmd := executils.NewCommand("docker", "images", "--format", "{{.Repository}}:{{.Tag}} ({{.Size}})")
+	ctx4, cancel4 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel4()
+	imagesCmd := executils.CommandContext(ctx4, "docker", "images", "--format", "{{.Repository}}:{{.Tag}} ({{.Size}})")
 	imagesOutput, err := imagesCmd.CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(w, "Error listing Docker images: %v\n", err)

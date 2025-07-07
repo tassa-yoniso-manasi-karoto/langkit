@@ -1,6 +1,7 @@
 package crash
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,14 +31,38 @@ func NewRuntimeInfo() *RuntimeInfo {
 	}
 }
 
+// runWithTimeoutCtx executes a function with a timeout context.
+// Returns true if the operation completed successfully, false if it timed out.
+func runWithTimeoutCtx(timeout time.Duration, fn func(ctx context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	
+	done := make(chan error, 1)
+	go func() {
+		done <- fn(ctx)
+	}()
+	
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("operation timed out after %v", timeout)
+	}
+}
+
 // String generates the complete runtime information report.
 func (ri *RuntimeInfo) String() string {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	
 	// Host Information
-	hostInfo, err := host.Info()
-	if err == nil {
+	var hostInfo *host.InfoStat
+	err := runWithTimeoutCtx(3*time.Second, func(ctx context.Context) error {
+		var err error
+		hostInfo, err = host.Info()
+		return err
+	})
+	if err == nil && hostInfo != nil {
 		ri.builder.WriteString(fmt.Sprintf("Host Information\n"))
 		ri.builder.WriteString(fmt.Sprintf("––––––––––––––––\n"))
 		ri.builder.WriteString(fmt.Sprintf("Hostname:\t%s\n", hostInfo.Hostname))
@@ -48,10 +73,20 @@ func (ri *RuntimeInfo) String() string {
 		ri.builder.WriteString(fmt.Sprintf("Kernel Version:\t%s\n", hostInfo.KernelVersion))
 		ri.builder.WriteString(fmt.Sprintf("System Uptime:\t%s\n", time.Duration(hostInfo.Uptime)*time.Second))
 		ri.builder.WriteString("\n")
+	} else if err != nil {
+		ri.builder.WriteString(fmt.Sprintf("Host Information\n"))
+		ri.builder.WriteString(fmt.Sprintf("––––––––––––––––\n"))
+		ri.builder.WriteString(fmt.Sprintf("Error: %v\n\n", err))
 	}
 
 	// Memory Information
-	if vmem, err := mem.VirtualMemory(); err == nil {
+	var vmem *mem.VirtualMemoryStat
+	err = runWithTimeoutCtx(3*time.Second, func(ctx context.Context) error {
+		var err error
+		vmem, err = mem.VirtualMemory()
+		return err
+	})
+	if err == nil && vmem != nil {
 		ri.builder.WriteString(fmt.Sprintf("Memory Information\n"))
 		ri.builder.WriteString(fmt.Sprintf("––––––––––––––––––\n"))
 		ri.builder.WriteString(fmt.Sprintf("Total:\t\t%s\n", humanize.Bytes(vmem.Total)))
@@ -68,6 +103,10 @@ func (ri *RuntimeInfo) String() string {
 				swapUsedPercent))
 		}
 		ri.builder.WriteString("\n")
+	} else if err != nil {
+		ri.builder.WriteString(fmt.Sprintf("Memory Information\n"))
+		ri.builder.WriteString(fmt.Sprintf("––––––––––––––––––\n"))
+		ri.builder.WriteString(fmt.Sprintf("Error: %v\n\n", err))
 	}
 
 	// CPU Information

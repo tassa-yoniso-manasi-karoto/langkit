@@ -4,6 +4,15 @@
 - provide real time update to ichiran init (20-25min)
 
 .
+- REFACTOR DEVDASHBOARD
+
+.
+- PYTHAILNLP
+
+.
+- REFACTOR CORE
+
+.
 - welcome.svelte component w/ checks for binary needed:
   - less transparency
 
