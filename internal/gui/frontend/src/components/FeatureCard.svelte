@@ -149,7 +149,7 @@
     }
     
     // Debounced version to prevent rapid validation calls
-    const debouncedCheckNativeLanguageIsEnglish = debounce(checkNativeLanguageIsEnglish, 300);
+    const debouncedCheckNativeLanguageIsEnglish = debounce(checkNativeLanguageIsEnglish, 10);
     
     // Reactive computations for LLM state (respecting debug override)
     $: isLLMReady = debugLLMState ? debugLLMState === 'ready' : llmState?.globalState === 'ready';

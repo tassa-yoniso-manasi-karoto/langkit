@@ -431,7 +431,7 @@
     }
     
     // Debounced version of processLanguageChange to prevent rapid calls
-    const debouncedProcessLanguageChange = debounce(processLanguageChange, 300);
+    const debouncedProcessLanguageChange = debounce(processLanguageChange, 10);
     
     /**
      * Update error messages based on feature availability

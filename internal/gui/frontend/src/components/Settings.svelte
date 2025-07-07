@@ -105,6 +105,10 @@ import { isDeveloperMode } from '../lib/developerMode';
     let targetLangError = '';
     let nativeLangError = '';
     let isValid = true;
+    let isValidatingTarget = false;
+    let isValidatingNative = false;
+    let previousTargetLanguage = '';
+    let previousNativeLanguages = '';
 
     // Local state for debug-export UI
     let isExportingDebug = false;
@@ -197,6 +201,7 @@ import { isDeveloperMode } from '../lib/developerMode';
             const targetResponse = await ValidateLanguageTag(currentSettings.targetLanguage, true);
             targetLangValid = targetResponse.isValid;
             targetLangError = targetResponse.error || '';
+            isValidatingTarget = false; // Clear validating state
             logger.debug('Settings', 'Target language validation', { 
                 language: currentSettings.targetLanguage, 
                 valid: targetLangValid,
@@ -205,12 +210,14 @@ import { isDeveloperMode } from '../lib/developerMode';
         } else {
             targetLangValid = true; // Allow empty target language
             targetLangError = '';
+            isValidatingTarget = false;
         }
 
         if (currentSettings.nativeLanguages) {
             const nativeResponse = await ValidateLanguageTag(currentSettings.nativeLanguages, false);
             nativeLangValid = nativeResponse.isValid;
             nativeLangError = nativeResponse.error || '';
+            isValidatingNative = false; // Clear validating state
             logger.debug('Settings', 'Native languages validation', { 
                 languages: currentSettings.nativeLanguages, 
                 valid: nativeLangValid,
@@ -219,6 +226,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         } else {
             nativeLangValid = true; // Allow empty native languages
             nativeLangError = '';
+            isValidatingNative = false;
         }
 
         isValid = targetLangValid && nativeLangValid; // Both must be valid if provided
@@ -227,7 +235,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     // Create debounced version of validateLanguages to prevent rapid calls
     const debouncedValidateLanguages = debounce(async () => {
         await validateLanguages();
-    }, 300);
+    }, 10);
 
     async function saveSettings() {
         logger.info('Settings', 'Saving settings');
@@ -347,6 +355,11 @@ import { isDeveloperMode } from '../lib/developerMode';
                     maxInterval: 250
                 }
             };
+            
+            // Initialize previous values to current settings
+            previousTargetLanguage = currentSettings.targetLanguage;
+            previousNativeLanguages = currentSettings.nativeLanguages;
+            
             await validateLanguages();
         } catch (error) {
             logger.error('Settings', 'Failed to load settings', { error });
@@ -365,6 +378,22 @@ import { isDeveloperMode } from '../lib/developerMode';
         if (currentSettings.targetLanguage !== undefined ||
             currentSettings.nativeLanguages !== undefined) {
             debouncedValidateLanguages();
+        }
+    }
+    
+    // Set validating state immediately when target language actually changes
+    $: if (currentSettings.targetLanguage !== previousTargetLanguage) {
+        if (currentSettings.targetLanguage !== undefined) {
+            isValidatingTarget = true;
+            previousTargetLanguage = currentSettings.targetLanguage;
+        }
+    }
+    
+    // Set validating state immediately when native languages actually change
+    $: if (currentSettings.nativeLanguages !== previousNativeLanguages) {
+        if (currentSettings.nativeLanguages !== undefined) {
+            isValidatingNative = true;
+            previousNativeLanguages = currentSettings.nativeLanguages;
         }
     }
 
@@ -507,26 +536,27 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         Target Language
                                     </label>
                                     <div class="relative">
-                                        <TextInput
+                                        <input
+                                            type="text"
                                             bind:value={currentSettings.targetLanguage}
                                             on:input={() => logger.trace('Settings', 'Target language input changed', { value: currentSettings.targetLanguage })}
-                                            minLength={1}
-                                            maxLength={9}
+                                            minlength="1"
+                                            maxlength="9"
                                             placeholder="e.g. es, yue or pt-BR"
-                                            className="px-3 py-2.5 hover:border-primary/55 hover:shadow-input
-                                                      focus:border-primary focus:ring-1 focus:shadow-input-focus
-                                                      focus:ring-primary/50 placeholder:text-white/40 pr-10
-                                                      bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                            
+                                            class="w-full bg-ui-element backdrop-blur-sm border border-primary/30 rounded px-2 py-2
+                                                   hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
+                                                   focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
                                         />
-                                        {#if targetLangValid && currentSettings.targetLanguage}
-                                            <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                         material-icons text-pale-green text-sm">
+                                        {#if isValidatingTarget}
+                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                                refresh
+                                            </span>
+                                        {:else if targetLangValid && currentSettings.targetLanguage}
+                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
                                                 check_circle
                                             </span>
                                         {:else if targetLangError}
-                                            <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                         material-icons text-red-500 text-sm"
+                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
                                                   title={targetLangError}>
                                                 error
                                             </span>
@@ -540,26 +570,27 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         Native Language(s)
                                     </label>
                                     <div class="relative">
-                                        <TextInput
+                                        <input
+                                            type="text"
                                             bind:value={currentSettings.nativeLanguages}
                                             on:input={() => logger.trace('Settings', 'Native languages input changed', { value: currentSettings.nativeLanguages })}
-                                            minLength={1}
-                                            maxLength={100}
+                                            minlength="1"
+                                            maxlength="100"
                                             placeholder="e.g. en, fr, es"
-                                            className="px-3 py-2.5 hover:border-primary/55 hover:shadow-input
-                                                      focus:border-primary focus:ring-1 focus:shadow-input-focus
-                                                      focus:ring-primary/50 placeholder:text-white/40 pr-10
-                                                      bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                            
+                                            class="w-full bg-ui-element backdrop-blur-sm border border-primary/30 rounded px-2 py-2
+                                                   hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
+                                                   focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
                                         />
-                                        {#if nativeLangValid && currentSettings.nativeLanguages}
-                                            <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                         material-icons text-pale-green text-sm">
+                                        {#if isValidatingNative}
+                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                                refresh
+                                            </span>
+                                        {:else if nativeLangValid && currentSettings.nativeLanguages}
+                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
                                                 check_circle
                                             </span>
                                         {:else if nativeLangError}
-                                            <span class="absolute right-3 top-1/2 -translate-y-1/2
-                                                         material-icons text-red-500 text-sm"
+                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
                                                   title={nativeLangError}>
                                                 error
                                             </span>

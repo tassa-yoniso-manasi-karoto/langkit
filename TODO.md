@@ -4,27 +4,27 @@
 - provide real time update to ichiran init (20-25min)
 
 .
+- "Processing in progress"... without on going processing
+- selective translit doesn't briefly show "sorry not available" on webview2
+
+.
 - REFACTOR DevDashboard
-
-.
-- PYTHAILNLP
-
-.
-- in settings language valid status must be revoked (querying..)  upon changes
-
-.
-- On Windows, for whatever reason, the option for condensed audio called Use Symbolic Emphasis does not appear on the UI. This option has some conditional display. The summary must be enabled, which it is. The context IsLLMReady must be true, which it is. And finally, the context IsNativeLanguageEnglish must be true as well. I have no mean of verifying this on a Windows build atm.
 
 .
 - REFACTOR CORE
 
 .
-- welcome.svelte component w/ checks for binary needed:
-  - less transparency
+- PYTHAILNLP
 
 .
 - finish theme
-  - scale up on hover for cards + ideally a black shadow
+  - slightly bigger text on cards, perhaps more white also (better contrast)
+  - scale up on hover for cards + ideally a black shadow like GH Ctrl+F
+  - welcome.svelte component
+  - scale & rotate coffee some more
+  
+.
+- crash report fallback API key sanitizer (to guarantee no leaks)
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE
