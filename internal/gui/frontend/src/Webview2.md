@@ -2,6 +2,8 @@
 
 This document lists code patterns that are known to cause issues with WebView2 on Windows, based on architectural constraints and observed behavior.
 
+NOTE: this is SPECULATION OF POTENTIAL ISSUES from Claude. Claude does NOT know the source code of wails in depth. All these issues are pure speculation based on Webview2 DR REPORT, to watch out for nonetheless.
+
 ## Critical Issues (Highly Confident)
 
 ### 1. Modal Dialog in Event Handler - ExportDebugReport
@@ -26,20 +28,6 @@ err := config.SaveSettings(settings)  // Synchronous file write
 a.llmRegistry.TriggerUpdate(settings) // May also block
 ```
 
-### 3. Unthrottled Rapid ValidateLanguageTag Calls
-**File:** `/internal/gui/frontend/src/components/Settings.svelte:359-364`
-**Problem:** Reactive statement triggers validation on every keystroke without debouncing
-**WebView2 Violation:** Overwhelms the message queue with concurrent async calls
-**Symptom:** Language validation hangs after rapid input or settings changes
-```javascript
-// PROBLEMATIC CODE
-$: {
-    if (currentSettings.targetLanguage !== undefined ||
-        currentSettings.nativeLanguages !== undefined) {
-        validateLanguages(); // Called on every change, no debounce
-    }
-}
-```
 
 ## Additional Patterns to Watch
 

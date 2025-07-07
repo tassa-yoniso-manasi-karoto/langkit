@@ -123,12 +123,22 @@
         }
         
         try {
-            // ValidateLanguageTag already handles parsing multiple languages and returns the first one
-            const response = await ValidateLanguageTag(currentSettings.nativeLanguages, true);
+            // Extract the first language from the comma-separated list
+            const languages = currentSettings.nativeLanguages.split(',').map(lang => lang.trim());
+            const firstLanguage = languages[0];
+            
+            if (!firstLanguage) {
+                isNativeLanguageEnglish = false;
+                return;
+            }
+            
+            // Validate only the first language
+            const response = await ValidateLanguageTag(firstLanguage, true);
             isNativeLanguageEnglish = response.isValid && response.standardTag === 'eng';
             
             logger.trace('featureCard', 'Native language English check', {
                 nativeLanguages: currentSettings.nativeLanguages,
+                firstLanguage: firstLanguage,
                 standardTag: response.standardTag,
                 isEnglish: isNativeLanguageEnglish
             });
