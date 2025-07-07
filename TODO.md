@@ -4,10 +4,13 @@
 - provide real time update to ichiran init (20-25min)
 
 .
-- REFACTOR DEVDASHBOARD
+- REFACTOR DevDashboard
 
 .
 - PYTHAILNLP
+
+.
+- On Windows, for whatever reason, the option for condensed audio called Use Symbolic Emphasis does not appear on the UI. This option has some conditional display. The summary must be enabled, which it is. The context IsLLMReady must be true, which it is. And finally, the context IsNativeLanguageEnglish must be true as well. I have no mean of verifying this on a Windows build atm.
 
 .
 - REFACTOR CORE
