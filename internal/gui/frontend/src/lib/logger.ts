@@ -2,7 +2,7 @@
 component inform from which part of the frontend was a given log emitted from
 */
 import { get } from 'svelte/store';
-import { enableFrontendLoggingStore } from './stores';
+import { enableFrontendLoggingStore, displayFrontendLogsStore, enableTraceLogsStore } from './stores';
 
 export enum Lvl {
     TRACE = -1,
@@ -116,6 +116,7 @@ export class Logger {
     private _retryQ: Array<{ entry: LEntry; retries: number }> = [];
     private _isProcRetryQ = false;
     private _evtListeners: Array<() => void> = [];
+    private _logViewerCallback?: (logMessage: any) => void;
 
     private _cfg: LogConf = {
         minLvl: Lvl.TRACE,
@@ -407,6 +408,21 @@ export class Logger {
             if (this._cfg.conOut) {
                 this._conOut(e);
             }
+            
+            // Add to LogViewer if displayFrontendLogs is enabled
+            // For TRACE logs, also check if enableTraceLogsStore is enabled
+            if (this._logViewerCallback && get(displayFrontendLogsStore) && (e.lvl > Lvl.TRACE || get(enableTraceLogsStore))) {
+                const logMessage = {
+                    level: this.getLvlName(e.lvl).toLowerCase(),
+                    message: 'FRONT: ' + e.msg,
+                    time: new Date(e.ts).toISOString(), // Pass ISO timestamp for consistent handling
+                    component: e.comp,
+                    _unix_time: e._unix_time ? e._unix_time * 1000 : e.ts, // Convert seconds to milliseconds
+                    _sequence: Math.floor(e.ts % 4294967295), // Ensure it fits in u32
+                    ...(e.ctx || {})
+                };
+                this._logViewerCallback(logMessage);
+            }
         }
         this._relayBatchBE(batch);
     }
@@ -438,6 +454,14 @@ export class Logger {
         }
     }
 
+    /**
+     * Register a callback to receive logs for the LogViewer
+     * This avoids circular dependencies between logger and logStore
+     */
+    registerLogViewerCallback(callback: (logMessage: any) => void): void {
+        this._logViewerCallback = callback;
+    }
+
     destroy(): void {
         for (const [, data] of this._opCtxs.entries()) {
             if (data.timeoutId) {
@@ -465,6 +489,21 @@ export class Logger {
             this._conOut(e);
         }
         this._relayBE(e);
+        
+        // Add to LogViewer if displayFrontendLogs is enabled
+        // For TRACE logs, also check if enableTraceLogsStore is enabled
+        if (this._logViewerCallback && get(displayFrontendLogsStore) && (e.lvl > Lvl.TRACE || get(enableTraceLogsStore))) {
+            const logMessage = {
+                level: this.getLvlName(e.lvl).toLowerCase(),
+                message: 'FRONT: ' + e.msg,
+                time: new Date(e.ts).toISOString(), // Pass ISO timestamp for consistent handling
+                component: e.comp,
+                _unix_time: e._unix_time ? e._unix_time * 1000 : e.ts, // Convert seconds to milliseconds
+                _sequence: Math.floor(e.ts % 4294967295), // Ensure it fits in u32
+                ...(e.ctx || {})
+            };
+            this._logViewerCallback(logMessage);
+        }
     }
 
     private _buildCtx(localContext?: Record<string, any>): Record<string, any> {

@@ -1027,6 +1027,11 @@
     }
 
     onMount(async () => { // Make onMount async
+        // Register callback to send frontend logs to LogViewer
+        logger.registerLogViewerCallback((logMessage) => {
+            logStore.addLog(logMessage);
+        });
+        
         // Get initial version and pass it to WebAssembly for environment-aware loading
         GetVersion().then(v => {
             version = v.version; // Access the version property 

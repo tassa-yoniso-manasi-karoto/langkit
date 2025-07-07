@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore, enableFrontendLoggingStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
@@ -929,7 +929,7 @@
                         		<span class="text-sm text-gray-300">Enable Trace Logs</span>
                         	</div>
                         	<p class="text-xs text-gray-500 mt-1">
-                        		Streams verbose trace logs to the frontend. May impact performance.
+                        		Streams verbose trace logs to the GUI log viewer. Impacts performance.
                         	</p>
                         </div>
                         
@@ -943,7 +943,21 @@
                         		<span class="text-sm text-gray-300">Send Frontend Logs to Backend</span>
                         	</div>
                         	<p class="text-xs text-gray-500 mt-1">
-                        		Forwards frontend logs to the backend for logging through zerolog. Disable to reduce backend load.
+                        		Forwards frontend logs to the backend for logging through zerolog.
+                        	</p>
+                        </div>
+                        
+                        <div class="control-section mb-4">
+                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Frontend Log Display</h5>
+                        	<div class="flex items-center gap-3">
+                        		<label class="switch">
+                        			<input type="checkbox" bind:checked={$displayFrontendLogsStore}>
+                        			<span class="toggle-slider round"></span>
+                        		</label>
+                        		<span class="text-sm text-gray-300">Display Frontend Logs in LogViewer</span>
+                        	</div>
+                        	<p class="text-xs text-gray-500 mt-1">
+                        		Shows frontend logs directly in the LogViewer.
                         	</p>
                         </div>
                   
