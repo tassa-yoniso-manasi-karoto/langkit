@@ -316,7 +316,9 @@ func (a *App) processLogEntry(component string, logEntry map[string]interface{})
 		}
 	}
 
-	fields := map[string]interface{}{}
+	fields := map[string]interface{}{
+		"origin": "gui", // Mark as frontend-originated to prevent feedback loop
+	}
 
 	// Extract component from log entry, fallback to function parameter
 	if comp, ok := logEntry["comp"].(string); ok {
@@ -363,57 +365,6 @@ func (a *App) processLogEntry(component string, logEntry map[string]interface{})
 	}
 }
 
-// RecordWasmLog receives and processes WebAssembly log entries from the frontend
-func (a *App) RecordWasmLog(logJson string) {
-	var logEntry map[string]interface{}
-
-	if err := json.Unmarshal([]byte(logJson), &logEntry); err != nil {
-		a.getLogger().Error().Err(err).Msg("Failed to parse WebAssembly log entry")
-		return
-	}
-
-	// Convert to Zerolog level
-	level := zerolog.InfoLevel
-	if levelVal, ok := logEntry["level"].(float64); ok {
-		switch int(levelVal) {
-		case -1: // TRACE
-			level = zerolog.TraceLevel
-		case 0: // DEBUG
-			level = zerolog.DebugLevel
-		case 1: // INFO
-			level = zerolog.InfoLevel
-		case 2: // WARN
-			level = zerolog.WarnLevel
-		case 3, 4: // ERROR, CRITICAL
-			level = zerolog.ErrorLevel
-		}
-	}
-
-	// Extract fields for structured logging
-	fields := map[string]interface{}{
-		"origin": "gui",
-	}
-
-	if component, ok := logEntry["component"].(string); ok {
-		fields["component"] = component
-	}
-
-	if metrics, ok := logEntry["metrics"].(map[string]interface{}); ok {
-		for k, v := range metrics {
-			fields["wasm_"+k] = v
-		}
-	}
-
-	// Log through the throttler
-	message := "WebAssembly log"
-	if msg, ok := logEntry["message"].(string); ok {
-		message = msg
-	}
-
-	// Use the handler to log the message with fields
-	// FIXME USING ZEROLOG DIRECTLY IS LIKELY THE BEST WAY, NOT SURE.
-	handler.LogFields(int8(level), "wasm", message, fields)
-}
 
 // RecordWasmState stores WebAssembly state in the crash reporter for diagnostics
 func (a *App) RecordWasmState(stateJson string) {

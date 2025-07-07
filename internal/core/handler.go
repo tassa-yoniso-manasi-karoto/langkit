@@ -369,23 +369,25 @@ type LogWriter struct {
 func (w *LogWriter) Write(p []byte) (n int, err error) {
 	// By default, we assume the log should be sent.
 	shouldSend := true
-
-	// If the trace log toggle is OFF, we need to inspect the message
-	// and specifically discard trace-level logs.
-	if !w.sendTraceLogs.Load() {
-		var logMessage map[string]interface{}
-		// Performance optimization: only unmarshal if we need to check the level.
-		if err := json.Unmarshal(p, &logMessage); err == nil {
-			// Zerolog encodes the level as a number. When unmarshalled into an interface{},
-			// JSON numbers become float64. We must do a type assertion to compare correctly.
+	
+	var logMessage map[string]interface{}
+	// Parse the log message once for all checks
+	parseErr := json.Unmarshal(p, &logMessage)
+	
+	if parseErr == nil {
+		// Filter out frontend-originated logs to prevent feedback loop
+		if origin, ok := logMessage["origin"].(string); ok && origin == "gui" {
+			shouldSend = false
+		}
+		
+		// If the trace log toggle is OFF, also filter trace-level logs
+		if shouldSend && !w.sendTraceLogs.Load() {
 			if levelValue, ok := logMessage["level"].(float64); ok {
-				// If the log's level is TRACE, mark it to be discarded.
-				if levelValue == float64(zerolog.TraceLevel) { // Compare float64 to float64
+				if levelValue == float64(zerolog.TraceLevel) {
 					shouldSend = false
 				}
 			}
 		}
-		// If unmarshalling fails, we let it pass through (shouldSend remains true).
 	}
 
 	// If the log was not marked for discard, send it to the frontend.
