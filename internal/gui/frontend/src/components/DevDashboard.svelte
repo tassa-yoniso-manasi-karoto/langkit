@@ -9,6 +9,8 @@
     import WASMDashboard from './dev/WASMDashboard.svelte';
     import MemoryTestButton from './MemoryTestButton.svelte';
     import DraggableContainer from './dev/DraggableContainer.svelte';
+    import LogsDebugDashboard from './dev/LogsDebugDashboard.svelte';
+    import StateDebugDashboard from './dev/StateDebugDashboard.svelte';
     import { SetTraceLogs, GetTraceLogs } from '../../wailsjs/go/gui/App';
     import { 
         forceLLMState, resetLLMState,
@@ -630,155 +632,14 @@
                     {#if activeTab === 'performance'}
                         <WASMDashboard />
                     {:else if activeTab === 'state'}
-                        <h4>Application State</h4>
-                            
-                            <div class="state-section">
-                                <h5 class="text-xs font-semibold mb-2 opacity-80">Counter Values</h5>
-                                <table class="state-table">
-                                    <tbody>
-                                        <tr>
-                                            <td class="state-key">countAppStart</td>
-                                            <td class="state-value">{currentStatistics?.countAppStart || 0}</td>
-                                            <td class="state-description">App launch count</td>
-                                        </tr>
-                                        <tr>
-                                            <td class="state-key">countProcessStart</td>
-                                            <td class="state-value">{currentStatistics?.countProcessStart || 0}</td>
-                                            <td class="state-description">Processing run count</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            
-                            <div class="state-section">
-                                <h5 class="text-xs font-semibold mb-2 opacity-80">File Settings</h5>
-                                <table class="state-table">
-                                    <tbody>
-                                        <tr>
-                                            <td class="state-key">intermediaryFileMode</td>
-                                            <td class="state-value">{currentSettings?.intermediaryFileMode || 'keep'}</td>
-                                            <td class="state-description">Intermediary file handling</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            
-                            <div class="state-section">
-                                <h5 class="text-xs font-semibold mb-2 opacity-80">User Activity</h5>
-                                <table class="state-table">
-                                    <tbody>
-                                        <tr>
-                                            <td class="state-key">userActivityState</td>
-                                            <td class="state-value">
-                                                <span class:text-green-400={currentUserActivityState === 'active'}
-                                                      class:text-yellow-400={currentUserActivityState === 'idle'}
-                                                      class:text-red-400={currentUserActivityState === 'afk'}>
-                                                    {currentUserActivityState}
-                                                    {#if isForced}
-                                                        <span class="text-purple-400 text-xs">(forced)</span>
-                                                    {/if}
-                                                </span>
-                                            </td>
-                                            <td class="state-description">
-                                                {#if currentUserActivityState === 'active'}
-                                                    User is actively interacting
-                                                {:else if currentUserActivityState === 'idle'}
-                                                    No activity for 5s-5min
-                                                {:else}
-                                                    Away from keyboard >5min
-                                                {/if}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <StateDebugDashboard 
+                            {currentStatistics}
+                            {currentSettings}
+                            {currentUserActivityState}
+                            {isForced}
+                        />
                     {:else if activeTab === 'logs'}
-                        <h4>Log Viewer Controls</h4>
-                        <div class="control-section mb-4">
-                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Trace Logs</h5>
-                        	<div class="flex items-center gap-3">
-                        		<label class="switch">
-                        			<input type="checkbox" bind:checked={$enableTraceLogsStore}>
-                        			<span class="toggle-slider round"></span>
-                        		</label>
-                        		<span class="text-sm text-gray-300">Enable Trace Logs</span>
-                        	</div>
-                        	<p class="text-xs text-gray-500 mt-1">
-                        		Streams verbose trace logs to the GUI log viewer. Impacts performance.
-                        	</p>
-                        </div>
-                        
-                        <div class="control-section mb-4">
-                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Frontend Logging</h5>
-                        	<div class="flex items-center gap-3">
-                        		<label class="switch">
-                        			<input type="checkbox" bind:checked={$enableFrontendLoggingStore}>
-                        			<span class="toggle-slider round"></span>
-                        		</label>
-                        		<span class="text-sm text-gray-300">Send Frontend Logs to Backend</span>
-                        	</div>
-                        	<p class="text-xs text-gray-500 mt-1">
-                        		Forwards frontend logs to the backend for logging through zerolog.
-                        	</p>
-                        </div>
-                        
-                        <div class="control-section mb-4">
-                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Frontend Log Display</h5>
-                        	<div class="flex items-center gap-3">
-                        		<label class="switch">
-                        			<input type="checkbox" bind:checked={$displayFrontendLogsStore}>
-                        			<span class="toggle-slider round"></span>
-                        		</label>
-                        		<span class="text-sm text-gray-300">Display Frontend Logs in LogViewer</span>
-                        	</div>
-                        	<p class="text-xs text-gray-500 mt-1">
-                        		Shows frontend logs directly in the LogViewer.
-                        	</p>
-                        </div>
-                  
-                        <div class="control-section mb-4">
-                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Virtualization</h5>
-                        	<div class="flex flex-wrap gap-2">
-                        		<button
-                        			class="control-button"
-                        			on:click={() => {
-                        				// Toggle virtualization via document event
-                        				const evt = new CustomEvent('dev:toggle-virtualization');
-                        				document.dispatchEvent(evt);
-                        			}}
-                        		>
-                        			Toggle Virtualization
-                        		</button>
-                  
-                        	</div>
-                        </div>
-                  
-                        <div class="control-section mb-4">
-                        	<h5 class="text-xs font-semibold mb-2 opacity-80">Debug Tools</h5>
-                        	<div class="flex flex-wrap gap-2">
-                        		<button
-                        			class="control-button"
-                        			on:click={() => {
-                        				// Toggle debug overlay via document event
-                        				const evt = new CustomEvent('dev:toggle-debug-scroll');
-                        				document.dispatchEvent(evt);
-                        			}}
-                        		>
-                        			Debug Scroll Overlay
-                        		</button>
-                  
-                        		<button
-                        			class="control-button"
-                        			on:click={() => {
-                        				// Force scroll to bottom
-                        				const evt = new CustomEvent('dev:force-scroll-bottom');
-                        				document.dispatchEvent(evt);
-                        			}}
-                        		>
-                        			Force Scroll to Bottom
-                        		</button>
-                        	</div>
-                        </div>
+                        <LogsDebugDashboard />
                     {:else if activeTab === 'debug'}
                         <h4>Debug Controls</h4>
 
@@ -3974,66 +3835,6 @@
         border-color: rgba(255, 255, 255, 0.3);
     }
     
-    /* State tab styles */
-    .state-section {
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .state-section:last-child {
-        border-bottom: none;
-        margin-bottom: 0;
-    }
-    
-    .state-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-    }
-    
-    .state-table tr {
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    
-    .state-table tr:last-child {
-        border-bottom: none;
-    }
-    
-    .state-key {
-        width: 40%;
-        padding: 6px 4px;
-        color: var(--primary-color, #9f6ef7);
-        font-family: monospace;
-    }
-    
-    .state-value {
-        width: 20%;
-        padding: 6px 4px;
-        color: rgba(255, 255, 255, 0.9);
-        font-weight: 600;
-    }
-    
-    .state-description {
-        width: 40%;
-        padding: 6px 4px;
-        color: rgba(255, 255, 255, 0.6);
-        font-style: italic;
-    }
-    
-    /* Activity state colors */
-    .text-green-400 {
-        color: #68e796;
-    }
-    
-    .text-yellow-400 {
-        color: #fbbf24;
-    }
-    
-    .text-red-400 {
-        color: #f87171;
-    }
-    
     /* Style controls specific styles */
     .slider-grid {
         display: grid;
@@ -4127,61 +3928,4 @@
     	transform: scale(1.1);
     	box-shadow: 0 0 8px rgba(159, 110, 247, 0.5);
     }
-   
-    /* Toggle Switch Styles */
-    .switch {
-    	position: relative;
-    	display: inline-block;
-    	width: 48px;
-    	height: 26px;
-    }
-   
-    .switch input {
-    	opacity: 0;
-    	width: 0;
-    	height: 0;
-    }
-   
-    .switch .toggle-slider {
-    	position: absolute;
-    	cursor: pointer;
-    	top: 0;
-    	left: 0;
-    	right: 0;
-    	bottom: 0;
-    	background-color: #4b5563; /* gray-600 */
-    	transition: .4s;
-    }
-   
-    .switch .toggle-slider:before {
-    	position: absolute;
-    	content: "";
-    	height: 18px;
-    	width: 18px;
-    	left: 4px;
-    	bottom: 4px;
-    	background-color: white;
-    	transition: .4s;
-    }
-   
-    .switch input:checked + .toggle-slider {
-    	background-color: hsl(261, 90%, 70%); /* primary violet */
-    	box-shadow: 0 0 8px hsla(261, 90%, 70%, 0.4);
-    }
-   
-    .switch input:focus + .toggle-slider {
-    	box-shadow: 0 0 1px hsl(261, 90%, 70%);
-    }
-   
-    .switch input:checked + .toggle-slider:before {
-    	transform: translateX(22px);
-    }
-   
-    .switch .toggle-slider.round {
-    	border-radius: 26px;
-    }
-   
-    .switch .toggle-slider.round:before {
-    	border-radius: 50%;
-    }
-   </style>
+</style>
