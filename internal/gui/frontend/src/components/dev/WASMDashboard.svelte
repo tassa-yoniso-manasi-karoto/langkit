@@ -1,11 +1,10 @@
-<!-- WasmPerformanceDashboard.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { getWasmState, getWasmModule } from '../lib/wasm';
-  import { formatBytes, formatTime } from '../lib/utils';
-  import { settings } from '../lib/stores';
+  import { getWasmState, getWasmModule } from '../../lib/wasm';
+  import { formatBytes, formatTime } from '../../lib/utils';
+  import { settings } from '../../lib/stores';
   import { get } from 'svelte/store';
-  import { logger } from '../lib/logger';
+  import { logger } from '../../lib/logger';
 
   // Component state
   let wasmState = getWasmState();

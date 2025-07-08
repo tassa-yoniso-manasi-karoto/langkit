@@ -6,9 +6,18 @@
     import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
-    import WasmPerformanceDashboard from './WasmPerformanceDashboard.svelte';
+    import WASMDashboard from './dev/WASMDashboard.svelte';
     import MemoryTestButton from './MemoryTestButton.svelte';
     import { SetTraceLogs, GetTraceLogs } from '../../wailsjs/go/gui/App';
+    import { 
+        forceLLMState, resetLLMState,
+        forceUserActivityState, resetUserActivityState,
+        forceDockerStatus, resetDockerStatus,
+        forceInternetStatus, resetInternetStatus,
+        forceFFmpegStatus, resetFFmpegStatus,
+        forceMediaInfoStatus, resetMediaInfoStatus
+    } from '../lib/dev/debugStateControls';
+    import { defaultValues, defaultProgressWaveValues as importedDefaultProgressWaveValues } from '../lib/dev/styleControlsDefaults';
     
     // Props
     export let version: string = '';
@@ -180,144 +189,6 @@
     
     function switchTab(id: string) {
         activeTab = id;
-    }
-    
-    // LLM state control functions
-    function forceLLMState(state: 'initializing' | 'ready' | 'error' | 'updating') {
-        const mockStateChange = {
-            timestamp: new Date().toISOString(),
-            globalState: state,
-            providerStatesSnapshot: {},
-            message: state === 'error' ? 'Debug: Forced error state' : `Debug: Forced ${state} state`
-        };
-        
-        llmStateStore.set(mockStateChange);
-        logger.debug('devDashboard', `Forced LLM state to: ${state}`);
-    }
-    
-    function resetLLMState() {
-        // Clear any debug forced state by setting a null/empty state
-        // The WebSocket will then update with the real state
-        llmStateStore.set(null);
-        logger.debug('devDashboard', 'Reset LLM state to real backend state');
-    }
-    
-    // User activity state control functions
-    function forceUserActivityState(state: 'active' | 'idle' | 'afk') {
-        userActivityStateStore.set(state, true); // true = forced
-        logger.debug('devDashboard', `Forced user activity state to: ${state}`);
-    }
-    
-    function resetUserActivityState() {
-        userActivityStateStore.reset();
-        logger.debug('devDashboard', 'Reset user activity state to automatic detection');
-    }
-    
-    // Docker control functions
-    function forceDockerStatus(available: boolean) {
-        dockerStatusStore.set({
-            available: available,
-            version: available ? 'Debug Mode' : '',
-            error: available ? '' : 'Debug: Forced state',
-            checked: true
-        });
-        logger.debug('devDashboard', `Forced Docker status to: ${available ? 'available' : 'unavailable'}`);
-    }
-    
-    function resetDockerStatus() {
-        // Re-run the actual check by importing and calling the function from App.svelte
-        import('../../wailsjs/go/gui/App').then(({ CheckDockerAvailability }) => {
-            CheckDockerAvailability().then(status => {
-                dockerStatusStore.set({
-                    available: status.available || false,
-                    version: status.version,
-                    engine: status.engine,
-                    error: status.error,
-                    checked: true
-                });
-                logger.debug('devDashboard', 'Reset Docker status to real state', status);
-            });
-        });
-    }
-    
-    // Internet control functions
-    function forceInternetStatus(online: boolean) {
-        internetStatusStore.set({
-            online: online,
-            latency: online ? 50 : 0,
-            error: online ? '' : 'Debug: Forced state',
-            checked: true
-        });
-        logger.debug('devDashboard', `Forced Internet status to: ${online ? 'online' : 'offline'}`);
-    }
-    
-    function resetInternetStatus() {
-        // Re-run the actual check by importing and calling the function from App.svelte
-        import('../../wailsjs/go/gui/App').then(({ CheckInternetConnectivity }) => {
-            CheckInternetConnectivity().then(status => {
-                internetStatusStore.set({
-                    online: status.online || false,
-                    latency: status.latency,
-                    error: status.error,
-                    checked: true
-                });
-                logger.debug('devDashboard', 'Reset Internet status to real state', status);
-            });
-        });
-    }
-    
-    // FFmpeg control functions
-    function forceFFmpegStatus(available: boolean) {
-        ffmpegStatusStore.set({
-            available: available,
-            version: available ? 'Debug Mode' : '',
-            path: available ? '/debug/ffmpeg' : '',
-            error: available ? '' : 'Debug: Forced state',
-            checked: true
-        });
-        logger.debug('devDashboard', `Forced FFmpeg status to: ${available ? 'available' : 'unavailable'}`);
-    }
-    
-    function resetFFmpegStatus() {
-        import('../../wailsjs/go/gui/App').then(({ CheckFFmpegAvailability }) => {
-            CheckFFmpegAvailability().then(status => {
-                ffmpegStatusStore.set({
-                    available: status.available || false,
-                    version: status.version,
-                    path: status.path,
-                    error: status.error,
-                    checked: true
-                });
-                logger.debug('devDashboard', 'Reset FFmpeg status to real state', status);
-            });
-        });
-    }
-    
-    // MediaInfo control functions
-    function forceMediaInfoStatus(available: boolean) {
-        mediainfoStatusStore.set({
-            available: available,
-            version: available ? 'Debug Mode' : '',
-            path: available ? '/debug/mediainfo' : '',
-            error: available ? '' : 'Debug: Forced state',
-            checked: true
-        });
-        logger.debug('devDashboard', `Forced MediaInfo status to: ${available ? 'available' : 'unavailable'}`);
-    }
-    
-    function resetMediaInfoStatus() {
-        import('../../wailsjs/go/gui/App').then(({ CheckMediaInfoAvailability }) => {
-            CheckMediaInfoAvailability().then(status => {
-                mediainfoStatusStore.set({
-                    available: status.available || false,
-                    version: status.version,
-                    path: status.path,
-                    error: status.error,
-                    checked: true
-                });
-                logger.debug('devDashboard', 'Reset MediaInfo status to real state', status);
-            });
-        });
     }
     
     // Style controls state
@@ -493,7 +364,7 @@
         waveOffsetMultiplier: 1.0  // Vertical offset spacing between waves
     };
     
-    const defaultProgressWaveValues = { ...progressWaveControls };
+    const defaultProgressWaveValues = importedDefaultProgressWaveValues;
     
     // Apply progress wave controls
     function applyProgressWaveControls() {
@@ -642,62 +513,6 @@
         logger.debug('devDashboard', 'Applied style controls', styleControls);
     }
     
-    // Default values for individual reset
-    const defaultValues = {
-        bgHue: 280,
-        bgSaturation: 0,
-        bgLightness: 2.15,
-        bgOpacity: 1,
-        featureCardSaturation: 8,
-        featureCardLightness: 21,
-        featureCardOpacity: 1,
-        featureCardGradientStartOpacity: 0.82,
-        featureCardGradientEndOpacity: 0,
-        mediaInputSaturation: 10,
-        mediaInputLightness: 20,
-        mediaInputOpacity: 0.06,
-        glowOpacity: 0.26,
-        glowPositionX: 78,
-        glowPositionY: -10,
-        glowSize: 26,
-        glowBlur: 100,
-        glowAnimationScale: 1.8,
-        glowAnimationSpeed: 10,
-        bgGradientPosX: 19,
-        bgGradientPosY: 90,
-        bgGradientStop1Hue: 280,
-        bgGradientStop1Sat: 15,
-        bgGradientStop1Light: 26,
-        bgGradientStop1Alpha: 0.11,
-        bgGradientStop2Hue: 237,
-        bgGradientStop2Sat: 20,
-        bgGradientStop2Light: 35,
-        bgGradientStop2Alpha: 0.19,
-        bgGradientStop3Hue: 320,
-        bgGradientStop3Sat: 25,
-        bgGradientStop3Light: 45,
-        bgGradientStop3Alpha: 0.05,
-        bgGradientStop4Hue: 300,
-        bgGradientStop4Sat: 20,
-        bgGradientStop4Light: 35,
-        bgGradientStop4Alpha: 0.18,
-        welcomeOverlayOpacity: 0.4,
-        welcomePanelBgOpacity: 0.3,
-        welcomePanelBlur: 24,
-        welcomeBorderOpacity: 0.1,
-        welcomeCardBgOpacity: 0.1,
-        welcomeCardHoverOpacity: 0.15,
-        welcomeButtonBgOpacity: 0.7,
-        welcomeButtonBorderOpacity: 0.5,
-        welcomeProgressDotOpacity: 0.3,
-        welcomeTextPrimaryOpacity: 1,
-        welcomeTextSecondaryOpacity: 0.7,
-        welcomeTextTertiaryOpacity: 0.6,
-        coffeeMugHue: 220,
-        coffeeMugSaturation: 9,
-        coffeeMugLightness: 43,
-        coffeeMugOpacity: 0.67
-    };
 
     // Reset individual property to default
     function resetProperty(propertyName: string) {
@@ -853,7 +668,7 @@
                 <!-- Content area -->
                 <div class="dashboard-content">
                     {#if activeTab === 'performance'}
-                        <WasmPerformanceDashboard />
+                        <WASMDashboard />
                     {:else if activeTab === 'state'}
                         <h4>Application State</h4>
                             

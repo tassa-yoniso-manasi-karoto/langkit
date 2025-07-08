@@ -1,0 +1,127 @@
+// Default values for style controls
+export const defaultValues = {
+    bgHue: 280,
+    bgSaturation: 0,
+    bgLightness: 2.15,
+    bgOpacity: 1,
+    featureCardSaturation: 8,
+    featureCardLightness: 21,
+    featureCardOpacity: 1,
+    featureCardGradientStartOpacity: 0.82,
+    featureCardGradientEndOpacity: 0,
+    mediaInputSaturation: 10,
+    mediaInputLightness: 20,
+    mediaInputOpacity: 0.06,
+    glowOpacity: 0.26,
+    glowPositionX: 78,
+    glowPositionY: -10,
+    glowSize: 26,
+    glowBlur: 100,
+    glowAnimationScale: 1.8,
+    glowAnimationSpeed: 10,
+    bgGradientPosX: 19,
+    bgGradientPosY: 90,
+    bgGradientStop1Hue: 280,
+    bgGradientStop1Sat: 15,
+    bgGradientStop1Light: 26,
+    bgGradientStop1Alpha: 0.11,
+    bgGradientStop2Hue: 237,
+    bgGradientStop2Sat: 20,
+    bgGradientStop2Light: 35,
+    bgGradientStop2Alpha: 0.19,
+    bgGradientStop3Hue: 320,
+    bgGradientStop3Sat: 25,
+    bgGradientStop3Light: 45,
+    bgGradientStop3Alpha: 0.05,
+    bgGradientStop4Hue: 300,
+    bgGradientStop4Sat: 20,
+    bgGradientStop4Light: 35,
+    bgGradientStop4Alpha: 0.18,
+    welcomeOverlayOpacity: 0.4,
+    welcomePanelBgOpacity: 0.3,
+    welcomePanelBlur: 24,
+    welcomeBorderOpacity: 0.1,
+    welcomeCardBgOpacity: 0.1,
+    welcomeCardHoverOpacity: 0.15,
+    welcomeButtonBgOpacity: 0.7,
+    welcomeButtonBorderOpacity: 0.5,
+    welcomeProgressDotOpacity: 0.3,
+    welcomeTextPrimaryOpacity: 1,
+    welcomeTextSecondaryOpacity: 0.7,
+    welcomeTextTertiaryOpacity: 0.6,
+    coffeeMugHue: 220,
+    coffeeMugSaturation: 9,
+    coffeeMugLightness: 43,
+    coffeeMugOpacity: 0.67
+};
+
+// Default values for progress wave controls
+export const defaultProgressWaveValues = {
+    // Normal state wave colors (HSLA)
+    wave1Hue: 261,
+    wave1Saturation: 90,
+    wave1Lightness: 70,
+    wave1Alpha: 0.5,
+    wave2Hue: 261,
+    wave2Saturation: 90,
+    wave2Lightness: 70,
+    wave2Alpha: 0.7,
+    wave3Hue: 323,
+    wave3Saturation: 100,
+    wave3Lightness: 72,
+    wave3Alpha: 0.8,
+    wave4Hue: 323,
+    wave4Saturation: 100,
+    wave4Lightness: 72,
+    wave4Alpha: 0.9,
+    // Error task state wave colors
+    errorTaskWave1Hue: 50,
+    errorTaskWave1Saturation: 90,
+    errorTaskWave1Lightness: 75,
+    errorTaskWave1Alpha: 0.5,
+    errorTaskWave2Hue: 50,
+    errorTaskWave2Saturation: 90,
+    errorTaskWave2Lightness: 75,
+    errorTaskWave2Alpha: 0.7,
+    errorTaskWave3Hue: 50,
+    errorTaskWave3Saturation: 90,
+    errorTaskWave3Lightness: 75,
+    errorTaskWave3Alpha: 0.8,
+    errorTaskWave4Hue: 50,
+    errorTaskWave4Saturation: 90,
+    errorTaskWave4Lightness: 75,
+    errorTaskWave4Alpha: 0.9,
+    // Error all state wave colors
+    errorAllWave1Hue: 0,
+    errorAllWave1Saturation: 85,
+    errorAllWave1Lightness: 60,
+    errorAllWave1Alpha: 0.5,
+    errorAllWave2Hue: 0,
+    errorAllWave2Saturation: 85,
+    errorAllWave2Lightness: 60,
+    errorAllWave2Alpha: 0.7,
+    errorAllWave3Hue: 0,
+    errorAllWave3Saturation: 85,
+    errorAllWave3Lightness: 60,
+    errorAllWave3Alpha: 0.8,
+    errorAllWave4Hue: 0,
+    errorAllWave4Saturation: 85,
+    errorAllWave4Lightness: 60,
+    errorAllWave4Alpha: 0.9,
+    // Wave physics
+    waveIntensity: 4,  // Height of waves
+    waveFrequency: 1,  // Density of wave crests
+    // Animation
+    animationSpeed: 1,  // Speed multiplier
+    blurAmount: 1.7,   // Blur filter strength
+    // Progress bar specific
+    progressEdgeGlow: 0.4,
+    progressSweepOpacity: 0.85,
+    progressSweepDuration: 2.5,
+    // Additional aesthetics
+    progressBgDarkness: -10,  // How much darker the background is
+    waveOverallOpacity: 1,    // Overall wave transparency
+    waveDirection: 1,         // 1 for normal, -1 for reverse
+    waveStackingMultiplier: 1.0,  // Opacity gradient between waves (1.0 = no effect)
+    waveOffsetMultiplier: 1.0  // Vertical offset spacing between waves
+};

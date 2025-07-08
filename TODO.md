@@ -1,17 +1,16 @@
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
-.
-- provide real time update to ichiran init (20-25min)
+			- "Processing in progress"... without on going processing
+			- selective translit doesn't briefly show "sorry not available" on webview2
 
-.
-- "Processing in progress"... without on going processing
-- selective translit doesn't briefly show "sorry not available" on webview2
-
-.
-- REFACTOR DevDashboard
+			.
+			- REFACTOR DevDashboard
 
 .
 - REFACTOR CORE
+
+.
+- compact & juxtopposed errors in welcome popup (ask Gemini to explain exactly)
 
 .
 - PYTHAILNLP
