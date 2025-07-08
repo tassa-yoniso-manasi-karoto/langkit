@@ -20,6 +20,7 @@ import (
 	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
 	common "github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
+	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
@@ -83,7 +84,7 @@ type TranslitOutputType struct {
 
 // TranslitProvider defines an interface for transliteration providers
 type TranslitProvider interface {
-	Initialize(ctx context.Context) error
+	Initialize(ctx context.Context, handler MessageHandler) error
 	ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error)
 	Close(ctx context.Context, langCode, RomanizationStyle string) error
 	ProviderName() string
@@ -396,7 +397,7 @@ func NewGenericProvider(lang string, style string) (*GenericProvider, error) {
 	return &GenericProvider{module: m}, nil
 }
 
-func (p *GenericProvider) Initialize(ctx context.Context) error {
+func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler) error {
 	recreate := false
 	if val, ok := ctx.Value(dockerRecreateKey).(bool); ok {
 		recreate = val
@@ -521,7 +522,7 @@ func NewJapaneseProvider() *JapaneseProvider {
 	return &JapaneseProvider{}
 }
 
-func (p *JapaneseProvider) Initialize(ctx context.Context) error {
+func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandler) error {
 	p.kanjiThreshold = -1
 	if val := ctx.Value(kanjiThresholdKey); val != nil {
 		if threshold, ok := val.(int); ok {
@@ -533,10 +534,106 @@ func (p *JapaneseProvider) Initialize(ctx context.Context) error {
 		recreate = val
 	}
 
-	if !recreate {
-		return ichiran.InitWithContext(ctx)
+	// Create ichiran manager with progress handler
+	options := []ichiran.ManagerOption{}
+	if handler != nil {
+		// Flag to track if this is the first progress callback
+		isFirstCallback := true
+		// Track last progress to calculate increments
+		var lastProgress float64 = 0.0  // Start from 0%
+		// Count checkpoints for progress calculation
+		var checkpointCount int
+		// Track if we're in initialization phase
+		var initializationInProgress bool = false
+		
+		// Weighted progress points for each checkpoint based on actual durations
+		checkpointProgress := []float64{
+			10.0,  // Checkpoint 1: 5% → 10% (quick ~25s)
+			15.0,  // Checkpoint 2: 10% → 15% (quick ~25s)
+			25.0,  // Checkpoint 3: 15% → 25% (medium ~70s)
+			35.0,  // Checkpoint 4: 25% → 35% (medium ~70s)
+			85.0,  // Checkpoint 5: 35% → 85% (very long ~260s!)
+			90.0,  // Checkpoint 6: 85% → 90% (trivial)
+		}
+		
+		// Create a progress handler that uses the task's message handler
+		progressHandler := func(progress float64, description string, logMessage string) {
+			// Detect initialization start
+			if progress == 0 {  // "Starting ichiran DB init!"
+				initializationInProgress = true
+				if isFirstCallback {
+					isFirstCallback = false
+					handler.ZeroLog().Info().
+						Msg("First-time Ichiran initialization detected. "+
+						"Langkit will download a compressed 200MB database dump and " +
+						"use it to restore a local database that Ichiran depends on " +
+						"(4.4GB on disk) (~10-20 minutes).")
+				}
+			}
+			
+			// If we're not in initialization, ignore checkpoint milestones
+			if !initializationInProgress && progress == -1 {
+				return  // Don't create progress bars for post-init checkpoints
+			}
+			
+			// Handle dynamic checkpoint progress
+			if progress == -1 {
+				if checkpointCount < len(checkpointProgress) {
+					progress = checkpointProgress[checkpointCount]
+				} else {
+					progress = 90.0  // Cap at 90% for any extra checkpoints
+				}
+				checkpointCount++
+			}
+			
+			// Detect initialization complete
+			if progress >= 95 {  // "All set, awaiting commands"
+				initializationInProgress = false
+			}
+			
+			// Calculate the INCREMENT from last progress
+			increment := progress - lastProgress
+			if increment < 0 {
+				increment = 0  // Prevent negative increments
+			}
+			lastProgress = progress
+			
+			// Use a unique task ID for ichiran initialization
+			taskID := "ichiran-init"
+			// Pass the INCREMENT, not the absolute value
+			handler.IncrementProgress(
+				taskID,
+				int(increment),  // increment since last update
+				100,            // total
+				25,             // priority (lower than main tasks)
+				"Installing Ichiran",
+				description,
+				"h-3", // size hint
+			)
+		}
+		options = append(options, ichiran.WithProgressHandler(dockerutil.ProgressHandler(progressHandler)))
 	}
-	return ichiran.InitRecreateWithContext(ctx, true)
+
+	// Create the manager with options
+	mgr, err := ichiran.NewManager(ctx, options...)
+	if err != nil {
+		return fmt.Errorf("failed to create ichiran manager: %w", err)
+	}
+	
+	// Use the manager's Init methods which will track progress
+	var initErr error
+	if !recreate {
+		initErr = mgr.Init(ctx)
+	} else {
+		initErr = mgr.InitRecreate(ctx, true)
+	}
+	
+	// Clean up progress bar whether we succeeded or failed
+	if handler != nil {
+		handler.RemoveProgressBar("ichiran-init")
+	}
+	
+	return initErr
 }
 
 func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {

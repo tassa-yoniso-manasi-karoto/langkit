@@ -46,6 +46,7 @@ type MessageHandler interface {
 	HandleStatus(status string) //TODO
 
 	// Progress tracking methods with specific ETA algorithm choice
+	// CRITICAL: IncrementProgress needs the ACTUAL INCREMENT, not absolute value because it follows the API of github.com/schollz/progressbar used for Langkit-cli which relies on increments: progressbar.Add(x)
 	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string) // Defaults to Simple ETA
 	IncrementProgressAdvanced(taskID string, increment, total, priority int, operation, descr, size string) // Uses Advanced ETA
 	ResetProgress()
@@ -818,6 +819,8 @@ func (h *GUIHandler) incrementProgressInternal(
 		delete(h.etaCalculators, taskID)
 	}
 }
+
+// CRITICAL: IncrementProgress needs the ACTUAL INCREMENT, not absolute value because it follows the API of github.com/schollz/progressbar used for Langkit-cli
 
 // IncrementProgress updates progress with simple ETA calculation
 func (h *GUIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string) {

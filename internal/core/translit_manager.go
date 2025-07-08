@@ -56,7 +56,7 @@ func NewProviderPool(key ProviderKey, config ProviderManagerConfig, logger zerol
 }
 
 // AcquireProvider gets an available provider from the pool or creates a new one
-func (p *ProviderPool) AcquireProvider(ctx context.Context) (*PooledProvider, error) {
+func (p *ProviderPool) AcquireProvider(ctx context.Context, handler MessageHandler) (*PooledProvider, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -103,7 +103,7 @@ func (p *ProviderPool) AcquireProvider(ctx context.Context) (*PooledProvider, er
 	p.logger.Info().
 		Msg("Creating new provider for pool")
 	
-	provider, err := p.createNewProvider(ctx)
+	provider, err := p.createNewProvider(ctx, handler)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new provider: %w", err)
 	}
@@ -133,7 +133,7 @@ func (p *ProviderPool) ReleaseProvider(provider *PooledProvider) {
 }
 
 // createNewProvider instantiates and initializes a new provider
-func (p *ProviderPool) createNewProvider(ctx context.Context) (*PooledProvider, error) {
+func (p *ProviderPool) createNewProvider(ctx context.Context, handler MessageHandler) (*PooledProvider, error) {
 	startTime := time.Now()
 
 	// Create a new provider instance
@@ -144,7 +144,7 @@ func (p *ProviderPool) createNewProvider(ctx context.Context) (*PooledProvider, 
 	
 	// Initialize the provider
 	initStartTime := time.Now()
-	err = rawProvider.Initialize(ctx)
+	err = rawProvider.Initialize(ctx, handler)
 	initDuration := time.Since(initStartTime)
 
 	if err != nil {
@@ -289,7 +289,7 @@ func NewTranslitProviderManager(config ProviderManagerConfig, logger zerolog.Log
 }
 
 // GetProvider acquires a provider for the specified language and style
-func (m *TranslitProviderManager) GetProvider(ctx context.Context, langCode, style string) (*PooledProvider, error) {
+func (m *TranslitProviderManager) GetProvider(ctx context.Context, langCode, style string, handler MessageHandler) (*PooledProvider, error) {
 	key := ProviderKey{LangCode: langCode, Style: style}
 	poolKey := key.String()
 
@@ -315,7 +315,7 @@ func (m *TranslitProviderManager) GetProvider(ctx context.Context, langCode, sty
 	}
 
 	// Acquire provider from the pool
-	return pool.AcquireProvider(ctx)
+	return pool.AcquireProvider(ctx, handler)
 }
 
 // ReleaseProvider returns a provider to its pool

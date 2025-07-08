@@ -83,7 +83,7 @@ func ProcessWithManagedProvider(
 	}
 
 	// Get provider from the pool
-	pooledProvider, err := manager.GetProvider(ctx, langCode, style)
+	pooledProvider, err := manager.GetProvider(ctx, langCode, style, handler)
 	if err != nil {
 		return StringResult{}, fmt.Errorf("failed to get provider: %w", err)
 	}
