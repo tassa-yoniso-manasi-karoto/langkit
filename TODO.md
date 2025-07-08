@@ -1,10 +1,13 @@
+BUGS TO CONFIRM:
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
+- "Processing in progress"... without on going processing
+- selective translit doesn't briefly show "sorry not available" on webview2
 
-			- "Processing in progress"... without on going processing
-			- selective translit doesn't briefly show "sorry not available" on webview2
+.
+- REFACTOR DevDashboard:
+  - forced unavailable docker & internet don't trigger invalidation
 
-			.
-			- REFACTOR DevDashboard
+
 
 .
 - REFACTOR CORE
