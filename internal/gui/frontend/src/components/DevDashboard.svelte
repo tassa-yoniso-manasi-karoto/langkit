@@ -8,6 +8,7 @@
     import { logger } from '../lib/logger';
     import WASMDashboard from './dev/WASMDashboard.svelte';
     import MemoryTestButton from './MemoryTestButton.svelte';
+    import DraggableContainer from './dev/DraggableContainer.svelte';
     import { SetTraceLogs, GetTraceLogs } from '../../wailsjs/go/gui/App';
     import { 
         forceLLMState, resetLLMState,
@@ -22,15 +23,10 @@
     // Props
     export let version: string = '';
     
-    // State variables for draggable functionality
-    let isDragging = false;
+    // State variables
     let isExpanded = false;
-    let startX = 0;
-    let startY = 0;
-    let offsetX = 0;
-    let offsetY = 0;
-    let posX = 20; // Initial position
-    let posY = 20; // Initial position
+    let position = { x: 20, y: 20 }; // Initial position
+    let isDragging = false; // For DraggableContainer
     
     // Component references
     let iconBubble: HTMLDivElement;
@@ -116,64 +112,14 @@
     	}
     }
     
-    // Handle dragging for both the icon and expanded dashboard
-    function handleMouseDown(event: MouseEvent) {
-        // Make sure the event isn't coming from buttons with stopPropagation
-        const target = event.target as HTMLElement;
-
-        // Check if we have an explicit stopPropagation marker
-        if (target.hasAttribute('on:mousedown|stopPropagation')) {
-            return;
-        }
-
-        // Start dragging
-        isDragging = true;
-        startX = event.clientX;
-        startY = event.clientY;
-
-        // Add events to window to track cursor even when outside element
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-
-        // Prevent default behavior
-        event.preventDefault();
-        event.stopPropagation();
+    // Handle position update from DraggableContainer
+    function handlePositionChange(event: CustomEvent) {
+        position = event.detail;
     }
     
-    function handleMouseMove(event: MouseEvent) {
-        if (!isDragging) return;
-
-        // Calculate movement
-        const dx = event.clientX - startX;
-        const dy = event.clientY - startY;
-
-        // Update position and reset drag start point for next move
-        posX += dx;
-        posY += dy;
-        startX = event.clientX;
-        startY = event.clientY;
-
-        // Keep on screen (simple boundaries)
-        if (posX < 0) posX = 0;
-        if (posY < 0) posY = 0;
-        if (posX > window.innerWidth - 50) posX = window.innerWidth - 50;
-        if (posY > window.innerHeight - 50) posY = window.innerHeight - 50;
-
-        // Prevent defaults
-        event.preventDefault();
-        event.stopPropagation();
-    }
-    
-    function handleMouseUp(event) {
-        isDragging = false;
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-
-        // Prevent defaults if we were actually dragging
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
+    // Handle drag end
+    function handleDragEnd(event: CustomEvent) {
+        isDragging = event.detail.isDragging;
     }
     
     function toggleDashboard(event) {
@@ -550,12 +496,14 @@
         if (element) {
             const rect = element.getBoundingClientRect();
             
-            if (posX + rect.width > window.innerWidth) {
-                posX = window.innerWidth - rect.width;
+            if (position.x + rect.width > window.innerWidth) {
+                position.x = window.innerWidth - rect.width;
             }
-            if (posY + rect.height > window.innerHeight) {
-                posY = window.innerHeight - rect.height;
+            if (position.y + rect.height > window.innerHeight) {
+                position.y = window.innerHeight - rect.height;
             }
+            // Trigger reactivity
+            position = position;
         }
     }
     
@@ -603,43 +551,55 @@
     <!-- Floating bubble icon (minimized state) -->
     {#if !isExpanded}
         <Portal target="body">
-            <div
-                bind:this={iconBubble}
-                class="dev-dashboard-icon"
-                style="top: {posY}px; left: {posX}px;"
-                on:mousedown={handleMouseDown}
-                transition:scale={{duration: 300}}
-                role="button"
-                tabindex="0"
-                aria-label="Open developer dashboard"
+            <DraggableContainer
+                {position}
+                {isDragging}
+                on:positionChange={handlePositionChange}
+                on:dragEnd={handleDragEnd}
+                zIndex="--z-index-dev-dashboard"
             >
-                <!-- The button is now wrapped in a draggable container -->
-                <div class="drag-handle">
-                    <button
-                        class="icon-button"
-                        on:click|stopPropagation={toggleDashboard}
-                        on:mousedown|stopPropagation
-                        aria-label="Expand dashboard"
-                    >
-                        <span class="material-icons">developer_mode</span>
-                    </button>
+                <div
+                    bind:this={iconBubble}
+                    class="dev-dashboard-icon"
+                    transition:scale={{duration: 300}}
+                    role="button"
+                    tabindex="0"
+                    aria-label="Open developer dashboard"
+                >
+                    <!-- The button is now wrapped in a draggable container -->
+                    <div class="drag-handle">
+                        <button
+                            class="icon-button"
+                            on:click|stopPropagation={toggleDashboard}
+                            on:mousedown|stopPropagation
+                            aria-label="Expand dashboard"
+                        >
+                            <span class="material-icons">developer_mode</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
+            </DraggableContainer>
         </Portal>
     {:else}
         <!-- Expanded dashboard panel -->
         <Portal target="body">
-            <div
-                bind:this={dashboardPanel}
-                class="dev-dashboard-panel"
-                style="top: {posY}px; left: {posX}px;"
-                transition:scale={{duration: 300}}
+            <DraggableContainer
+                {position}
+                {isDragging}
+                on:positionChange={handlePositionChange}
+                on:dragEnd={handleDragEnd}
+                zIndex="--z-index-dev-dashboard"
+                handleSelector=".dashboard-header"
             >
-                <!-- Header (draggable area) -->
                 <div
-                    class="dashboard-header"
-                    on:mousedown={handleMouseDown}
+                    bind:this={dashboardPanel}
+                    class="dev-dashboard-panel"
+                    transition:scale={{duration: 300}}
                 >
+                    <!-- Header (draggable area) -->
+                    <div
+                        class="dashboard-header"
+                    >
                     <h3>Developer Dashboard</h3>
                     <button
                         class="minimize-button"
@@ -3773,6 +3733,7 @@
                     {/if}
                 </div>
             </div>
+            </DraggableContainer>
         </Portal>
     {/if}
 {/if}
@@ -3780,10 +3741,8 @@
 <style>
     /* Base styles for the draggable icon */
     .dev-dashboard-icon {
-        position: fixed !important;
         /* z-index moved to app.css */
         user-select: none;
-        cursor: move;
         filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.2));
         background: transparent;
     }
@@ -3827,7 +3786,6 @@
     
     /* Expanded dashboard panel styles */
     .dev-dashboard-panel {
-        position: fixed !important;
         /* z-index moved to app.css */
         user-select: none;
         width: 480px; /* Increased width for better content display */
@@ -3838,7 +3796,6 @@
         backdrop-filter: blur(10px);
         overflow: hidden;
         color: white;
-        cursor: move;
     }
     
     .dashboard-header {
