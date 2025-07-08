@@ -14,7 +14,6 @@
     export let resetStyleControls: () => void;
     export let applyProgressWaveControls: () => void;
     export let resetProgressWaveProperty: (property: string) => void;
-    export let resetProgressWaveControls: () => void;
     export let onStyleControlChange: (property: string, value: number) => void;
     export let onProgressWaveControlChange: (property: string, value: number) => void;
     export let onTargetColorChange: (value: string) => void;
@@ -178,51 +177,8 @@
         applyProgressWaveControls();
     }
     
-    // Helper functions
-    function hexToHSL(hex: string) {
-        let r = 0, g = 0, b = 0;
-        if (hex.length === 4) {
-            r = parseInt(hex[1] + hex[1], 16);
-            g = parseInt(hex[2] + hex[2], 16);
-            b = parseInt(hex[3] + hex[3], 16);
-        } else if (hex.length === 7) {
-            r = parseInt(hex[1] + hex[2], 16);
-            g = parseInt(hex[3] + hex[4], 16);
-            b = parseInt(hex[5] + hex[6], 16);
-        }
-        
-        r /= 255;
-        g /= 255;
-        b /= 255;
-        
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        let h = 0, s = 0, l = (max + min) / 2;
-        
-        if (max !== min) {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            switch (max) {
-                case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-                case g: h = ((b - r) / d + 2) / 6; break;
-                case b: h = ((r - g) / d + 4) / 6; break;
-            }
-        }
-        
-        return {
-            h: Math.round(h * 360),
-            s: Math.round(s * 100),
-            l: Math.round(l * 100)
-        };
-    }
-    
     function copyExportedValues() {
         const exported = JSON.stringify(styleControls, null, 2);
-        navigator.clipboard.writeText(exported);
-    }
-    
-    function copyProgressWaveValues() {
-        const exported = JSON.stringify(progressWaveControls, null, 2);
         navigator.clipboard.writeText(exported);
     }
     
@@ -234,14 +190,6 @@
         document.dispatchEvent(new CustomEvent('progress-state-demo', { 
             detail: { state } 
         }));
-    }
-    
-    function applyTargetColor() {
-        const hsl = hexToHSL(targetColorHex);
-        styleControls.bgHue = hsl.h;
-        styleControls.bgSaturation = hsl.s;
-        styleControls.bgLightness = hsl.l;
-        applyStyleControls();
     }
     
     // Format value for display
@@ -280,25 +228,6 @@ complexity without benefit.
     export let onReset;
 </script>
 {/if}
-
-<h4>Style Controls</h4>
-<div class="mb-3">
-    <div class="flex items-center gap-2 text-xs text-gray-400">
-        <span class="flex-shrink-0">Target color</span>
-        <input
-            type="text"
-            bind:value={targetColorHex}
-            on:input={() => onTargetColorChange(targetColorHex)}
-            placeholder="#141215"
-            class="w-20 px-1 py-1 text-xs bg-white/10 border border-white/20 rounded text-white flex-shrink-0 font-mono"
-            style="max-width: 80px;"
-        />
-        <div
-            class="h-6 rounded border border-white/30 flex-1 min-w-0"
-            style="background-color: {targetColorHex}; min-height: 24px;"
-        ></div>
-    </div>
-</div>
 
 <!-- Style Sub-tabs -->
 <div class="flex gap-2 mb-4 border-b border-white/10">
@@ -344,16 +273,6 @@ complexity without benefit.
                     </div>
                 {/each}
             </div>
-            {#if sectionKey === 'background'}
-                <div class="mt-2">
-                    <button
-                        class="control-button text-xs px-3 py-1"
-                        on:click={applyTargetColor}
-                    >
-                        Apply Target Color to Background
-                    </button>
-                </div>
-            {/if}
         </div>
     {/each}
     
@@ -556,15 +475,6 @@ complexity without benefit.
             </div>
         </div>
     {/each}
-    
-    <div class="control-button-group mt-3">
-        <button class="control-button" on:click={copyProgressWaveValues}>
-            Copy Wave Values
-        </button>
-        <button class="control-button reset-button" on:click={resetProgressWaveControls}>
-            Reset Progress Waves
-        </button>
-    </div>
 
 {:else if activeStyleSubTab === 'coffee'}
     <!-- Coffee Mug Controls -->
