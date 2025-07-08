@@ -2,6 +2,53 @@
 
 This document outlines specific best practices for developing robust applications with Svelte and TypeScript, covering both Svelte 4 and Svelte 5 patterns. Based on real-world experience addressing performance issues, memory leaks, reactivity challenges, and UI inconsistencies.
 
+## Paradigm differences between backend and frontend
+
+Early abstraction mindset:
+- Backend:
+  - "Design your abstractions upfront"
+  - Interfaces and contracts are sacred
+  - Changing signatures is expensive
+  - The compiler enforces your architecture
+  - DRY is almost religious
+
+- Frontend:
+  - "Feel your way to the right abstraction"
+  - Iteration is cheap, visual feedback is immediate
+  - The "right" abstraction often only emerges after you see it working
+  - Components can create more problems than they solve
+  - Sometimes WET (Write Everything Twice) is better than the wrong abstraction
+
+
+State ownership philosophy:
+- Backend: "Who owns this data?" is crystal clear - database, service, cache
+- Frontend: State is everywhere - DOM, component state, stores, URL, localStorage. The question becomes "where SHOULD this live?" and the answer is often "it depends"
+
+Error handling mentality:
+- Backend: Errors are exceptional. Handle them, log them, fail gracefully
+- Frontend: Errors are Tuesday. Users will refresh. The browser will recover. "undefined is not a function" is just part of life
+
+Performance optimization:
+- Backend: Algorithm complexity, database queries, caching strategies
+- Frontend: "Perceived performance" > actual performance. A 300ms delay with a spinner feels faster than 100ms of frozen UI
+
+Testing confidence:
+- Backend: "If tests pass, it works"
+- Frontend: "Tests pass, but does it FEEL right?" Automated tests can't catch "this animation feels janky"
+
+Debugging approach:
+- Backend: Logs, stack traces, debugger
+- Frontend: "Let me add a border: 1px solid red" or console.log literally everywhere
+
+Versioning reality:
+- Backend: Deploy version 2.0, deprecate 1.0
+- Frontend: Your code runs on Karen's 2015 iPad with iOS 12 that she'll never update
+
+Code permanence:
+- Backend: That function you wrote will probably exist for years
+- Frontend: That component has a 50% chance of being completely rewritten when design gets bored
+
+
 ## Table of Contents
 1. [Preventing Data Races](#1-preventing-data-races)
 2. [Avoiding Circular Dependencies](#2-avoiding-circular-dependencies)
