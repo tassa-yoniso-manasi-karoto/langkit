@@ -4,10 +4,11 @@ BUGS TO CONFIRM:
 
 .
 
-- "Processing in progress"... without on going processing → when option auto-open logviewer is disabled
+- increase debounce for validateLangTag
 - fix committed test code... oops.
 - progress bar green broken
 - crash report fallback API key sanitizer (to guarantee no leaks)
+- truncate WS logs: FRONT: Message received [HUGE STRING]
 - ask Claude thorough critic
 
 .

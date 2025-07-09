@@ -1618,7 +1618,6 @@
                             <LogViewerNotification 
                                 processingStartTime={processingStartTime}
                                 position={logViewerButtonPosition} 
-                                mode={hasErrorLogs() ? 'error' : 'processing'}
                                 isProcessing={isProcessing}
                                 isVisible={((isProcessing && !tooltipDismissed) || 
                                             hasErrorLogs() || 

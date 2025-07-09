@@ -8,7 +8,6 @@
     // Component props
     export let processingStartTime: number = 0;
     export let position = { x: 0, y: 0 };
-    export let mode: 'processing' | 'error' = 'processing';
     export let isProcessing: boolean = false;
     export let isVisible: boolean = false;
     export let onOpenLogViewer: () => void;
@@ -117,13 +116,16 @@
                    abortTaskLogs.length > 0 ? 'error_task' : 
                    'none';
     
+    // Determine if we have any errors
+    $: hasErrors = totalErrorCount > 0;
+    
     // Content selection (not visibility)
-    $: shouldShowProcessingTooltip = mode === 'processing' && 
+    $: shouldShowProcessingTooltip = isProcessing && 
+                                    !hasErrors &&
                                     countAppStart <= 5 && 
                                     !hasSeenTooltip;
     
-    $: shouldShowErrorTooltip = mode === 'error' && 
-                               (abortTaskLogs.length > 0 || abortAllLogs.length > 0 || errorLevelLogs.length > 0);
+    $: shouldShowErrorTooltip = hasErrors;
     
     // Count total unique errors (avoiding double-counting)
     $: totalErrorCount = (() => {
@@ -138,7 +140,7 @@
     $: isInProcessingContext = isProcessing || processingStartTime > 0;
 
     function handleOpenClick() {
-        if (mode === 'processing' && !hasSeenTooltip) {
+        if (isProcessing && !hasErrors && !hasSeenTooltip) {
             settings.update(s => ({
                 ...s,
                 hasSeenLogViewerTooltip: true
@@ -215,17 +217,20 @@
                             : errorType === 'error_task'
                               ? 'text-error-soft/70'
                               : 'text-primary'}">
-                        {mode === 'processing' ? 'info' : 'warning'}
+                        {hasErrors ? 'warning' : 'info'}
                     </span>
                     <span>
-                        {#if mode === 'processing'}
-                            Processing in progress
-                        {:else}
+                        {#if hasErrors}
                             {#if abortTaskLogs.length > 0 || abortAllLogs.length > 0}
                                 Errors occurred with cancelation
                             {:else}
                                 Errors occurred{isInProcessingContext ? ' (no task canceled)' : ''}
                             {/if}
+                        {:else if isProcessing}
+                            Processing in progress
+                        {:else}
+                            <!-- This shouldn't happen given visibility logic -->
+                            Log viewer available
                         {/if}
                     </span>
                 </div>
@@ -248,12 +253,10 @@
                                 : errorType === 'error_task'
                                   ? 'text-error-soft/80'
                                   : 'text-primary'}">
-                            {mode === 'processing' ? 'info' : 'error'}
+                            {hasErrors ? 'error' : 'info'}
                         </span>
                         <span class="text-sm font-medium text-gray-300">
-                            {#if mode === 'processing'}
-                                Open the Log Viewer to see ongoing processing details
-                            {:else}
+                            {#if hasErrors}
                                 {#if abortAllLogs.length > 0}
                                     <span class="gradient-text-all">
                                         {abortTaskLogs.length !== 1 ? 'Media processing' : 'All media processing task'} aborted following {abortAllLogs.length} critical error{abortAllLogs.length !== 1 ? 's' : ''}
@@ -265,6 +268,10 @@
                                 {:else}
                                     {totalErrorCount} error{totalErrorCount !== 1 ? 's' : ''} detected{isInProcessingContext ? ' during processing' : ''}
                                 {/if}
+                            {:else if isProcessing}
+                                Open the Log Viewer to see ongoing processing details
+                            {:else}
+                                Open the Log Viewer
                             {/if}
                         </span>
                     </div>
