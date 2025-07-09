@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import { fade, scale, fly } from 'svelte/transition';
+    import { fade, scale, fly, slide } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
 import { get } from 'svelte/store';
     import { statisticsStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, settings } from '../lib/stores';
@@ -378,7 +378,7 @@ import { get } from 'svelte/store';
                             <div class="space-y-6 px-4 w-full max-w-xl">
                         
                         <!-- FFmpeg Status -->
-                        <div class="space-y-3">
+                        <div>
                             <div class="flex items-center justify-between p-4 rounded-2xl
                                         backdrop-blur-md border border-white/10
                                         transition-all duration-300
@@ -479,17 +479,21 @@ import { get } from 'svelte/store';
                           </div>
                             
                             {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
-                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
-                                     in:fade={{ duration: 300 }}>
-                                    <p class="text-sm text-red-200/80">
-                                        <strong>FFmpeg is required</strong> for all media processing operations. Without it, Langkit cannot function.
-                                    </p>
+                                <div class="overflow-hidden">
+                                    <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
+                                         style="margin-top: -1px"
+                                         in:slide={{ duration: 400, easing: cubicOut }}
+                                         out:slide={{ duration: 300, easing: cubicOut }}>
+                                        <p class="text-sm text-red-200/80">
+                                            <strong>FFmpeg is required</strong> for all media processing operations. Without it, Langkit cannot function.
+                                        </p>
+                                    </div>
                                 </div>
                             {/if}
                         </div>
                         
                         <!-- MediaInfo Status -->
-                        <div class="space-y-3">
+                        <div>
                             <div class="flex items-center justify-between p-4 rounded-2xl
                                         backdrop-blur-md border border-white/10
                                         transition-all duration-300
@@ -590,17 +594,21 @@ import { get } from 'svelte/store';
      </div>
                         
                         {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
-                            <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
-                                 in:fade={{ duration: 300 }}>
-                                <p class="text-sm text-red-200/80">
-                                    <strong>MediaInfo is required</strong> for media file analysis. Without it, Langkit cannot process media files.
-                                </p>
+                            <div class="overflow-hidden">
+                                <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
+                                     style="margin-top: -1px"
+                                     in:slide={{ duration: 400, easing: cubicOut }}
+                                     out:slide={{ duration: 300, easing: cubicOut }}>
+                                    <p class="text-sm text-red-200/80">
+                                        <strong>MediaInfo is required</strong> for media file analysis. Without it, Langkit cannot process media files.
+                                    </p>
+                                </div>
                             </div>
                         {/if}
                             </div>
                             
                         <!-- Docker Status -->
-                        <div class="space-y-3">
+                        <div>
                             <div class="flex items-center justify-between p-4 rounded-2xl
                                         backdrop-blur-md border border-white/10
                                         transition-all duration-300
@@ -677,17 +685,21 @@ import { get } from 'svelte/store';
                             </div>
                             
                             {#if dockerReady && dockerStatus && !dockerStatus.available}
-                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
-                                     in:fade={{ duration: 300 }}>
-                                    <p class="text-sm text-red-200/80">
-                                        Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>.
-                                    </p>
+                                <div class="overflow-hidden">
+                                    <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
+                                         style="margin-top: -1px"
+                                         in:slide={{ duration: 400, easing: cubicOut }}
+                                         out:slide={{ duration: 300, easing: cubicOut }}>
+                                        <p class="text-sm text-red-200/80">
+                                            Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>.
+                                        </p>
+                                    </div>
                                 </div>
                             {/if}
                         </div>
                         
                         <!-- Internet Status -->
-                        <div class="space-y-3">
+                        <div>
                             <div class="flex items-center justify-between p-4 rounded-2xl
                                         backdrop-blur-md border border-white/10
                                         transition-all duration-300
@@ -764,12 +776,16 @@ import { get } from 'svelte/store';
                             </div>
                             
                             {#if internetReady && internetStatus && !internetStatus.online}
-                                <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20"
-                                     in:fade={{ duration: 300 }}>
-                                    <p class="text-sm text-red-200/80">
-                                        An internet connection is required for AI-powered features.
-                                        Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline.
-                                    </p>
+                                <div class="overflow-hidden">
+                                    <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
+                                         style="margin-top: -1px"
+                                         in:slide={{ duration: 400, easing: cubicOut }}
+                                         out:slide={{ duration: 300, easing: cubicOut }}>
+                                        <p class="text-sm text-red-200/80">
+                                            An internet connection is required for AI-powered features.
+                                            Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline.
+                                        </p>
+                                    </div>
                                 </div>
                             {/if}
                         </div>
