@@ -24,10 +24,150 @@
 
 <h4>Debug Controls</h4>
 
+<!-- FFmpeg Status (first) -->
 <div class="debug-section">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">LLM State</h5>
     <div class="status-row">
-        <span class="text-gray-400 text-xs">Current state:</span>
+        <span class="text-gray-400 text-xs font-semibold">FFmpeg Status:</span>
+        <span class="status-value" class:text-green-400={currentFFmpegStatus?.available}
+              class:text-red-400={!currentFFmpegStatus?.available}>
+            {currentFFmpegStatus?.available ? 'Available' : 'Unavailable'}
+        </span>
+        {#if ffmpegForced}
+            <span class="text-purple-400 text-xs ml-2">(forced)</span>
+        {:else if currentFFmpegStatus?.checked}
+            <span class="text-green-400 text-xs ml-2">(real)</span>
+        {:else}
+            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
+        {/if}
+        {#if currentFFmpegStatus?.version}
+            <span class="text-gray-500 text-xs ml-2">v{currentFFmpegStatus.version}</span>
+        {/if}
+    </div>
+    <div class="debug-controls">
+        <button class="debug-button" on:click={() => forceFFmpegStatus(true)}>
+            Force Available
+        </button>
+        <button class="debug-button" on:click={() => forceFFmpegStatus(false)}>
+            Force Unavailable
+        </button>
+        <button class="debug-button reset" on:click={resetFFmpegStatus}>
+            Reset to Real
+        </button>
+    </div>
+    <div class="text-xs text-gray-500 mt-2">
+        Controls FFmpeg availability checks - required for all media processing
+    </div>
+</div>
+
+<!-- MediaInfo Status (second) -->
+<div class="debug-section">
+    <div class="status-row">
+        <span class="text-gray-400 text-xs font-semibold">MediaInfo Status:</span>
+        <span class="status-value" class:text-green-400={currentMediaInfoStatus?.available}
+              class:text-red-400={!currentMediaInfoStatus?.available}>
+            {currentMediaInfoStatus?.available ? 'Available' : 'Unavailable'}
+        </span>
+        {#if mediainfoForced}
+            <span class="text-purple-400 text-xs ml-2">(forced)</span>
+        {:else if currentMediaInfoStatus?.checked}
+            <span class="text-green-400 text-xs ml-2">(real)</span>
+        {:else}
+            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
+        {/if}
+        {#if currentMediaInfoStatus?.version}
+            <span class="text-gray-500 text-xs ml-2">v{currentMediaInfoStatus.version}</span>
+        {/if}
+    </div>
+    <div class="debug-controls">
+        <button class="debug-button" on:click={() => forceMediaInfoStatus(true)}>
+            Force Available
+        </button>
+        <button class="debug-button" on:click={() => forceMediaInfoStatus(false)}>
+            Force Unavailable
+        </button>
+        <button class="debug-button reset" on:click={resetMediaInfoStatus}>
+            Reset to Real
+        </button>
+    </div>
+    <div class="text-xs text-gray-500 mt-2">
+        Controls MediaInfo availability checks - required for media analysis
+    </div>
+</div>
+
+<!-- Docker Status (third) -->
+<div class="debug-section">
+    <div class="status-row">
+        <span class="text-gray-400 text-xs font-semibold">Docker Status:</span>
+        <span class="status-value" class:text-green-400={currentDockerStatus?.available}
+              class:text-red-400={!currentDockerStatus?.available}>
+            {currentDockerStatus?.available ? 'Available' : 'Unavailable'}
+        </span>
+        {#if dockerForced}
+            <span class="text-purple-400 text-xs ml-2">(forced)</span>
+        {:else if currentDockerStatus?.checked}
+            <span class="text-green-400 text-xs ml-2">(real)</span>
+        {:else}
+            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
+        {/if}
+        {#if currentDockerStatus?.version}
+            <span class="text-gray-500 text-xs ml-2">v{currentDockerStatus.version}</span>
+        {/if}
+    </div>
+    <div class="debug-controls">
+        <button class="debug-button" on:click={() => forceDockerStatus(true)}>
+            Force Available
+        </button>
+        <button class="debug-button" on:click={() => forceDockerStatus(false)}>
+            Force Unavailable
+        </button>
+        <button class="debug-button reset" on:click={resetDockerStatus}>
+            Reset to Real
+        </button>
+    </div>
+    <div class="text-xs text-gray-500 mt-2">
+        Controls Docker availability checks for features requiring Docker
+    </div>
+</div>
+
+<!-- Internet Status (fourth) -->
+<div class="debug-section">
+    <div class="status-row">
+        <span class="text-gray-400 text-xs font-semibold">Internet Status:</span>
+        <span class="status-value" class:text-green-400={currentInternetStatus?.online}
+              class:text-red-400={!currentInternetStatus?.online}>
+            {currentInternetStatus?.online ? 'Online' : 'Offline'}
+        </span>
+        {#if internetForced}
+            <span class="text-purple-400 text-xs ml-2">(forced)</span>
+        {:else if currentInternetStatus?.checked}
+            <span class="text-green-400 text-xs ml-2">(real)</span>
+        {:else}
+            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
+        {/if}
+        {#if currentInternetStatus?.latency}
+            <span class="text-gray-500 text-xs ml-2">{currentInternetStatus.latency}ms</span>
+        {/if}
+    </div>
+    <div class="debug-controls">
+        <button class="debug-button" on:click={() => forceInternetStatus(true)}>
+            Force Online
+        </button>
+        <button class="debug-button" on:click={() => forceInternetStatus(false)}>
+            Force Offline
+        </button>
+        <button class="debug-button reset" on:click={resetInternetStatus}>
+            Reset to Real
+        </button>
+    </div>
+    <div class="text-xs text-gray-500 mt-2">
+        Controls Internet connectivity checks for AI-powered features
+    </div>
+</div>
+
+<!-- LLM State (fifth) -->
+<div class="debug-section">
+    <div class="status-row">
+        <span class="text-gray-400 text-xs font-semibold">LLM State:</span>
         <span class="status-value" class:text-green-400={currentLLMState?.globalState === 'ready'}
               class:text-yellow-400={currentLLMState?.globalState === 'initializing' || currentLLMState?.globalState === 'updating'}
               class:text-red-400={currentLLMState?.globalState === 'error'}>
@@ -61,10 +201,10 @@
     </div>
 </div>
 
+<!-- User Activity (last) -->
 <div class="debug-section">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">User Activity</h5>
     <div class="status-row">
-        <span class="text-gray-400 text-xs">Current:</span>
+        <span class="text-gray-400 text-xs font-semibold">User Activity:</span>
         <span class="status-value" class:text-green-400={currentUserActivityState === 'active'}
               class:text-yellow-400={currentUserActivityState === 'idle'}
               class:text-red-400={currentUserActivityState === 'afk'}>
@@ -90,146 +230,6 @@
     </div>
     <div class="text-xs text-gray-500 mt-2">
         Active: User is interacting | Idle: 5s-5min inactivity | AFK: >5min away
-    </div>
-</div>
-
-<div class="debug-section">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">Docker Status</h5>
-    <div class="status-row">
-        <span class="text-gray-400 text-xs">Status:</span>
-        <span class="status-value" class:text-green-400={currentDockerStatus?.available}
-              class:text-red-400={!currentDockerStatus?.available}>
-            {currentDockerStatus?.available ? 'Available' : 'Unavailable'}
-        </span>
-        {#if dockerForced}
-            <span class="text-purple-400 text-xs ml-2">(forced)</span>
-        {:else if currentDockerStatus?.checked}
-            <span class="text-green-400 text-xs ml-2">(real)</span>
-        {:else}
-            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
-        {/if}
-        {#if currentDockerStatus?.version}
-            <span class="text-gray-500 text-xs ml-2">v{currentDockerStatus.version}</span>
-        {/if}
-    </div>
-    <div class="debug-controls">
-        <button class="debug-button" on:click={() => forceDockerStatus(true)}>
-            Force Available
-        </button>
-        <button class="debug-button" on:click={() => forceDockerStatus(false)}>
-            Force Unavailable
-        </button>
-        <button class="debug-button reset" on:click={resetDockerStatus}>
-            Reset to Real
-        </button>
-    </div>
-    <div class="text-xs text-gray-500 mt-2">
-        Controls Docker availability checks for features requiring Docker
-    </div>
-</div>
-
-<div class="debug-section">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">Internet Status</h5>
-    <div class="status-row">
-        <span class="text-gray-400 text-xs">Status:</span>
-        <span class="status-value" class:text-green-400={currentInternetStatus?.online}
-              class:text-red-400={!currentInternetStatus?.online}>
-            {currentInternetStatus?.online ? 'Online' : 'Offline'}
-        </span>
-        {#if internetForced}
-            <span class="text-purple-400 text-xs ml-2">(forced)</span>
-        {:else if currentInternetStatus?.checked}
-            <span class="text-green-400 text-xs ml-2">(real)</span>
-        {:else}
-            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
-        {/if}
-        {#if currentInternetStatus?.latency}
-            <span class="text-gray-500 text-xs ml-2">{currentInternetStatus.latency}ms</span>
-        {/if}
-    </div>
-    <div class="debug-controls">
-        <button class="debug-button" on:click={() => forceInternetStatus(true)}>
-            Force Online
-        </button>
-        <button class="debug-button" on:click={() => forceInternetStatus(false)}>
-            Force Offline
-        </button>
-        <button class="debug-button reset" on:click={resetInternetStatus}>
-            Reset to Real
-        </button>
-    </div>
-    <div class="text-xs text-gray-500 mt-2">
-        Controls Internet connectivity checks for AI-powered features
-    </div>
-</div>
-
-<div class="debug-section">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">FFmpeg Status</h5>
-    <div class="status-row">
-        <span class="text-gray-400 text-xs">Status:</span>
-        <span class="status-value" class:text-green-400={currentFFmpegStatus?.available}
-              class:text-red-400={!currentFFmpegStatus?.available}>
-            {currentFFmpegStatus?.available ? 'Available' : 'Unavailable'}
-        </span>
-        {#if ffmpegForced}
-            <span class="text-purple-400 text-xs ml-2">(forced)</span>
-        {:else if currentFFmpegStatus?.checked}
-            <span class="text-green-400 text-xs ml-2">(real)</span>
-        {:else}
-            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
-        {/if}
-        {#if currentFFmpegStatus?.version}
-            <span class="text-gray-500 text-xs ml-2">v{currentFFmpegStatus.version}</span>
-        {/if}
-    </div>
-    <div class="debug-controls">
-        <button class="debug-button" on:click={() => forceFFmpegStatus(true)}>
-            Force Available
-        </button>
-        <button class="debug-button" on:click={() => forceFFmpegStatus(false)}>
-            Force Unavailable
-        </button>
-        <button class="debug-button reset" on:click={resetFFmpegStatus}>
-            Reset to Real
-        </button>
-    </div>
-    <div class="text-xs text-gray-500 mt-2">
-        Controls FFmpeg availability checks - required for all media processing
-    </div>
-</div>
-
-<div class="debug-section">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">MediaInfo Status</h5>
-    <div class="status-row">
-        <span class="text-gray-400 text-xs">Status:</span>
-        <span class="status-value" class:text-green-400={currentMediaInfoStatus?.available}
-              class:text-red-400={!currentMediaInfoStatus?.available}>
-            {currentMediaInfoStatus?.available ? 'Available' : 'Unavailable'}
-        </span>
-        {#if mediainfoForced}
-            <span class="text-purple-400 text-xs ml-2">(forced)</span>
-        {:else if currentMediaInfoStatus?.checked}
-            <span class="text-green-400 text-xs ml-2">(real)</span>
-        {:else}
-            <span class="text-yellow-400 text-xs ml-2">(checking...)</span>
-        {/if}
-        {#if currentMediaInfoStatus?.version}
-            <span class="text-gray-500 text-xs ml-2">v{currentMediaInfoStatus.version}</span>
-        {/if}
-    </div>
-    <div class="debug-controls">
-        <button class="debug-button" on:click={() => forceMediaInfoStatus(true)}>
-            Force Available
-        </button>
-        <button class="debug-button" on:click={() => forceMediaInfoStatus(false)}>
-            Force Unavailable
-        </button>
-        <button class="debug-button reset" on:click={resetMediaInfoStatus}>
-            Reset to Real
-        </button>
-    </div>
-    <div class="text-xs text-gray-500 mt-2">
-        Controls MediaInfo availability checks - required for media analysis
     </div>
 </div>
 

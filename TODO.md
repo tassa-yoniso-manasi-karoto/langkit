@@ -1,39 +1,36 @@
 BUGS TO CONFIRM:
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
-- "Processing in progress"... without on going processing
 - selective translit doesn't briefly show "sorry not available" on webview2
 
 .
-- REFACTOR DevDashboard:
-  - clean up
-  - forced unavailable docker & internet don't trigger invalidation
 
 
+- "Processing in progress"... without on going processing → when option auto-open logviewer is disabled
+- ProcessingErrorTooltip warns of errors without behavior errors
+- crash report fallback API key sanitizer (to guarantee no leaks)
+- ERR LOG: "Rejected oversized log entry"
+
+.
+- finish theme
+  - rm unused selectors
+  - slightly bigger text on cards, perhaps more white also (better contrast)
+  - scale up on hover for cards + ideally a black shadow like GH Ctrl+F
+  - welcome.svelte component
+  - scale & rotate coffee some more
+
+.
+- LINT
 
 .
 - REFACTOR CORE
 
 .
-- compact & juxtopposed errors in welcome popup (ask Gemini to explain exactly)
-
-.
 - PYTHAILNLP
-
-.
-- finish theme
-  - slightly bigger text on cards, perhaps more white also (better contrast)
-  - scale up on hover for cards + ideally a black shadow like GH Ctrl+F
-  - welcome.svelte component
-  - scale & rotate coffee some more
-  
-.
-- crash report fallback API key sanitizer (to guarantee no leaks)
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - manual GUI tests
   - make consistent progress bars between GUI and CLI
-  - double check translateReq2Tsk against DEV.md
   - check settings panel from a non dev perspective
   - watch for combinations that should spawn an error and disallow processing:
     - no docker but japanese transliteration selected

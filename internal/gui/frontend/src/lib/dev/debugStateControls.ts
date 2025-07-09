@@ -1,8 +1,24 @@
 import { llmStateStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from '../stores';
 import { logger } from '../logger';
 
+// Store the last real LLM state before forcing
+let lastRealLLMState: any = null;
+let isLLMStateForced = false;
+
+// Subscribe to LLM state changes to capture real states
+llmStateStore.subscribe((state) => {
+    // Only save as "last real state" if it's not a forced state
+    if (state && !state?.message?.startsWith('Debug: Forced')) {
+        lastRealLLMState = state;
+        isLLMStateForced = false;
+    }
+});
+
 // LLM state control functions
 export function forceLLMState(state: 'initializing' | 'ready' | 'error' | 'updating') {
+    // Mark that we're now in forced state
+    isLLMStateForced = true;
+    
     const mockStateChange = {
         timestamp: new Date().toISOString(),
         globalState: state,
@@ -15,10 +31,18 @@ export function forceLLMState(state: 'initializing' | 'ready' | 'error' | 'updat
 }
 
 export function resetLLMState() {
-    // Clear any debug forced state by setting a null/empty state
-    // The WebSocket will then update with the real state
-    llmStateStore.set(null);
-    logger.debug('devDashboard', 'Reset LLM state to real backend state');
+    // Restore the last known real state if we have one
+    if (lastRealLLMState) {
+        llmStateStore.set(lastRealLLMState);
+        logger.debug('devDashboard', 'Reset LLM state to last known real state', { 
+            globalState: lastRealLLMState.globalState 
+        });
+    } else {
+        // If no real state was captured yet, set to null
+        llmStateStore.set(null);
+        logger.debug('devDashboard', 'Reset LLM state (no previous real state available)');
+    }
+    isLLMStateForced = false;
 }
 
 // User activity state control functions

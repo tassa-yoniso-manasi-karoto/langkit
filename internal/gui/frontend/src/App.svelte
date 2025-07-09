@@ -26,7 +26,6 @@
     import UpdateNotification from './components/UpdateNotification.svelte';
     import ProgressManager from './components/ProgressManager.svelte';
     import LogViewerNotification from './components/LogViewerNotification.svelte';
-    import MemoryTestButton from './components/MemoryTestButton.svelte';
     import DevDashboard from './components/DevDashboard.svelte';
     import CoffeeSupport from './components/CoffeeSupport.svelte';
     import WelcomePopup from './components/WelcomePopup.svelte';

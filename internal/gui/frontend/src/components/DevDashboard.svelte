@@ -7,12 +7,13 @@
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import WASMDashboard from './dev/WASMDashboard.svelte';
-    import MemoryTestButton from './MemoryTestButton.svelte';
+    import MemoryTestButton from './dev/MemoryTestButton.svelte';
     import DraggableContainer from './dev/DraggableContainer.svelte';
     import LogsDebugDashboard from './dev/LogsDebugDashboard.svelte';
     import StateDebugDashboard from './dev/StateDebugDashboard.svelte';
     import DebugControlsDashboard from './dev/DebugControlsDashboard.svelte';
     import StyleDebugDashboard from './dev/StyleDebugDashboard.svelte';
+    import TestsDashboard from './dev/TestsDashboard.svelte';
     import { SetTraceLogs, GetTraceLogs } from '../../wailsjs/go/gui/App';
     import { 
         forceLLMState, resetLLMState,
@@ -43,6 +44,7 @@
         { id: 'state', name: 'State', icon: 'data_object' },
         { id: 'logs', name: 'Logs', icon: 'subject' },
         { id: 'debug', name: 'Debug', icon: 'bug_report' },
+        { id: 'tests', name: 'Tests', icon: 'science' },
         { id: 'style', name: 'Style', icon: 'palette' }
     ];
     
@@ -649,21 +651,7 @@
                     {:else if activeTab === 'logs'}
                         <LogsDebugDashboard />
                     {:else if activeTab === 'debug'}
-                        <h4>Debug Controls</h4>
-
-                            <!-- Memory testing section -->
-                            <div class="memory-test-section mb-4">
-                                <h5 class="text-xs font-semibold mb-2 opacity-80">Memory Testing</h5>
-                                <div class="flex items-center gap-2">
-                                    <MemoryTestButton
-                                        size="medium"
-                                        variant="primary"
-                                    />
-                                    <span class="text-xs opacity-70">Test WASM memory management</span>
-                                </div>
-                            </div>
-
-                            <DebugControlsDashboard
+                        <DebugControlsDashboard
                                 currentLLMState={currentLLMState}
                                 currentUserActivityState={currentUserActivityState}
                                 isForced={isForced}
@@ -676,7 +664,8 @@
                                 currentMediaInfoStatus={currentMediaInfoStatus}
                                 mediainfoForced={mediainfoForced}
                             />
-
+                    {:else if activeTab === 'tests'}
+                        <TestsDashboard />
                     {:else if activeTab === 'style'}
                         <StyleDebugDashboard
                             styleControls={styleControls}

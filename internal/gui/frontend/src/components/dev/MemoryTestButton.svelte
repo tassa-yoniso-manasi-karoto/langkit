@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { testWasmMemoryAccess } from '../tests/wasm/memory-test';
-  import { logger } from '../lib/logger';
+  import { testWasmMemoryAccess } from '../../tests/wasm/memory-test';
+  import { logger } from '../../lib/logger';
 
   export let variant: 'primary' | 'secondary' | 'debug' = 'debug';
   export let size: 'small' | 'medium' | 'large' = 'medium';
