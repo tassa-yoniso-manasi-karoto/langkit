@@ -478,7 +478,7 @@
     
     // Show tooltip when hovering over the button (if errors exist)
     function handleLogButtonHover() {
-        if (hasErrorLogs() && !showLogViewer && tooltipDismissed) {
+        if (hasErrorLogs() && !showLogViewer && !tooltipDismissed) {
             tooltipVisible = true;
             
             // Update button position to ensure tooltip is correctly positioned
