@@ -1,7 +1,7 @@
 <script lang="ts">
     import { createEventDispatcher, onMount, onDestroy } from 'svelte';
     import { fade } from 'svelte/transition';
-    import { errorStore } from '../lib/errorStore';
+    import { invalidationErrorStore } from '../lib/invalidationErrorStore';
     import ProcessErrorTooltip from './ProcessErrorTooltip.svelte';
     import { logger } from '../lib/logger';
     import { userActivityState } from '../lib/stores';
@@ -26,7 +26,7 @@
 
     // Subscribe to the error store to get the current errors.
     let errors = [];
-    const unsubscribe = errorStore.subscribe((val) => {
+    const unsubscribe = invalidationErrorStore.subscribe((val) => {
         const oldErrorCount = errors.length;
         errors = val;
         

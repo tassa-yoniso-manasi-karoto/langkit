@@ -4,7 +4,7 @@
     import { fade } from 'svelte/transition';
     
     import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
-    import { errorStore } from '../lib/errorStore';
+    import { invalidationErrorStore } from '../lib/invalidationErrorStore';
     import { showSettings, llmStateStore, settings, type LLMStateChange, dockerStatusStore } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
@@ -206,7 +206,7 @@
             
             // Add error to error store when LLM fails (only for condensedAudio feature)
             if (feature.id === 'condensedAudio' && state?.globalState === 'error') {
-                errorStore.addError({
+                invalidationErrorStore.addError({
                     id: 'llm-initialization-failed',
                     message: state.message || 'LLM system failed to initialize. Check your API keys in settings.',
                     severity: 'error',
@@ -219,7 +219,7 @@
                 });
             } else if (feature.id === 'condensedAudio' && state?.globalState === 'ready') {
                 // Remove error when LLM becomes ready
-                errorStore.removeError('llm-initialization-failed');
+                invalidationErrorStore.removeError('llm-initialization-failed');
             }
         });
         
@@ -277,7 +277,7 @@
         
         // Clean up any LLM errors we may have created
         if (feature.id === 'condensedAudio') {
-            errorStore.removeError('llm-initialization-failed');
+            invalidationErrorStore.removeError('llm-initialization-failed');
         }
     });
     
@@ -801,7 +801,7 @@
     // Helper function to determine if we should show feature messages
     function hasFeatureMessages() {
         // API Provider error messages
-        if (enabled && $errorStore.some(e => e.id === `provider-${feature.id}`)) {
+        if (enabled && $invalidationErrorStore.some(e => e.id === `provider-${feature.id}`)) {
             return true;
         }
         
@@ -900,13 +900,13 @@
         <div class="feature-message-card ml-7 w-auto animate-fadeIn">
                 <div class="glassmorphism-card">
                     <!-- API Provider error messages -->
-                    {#if enabled && $errorStore.some(e => e.id === `provider-${feature.id}`)}
+                    {#if enabled && $invalidationErrorStore.some(e => e.id === `provider-${feature.id}`)}
                         <div class={messageItemClass}>
                             <span class="material-icons text-[14px] text-log-warn mt-0.5 group-hover:animate-subtlePulse">
                                 warning
                             </span>
                             <div class="flex-1 text-xs text-white/90">
-                                <span>{$errorStore.find(e => e.id === `provider-${feature.id}`)?.message || ''}</span>
+                                <span>{$invalidationErrorStore.find(e => e.id === `provider-${feature.id}`)?.message || ''}</span>
                                 <button 
                                     class="ml-1 text-primary hover:text-primary-300 transition-colors duration-200 underline"
                                     on:click={() => $showSettings = true}>

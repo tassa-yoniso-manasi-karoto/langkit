@@ -1,4 +1,4 @@
-// errorStore.ts
+// invalidationErrorStore.ts
 import { writable, derived, type Readable } from 'svelte/store';
 import { logger } from './logger';
 
@@ -46,12 +46,12 @@ function createErrorStore() {
                 value: error.severity === 'critical' ? 1 : 0
             });
         } catch (e) {
-            logger.trace('store/errorStore', 'Error tracking not available', { error: e });
+            logger.trace('store/invalidationErrorStore', 'Error tracking not available', { error: e });
         }
     }
 
     function addError(error: ErrorMessage) {
-        logger.debug('store/errorStore', 'Adding error', { errorId: error.id, error });
+        logger.debug('store/invalidationErrorStore', 'Adding error', { errorId: error.id, error });
         trackErrorMetric(error);
 
         store.update(errors => {
@@ -80,17 +80,17 @@ function createErrorStore() {
     }
 
     function removeError(id: string) {
-        logger.debug('store/errorStore', 'Removing error', { errorId: id });
+        logger.debug('store/invalidationErrorStore', 'Removing error', { errorId: id });
         store.update(errors => errors.filter(e => e.id !== id));
     }
 
     function clearErrors() {
-        logger.debug('store/errorStore', 'Clearing all errors');
+        logger.debug('store/invalidationErrorStore', 'Clearing all errors');
         store.set([]);
     }
 
     function clearErrorsOfType(severity: ErrorSeverity) {
-        logger.debug('store/errorStore', 'Clearing errors of type', { severity });
+        logger.debug('store/invalidationErrorStore', 'Clearing errors of type', { severity });
         store.update(errors => errors.filter(e => e.severity !== severity));
     }
 
@@ -125,4 +125,4 @@ function createErrorStore() {
     };
 }
 
-export const errorStore = createErrorStore();
+export const invalidationErrorStore = createErrorStore();

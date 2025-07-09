@@ -3,14 +3,14 @@
     import Portal from 'svelte-portal/src/Portal.svelte';
     import { fade, slide } from 'svelte/transition';
     import { flip } from 'svelte/animate';
-    import { errorStore, type ErrorMessage, type ErrorSeverity } from '../lib/errorStore';
+    import { invalidationErrorStore, type ErrorMessage, type ErrorSeverity } from '../lib/invalidationErrorStore';
     import { logger } from '../lib/logger';
 
     // Position is passed in from the ProcessButton.
     export let position = { x: 0, y: 0 };
 
     let errors: ErrorMessage[] = [];
-    const unsubscribe = errorStore.subscribe((val) => {
+    const unsubscribe = invalidationErrorStore.subscribe((val) => {
         errors = val;
     });
 
@@ -97,7 +97,7 @@
                             </div>
                         {/if}
                         {#if error.dismissible}
-                            <button class="absolute top-2 right-2 bg-transparent border-none cursor-pointer opacity-70 hover:opacity-100 hover:text-secondary" on:click|stopPropagation={() => errorStore.removeError(error.id)}>
+                            <button class="absolute top-2 right-2 bg-transparent border-none cursor-pointer opacity-70 hover:opacity-100 hover:text-secondary" on:click|stopPropagation={() => invalidationErrorStore.removeError(error.id)}>
                                 <span class="material-icons text-[16px]">close</span>
                             </button>
                         {/if}

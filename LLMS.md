@@ -24,7 +24,7 @@
   - Follow Material Design principles
   - All interactive elements should have visual feedback
   - Use Tailwind utility classes for styling
-  - Stores for state management (errorStore, logStore, progressBarsStore)
+  - Stores for state management (invalidationErrorStore, logStore, progressBarsStore)
 
 ## Code management
 - Do NOT think or write tests without my EXPLICIT COMMAND.

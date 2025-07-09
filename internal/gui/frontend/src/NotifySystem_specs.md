@@ -14,7 +14,7 @@ This document provides a comprehensive guide to the notification and display sys
    - Supports batch processing for high-volume scenarios
    - Preserves all logs without capping by quantity
 
-2. **Error Store (`errorStore`):**
+2. **Error Store (`invalidationErrorStore`):**
    - Manages application errors and warnings
    - Supports different error severities (critical, warning, info)
    - Provides auto-dismissal based on severity
@@ -108,14 +108,14 @@ Backend → EventsOn("progress"/"progress-batch") → progressBarsStore → UI C
 ### 2.4 Error Handling Flow
 
 ```
-Error Detection → errorStore.addError() → UI Components
+Error Detection → invalidationErrorStore.addError() → UI Components
 ```
 
 1. Errors detected from:
    - API responses
    - Log messages with ERROR level and specific behaviors
    - Progress failures
-2. errorStore categorizes and stores errors
+2. invalidationErrorStore categorizes and stores errors
 3. UI components reactively update:
    - Process Error Tooltip shows error messages
    - LogViewerNotification shows error counts

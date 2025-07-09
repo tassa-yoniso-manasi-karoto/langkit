@@ -7,7 +7,7 @@
 
     import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
-    import { errorStore } from './lib/errorStore';
+    import { invalidationErrorStore } from './lib/invalidationErrorStore';
     import { logger } from './lib/logger';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
     import { enableWasm, isWasmEnabled, getWasmModule } from './lib/wasm'; // Removed setWasmSizeThreshold
@@ -265,7 +265,7 @@
     $: {
         if (!mediaSource) {
             logger.trace('app', 'No media source selected');
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "no-media",
                 message: "No media file selected",
                 severity: "critical",
@@ -281,7 +281,7 @@
                 size: mediaSource.size,
                 audioTrackIndex: mediaSource.audioTrackIndex 
             });
-            errorStore.removeError("no-media");
+            invalidationErrorStore.removeError("no-media");
         }
     }
     
@@ -305,7 +305,7 @@
     $: {
         if (!Object.values(selectedFeatures).some(v => v)) {
             logger.trace('app', 'No features selected');
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "no-features",
                 message: "Select at least one processing feature",
                 severity: "critical"
@@ -315,13 +315,13 @@
                 .filter(([_, enabled]) => enabled)
                 .map(([feature, _]) => feature);
             logger.debug('app', 'Features selected', { activeFeatures });
-            errorStore.removeError("no-features");
+            invalidationErrorStore.removeError("no-features");
         }
     }
     
     $: {
         if (!$settings.nativeLanguages) {
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "no-native-lang",
                 message: "Configure native languages in settings",
                 severity: "warning",
@@ -331,7 +331,7 @@
                 }
             });
         } else {
-            errorStore.removeError("no-native-lang");
+            invalidationErrorStore.removeError("no-native-lang");
         }
     }
     
@@ -357,7 +357,7 @@
             if (window.navigator.platform.includes("Win")) {
                 message += " On Windows Home, Docker requires WSL. See the 'A Note on Specific Languages' page for more info.";
             }
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "docker-required",
                 message: message,
                 severity: "critical",
@@ -365,7 +365,7 @@
                 docsUrl: "https://docs.docker.com/get-docker/"
             });
         } else {
-            errorStore.removeError("docker-required");
+            invalidationErrorStore.removeError("docker-required");
         }
     }
     
@@ -403,14 +403,14 @@
                 message += "linguistic processing for Thai, Japanese & Indic languages.";
             }
             
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "internet-required",
                 message: message,
                 severity: "critical",
                 dismissible: false
             });
         } else {
-            errorStore.removeError("internet-required");
+            invalidationErrorStore.removeError("internet-required");
         }
     }
     
@@ -420,7 +420,7 @@
         const ffmpegAvailable = $ffmpegStatusStore.available;
         
         if (ffmpegChecked && !ffmpegAvailable) {
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "ffmpeg-required",
                 message: "FFmpeg is required for media processing. Please install FFmpeg to use Langkit.",
                 severity: "critical",
@@ -428,7 +428,7 @@
                 docsUrl: "https://ffmpeg.org/download.html"
             });
         } else {
-            errorStore.removeError("ffmpeg-required");
+            invalidationErrorStore.removeError("ffmpeg-required");
         }
     }
     
@@ -438,7 +438,7 @@
         const mediainfoAvailable = $mediainfoStatusStore.available;
         
         if (mediainfoChecked && !mediainfoAvailable) {
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "mediainfo-required",
                 message: "MediaInfo is required for media analysis. Please install MediaInfo to use Langkit.",
                 severity: "critical",
@@ -446,7 +446,7 @@
                 docsUrl: "https://mediaarea.net/en/MediaInfo/Download"
             });
         } else {
-            errorStore.removeError("mediainfo-required");
+            invalidationErrorStore.removeError("mediainfo-required");
         }
     }
     
@@ -618,7 +618,7 @@
             await SendProcessingRequest(request);
         } catch (error: any) { // Type the error
             logger.error('app', "Processing failed", { error });
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "processing-failed",
                 message: "Processing failed: " + (error?.message || "Unknown error"),
                 severity: "critical",
@@ -634,7 +634,7 @@
         try {
             await CancelProcessing();
             isProcessing = false;
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "processing-cancelled",
                 message: "Processing cancelled by user",
                 severity: "info",
@@ -650,7 +650,7 @@
             });
         } catch (error) {
             logger.error('app', "Failed to cancel processing", { error });
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "cancel-failed",
                 message: "Failed to cancel processing",
                 severity: "critical",
@@ -673,7 +673,7 @@
             showLogViewer = loadedSettings.showLogViewerByDefault;
         } catch (error) {
             logger.error('app', "Failed to load settings", { error });/*
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: "settings-load-failed",
                 message: "Failed to load settings",
                 severity: "critical",
@@ -1109,7 +1109,7 @@
             // Check if WebAssembly is supported by the browser
             if (!await import('./lib/wasm').then(m => m.isWasmSupported())) {
                 logger.warn('app', 'WebAssembly is not supported by this browser');
-                errorStore.addError({
+                invalidationErrorStore.addError({
                     id: 'wasm-not-supported',
                     message: 'WebAssembly is not supported by your browser. Some optimizations will be disabled.',
                     severity: 'warning',
@@ -1195,7 +1195,7 @@
                                 // }
                             } else {
                                 // Handle case where enabling failed
-                                errorStore.addError({
+                                invalidationErrorStore.addError({
                                     id: 'wasm-init-failed',
                                     message: 'Failed to initialize WebAssembly optimization.',
                                     severity: 'warning',
@@ -1208,7 +1208,7 @@
                     } catch (error: any) {
                         logger.error('app', `Error applying WebAssembly setting: ${error.message}`);
                         
-                        errorStore.addError({
+                        invalidationErrorStore.addError({
                             id: 'wasm-setting-error',
                             message: `Error applying WebAssembly setting: ${error.message}`,
                             severity: 'warning',
@@ -1255,7 +1255,7 @@
         } catch (initError: any) {
             logger.critical('app', `Critical error during WebAssembly setup: ${initError.message}`);
             
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: 'wasm-critical-init-error',
                 message: `Error during application initialization: ${initError.message}`,
                 severity: 'warning',

@@ -2,7 +2,7 @@
 // Centralized management of feature groups and their shared options
 
 import { writable, derived, get } from 'svelte/store';
-import { errorStore } from './errorStore';
+import { invalidationErrorStore } from './invalidationErrorStore';
 import type { FeatureDefinition } from './featureModel';
 import { logger } from './logger';
 
@@ -239,7 +239,7 @@ function createFeatureGroupStore() {
                     group.validationRules
                         .filter(rule => rule.optionId === optionId)
                         .forEach(rule => {
-                            errorStore.removeError(`group-${groupId}-${rule.id}`);
+                            invalidationErrorStore.removeError(`group-${groupId}-${rule.id}`);
                         });
                 }
                 return;
@@ -258,15 +258,15 @@ function createFeatureGroupStore() {
                 logger.trace('store/featureGroupStore', 'Validation result', { ruleId: rule.id, isValid });
                 
                 if (!isValid) {
-                    // Register error in errorStore
-                    errorStore.addError({
+                    // Register error in invalidationErrorStore
+                    invalidationErrorStore.addError({
                         id: `group-${groupId}-${rule.id}`,
                         message: rule.errorMessage,
                         severity: rule.severity
                     });
                 } else {
                     // Remove error if it exists
-                    errorStore.removeError(`group-${groupId}-${rule.id}`);
+                    invalidationErrorStore.removeError(`group-${groupId}-${rule.id}`);
                 }
             });
         },
@@ -290,11 +290,11 @@ function createFeatureGroupStore() {
             if (!anyFeatureEnabled) {
                 if (group.validationRules) {
                     group.validationRules.forEach(rule => {
-                        errorStore.removeError(`group-${groupId}-${rule.id}`);
+                        invalidationErrorStore.removeError(`group-${groupId}-${rule.id}`);
                     });
                 }
                 // Also clear the browser URL error
-                errorStore.removeError(`group-${groupId}-browser-url`);
+                invalidationErrorStore.removeError(`group-${groupId}-browser-url`);
                 return;
             }
             
@@ -510,8 +510,8 @@ function createFeatureGroupStore() {
          */
         validateBrowserUrl(url: string, needsScraper: boolean, groupId: string) {
             // Always clear any existing browser URL errors
-            errorStore.removeError(`group-${groupId}-browser-url`);
-            errorStore.removeError('invalid-browser-url'); // Legacy error
+            invalidationErrorStore.removeError(`group-${groupId}-browser-url`);
+            invalidationErrorStore.removeError('invalid-browser-url'); // Legacy error
             
             // Check if any subtitle features are actually enabled/selected
             const state = get(store);
@@ -557,11 +557,11 @@ function createFeatureGroupStore() {
             
             // Clear all validation errors
             group.validationRules.forEach(rule => {
-                errorStore.removeError(`group-${groupId}-${rule.id}`);
+                invalidationErrorStore.removeError(`group-${groupId}-${rule.id}`);
             });
             
             // Also clear browser URL error
-            errorStore.removeError(`group-${groupId}-browser-url`);
+            invalidationErrorStore.removeError(`group-${groupId}-browser-url`);
         }
     };
 }

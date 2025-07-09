@@ -7,7 +7,7 @@
     import { settings, showSettings, llmStateStore, welcomePopupVisible, type LLMStateChange } from '../lib/stores.ts';
     import { LLMWebSocket } from '../lib/llm-websocket';
     import { updateSTTModels, sttModelsStore } from '../lib/featureModel';
-    import { errorStore } from '../lib/errorStore';
+    import { invalidationErrorStore } from '../lib/invalidationErrorStore';
     import { logStore } from '../lib/logStore';
     import { logger } from '../lib/logger';
     import { 
@@ -156,7 +156,7 @@
             
             if (!summaryProviders.available) {
                 // Handle case where no providers are available
-                errorStore.addError({
+                invalidationErrorStore.addError({
                     id: 'no-summary-providers',
                     message: 'No summary providers available. Check API keys in settings.',
                     severity: 'warning',
@@ -169,7 +169,7 @@
                 });
             } else {
                 // If the error was previously shown and providers are now available, remove it
-                errorStore.removeError('no-summary-providers');
+                invalidationErrorStore.removeError('no-summary-providers');
             }
             
             // Update the local state
@@ -247,7 +247,7 @@
             
             if (!summaryModels.available) {
                 // Handle case where no models are available
-                errorStore.addError({
+                invalidationErrorStore.addError({
                     id: 'no-summary-models',
                     message: `No summary models available for ${providerName}. Check API keys in settings.`,
                     severity: 'warning',
@@ -260,7 +260,7 @@
                 });
             } else {
                 // If the error was previously shown and models are now available, remove it
-                errorStore.removeError('no-summary-models');
+                invalidationErrorStore.removeError('no-summary-models');
             }
             
             // Update the local state
@@ -440,25 +440,25 @@
         // Handle romanization availability
         if (!isRomanizationAvailable && selectedFeatures.subtitleRomanization) {
             selectedFeatures.subtitleRomanization = false;
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: 'no-romanization',
                 message: 'No transliteration scheme available for selected language',
                 severity: 'warning'
             });
         } else {
-            errorStore.removeError('no-romanization');
+            invalidationErrorStore.removeError('no-romanization');
         }
         
         // Handle selective transliteration availability
         if (!isSelectiveTransliterationAvailable && selectedFeatures.selectiveTransliteration) {
             selectedFeatures.selectiveTransliteration = false;
-            errorStore.addError({
+            invalidationErrorStore.addError({
                 id: 'no-selective-transliteration',
                 message: 'Kanji to Kana transliteration is only available for Japanese',
                 severity: 'warning'
             });
         } else {
-            errorStore.removeError('no-selective-transliteration');
+            invalidationErrorStore.removeError('no-selective-transliteration');
         }
     }
     
@@ -692,7 +692,7 @@
                         message: errorMessage 
                     });
                     
-                    errorStore.addError({
+                    invalidationErrorStore.addError({
                         id: 'provider-dubtitles',
                         message: errorMessage,
                         severity: 'critical'
@@ -702,19 +702,19 @@
                     logger.trace('FeatureSelector', 'Token is valid, removing provider error', { 
                         errorId: 'provider-dubtitles' 
                     });
-                    errorStore.removeError('provider-dubtitles');
+                    invalidationErrorStore.removeError('provider-dubtitles');
                 }
             } else {
                 logger.warn('FeatureSelector', 'Could not find model info', { sttModel });
                 // Clear any existing error if model not found
-                errorStore.removeError('provider-dubtitles');
+                invalidationErrorStore.removeError('provider-dubtitles');
             }
         } else {
             // Remove the error if the feature is disabled
             logger.trace('FeatureSelector', 'Feature not selected, removing provider error', { 
                 errorId: 'provider-dubtitles' 
             });
-            errorStore.removeError('provider-dubtitles');
+            invalidationErrorStore.removeError('provider-dubtitles');
         }
 
         // Check voice enhancing provider with similar pattern
@@ -723,16 +723,16 @@
             const { isValid, tokenType } = checkProviderApiToken(sepLib);
             
             if (!isValid) {
-                errorStore.addError({
+                invalidationErrorStore.addError({
                     id: 'provider-voiceEnhancing',
                     message: `${tokenType || sepLib} API token is required for ${sepLib}`,
                     severity: 'critical'
                 });
             } else {
-                errorStore.removeError('provider-voiceEnhancing');
+                invalidationErrorStore.removeError('provider-voiceEnhancing');
             }
         } else {
-            errorStore.removeError('provider-voiceEnhancing');
+            invalidationErrorStore.removeError('provider-voiceEnhancing');
         }
     }
 
@@ -1324,7 +1324,7 @@
     });
     
     // Subscribe to error store changes to verify updates are being applied
-    let errorStoreUnsubscribe: () => void;
+    let invalidationErrorStoreUnsubscribe: () => void;
     
     onMount(async () => {
         // Subscribe to STT models store
@@ -1425,7 +1425,7 @@
                 
                 if (!sttModels.available) {
                     // Handle case where no models are available
-                    errorStore.addError({
+                    invalidationErrorStore.addError({
                         id: 'no-stt-models',
                         message: 'No speech-to-text models available. Check API keys in settings.',
                         severity: 'warning',
@@ -1458,7 +1458,7 @@
                     
                     if (!summaryProviders.available) {
                         // Handle case where no providers are available
-                        errorStore.addError({
+                        invalidationErrorStore.addError({
                             id: 'no-summary-providers',
                             message: 'No summary providers available. Check API keys in settings.',
                             severity: 'warning',
@@ -1607,8 +1607,8 @@
         }
         
         // Clean up error store subscription
-        if (errorStoreUnsubscribe) {
-            errorStoreUnsubscribe();
+        if (invalidationErrorStoreUnsubscribe) {
+            invalidationErrorStoreUnsubscribe();
         }
         
         // Clean up LLM state subscription
@@ -1624,24 +1624,24 @@
         }
         
         // Clean up any error messages we created
-        errorStore.removeError('no-stt-models');
-        errorStore.removeError('no-summary-providers');
-        errorStore.removeError('no-summary-models');
+        invalidationErrorStore.removeError('no-stt-models');
+        invalidationErrorStore.removeError('no-summary-providers');
+        invalidationErrorStore.removeError('no-summary-models');
         
         // Clear legacy errors
-        errorStore.removeError('docker-required');
-        errorStore.removeError('invalid-browser-url');
-        errorStore.removeError('no-features');
-        errorStore.removeError('invalid-language');
-        errorStore.removeError('provider-dubtitles');
-        errorStore.removeError('provider-voiceEnhancing');
-        errorStore.removeError('no-romanization');
-        errorStore.removeError('no-selective-transliteration');
+        invalidationErrorStore.removeError('docker-required');
+        invalidationErrorStore.removeError('invalid-browser-url');
+        invalidationErrorStore.removeError('no-features');
+        invalidationErrorStore.removeError('invalid-language');
+        invalidationErrorStore.removeError('provider-dubtitles');
+        invalidationErrorStore.removeError('provider-voiceEnhancing');
+        invalidationErrorStore.removeError('no-romanization');
+        invalidationErrorStore.removeError('no-selective-transliteration');
         
         // Clear feature group errors - be thorough with all possible error IDs
         featureGroupStore.clearGroupErrors('subtitle');
-        errorStore.removeError('group-subtitle-browser-url');
-        errorStore.removeError('group-subtitle-browser-url-validation');
+        invalidationErrorStore.removeError('group-subtitle-browser-url');
+        invalidationErrorStore.removeError('group-subtitle-browser-url-validation');
     });
     
     function softLanding(t) {
