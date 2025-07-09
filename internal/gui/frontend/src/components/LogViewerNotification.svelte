@@ -47,9 +47,7 @@
     // Subscribe to logs
     const unsubscribeLogs = logStore.subscribe(logs => {
         allLogs = logs;
-        if (processingStartTime > 0) {
-            performFiltering();
-        }
+        performFiltering();
     });
     
     // Watch isVisible changes to trigger animation
@@ -59,15 +57,35 @@
     
     // Filter logs based on processing start time
     function performFiltering() {
-        if (!processingStartTime || processingStartTime <= 0) return;
-        
         abortTaskLogs = [];
         abortAllLogs = [];
         errorLevelLogs = [];
         
+        // Determine time threshold based on processing state
+        // For behavior errors, always use processingStartTime when available
+        // For plain errors, use recent time window when not processing
+        const plainErrorTimeThreshold = (processingStartTime > 0 || isProcessing) 
+            ? processingStartTime 
+            : Date.now() - (5 * 60 * 1000); // Last 5 minutes when not processing
+        
         allLogs.forEach(log => {
             const logTime = log._unix_time || 0;
-            if (logTime < processingStartTime) return;
+            
+            // For behavior errors (abort_task, abort_all), only count from processingStartTime
+            if (processingStartTime > 0 && logTime < processingStartTime) {
+                // Skip behavior errors from before processing started
+                if (log.behavior === 'abort_task' || log.behavior === 'abort_all') {
+                    return;
+                }
+            }
+            
+            // For plain errors, use the appropriate time threshold
+            if (log.level.toUpperCase() === 'ERROR' && 
+                log.behavior !== 'abort_task' && 
+                log.behavior !== 'abort_all' &&
+                logTime < plainErrorTimeThreshold) {
+                return;
+            }
             
             if (log.behavior === 'abort_task' && log.level.toUpperCase() === 'ERROR') {
                 abortTaskLogs.push(log);
@@ -78,7 +96,7 @@
             }
             
             if (log.level.toUpperCase() === 'ERROR' && 
-                (!log.behavior || log.behavior !== 'user_cancel') &&
+                log.behavior !== 'user_cancel' &&
                 (!log.message || !log.message.toLowerCase().includes('cancel'))) {
                 errorLevelLogs.push(log);
             }
@@ -86,7 +104,7 @@
     }
 
     // Handle processingStartTime changes
-    $: if (processingStartTime !== prevProcessingStartTime && processingStartTime > 0) {
+    $: if (processingStartTime !== prevProcessingStartTime) {
         abortTaskLogs = [];
         abortAllLogs = [];
         errorLevelLogs = [];
@@ -107,8 +125,17 @@
     $: shouldShowErrorTooltip = mode === 'error' && 
                                (abortTaskLogs.length > 0 || abortAllLogs.length > 0 || errorLevelLogs.length > 0);
     
-    // Count total errors
-    $: totalErrorCount = abortTaskLogs.length + abortAllLogs.length + errorLevelLogs.length;
+    // Count total unique errors (avoiding double-counting)
+    $: totalErrorCount = (() => {
+        const uniqueErrors = new Set<LogMessage>();
+        abortTaskLogs.forEach(log => uniqueErrors.add(log));
+        abortAllLogs.forEach(log => uniqueErrors.add(log));
+        errorLevelLogs.forEach(log => uniqueErrors.add(log));
+        return uniqueErrors.size;
+    })();
+    
+    // Determine if we're in a processing context
+    $: isInProcessingContext = isProcessing || processingStartTime > 0;
 
     function handleOpenClick() {
         if (mode === 'processing' && !hasSeenTooltip) {
@@ -132,9 +159,7 @@
     }
 
     onMount(() => {
-        if (processingStartTime > 0) {
-            performFiltering();
-        }
+        performFiltering();
     });
 
     onDestroy(() => {
@@ -197,9 +222,9 @@
                             Processing in progress
                         {:else}
                             {#if abortTaskLogs.length > 0 || abortAllLogs.length > 0}
-                                Errors occured with cancelation
+                                Errors occurred with cancelation
                             {:else}
-                                Errors occured (no task canceled)
+                                Errors occurred{isInProcessingContext ? ' (no task canceled)' : ''}
                             {/if}
                         {/if}
                     </span>
@@ -235,10 +260,10 @@
                                     </span>
                                 {:else if abortTaskLogs.length > 0}
                                     <span class="gradient-text-task">
-                                        {abortTaskLogs.length} media processing task{abortTaskLogs.length !== 1 ? 's' : ''} aborted with {errorLevelLogs.length} error{errorLevelLogs.length !== 1 ? 's' : ''}
+                                        {abortTaskLogs.length} media processing task{abortTaskLogs.length !== 1 ? 's' : ''} aborted with {totalErrorCount} error{totalErrorCount !== 1 ? 's' : ''}
                                     </span>
                                 {:else}
-                                    {errorLevelLogs.length} error{errorLevelLogs.length !== 1 ? 's' : ''} detected during processing
+                                    {totalErrorCount} error{totalErrorCount !== 1 ? 's' : ''} detected{isInProcessingContext ? ' during processing' : ''}
                                 {/if}
                             {/if}
                         </span>

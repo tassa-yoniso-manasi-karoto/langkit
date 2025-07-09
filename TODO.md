@@ -4,11 +4,11 @@ BUGS TO CONFIRM:
 
 .
 
-
 - "Processing in progress"... without on going processing → when option auto-open logviewer is disabled
-- ProcessingErrorTooltip warns of errors without behavior errors
+- fix committed test code... oops.
+- progress bar green broken
 - crash report fallback API key sanitizer (to guarantee no leaks)
-- ERR LOG: "Rejected oversized log entry"
+- ask Claude thorough critic
 
 .
 - finish theme
