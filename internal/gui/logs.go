@@ -34,15 +34,6 @@ func (a *App) getLogger() *zerolog.Logger {
 
 // BackendLoggerBatch handles batched log entries from the frontend
 func (a *App) BackendLoggerBatch(component string, logsJson string) {
-	// Validate input size
-	if len(logsJson) > 1024*1024 { // 1MB max batch size
-		a.getLogger().Error().
-			Str("component", component).
-			Int("size", len(logsJson)).
-			Msg("Rejected oversized log batch")
-		return
-	}
-
 	var logEntries []map[string]interface{}
 
 	if err := json.Unmarshal([]byte(logsJson), &logEntries); err != nil {
@@ -69,15 +60,6 @@ func (a *App) BackendLoggerBatch(component string, logsJson string) {
 
 // BackendLogger receives and processes individual log entries from the frontend
 func (a *App) BackendLogger(component string, logJson string) {
-	// Validate input size
-	if len(logJson) > 100*1024 { // 100KB max for individual log
-		a.getLogger().Error().
-			Str("component", component).
-			Int("size", len(logJson)).
-			Msg("Rejected oversized log entry")
-		return
-	}
-
 	var logEntry map[string]interface{}
 
 	if err := json.Unmarshal([]byte(logJson), &logEntry); err != nil {
