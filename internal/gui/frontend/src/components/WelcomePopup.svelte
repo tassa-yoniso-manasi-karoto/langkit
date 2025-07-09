@@ -7,6 +7,7 @@ import { get } from 'svelte/store';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
+    import ErrorCard from './ErrorCard.svelte';
     import { OpenExecutableDialog, DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability, GetSystemInfo } from '../../wailsjs/go/gui/App';
     import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime';
     
@@ -478,18 +479,10 @@ import { get } from 'svelte/store';
                            </div>
                           </div>
                             
-                            {#if ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
-                                <div class="overflow-hidden">
-                                    <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
-                                         style="margin-top: -1px"
-                                         in:slide={{ duration: 400, easing: cubicOut }}
-                                         out:slide={{ duration: 300, easing: cubicOut }}>
-                                        <p class="text-sm text-red-200/80">
-                                            <strong>FFmpeg is required</strong> for all media processing operations. Without it, Langkit cannot function.
-                                        </p>
-                                    </div>
-                                </div>
-                            {/if}
+                            <ErrorCard 
+                                show={ffmpegReady && ffmpegStatus && !ffmpegStatus.available}
+                                message="<strong>FFmpeg is required</strong> for all media processing operations. Without it, Langkit cannot function." 
+                            />
                         </div>
                         
                         <!-- MediaInfo Status -->
@@ -593,18 +586,10 @@ import { get } from 'svelte/store';
       </div>
      </div>
                         
-                        {#if mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
-                            <div class="overflow-hidden">
-                                <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
-                                     style="margin-top: -1px"
-                                     in:slide={{ duration: 400, easing: cubicOut }}
-                                     out:slide={{ duration: 300, easing: cubicOut }}>
-                                    <p class="text-sm text-red-200/80">
-                                        <strong>MediaInfo is required</strong> for media file analysis. Without it, Langkit cannot process media files.
-                                    </p>
-                                </div>
-                            </div>
-                        {/if}
+                        <ErrorCard 
+                            show={mediainfoReady && mediainfoStatus && !mediainfoStatus.available}
+                            message="<strong>MediaInfo is required</strong> for media file analysis. Without it, Langkit cannot process media files." 
+                        />
                             </div>
                             
                         <!-- Docker Status -->
@@ -684,18 +669,10 @@ import { get } from 'svelte/store';
                                 {/if}
                             </div>
                             
-                            {#if dockerReady && dockerStatus && !dockerStatus.available}
-                                <div class="overflow-hidden">
-                                    <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
-                                         style="margin-top: -1px"
-                                         in:slide={{ duration: 400, easing: cubicOut }}
-                                         out:slide={{ duration: 300, easing: cubicOut }}>
-                                        <p class="text-sm text-red-200/80">
-                                            Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>.
-                                        </p>
-                                    </div>
-                                </div>
-                            {/if}
+                            <ErrorCard 
+                                show={dockerReady && dockerStatus && !dockerStatus.available}
+                                message="Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>." 
+                            />
                         </div>
                         
                         <!-- Internet Status -->
@@ -775,19 +752,10 @@ import { get } from 'svelte/store';
                                 </div>
                             </div>
                             
-                            {#if internetReady && internetStatus && !internetStatus.online}
-                                <div class="overflow-hidden">
-                                    <div class="mx-6 px-4 py-3 rounded-b-xl bg-red-500/10 border border-t-0 border-red-500/20"
-                                         style="margin-top: -1px"
-                                         in:slide={{ duration: 400, easing: cubicOut }}
-                                         out:slide={{ duration: 300, easing: cubicOut }}>
-                                        <p class="text-sm text-red-200/80">
-                                            An internet connection is required for AI-powered features.
-                                            Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline.
-                                        </p>
-                                    </div>
-                                </div>
-                            {/if}
+                            <ErrorCard 
+                                show={internetReady && internetStatus && !internetStatus.online}
+                                message="An internet connection is required for AI-powered features. Dubtitles, voice enhancing and subtitle processing for certain languages will not be available offline." 
+                            />
                         </div>
                             </div>
                         </div>
