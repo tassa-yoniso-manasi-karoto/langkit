@@ -161,7 +161,7 @@
     
     // Reactive computation for Docker state (respecting debug override)
     $: isDockerStatusForced = dockerStatus?.error === 'Debug: Forced state';
-    $: isDockerUnavailable = isDockerStatusForced ? !dockerStatus?.available : dockerUnreachable;
+    $: isDockerUnavailable = dockerStatus?.checked ? !dockerStatus?.available : dockerUnreachable;
     
     // Reactive computation for missing LLM providers
     $: missingProviders = (() => {
