@@ -164,7 +164,6 @@
     
     const gradientStops = [1, 2, 3, 4];
     const waveNumbers = [1, 2, 3, 4];
-    const progressStates = ['normal', 'error_task', 'error_all', 'user_cancel', 'complete'];
     
     // Unified handlers
     function handleStyleChange(property: string, value: number) {
@@ -182,15 +181,8 @@
         navigator.clipboard.writeText(exported);
     }
     
-    function simulateProgressState(state: typeof currentProgressState) {
-        currentProgressState = state;
-        onProgressStateChange(state);
-        
-        // Dispatch event to trigger animation in ProgressManager
-        document.dispatchEvent(new CustomEvent('progress-state-demo', { 
-            detail: { state } 
-        }));
-    }
+    // Note: Progress state is derived from actual processing conditions
+    // and cannot be manually simulated as it depends on multiple factors
     
     // Format value for display
     function formatValue(value: number, config: any) {
@@ -385,16 +377,12 @@ complexity without benefit.
 {:else if activeStyleSubTab === 'progress'}
     <!-- Progress Wave Controls -->
     <div class="control-section">
-        <h5 class="text-xs font-semibold mb-2 opacity-80">State Simulation</h5>
-        <div class="flex flex-wrap gap-2 mb-3">
-            {#each progressStates as state}
-                <button 
-                    class="state-button {currentProgressState === state ? 'active' : ''}"
-                    on:click={() => simulateProgressState(state)}
-                >
-                    {state.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}
-                </button>
-            {/each}
+        <h5 class="text-xs font-semibold mb-2 opacity-80">Current State</h5>
+        <div class="text-xs text-gray-400 mb-3">
+            <span class="text-white">
+                {currentProgressState.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}
+            </span>
+            <span class="ml-2 opacity-60">(derived from processing status)</span>
         </div>
     </div>
     
@@ -679,29 +667,6 @@ complexity without benefit.
         justify-content: center;
     }
     
-    /* State buttons for progress simulation */
-    .state-button {
-        padding: 4px 8px;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 11px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    
-    .state-button:hover {
-        background: rgba(255, 255, 255, 0.15);
-        border-color: rgba(255, 255, 255, 0.3);
-        color: white;
-    }
-    
-    .state-button.active {
-        background: var(--primary-color, #9f6ef7);
-        border-color: var(--primary-color, #9f6ef7);
-        color: white;
-    }
     
     /* Minimal utility classes - removed 90% of redundant ones */
     .text-xs { font-size: 0.75rem; }
@@ -717,10 +682,12 @@ complexity without benefit.
     .mb-4 { margin-bottom: 1rem; }
     .mt-2 { margin-top: 0.5rem; }
     .mt-3 { margin-top: 0.75rem; }
+    .ml-2 { margin-left: 0.5rem; }
     .px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
     .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
     .py-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
     .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    .opacity-60 { opacity: 0.6; }
     .opacity-70 { opacity: 0.7; }
     .opacity-80 { opacity: 0.8; }
     .flex { display: flex; }

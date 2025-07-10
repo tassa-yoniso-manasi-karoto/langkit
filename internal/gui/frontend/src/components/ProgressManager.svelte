@@ -669,15 +669,15 @@
     }
     .state-complete {
         --progress-bg-color: hsl(var(--completion-hue), var(--completion-saturation), calc(var(--completion-lightness) + var(--progress-bg-darkness, -10%) - 15%));
-        /* Use default or custom wave fills if available */
-        --wave-1-fill: var(--progress-wave-1-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.5));
-        --wave-2-fill: var(--progress-wave-2-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.7));
-        --wave-3-fill: var(--progress-wave-3-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.8));
-        --wave-4-fill: var(--progress-wave-4-fill, hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.9));
-        --status-wave-1-fill: var(--progress-wave-1-fill, var(--wave-1-fill));
-        --status-wave-2-fill: var(--progress-wave-2-fill, var(--wave-2-fill));
-        --status-wave-3-fill: var(--progress-wave-3-fill, var(--wave-3-fill));
-        --status-wave-4-fill: var(--progress-wave-4-fill, var(--wave-4-fill));
+        /* Use completion-specific wave fills - fixed to use completion colors */
+        --wave-1-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.5);
+        --wave-2-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.7);
+        --wave-3-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.8);
+        --wave-4-fill: hsla(var(--completion-hue), var(--completion-saturation), var(--completion-lightness), 0.9);
+        --status-wave-1-fill: var(--wave-1-fill);
+        --status-wave-2-fill: var(--wave-2-fill);
+        --status-wave-3-fill: var(--wave-3-fill);
+        --status-wave-4-fill: var(--wave-4-fill);
     }
     .state-error-soft {
         --progress-bg-color: hsl(var(--error-soft-hue), var(--error-soft-saturation), calc(var(--error-soft-lightness) + var(--progress-bg-darkness, -10%) - 25%));
