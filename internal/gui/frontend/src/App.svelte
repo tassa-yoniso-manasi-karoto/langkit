@@ -1663,7 +1663,7 @@
 
 <!-- Developer dashboard (only appears in dev mode) -->
 {#if version}
-    <DevDashboard {version} />
+    <DevDashboard {version} {isProcessing} />
 {/if}
 
 <!-- Welcome popup for first-time users -->

@@ -5,7 +5,10 @@ BUGS TO CONFIRM:
 .
 
 - increase debounce for validateLangTag
-- fix committed test code... oops.
+- mediainput unhandled err
+- [Error] TypeError: undefined is not an object (evaluating 'window.wails.EventsNotify')
+	Global Code (Script Element 1:1)
+- go-ichiran register user cancel as: 14:58:18 WRN Transliteration provider marked as unhealthy due to processing error error="error analyzing chunk 1: failed to read exec output: no valid JSON line found in output" component=provider_manager provider_key=jpn:Hepburn provider_name=jpn-ichiran
 - progress bar green broken
 - crash report fallback API key sanitizer (to guarantee no leaks)
 - truncate WS logs: FRONT: Message received [HUGE STRING]
@@ -13,10 +16,10 @@ BUGS TO CONFIRM:
 
 .
 - finish theme
-  - rm unused selectors
+  - rm unused selectorห
   - slightly bigger text on cards, perhaps more white also (better contrast)
   - scale up on hover for cards + ideally a black shadow like GH Ctrl+F
-  - welcome.svelte component
+  - welcome.svelte component: increase borders
   - scale & rotate coffee some more
 
 .

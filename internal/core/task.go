@@ -21,6 +21,16 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/metadata"
 )
 
+// DryRunConfig contains configuration for dry run testing mode
+type DryRunConfig struct {
+	Enabled         bool               // Whether dry run mode is active
+	DelayMs         int                // Delay between tasks in milliseconds
+	ErrorPoints     map[int]string     // Map of task index -> error type ("abort_task" or "abort_all")
+	NextErrorIndex  int                // Index for manual error injection (-1 means no injection)
+	NextErrorType   string             // Type of next manual error
+	ProcessedCount  int                // Number of tasks processed so far
+}
+
 func init() {
 	zerolog.SetGlobalLevel(zerolog.TraceLevel)
 }
@@ -167,6 +177,10 @@ type Task struct {
 	
 	// Intermediary file management
 	fileManager          *IntermediaryFileManager
+	
+	// Dry run testing fields
+	IsDryRun             bool           // Whether this is a dry run test
+	DryRunConfig         *DryRunConfig  // Configuration for dry run testing
 }
 
 func NewTask(handler MessageHandler) (tsk *Task) {

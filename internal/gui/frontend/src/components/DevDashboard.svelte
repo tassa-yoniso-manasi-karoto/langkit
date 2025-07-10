@@ -27,6 +27,7 @@
     
     // Props
     export let version: string = '';
+    export let isProcessing: boolean = false;
     
     // State variables
     let isExpanded = false;
@@ -665,7 +666,7 @@
                                 mediainfoForced={mediainfoForced}
                             />
                     {:else if activeTab === 'tests'}
-                        <TestsDashboard />
+                        <TestsDashboard {isProcessing} />
                     {:else if activeTab === 'style'}
                         <StyleDebugDashboard
                             styleControls={styleControls}

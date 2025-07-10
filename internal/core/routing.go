@@ -8,7 +8,6 @@ import (
 	"io"
 	"context"
 	"errors"
-	"math/rand"
 	"time"
 	
 	"github.com/k0kubun/pp"
@@ -167,6 +166,23 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			es.ExpectedFileCount = len(tasks)
 		}) // necessity: high
 		
+		// Check if this is a dry run and apply configuration
+		if !tsk.Handler.IsCLI() {
+			if config := GetCurrentDryRunConfig(); config != nil && config.Enabled {
+				tsk.Handler.ZeroLog().Info().
+					Int("fileCount", len(tasks)).
+					Int("delayMs", config.DelayMs).
+					Int("scheduledErrors", len(config.ErrorPoints)).
+					Msg("Starting dry run bulk processing")
+				
+				// Apply dry run config to all tasks
+				for i := range tasks {
+					tasks[i].IsDryRun = true
+					tasks[i].DryRunConfig = config
+				}
+			}
+		}
+		
 		tsk.Handler.IncrementProgress(
 			"media-bar",
 			0,
@@ -176,33 +192,82 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			"Total media files done...",
 			"h-5",
 		)
-		changed := false
 		for idx, tsk := range tasks {
-			if !changed {
-				rand.Seed(time.Now().UnixNano())
-				i := rand.Intn(10)
-				if idx > 7  &&  i > 5  {
-					return tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortAllTasks, "TEST ABORT ALL")
-					changed = true
-				} else if idx > 4000  && i < 5  {
-					tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortTask, "TEST ABORT ONE")
-					//tsk.Handler.ZeroLog().Error().Err(fmt.Errorf("error itself")).Msg("test simple error")
-					changed = true
+			// Dry run mode - simulate processing without actual work
+			if tsk.IsDryRun && tsk.DryRunConfig != nil && tsk.DryRunConfig.Enabled {
+				config := tsk.DryRunConfig
+				config.ProcessedCount = idx + 1
+				
+				// Check for scheduled errors at this index
+				if errorType, exists := config.ErrorPoints[idx]; exists {
+					if errorType == "abort_all" {
+						return tsk.Handler.LogErr(fmt.Errorf("dry run test error"), AbortAllTasks, 
+							fmt.Sprintf("DRY RUN: Critical error at file %d", idx+1))
+					} else if errorType == "abort_task" {
+						tsk.Handler.LogErr(fmt.Errorf("dry run test error"), AbortTask, 
+							fmt.Sprintf("DRY RUN: Task error at file %d", idx+1))
+					} else if errorType == "error" {
+						// Regular error - just log it without any abort behavior
+						tsk.Handler.ZeroLog().Error().
+							Err(fmt.Errorf("dry run regular error")).
+							Str("file", filepath.Base(tsk.MediaSourceFile)).
+							Int("index", idx+1).
+							Msg("DRY RUN: Regular error (no abort)")
+					}
 				}
-				time.Sleep(1 * time.Second)
-				if true { //idx < len(tasks)-1 {
-					tsk.Handler.IncrementProgress(
-						"media-bar",
-						1,
-						len(tasks),
-						10,
-						"Processing",
-						"Total media files done...",
-						"h-5",
-					)
+				
+				// Check for manual injection
+				if config.NextErrorIndex == idx && config.NextErrorType != "" {
+					if config.NextErrorType == "abort_all" {
+						// Reset injection before returning
+						config.NextErrorIndex = -1
+						config.NextErrorType = ""
+						return tsk.Handler.LogErr(fmt.Errorf("dry run manual error"), AbortAllTasks, 
+							"DRY RUN: Manual critical error injection")
+					} else if config.NextErrorType == "abort_task" {
+						tsk.Handler.LogErr(fmt.Errorf("dry run manual error"), AbortTask, 
+							"DRY RUN: Manual task error injection")
+						// Reset injection
+						config.NextErrorIndex = -1
+						config.NextErrorType = ""
+					} else if config.NextErrorType == "error" {
+						// Regular error - just log it without any abort behavior
+						tsk.Handler.ZeroLog().Error().
+							Err(fmt.Errorf("dry run manual regular error")).
+							Str("file", filepath.Base(tsk.MediaSourceFile)).
+							Int("index", idx+1).
+							Msg("DRY RUN: Manual regular error injection")
+						// Reset injection
+						config.NextErrorIndex = -1
+						config.NextErrorType = ""
+					}
 				}
+				
+				// Simulate processing delay
+				if config.DelayMs > 0 {
+					time.Sleep(time.Duration(config.DelayMs) * time.Millisecond)
+				}
+				
+				// Update progress with dry run indication
+				tsk.Handler.IncrementProgress(
+					"media-bar",
+					1,
+					len(tasks),
+					10,
+					"Dry Run Processing",
+					fmt.Sprintf("Testing file %d of %d", idx+1, len(tasks)),
+					"h-5",
+				)
+				
+				// Log the file being "processed"
+				tsk.Handler.ZeroLog().Info().
+					Str("file", filepath.Base(tsk.MediaSourceFile)).
+					Int("index", idx+1).
+					Int("total", len(tasks)).
+					Msg("DRY RUN: Simulating file processing")
+				
+				continue // Skip actual processing
 			}
-			continue
 			reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 				es.CurrentFileIndex = idx
 				es.CurrentFilePath = tsk.MediaSourceFile
@@ -291,26 +356,26 @@ func mkMediabar(i int) *progressbar.ProgressBar {
 	)
 }
 
-// for debugging GUI bars
-func waitRandomWithContext(ctx context.Context) error {
-	rand.Seed(time.Now().UnixNano())
-	waitTime := time.Duration(3+rand.Float64()*2) * time.Second
+// // for debugging GUI bars  
+// func waitRandomWithContext(ctx context.Context) error {
+// 	rand.Seed(time.Now().UnixNano())
+// 	waitTime := time.Duration(3+rand.Float64()*2) * time.Second
 
-	fmt.Printf("Waiting for %v...\n", waitTime)
+// 	fmt.Printf("Waiting for %v...\n", waitTime)
 
-	// Create a timer that will fire after waitTime
-	timer := time.NewTimer(waitTime)
-	defer timer.Stop() // Ensure the timer is cleaned up
+// 	// Create a timer that will fire after waitTime
+// 	timer := time.NewTimer(waitTime)
+// 	defer timer.Stop() // Ensure the timer is cleaned up
 
-	select {
-	case <-timer.C: // Timer expired, meaning the wait is complete
-		fmt.Println("Done waiting!")
-		return nil
-	case <-ctx.Done(): // Context was canceled
-		fmt.Println("Context canceled before timeout:", ctx.Err())
-		return ctx.Err()
-	}
-}
+// 	select {
+// 	case <-timer.C: // Timer expired, meaning the wait is complete
+// 		fmt.Println("Done waiting!")
+// 		return nil
+// 	case <-ctx.Done(): // Context was canceled
+// 		fmt.Println("Context canceled before timeout:", ctx.Err())
+// 		return ctx.Err()
+// 	}
+// }
 
 
 func placeholder23456345467() {
@@ -320,30 +385,5 @@ func placeholder23456345467() {
 }
 
 
-			/* copypaste for debugging progressManager and progressbars (frontend's NotifySystem)
-			
-			if !changed {
-				rand.Seed(time.Now().UnixNano())
-				i := rand.Intn(10)
-				if idx > 7  &&  i > 5  {
-					return tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortAllTasks, "TEST ABORT ALL")
-					changed = true
-				} else if idx > 4000  && i < 5  {
-					tsk.Handler.LogErr(fmt.Errorf("error itself"), AbortTask, "TEST ABORT ONE")
-					//tsk.Handler.ZeroLog().Error().Err(fmt.Errorf("error itself")).Msg("test simple error")
-					changed = true
-				}
-				time.Sleep(1 * time.Second)
-				if true { //idx < len(tasks)-1 {
-					tsk.Handler.IncrementProgress(
-						"media-bar",
-						1,
-						len(tasks),
-						10,
-						"Processing",
-						"Total media files done...",
-						"h-5",
-					)
-				}
-			}
-			continue*/
+			/* Dry run testing is now implemented properly via the DryRunConfig system.
+			   Use the DevDashboard > Tests > Bulk Processing Dry Run Test to configure and run tests. */

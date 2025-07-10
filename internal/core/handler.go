@@ -970,6 +970,73 @@ func GetScraperLibLogForwarder(handler MessageHandler) func(string) {
 	}
 }
 
+// Dry run testing methods
+
+// Store for the current dry run configuration
+var currentDryRunConfig *DryRunConfig
+
+// SetDryRunConfig stores the dry run configuration for the next processing run
+func (h *GUIHandler) SetDryRunConfig(config *DryRunConfig) {
+	currentDryRunConfig = config
+	if config != nil && config.Enabled {
+		h.logger.Info().
+			Int("delayMs", config.DelayMs).
+			Int("errorPoints", len(config.ErrorPoints)).
+			Msg("Dry run configuration set")
+	} else {
+		h.logger.Info().Msg("Dry run configuration cleared")
+	}
+}
+
+// InjectDryRunError schedules an error injection at the next task
+func (h *GUIHandler) InjectDryRunError(errorType string) error {
+	if currentDryRunConfig == nil || !currentDryRunConfig.Enabled {
+		return fmt.Errorf("dry run mode is not active")
+	}
+	
+	// Set the error to be injected at the next task
+	currentDryRunConfig.NextErrorIndex = currentDryRunConfig.ProcessedCount
+	currentDryRunConfig.NextErrorType = errorType
+	
+	h.logger.Info().
+		Str("errorType", errorType).
+		Int("atIndex", currentDryRunConfig.NextErrorIndex).
+		Msg("Manual error injection scheduled")
+	
+	return nil
+}
+
+// GetDryRunStatus returns the current dry run status
+func (h *GUIHandler) GetDryRunStatus() map[string]interface{} {
+	status := make(map[string]interface{})
+	
+	if currentDryRunConfig == nil {
+		status["enabled"] = false
+		status["processedCount"] = 0
+		return status
+	}
+	
+	status["enabled"] = currentDryRunConfig.Enabled
+	status["processedCount"] = currentDryRunConfig.ProcessedCount
+	status["delayMs"] = currentDryRunConfig.DelayMs
+	status["scheduledErrors"] = len(currentDryRunConfig.ErrorPoints)
+	
+	// Check if there's a pending manual injection
+	if currentDryRunConfig.NextErrorIndex >= 0 && currentDryRunConfig.NextErrorType != "" {
+		status["pendingInjection"] = map[string]interface{}{
+			"index": currentDryRunConfig.NextErrorIndex,
+			"type":  currentDryRunConfig.NextErrorType,
+		}
+	}
+	
+	return status
+}
+
+// GetCurrentDryRunConfig returns the current dry run configuration (used by Task)
+func GetCurrentDryRunConfig() *DryRunConfig {
+	return currentDryRunConfig
+}
+
 
 
 func placeholder3456() {

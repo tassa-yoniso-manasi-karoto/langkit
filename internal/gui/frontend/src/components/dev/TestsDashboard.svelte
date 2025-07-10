@@ -1,5 +1,8 @@
 <script lang="ts">
     import MemoryTestButton from './MemoryTestButton.svelte';
+    import DryRunProgressTest from './DryRunProgressTest.svelte';
+    
+    export let isProcessing: boolean = false;
 </script>
 
 <h4>Tests</h4>
@@ -16,7 +19,10 @@
     </div>
 </div>
 
-<!-- Space for future test additions -->
+<!-- Progress/Routing testing section -->
+<div class="progress-test-section">
+    <DryRunProgressTest {isProcessing} />
+</div>
 
 <style>
     h4 {
@@ -29,6 +35,10 @@
         margin-bottom: 16px;
         padding-bottom: 12px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .progress-test-section {
+        margin-top: 16px;
     }
     
     .section-title {

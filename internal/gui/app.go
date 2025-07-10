@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 var handler *core.GUIHandler
 var appThrottler *batch.AdaptiveEventThrottler
+var errHandlerNotInitialized = fmt.Errorf("handler not initialized")
 
 type App struct {
 	ctx         context.Context
@@ -180,5 +182,87 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 // shutdown is called at application termination
 func (a *App) shutdown(ctx context.Context) {
 	a.getLogger().Info().Msg("Application shutdown")
+}
+
+// Dry run testing methods
+
+// SetDryRunConfig stores the dry run configuration for the next processing run
+func (a *App) SetDryRunConfig(config map[string]interface{}) error {
+	if handler == nil {
+		return errHandlerNotInitialized
+	}
+	
+	// Convert map to DryRunConfig struct
+	dryRunConfig := &core.DryRunConfig{
+		Enabled:        getBoolFromMap(config, "enabled", false),
+		DelayMs:        getIntFromMap(config, "delayMs", 1000),
+		ProcessedCount: getIntFromMap(config, "processedCount", 0),
+		NextErrorIndex: getIntFromMap(config, "nextErrorIndex", -1),
+		NextErrorType:  getStringFromMap(config, "nextErrorType", ""),
+		ErrorPoints:    make(map[int]string),
+	}
+	
+	// Convert errorPoints from map
+	if errorPoints, ok := config["errorPoints"].(map[string]interface{}); ok {
+		for indexStr, errorType := range errorPoints {
+			if index, err := parseStringToInt(indexStr); err == nil {
+				if errorTypeStr, ok := errorType.(string); ok {
+					dryRunConfig.ErrorPoints[index] = errorTypeStr
+				}
+			}
+		}
+	}
+	
+	handler.SetDryRunConfig(dryRunConfig)
+	return nil
+}
+
+// InjectDryRunError schedules an error injection at the next task
+func (a *App) InjectDryRunError(errorType string) error {
+	if handler == nil {
+		return errHandlerNotInitialized
+	}
+	
+	return handler.InjectDryRunError(errorType)
+}
+
+// GetDryRunStatus returns the current dry run status
+func (a *App) GetDryRunStatus() (map[string]interface{}, error) {
+	if handler == nil {
+		return nil, errHandlerNotInitialized
+	}
+	
+	return handler.GetDryRunStatus(), nil
+}
+
+// Helper functions for map conversion
+func getBoolFromMap(m map[string]interface{}, key string, defaultValue bool) bool {
+	if val, ok := m[key].(bool); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func getIntFromMap(m map[string]interface{}, key string, defaultValue int) int {
+	if val, ok := m[key].(float64); ok {
+		return int(val)
+	}
+	if val, ok := m[key].(int); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func getStringFromMap(m map[string]interface{}, key string, defaultValue string) string {
+	if val, ok := m[key].(string); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func parseStringToInt(s string) (int, error) {
+	var i int
+	_, err := fmt.Sscanf(s, "%d", &i)
+	return i, err
 }
 
