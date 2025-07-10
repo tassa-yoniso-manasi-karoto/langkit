@@ -386,48 +386,76 @@ complexity without benefit.
         </div>
     </div>
     
-    <!-- Normal Wave Colors -->
+    <!-- Wave Colors for Current State -->
     <div class="control-section">
-        <h5 class="text-xs font-semibold mb-2 opacity-80">Normal - Wave Colors</h5>
-        {#each waveNumbers as waveNum}
-            <div class="mb-2">
-                <div class="text-xs font-medium mb-1 opacity-70">Wave {waveNum}</div>
-                <div class="slider-grid">
-                    {#each ['Hue', 'Saturation', 'Lightness', 'Alpha'] as prop}
-                        {@const key = `wave${waveNum}${prop}`}
-                        {@const config = {
-                            Hue: { min: 0, max: 360 },
-                            Saturation: { min: 0, max: 100, suffix: '%', label: 'Sat' },
-                            Lightness: { min: 0, max: 100, suffix: '%', label: 'Light' },
-                            Alpha: { min: 0, max: 1, step: 0.01, decimals: 2 }
-                        }[prop]}
-                        <div class="slider-control">
-                            <label class="slider-label">
-                                {config.label || prop}: {formatValue(progressWaveControls[key], config)}{config.suffix || ''}
-                            </label>
-                            <div class="slider-row">
-                                <input
-                                    type="range"
-                                    min={config.min}
-                                    max={config.max}
-                                    step={config.step || 1}
-                                    bind:value={progressWaveControls[key]}
-                                    on:input={() => handleProgressWaveChange(key, progressWaveControls[key])}
-                                    class="slider"
-                                />
-                                <button
-                                    class="reset-button"
-                                    on:click={() => resetProgressWaveProperty(key)}
-                                    title="Reset to default"
-                                >
-                                    ↺
-                                </button>
-                            </div>
-                        </div>
-                    {/each}
-                </div>
+        <h5 class="text-xs font-semibold mb-2 opacity-80">
+            {#if currentProgressState === 'error_task'}
+                Error Task - Wave Colors
+            {:else if currentProgressState === 'error_all'}
+                Error All - Wave Colors
+            {:else if currentProgressState === 'complete'}
+                Complete State - Wave Colors (uses completion color)
+            {:else if currentProgressState === 'user_cancel'}
+                User Cancel - Wave Colors (uses gray theme)
+            {:else}
+                Normal - Wave Colors
+            {/if}
+        </h5>
+        
+        {#if currentProgressState === 'complete'}
+            <div class="text-xs text-gray-400 mb-3">
+                The complete state uses the completion color (green) defined in the main theme.
+                Wave colors are automatically derived from the completion hue/saturation/lightness.
             </div>
-        {/each}
+        {:else if currentProgressState === 'user_cancel'}
+            <div class="text-xs text-gray-400 mb-3">
+                The user cancel state uses a gray theme with no wave animation.
+            </div>
+        {:else}
+            {@const statePrefix = currentProgressState === 'error_task' ? 'errorTask' : 
+                                 currentProgressState === 'error_all' ? 'errorAll' : ''}
+            {#key currentProgressState}
+            {#each waveNumbers as waveNum}
+                <div class="mb-2">
+                    <div class="text-xs font-medium mb-1 opacity-70">Wave {waveNum}</div>
+                    <div class="slider-grid">
+                        {#each ['Hue', 'Saturation', 'Lightness', 'Alpha'] as prop}
+                            {@const key = statePrefix ? `${statePrefix}Wave${waveNum}${prop}` : `wave${waveNum}${prop}`}
+                            {@const config = {
+                                Hue: { min: 0, max: 360 },
+                                Saturation: { min: 0, max: 100, suffix: '%', label: 'Sat' },
+                                Lightness: { min: 0, max: 100, suffix: '%', label: 'Light' },
+                                Alpha: { min: 0, max: 1, step: 0.01, decimals: 2 }
+                            }[prop]}
+                            <div class="slider-control">
+                                <label class="slider-label">
+                                    {config.label || prop}: {formatValue(progressWaveControls[key] ?? 0, config)}{config.suffix || ''}
+                                </label>
+                                <div class="slider-row">
+                                    <input
+                                        type="range"
+                                        min={config.min}
+                                        max={config.max}
+                                        step={config.step || 1}
+                                        bind:value={progressWaveControls[key]}
+                                        on:input={() => handleProgressWaveChange(key, progressWaveControls[key])}
+                                        class="slider"
+                                    />
+                                    <button
+                                        class="reset-button"
+                                        on:click={() => resetProgressWaveProperty(key)}
+                                        title="Reset to default"
+                                    >
+                                        ↺
+                                    </button>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/each}
+            {/key}
+        {/if}
     </div>
     
     <!-- Other Progress Controls -->
