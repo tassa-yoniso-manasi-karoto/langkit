@@ -5,7 +5,7 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { invalidationErrorStore } from './lib/invalidationErrorStore';
     import { logger } from './lib/logger';
@@ -45,7 +45,8 @@
         CheckInternetConnectivity,
         GetLanguageRequirements,
         CheckFFmpegAvailability,
-        CheckMediaInfoAvailability
+        CheckMediaInfoAvailability,
+        GetSystemInfo
     } from '../wailsjs/go/gui/App';
     import { EventsOn } from '../wailsjs/runtime/runtime';
     import type { gui } from '../wailsjs/go/models';
@@ -1040,6 +1041,14 @@
             logger.info('app', `Application version detected: ${version}`, 
                 { isDevMode: version === 'dev' }
             );
+        });
+        
+        // Initialize system info store for OS-dependent functionality
+        GetSystemInfo().then(info => {
+            systemInfoStore.set(info);
+            logger.debug('app', 'System info initialized', { os: info.os, arch: info.arch });
+        }).catch(error => {
+            logger.error('app', 'Failed to get system info', { error });
         });
         
         // Initialize window state detection - check initially and set up interval

@@ -10,6 +10,7 @@
     import { logger } from '../lib/logger';
     import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
     import { debounce } from 'lodash';
+    import { getOSDebounceDelay } from '../lib/osUtils';
     
     // Class for message items to keep styling consistent
     const messageItemClass = "flex items-center gap-2 py-2 px-3 first:pt-2 last:pb-2 hover:bg-white/5 transition-colors duration-200 group";
@@ -149,7 +150,7 @@
     }
     
     // Debounced version to prevent rapid validation calls
-    const debouncedCheckNativeLanguageIsEnglish = debounce(checkNativeLanguageIsEnglish, 10);
+    const debouncedCheckNativeLanguageIsEnglish = debounce(checkNativeLanguageIsEnglish, getOSDebounceDelay());
     
     // Reactive computations for LLM state (respecting debug override)
     $: isLLMReady = debugLLMState ? debugLLMState === 'ready' : llmState?.globalState === 'ready';

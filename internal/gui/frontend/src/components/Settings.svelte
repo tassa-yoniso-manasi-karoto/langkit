@@ -6,6 +6,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     import { ExportDebugReport, OpenExecutableDialog, ValidateLanguageTag } from '../../wailsjs/go/gui/App';
     import { logger } from '../lib/logger';
     import { debounce } from 'lodash';
+    import { getOSDebounceDelay } from '../lib/osUtils';
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
@@ -235,7 +236,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     // Create debounced version of validateLanguages to prevent rapid calls
     const debouncedValidateLanguages = debounce(async () => {
         await validateLanguages();
-    }, 10);
+    }, getOSDebounceDelay());
 
     async function saveSettings() {
         logger.info('Settings', 'Saving settings');

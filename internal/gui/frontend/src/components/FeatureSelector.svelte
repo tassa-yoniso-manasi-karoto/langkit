@@ -38,6 +38,7 @@
         GetAvailableSummaryModels
     } from '../../wailsjs/go/gui/App';
     import { debounce } from 'lodash';
+    import { getOSDebounceDelay } from '../lib/osUtils';
     
     import FeatureCard from './FeatureCard.svelte';
     import QuickAccessLangSelector from './QuickAccessLangSelector.svelte';
@@ -431,7 +432,7 @@
     }
     
     // Debounced version of processLanguageChange to prevent rapid calls
-    const debouncedProcessLanguageChange = debounce(processLanguageChange, 10);
+    const debouncedProcessLanguageChange = debounce(processLanguageChange, getOSDebounceDelay());
     
     /**
      * Update error messages based on feature availability

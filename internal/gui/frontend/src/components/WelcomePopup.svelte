@@ -3,12 +3,12 @@
     import { fade, scale, fly, slide } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
 import { get } from 'svelte/store';
-    import { statisticsStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, settings } from '../lib/stores';
+    import { statisticsStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, settings, systemInfoStore } from '../lib/stores';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import ErrorCard from './ErrorCard.svelte';
-    import { OpenExecutableDialog, DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability, GetSystemInfo } from '../../wailsjs/go/gui/App';
+    import { OpenExecutableDialog, DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../../wailsjs/go/gui/App';
     import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime';
     
     // Custom slide projector transition
@@ -90,7 +90,8 @@ import { get } from 'svelte/store';
     $: ffmpegReady = ffmpegStatus.checked;
     $: mediainfoReady = mediainfoStatus.checked;
     
-    let systemInfo = { os: '', arch: '' };
+    // Get system info from store
+    $: systemInfo = $systemInfoStore;
     
     // Animation states
     let titleVisible = false;
@@ -170,8 +171,6 @@ import { get } from 'svelte/store';
     // Check statuses on mount
     onMount(async () => {
     	logger.info('WelcomePopup', 'Welcome popup mounted');
-    	
-    	systemInfo = await GetSystemInfo();
     	
     	// Start reveal animation sequence
     	setTimeout(() => titleVisible = true, 100);
