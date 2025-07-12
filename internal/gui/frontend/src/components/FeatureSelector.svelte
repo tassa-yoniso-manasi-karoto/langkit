@@ -1319,8 +1319,8 @@
     // Update display order when features are fully rendered
     afterUpdate(() => {
         if (isInitialDataLoaded && visibleFeatures.length > 0) {
-            // Use a slight delay to ensure the DOM is fully updated
-            setTimeout(registerFeatureDisplayOrder, 100);
+            // Use OS-dependent delay to ensure the DOM is fully updated
+            setTimeout(registerFeatureDisplayOrder, getOSDebounceDelay());
         }
     });
     
@@ -1705,12 +1705,17 @@
       ensureValidSTTModel();
     }
 
+    // Create debounced settings update handler
+    const debouncedSettingsUpdate = debounce(() => {
+        ensureValidSTTModel();
+        updateProviderWarnings();
+    }, getOSDebounceDelay());
+    
     // Also call it when settings change
     settings.subscribe(value => {
       if (value) {
-        // Wait for STT models to refresh before validating selection
-        setTimeout(ensureValidSTTModel, 100);
-        updateProviderWarnings();
+        // Use debounced update for WebView2 compatibility
+        debouncedSettingsUpdate();
       }
     });
     

@@ -295,18 +295,19 @@
             lastEnabledState = enabled;
             lastCheckTime = now;
             // Schedule the check slightly later to ensure DOM is fully updated
-            setTimeout(checkTopmostFeatureStatus, 50);
+            // Use OS-dependent delay for WebView2 compatibility
+            setTimeout(checkTopmostFeatureStatus, getOSDebounceDelay());
         }
     });
     
     // Update options height when they change
     $: if (enabled && optionsWrapper && !animating) {
-        // Small delay to ensure DOM is updated
+        // OS-dependent delay to ensure DOM is updated
         setTimeout(() => {
             if (optionsWrapper) {
                 optionsHeight = optionsWrapper.offsetHeight;
             }
-        }, 50);
+        }, getOSDebounceDelay());
     }
     
     // Helper function for text color classes
