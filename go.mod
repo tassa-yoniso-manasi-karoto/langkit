@@ -1,6 +1,6 @@
 module github.com/tassa-yoniso-manasi-karoto/langkit
 
-go 1.23.4
+go 1.23.9
 
 toolchain go1.23.9
 
