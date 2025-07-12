@@ -162,3 +162,36 @@ export function resetMediaInfoStatus() {
         });
     });
 }
+
+// Debounce override state
+let debounceOverrides: { windows?: number; other?: number } = {};
+
+// Debounce control functions
+export function setDebounceOverride(os: 'windows' | 'other', value: number) {
+    debounceOverrides[os] = value;
+    logger.debug('devDashboard', `Set ${os} debounce override to: ${value}ms`);
+}
+
+export function getDebounceOverride(os: 'windows' | 'other'): number | undefined {
+    return debounceOverrides[os];
+}
+
+export function resetDebounceOverride(os: 'windows' | 'other') {
+    delete debounceOverrides[os];
+    logger.debug('devDashboard', `Reset ${os} debounce to default`);
+}
+
+export function resetAllDebounceOverrides() {
+    debounceOverrides = {};
+    logger.debug('devDashboard', 'Reset all debounce overrides to defaults');
+}
+
+// Get current debounce state for UI display
+export function getDebounceState() {
+    return {
+        windowsOverride: debounceOverrides.windows,
+        otherOverride: debounceOverrides.other,
+        windowsDefault: 200,
+        otherDefault: 10
+    };
+}
