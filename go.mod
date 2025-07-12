@@ -2,8 +2,6 @@ module github.com/tassa-yoniso-manasi-karoto/langkit
 
 go 1.23.9
 
-toolchain go1.23.9
-
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/adrg/xdg v0.5.3
