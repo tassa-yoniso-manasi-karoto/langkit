@@ -108,6 +108,14 @@ jobs:
         if: runner.os != 'macOS'
         uses: jetli/wasm-pack-action@v0.4.0
         
+      # Install WebRPC code generator
+      - name: Install webrpc-gen
+        run: go install github.com/webrpc/webrpc/cmd/webrpc-gen
+        
+      # Generate WebRPC code
+      - name: Generate WebRPC code
+        run: go generate ./...
+        
       # Build WASM components with your custom inlining process
       - name: Build WebAssembly components
         working-directory: internal/gui/frontend
@@ -115,19 +123,6 @@ jobs:
         run: |
           npm install
           npm run build:wasm
-          
-      # Diagnostic step for macOS
-      - name: macOS Build Diagnostics
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          echo "=== macOS Build Environment ==="
-          echo "Runner architecture: ${{ runner.arch }}"
-          echo "Go version: $(go version)"
-          echo "GOARCH: $(go env GOARCH)"
-          echo "GOOS: $(go env GOOS)"
-          echo "CGO_ENABLED: $(go env CGO_ENABLED)"
-          uname -a
           
       # Prepare version information
       - name: Prepare version info
