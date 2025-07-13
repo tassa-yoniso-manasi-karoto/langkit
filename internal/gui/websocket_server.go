@@ -4,13 +4,13 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
 
-// WebSocketServer manages WebSocket connections for LLM state updates
+// WebSocketServer manages WebSocket connections for real-time event broadcasting
 type WebSocketServer struct {
 	upgrader  websocket.Upgrader
 	clients   map[*websocket.Conn]bool
@@ -19,12 +19,15 @@ type WebSocketServer struct {
 	port      int
 	listener  net.Listener
 	logger    zerolog.Logger
+	onConnect func() // Callback when a client connects
 }
 
-// WSMessage represents a WebSocket message
+// WSMessage represents a generic WebSocket message
 type WSMessage struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type      string      `json:"type"`
+	Data      interface{} `json:"data"`
+	Timestamp int64       `json:"timestamp,omitempty"`
+	ID        string      `json:"id,omitempty"`
 }
 
 // NewWebSocketServer creates a new WebSocket server on a dynamic port
@@ -88,22 +91,24 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 
 	ws.logger.Info().Msg("WebSocket client connected")
 
-	// Send initial state if registry exists
-	if llms.DefaultRegistry != nil {
-		stateSnapshot := llms.DefaultRegistry.GetCurrentStateSnapshot()
-		
-		msg := WSMessage{
-			Type:    "initial_state",
-			Payload: stateSnapshot,
-		}
+	// Send connection confirmation
+	msg := WSMessage{
+		Type:      "connected",
+		Data:      map[string]interface{}{"message": "WebSocket connection established"},
+		Timestamp: time.Now().Unix(),
+	}
 
-		ws.writeMu.Lock()
-		err := conn.WriteJSON(msg)
-		ws.writeMu.Unlock()
-		
-		if err != nil {
-			ws.logger.Error().Err(err).Msg("Failed to send initial state")
-		}
+	ws.writeMu.Lock()
+	err = conn.WriteJSON(msg)
+	ws.writeMu.Unlock()
+	
+	if err != nil {
+		ws.logger.Error().Err(err).Msg("Failed to send connection message")
+	}
+	
+	// Call connection callback if set
+	if ws.onConnect != nil {
+		ws.onConnect()
 	}
 
 	// Cleanup on disconnect
@@ -129,11 +134,12 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// BroadcastStateChange broadcasts an LLM state change to all connected clients
-func (ws *WebSocketServer) BroadcastStateChange(change llms.StateChange) {
+// Broadcast sends a message of the specified type to all connected clients
+func (ws *WebSocketServer) Broadcast(msgType string, data interface{}) {
 	msg := WSMessage{
-		Type:    "statechange",
-		Payload: change,
+		Type:      msgType,
+		Data:      data,
+		Timestamp: time.Now().Unix(),
 	}
 
 	ws.clientsMu.RLock()
@@ -151,10 +157,15 @@ func (ws *WebSocketServer) BroadcastStateChange(change llms.StateChange) {
 		ws.writeMu.Unlock()
 		
 		if err != nil {
-			ws.logger.Error().Err(err).Msg("Failed to send to client")
+			ws.logger.Error().Err(err).Str("msgType", msgType).Msg("Failed to send to client")
 			// Client will be removed when read pump detects disconnect
 		}
 	}
+}
+
+// SetOnConnect sets a callback to be called when a client connects
+func (ws *WebSocketServer) SetOnConnect(callback func()) {
+	ws.onConnect = callback
 }
 
 // Shutdown gracefully shuts down the WebSocket server

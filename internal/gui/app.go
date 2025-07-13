@@ -155,6 +155,15 @@ func (a *App) domReady(ctx context.Context) {
 	// Initialize LLM system with async registry and WebSocket server
 	a.llmRegistry = core.InitLLM(handler, a.ctx, a.wsServer)
 	a.getLogger().Info().Msg("LLM registry initialized")
+	
+	// Set up WebSocket connection callback to send initial LLM state
+	a.wsServer.SetOnConnect(func() {
+		if a.llmRegistry != nil {
+			stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
+			a.wsServer.Broadcast("llm.state.changed", stateSnapshot)
+			a.getLogger().Debug().Msg("Sent initial LLM state to new WebSocket client")
+		}
+	})
 
 	a.getLogger().Info().Msg("Application initialization complete")
 }

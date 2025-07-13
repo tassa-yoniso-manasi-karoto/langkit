@@ -9,9 +9,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// StateChangeNotifier is an interface for broadcasting LLM state changes
+// StateChangeNotifier is an interface for broadcasting state changes via WebSocket
 type StateChangeNotifier interface {
-	BroadcastStateChange(change llms.StateChange)
+	Broadcast(msgType string, data interface{})
 }
 
 // InitLLM initializes the LLM subsystem and related components
@@ -30,7 +30,7 @@ func InitLLM(handler MessageHandler, wailsContext context.Context, notifier Stat
 	notifierFunc := func(change llms.StateChange) {
 		// Broadcast via WebSocket
 		if notifier != nil {
-			notifier.BroadcastStateChange(change)
+			notifier.Broadcast("llm.state.changed", change)
 		}
 		
 		// Also emit Wails events for backward compatibility

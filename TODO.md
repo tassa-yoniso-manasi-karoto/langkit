@@ -23,6 +23,7 @@ BUGS TO CONFIRM:
 
 .
 - LINT
+- update dev.md with build instructions, designs explained in brief
 
 .
 - REFACTOR CORE

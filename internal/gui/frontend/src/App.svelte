@@ -5,10 +5,11 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore, llmStateStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { invalidationErrorStore } from './lib/invalidationErrorStore';
     import { logger } from './lib/logger';
+    import { wsClient } from './ws/client';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
     import { enableWasm, isWasmEnabled, getWasmModule } from './lib/wasm'; // Removed setWasmSizeThreshold
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
@@ -1031,6 +1032,26 @@
         logger.registerLogViewerCallback((logMessage) => {
             logStore.addLog(logMessage);
         });
+        
+        // Initialize WebSocket connection early
+        logger.info('app', 'Initializing WebSocket connection');
+        
+        // Set up LLM state handler
+        wsClient.on('llm.state.changed', (data) => {
+            logger.debug('app', 'LLM state change received via WebSocket', { 
+                globalState: data.globalState 
+            });
+            llmStateStore.set(data);
+        });
+        
+        // Start WebSocket connection
+        try {
+            await wsClient.connect();
+            logger.info('app', 'WebSocket connected successfully');
+        } catch (error) {
+            logger.error('app', 'Failed to connect WebSocket', { error });
+            // WebSocket will auto-reconnect, so we continue app initialization
+        }
         
         // Get initial version and pass it to WebAssembly for environment-aware loading
         GetVersion().then(v => {
