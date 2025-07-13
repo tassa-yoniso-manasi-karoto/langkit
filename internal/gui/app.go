@@ -77,8 +77,23 @@ func (a *App) startup(ctx context.Context) {
 
 	a.getLogger().Info().Msg("Application starting up")
 
-	// Initialize the throttler with default settings
-	// These will be updated when settings are loaded
+	// Create WebSocket server first (needed by throttler)
+	wsServer, err := NewWebSocketServer(*a.getLogger())
+	if err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to create WebSocket server")
+	}
+	a.wsServer = wsServer
+	a.getLogger().Info().Int("port", wsServer.GetPort()).Msg("WebSocket server created")
+
+	// Create broadcaster function for throttler
+	broadcaster := func(msgType string, data interface{}) {
+		if a.wsServer != nil {
+			a.wsServer.Broadcast(msgType, data)
+		}
+	}
+
+	// Initialize the throttler with WebSocket broadcaster
+	// These settings will be updated when settings are loaded
 	a.throttler = batch.NewAdaptiveEventThrottler(
 		ctx,
 		0,                    // minInterval - will be updated from settings
@@ -86,23 +101,16 @@ func (a *App) startup(ctx context.Context) {
 		500*time.Millisecond, // rateWindow for measuring event frequency
 		true,                 // enabled by default
 		a.getLogger(),        // Logger for throttler
+		broadcaster,          // WebSocket broadcaster
 	)
 
 	// Store throttler references for global access
 	appThrottler = a.throttler
 
-	// Initialize handler with throttler
-	handler = core.NewGUIHandler(ctx, a.throttler)
+	// Initialize handler with throttler and WebSocket server
+	handler = core.NewGUIHandler(ctx, a.throttler, a.wsServer)
 
 	a.getLogger().Debug().Msg("Event throttler initialized")
-
-	// Create WebSocket server for LLM state updates
-	wsServer, err := NewWebSocketServer(*a.getLogger())
-	if err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to create WebSocket server")
-	}
-	a.wsServer = wsServer
-	a.getLogger().Info().Int("port", wsServer.GetPort()).Msg("WebSocket server created")
 	
 	// Create WebRPC API server
 	apiServer, err := api.NewServer(api.DefaultConfig(), *a.getLogger())

@@ -358,6 +358,7 @@ type GUIHandler struct {
 	throttler      *batch.AdaptiveEventThrottler
 	etaCalculators map[string]eta.Provider
 	guiLogWriter   *LogWriter
+	wsNotifier     StateChangeNotifier // For WebSocket broadcasting
 }
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
@@ -365,6 +366,7 @@ type LogWriter struct {
 	ctx           context.Context
 	throttler     *batch.AdaptiveEventThrottler
 	sendTraceLogs atomic.Bool
+	wsNotifier    StateChangeNotifier // For direct critical log broadcasting
 }
 
 func (w *LogWriter) Write(p []byte) (n int, err error) {
@@ -395,9 +397,9 @@ func (w *LogWriter) Write(p []byte) (n int, err error) {
 	if shouldSend {
 		if w.throttler != nil {
 			w.throttler.AddLog(string(p))
-		} else {
-			// Fallback to direct emission if throttler isn't available.
-			runtime.EventsEmit(w.ctx, "log", string(p))
+		} else if w.wsNotifier != nil {
+			// Fallback to direct WebSocket emission if throttler isn't available.
+			w.wsNotifier.Broadcast("log.entry", string(p))
 		}
 	}
 
@@ -406,19 +408,21 @@ func (w *LogWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler) *GUIHandler {
+func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler, wsNotifier StateChangeNotifier) *GUIHandler {
 	h := &GUIHandler{
 		ctx:            ctx,
 		progressMap:    make(map[string]int),
 		throttler:      throttler,
 		etaCalculators: make(map[string]eta.Provider),
+		wsNotifier:     wsNotifier,
 	}
 	crash.InitReporter(ctx)
 
 	// 1. Writer for the GUI Log Viewer (sends raw JSON to the throttler)
 	guiLogWriter := &LogWriter{
-		ctx:       ctx,
-		throttler: throttler,
+		ctx:        ctx,
+		throttler:  throttler,
+		wsNotifier: wsNotifier,
 	}
 	guiLogWriter.sendTraceLogs.Store(false) // Initially disable trace logs
 	h.guiLogWriter = guiLogWriter

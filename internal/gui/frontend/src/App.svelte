@@ -1036,12 +1036,30 @@
         // Initialize WebSocket connection early
         logger.info('app', 'Initializing WebSocket connection');
         
-        // Set up LLM state handler
+        // Set up WebSocket event handlers
         wsClient.on('llm.state.changed', (data) => {
             logger.debug('app', 'LLM state change received via WebSocket', { 
                 globalState: data.globalState 
             });
             llmStateStore.set(data);
+        });
+        
+        // Set up log handlers
+        wsClient.on('log.entry', (rawLog: any) => {
+            // Always process logs even when minimized to maintain complete log history
+            logStore.addLog(rawLog);
+        });
+        
+        wsClient.on('log.batch', (logBatch) => {
+            if (!Array.isArray(logBatch) || logBatch.length === 0) return;
+            
+            // Use the logStore's batch processing directly - it handles merging, ordering and chunking
+            logStore.addLogBatch(logBatch);
+            
+            // For very large batches, log a debug message
+            if (logBatch.length > 200) {
+                logger.debug('app', 'Processed large log batch', { batchSize: logBatch.length });
+            }
         });
         
         // Start WebSocket connection
@@ -1134,7 +1152,6 @@
         // Check window state every 2 seconds to optimize resource usage
         windowCheckInterval = window.setInterval(checkWindowState, 2000);
         
-        // --- WebAssembly Initialization ---
         try {
             // First, log the WebAssembly startup
             logger.info('app', 'Starting WebAssembly subsystem initialization');
@@ -1222,17 +1239,6 @@
                         if ($newSettings.useWasm) {
                             if (wasEnabled) {
                                 logger.info('app', 'WebAssembly successfully enabled via settings');
-                                
-                                // Apply threshold from settings
-                                // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
-                                // if ($newSettings.wasmSizeThreshold) {
-                                //     setWasmSizeThreshold($newSettings.wasmSizeThreshold);
-                                //     logger.info('app', 
-                                //         WasmLogLevel.INFO,
-                                //         'config',
-                                //         `Set WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
-                                //     );
-                                // }
                             } else {
                                 // Handle case where enabling failed
                                 invalidationErrorStore.addError({
@@ -1255,19 +1261,6 @@
                             dismissible: true,
                         });
                     }
-                } 
-                // Handle threshold changes separately
-                else if ($newSettings.wasmSizeThreshold !== undefined && 
-                         $newSettings.wasmSizeThreshold !== $currentSettings.wasmSizeThreshold) {
-                    if (isWasmEnabled()) {
-                        // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
-                        // setWasmSizeThreshold($newSettings.wasmSizeThreshold);
-                        // logger.info('app', 
-                        //     WasmLogLevel.INFO,
-                        //     'config',
-                        //     `Updated WebAssembly size threshold to ${$newSettings.wasmSizeThreshold} logs`
-                        // );
-                    }
                 }
             });
 
@@ -1279,12 +1272,6 @@
                 
                 if (wasEnabled) {
                     logger.info('app', 'WebAssembly initialized successfully on application startup');
-                    
-                    // Apply threshold from settings
-                    // Threshold is now read directly via getWasmSizeThreshold(), no need to set it here.
-                    // if ($currentSettings.wasmSizeThreshold) {
-                    //     setWasmSizeThreshold($currentSettings.wasmSizeThreshold);
-                    // }
                 } else {
                     logger.warn('app', 'WebAssembly initialization failed on startup, check browser console for details');
                 }
@@ -1302,7 +1289,6 @@
                 dismissible: true,
             });
         }
-        // --- End WebAssembly Initialization ---
         
         // Defer loading of the Feature Selector component until main UI has rendered
         // This improves perceived performance and creates a nicer sequential reveal effect
@@ -1320,24 +1306,7 @@
         // Trigger initial activity detection
         handleUserActivity();
         
-        // Initialize log listener with passive option for better performance
-        EventsOn("log", (rawLog: any) => {
-            // Always process logs even when minimized to maintain complete log history
-            logStore.addLog(rawLog);
-        });
-        
-        // Optimized log batch handler - delegates parsing and insertion to logStore
-        EventsOn("log-batch", (logBatch) => {
-            if (!Array.isArray(logBatch) || logBatch.length === 0) return;
-            
-            // Use the logStore's batch processing directly - it handles merging, ordering and chunking
-            logStore.addLogBatch(logBatch);
-            
-            // For very large batches, log a debug message
-            if (logBatch.length > 200) {
-                logger.debug('app', 'Processed large log batch', { batchSize: logBatch.length });
-            }
-        });
+        // Log handlers have been moved to WebSocket initialization section
 
         EventsOn("progress-remove", (taskId: string) => {
             logger.trace('app', `Explicitly removing progress bar: ${taskId}`);
@@ -1498,7 +1467,7 @@
     });
 </script>
 
-<!-- Version display (fixed, using Tailwind and DM Mono) -->
+<!-- Version display -->
 <div class="fixed top-[0.2rem] right-[3.9rem] z-50 p-0 text-[0.6rem] text-gray-500 text-xs font-dm-mono flex items-center">
     {#if version}
         {#if version === "dev"}
@@ -1515,7 +1484,7 @@
     {/if}
 </div>
 
-<!-- Main container now spans full viewport -->
+<!-- Main container -->
 <div class="w-screen h-screen bg-bg text-gray-100 font-dm-sans fixed inset-0
      {globalDragOver ? 'ring-2 ring-primary ring-opacity-50' : ''}"
      style="--wails-drop-target: drop;"
@@ -1527,7 +1496,7 @@
         <GlowEffect {isProcessing} />
     {/if}
 
-    <!-- Settings button container -->
+    <!-- Settings button  -->
     <div class="absolute top-4 right-4 z-20 flex items-center gap-4">
         <button
             class="w-10 h-10 flex items-center justify-center rounded-xl
@@ -1545,8 +1514,6 @@
             <span class="material-icons text-[22px]">settings</span>
         </button>
     </div>
-
-    <!-- Removed central button -->
 
     <div class="flex h-full p-8 gap-8 relative z-10">
         <!-- Main content area with width optimization to prevent layout thrashing -->

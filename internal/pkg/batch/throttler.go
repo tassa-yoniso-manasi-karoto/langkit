@@ -56,7 +56,9 @@ func (c *addLogCommand) execute(t *AdaptiveEventThrottler) {
 	
 	// Send critical logs and direct logs immediately
 	if isCritical || c.direct || !t.enabled {
-		runtime.EventsEmit(t.ctx, "log", c.log)
+		if t.broadcaster != nil {
+			t.broadcaster("log.entry", c.log)
+		}
 		return
 	}
 	
@@ -65,7 +67,9 @@ func (c *addLogCommand) execute(t *AdaptiveEventThrottler) {
 	
 	// Use direct pass-through for normal operations (when not in high load mode)
 	if t.currentRate < t.directPassThreshold && !t.highLoadMode {
-		runtime.EventsEmit(t.ctx, "log", c.log)
+		if t.broadcaster != nil {
+			t.broadcaster("log.entry", c.log)
+		}
 		return
 	}
 	
@@ -340,6 +344,9 @@ type AdaptiveEventThrottler struct {
 	logSequence        int64
 	maxBufferSize      int
 	logger             *zerolog.Logger
+	
+	// Event broadcaster (WebSocket)
+	broadcaster        func(msgType string, data interface{})
 }
 
 // NewAdaptiveEventThrottler creates a new throttler instance with the given parameters
@@ -350,6 +357,7 @@ func NewAdaptiveEventThrottler(
 	rateWindow time.Duration,
 	enabled bool,
 	logger *zerolog.Logger,
+	broadcaster func(msgType string, data interface{}),
 ) *AdaptiveEventThrottler {
 	t := &AdaptiveEventThrottler{
 		ctx:                ctx,
@@ -367,6 +375,7 @@ func NewAdaptiveEventThrottler(
 		eventTimeWindow:    make([]time.Time, 0, 100),
 		maxBufferSize:      5000,
 		logger:             logger,
+		broadcaster:        broadcaster,
 	}
 	
 	// Start command processor
@@ -691,12 +700,14 @@ func (t *AdaptiveEventThrottler) doFlush(sync bool) {
 		t.logBuffer = t.logBuffer[:0]
 		
 		// Send the batch event
-		if sync {
-			// Synchronous emission
-			runtime.EventsEmit(t.ctx, "log-batch", logsCopy)
-		} else {
-			// Asynchronous emission
-			go runtime.EventsEmit(t.ctx, "log-batch", logsCopy)
+		if t.broadcaster != nil {
+			if sync {
+				// Synchronous emission
+				t.broadcaster("log.batch", logsCopy)
+			} else {
+				// Asynchronous emission
+				go t.broadcaster("log.batch", logsCopy)
+			}
 		}
 	}
 	
