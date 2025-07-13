@@ -1,0 +1,39 @@
+webrpc = v1
+name = langkit-lang
+version = v1.0.0
+
+# Language validation and processing service
+
+struct LanguageValidation
+  - tag: string
+  - single: bool
+  
+struct ValidationResponse
+  - valid: bool
+  - standardTag: string
+  - error?: string
+
+struct LanguageRequirements
+  - standardTag: string
+  - isValid: bool
+  - requiresDocker: bool
+  - requiresInternet: bool
+  - error?: string
+
+struct RomanizationScheme
+  - name: string
+  - description: string
+  - provider: string
+
+struct RomanizationStylesResponse
+  - schemes: []RomanizationScheme
+  - dockerUnreachable: bool
+  - dockerEngine: string
+  - needsDocker: bool
+  - needsScraper: bool
+
+service LanguageService
+  - ValidateLanguage(validation: LanguageValidation) => (response: ValidationResponse)
+  - GetLanguageRequirements(languageTag: string) => (requirements: LanguageRequirements)
+  - NeedsTokenization(language: string) => (needed: bool)
+  - GetRomanizationStyles(languageCode: string) => (styles: RomanizationStylesResponse)

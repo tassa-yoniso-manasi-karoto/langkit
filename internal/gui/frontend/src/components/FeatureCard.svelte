@@ -8,7 +8,7 @@
     import { showSettings, llmStateStore, settings, type LLMStateChange, dockerStatusStore } from '../lib/stores';
     import { featureGroupStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
-    import { ValidateLanguageTag } from '../../wailsjs/go/gui/App';
+    import { ValidateLanguageTag } from '../api';
     import { debounce } from 'lodash';
     import { getOSDebounceDelay } from '../lib/osUtils';
     

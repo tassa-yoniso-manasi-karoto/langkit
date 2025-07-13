@@ -1043,6 +1043,17 @@
             );
         });
         
+        // Initialize WebRPC API client
+        try {
+            const { getAPIBaseUrl } = await import('./api');
+            const apiUrl = await getAPIBaseUrl();
+            logger.info('app', `WebRPC API initialized at ${apiUrl}`);
+        } catch (error) {
+            logger.error('app', 'Failed to initialize WebRPC API', { error });
+            // Continue app initialization even if API fails
+            // The API will retry on first use
+        }
+        
         // Initialize system info store for OS-dependent functionality
         GetSystemInfo().then(info => {
             systemInfoStore.set(info);

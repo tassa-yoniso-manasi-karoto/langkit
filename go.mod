@@ -11,6 +11,7 @@ require (
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/failsafe-go/failsafe-go v0.6.9
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-rod/rod v0.116.2
 	github.com/gookit/color v1.5.4
 	github.com/gorilla/websocket v1.5.3

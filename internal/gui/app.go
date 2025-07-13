@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/services"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
@@ -27,6 +29,7 @@ type App struct {
 	logger      *zerolog.Logger  // Only for early initialization before handler is ready
 	llmRegistry *llms.Registry   // LLM Registry for async provider management
 	wsServer    *WebSocketServer // WebSocket server for state updates
+	apiServer   *api.Server      // WebRPC API server
 }
 
 func NewApp() *App {
@@ -100,6 +103,25 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.wsServer = wsServer
 	a.getLogger().Info().Int("port", wsServer.GetPort()).Msg("WebSocket server created")
+	
+	// Create WebRPC API server
+	apiServer, err := api.NewServer(api.DefaultConfig(), *a.getLogger())
+	if err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to create API server")
+	}
+	a.apiServer = apiServer
+	
+	// Register language service
+	langSvc := services.NewLanguageService(*a.getLogger())
+	if err := apiServer.RegisterService(langSvc); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to register language service")
+	}
+	
+	// Start API server
+	if err := apiServer.Start(); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to start API server")
+	}
+	a.getLogger().Info().Int("port", apiServer.GetPort()).Msg("WebRPC API server started")
 }
 
 func (a *App) domReady(ctx context.Context) {
@@ -164,6 +186,15 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 			a.getLogger().Error().Err(err).Msg("Failed to shutdown WebSocket server")
 		}
 		a.wsServer = nil
+	}
+	
+	// Properly shut down the API server
+	if a.apiServer != nil {
+		a.getLogger().Info().Msg("Application closing, shutting down API server")
+		if err := a.apiServer.Shutdown(); err != nil {
+			a.getLogger().Error().Err(err).Msg("Failed to shutdown API server")
+		}
+		a.apiServer = nil
 	}
 
 	// Properly shut down the throttler
@@ -266,3 +297,11 @@ func parseStringToInt(s string) (int, error) {
 	return i, err
 }
 
+
+// GetAPIPort returns the port the WebRPC API server is listening on
+func (a *App) GetAPIPort() (int, error) {
+	if a.apiServer == nil {
+		return 0, fmt.Errorf("API server not initialized")
+	}
+	return a.apiServer.GetPort(), nil
+}

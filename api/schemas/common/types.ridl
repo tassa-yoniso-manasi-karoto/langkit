@@ -1,0 +1,31 @@
+webrpc = v1
+
+# Common types shared across all Langkit services
+
+# Error codes that can be returned by any service
+enum ErrorCode: uint32
+  - None = 0
+  - ValidationFailed = 100
+  - NotFound = 101
+  - Unauthorized = 102
+  - InternalError = 500
+
+# Standard error response structure
+struct ErrorInfo
+  - code: ErrorCode
+  - message: string
+  - details?: map<string,any>
+
+# Pagination request parameters
+struct PageRequest
+  - page?: uint32      # Default 1
+  - pageSize?: uint32  # Default 20
+  - sort?: string
+  - filter?: map<string,string>
+
+# Pagination response metadata
+struct PageResponse
+  - page: uint32
+  - pageSize: uint32
+  - total: uint64
+  - hasNext: bool

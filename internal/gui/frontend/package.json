@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:wasm && vite build",
+    "build": "npm run build:wasm && npm run build:webrpc && vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json",
     "build:wasm": "bash ./src/scripts/build-wasm.sh",
+    "build:webrpc": "cd ../../../api && make generate-ts",
     "dev:wasm": "nodemon --watch src/wasm -e rs --exec 'npm run build:wasm'",
     "test": "vitest run",
     "test:watch": "vitest",

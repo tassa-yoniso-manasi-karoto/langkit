@@ -59,6 +59,12 @@ var results = await webView.CoreWebView2.ExecuteScriptAsync(
 );
 ```
 
+## Framework serialization support varies significantly
+
+Not all frameworks provide the dispatch queue mechanism needed to prevent concurrent access violations. **Wails notably lacks built-in serialization** for frontend-to-backend calls, allowing multiple async operations to execute concurrently on the backend. This has led to numerous race conditions reported in GitHub issues (#372: "panic: concurrent write to websocket connection", #950: "Possible race condition in the EventManager", #1554: "fatal error: concurrent map read and map write").
+
+The absence of a dispatch queue in Wails means that when multiple frontend components simultaneously call backend methods, these execute concurrently without serialization. This explains why some Wails applications experience WebView2 hanging issues that debouncing alone cannot solve—the problem isn't call frequency but rather concurrent access to the bridge. Developers using Wails must implement their own synchronization mechanisms (mutexes, channels, or JavaScript-side queuing) to ensure thread-safe backend access.
+
 ## Debouncing strategies prevent input-triggered freezes
 
 User input often triggers rapid WebView2 operations that can overwhelm the message pump. **Debouncing patterns** have become essential for handling scenarios like window resizing, text input, or rapid button clicks. Wails introduced the `ResizeDebounceMS` configuration specifically to address WebView2 flicker during window resize operations:
@@ -109,5 +115,7 @@ webview_dispatch(webview_t w, void (*fn)(webview_t w, void *arg), void *arg);
 ## Conclusion
 
 WebView2's limitations stem from fundamental architectural constraints that cannot be worked around—only accommodated through careful design. The open-source community has converged on a set of proven patterns: async-first architectures, message queuing systems, debouncing strategies, and structured communication protocols. These patterns represent hard-won knowledge from applications serving millions of users.
+
+Critically, **framework choice matters significantly** when building WebView2 applications. While libraries like webview/webview provide essential dispatch queue mechanisms, popular frameworks like Wails lack built-in serialization for frontend-to-backend calls. This absence of proper concurrency control at the framework level means developers must implement their own synchronization mechanisms or face the race conditions and hanging issues that plague WebView2 applications.
 
 Success with WebView2 requires accepting its single-threaded nature and designing around it from the start. Applications that try to force synchronous patterns or ignore the message pump requirements inevitably encounter the deadlocks and freezes documented across hundreds of GitHub issues. However, applications that embrace WebView2's constraints and implement the architectural patterns discovered by the community can achieve excellent performance and reliability, as demonstrated by successful projects like Spacedrive, Pake, and Microsoft's own WebView2Browser.

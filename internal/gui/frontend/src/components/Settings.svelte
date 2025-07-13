@@ -3,7 +3,8 @@
     import { slide, fade } from 'svelte/transition';
     import { settings, showSettings } from '../lib/stores';
 import { isDeveloperMode } from '../lib/developerMode';
-    import { ExportDebugReport, OpenExecutableDialog, ValidateLanguageTag } from '../../wailsjs/go/gui/App';
+    import { ExportDebugReport, OpenExecutableDialog } from '../../wailsjs/go/gui/App';
+    import { ValidateLanguageTag } from '../api';
     import { logger } from '../lib/logger';
     import { debounce } from 'lodash';
     import { getOSDebounceDelay } from '../lib/osUtils';

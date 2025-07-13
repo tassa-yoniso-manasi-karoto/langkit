@@ -29,14 +29,16 @@
         groupHasEnabledFeature
     } from '../lib/featureGroupStore';
     import { 
-        GetRomanizationStyles, 
-        ValidateLanguageTag,
         CheckMediaLanguageTags,
-        NeedsTokenization,
         GetAvailableSTTModelsForUI,
         GetAvailableSummaryProviders,
         GetAvailableSummaryModels
     } from '../../wailsjs/go/gui/App';
+    import {
+        GetRomanizationStyles,
+        ValidateLanguageTag,
+        NeedsTokenization
+    } from '../api';
     import { debounce } from 'lodash';
     import { getOSDebounceDelay } from '../lib/osUtils';
     
