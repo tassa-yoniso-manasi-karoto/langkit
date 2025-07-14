@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
@@ -340,13 +339,15 @@ func (a *App) downloadAndExtract(dependencyName, url string, filesToExtract []st
 		Reader: resp.Body,
 		Total:  resp.ContentLength,
 		Handler: func(p float64, read, total int64, speed float64) {
-			runtime.EventsEmit(a.ctx, dependencyName+"-download-progress", map[string]interface{}{
-				"progress":    p,
-				"read":        read,
-				"total":       total,
-				"speed":       speed,
-				"description": fmt.Sprintf("%s / %s (%s/s)", humanize.Bytes(uint64(read)), humanize.Bytes(uint64(total)), humanize.Bytes(uint64(speed))),
-			})
+			if a.wsServer != nil {
+				a.wsServer.Broadcast("download."+dependencyName+".progress", map[string]interface{}{
+					"progress":    p,
+					"read":        read,
+					"total":       total,
+					"speed":       speed,
+					"description": fmt.Sprintf("%s / %s (%s/s)", humanize.Bytes(uint64(read)), humanize.Bytes(uint64(total)), humanize.Bytes(uint64(speed))),
+				})
+			}
 		},
 	}
 

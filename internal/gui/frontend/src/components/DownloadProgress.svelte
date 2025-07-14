@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import { EventsOn } from '../../wailsjs/runtime/runtime';
+    import { wsClient } from '../ws/client';
 
     export let taskId: string;
 
@@ -8,10 +8,10 @@
     let description = 'Starting download...';
     let visible = true;
 
-    let unlisten: () => void;
+    let progressHandler: ((data: any) => void) | null = null;
 
     onMount(() => {
-        unlisten = EventsOn(taskId, (data: any) => {
+        progressHandler = (data: any) => {
         	progress = data.progress;
             description = data.description;
             if (progress >= 100) {
@@ -19,12 +19,23 @@
                     visible = false;
                 }, 1000);
             }
-        });
+        };
+        
+        // Convert taskId to WebSocket event pattern
+        // If taskId contains "-download-progress", convert to new pattern
+        const eventName = taskId.includes('-download-progress') 
+            ? `download.${taskId.replace('-download-progress', '')}.progress`
+            : taskId;
+            
+        wsClient.on(eventName, progressHandler);
     });
 
     onDestroy(() => {
-        if (unlisten) {
-            unlisten();
+        if (progressHandler) {
+            const eventName = taskId.includes('-download-progress') 
+                ? `download.${taskId.replace('-download-progress', '')}.progress`
+                : taskId;
+            wsClient.off(eventName, progressHandler);
         }
     });
 </script>

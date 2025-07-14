@@ -6,7 +6,6 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // StateChangeNotifier is an interface for broadcasting state changes via WebSocket
@@ -31,11 +30,6 @@ func InitLLM(handler MessageHandler, wailsContext context.Context, notifier Stat
 		// Broadcast via WebSocket
 		if notifier != nil {
 			notifier.Broadcast("llm.state.changed", change)
-		}
-		
-		// Also emit Wails events for backward compatibility
-		if wailsContext != nil {
-			runtime.EventsEmit(wailsContext, "llm:statechange", change)
 		}
 		
 		handler.ZeroLog().Debug().

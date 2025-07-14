@@ -154,7 +154,9 @@ func (a *App) domReady(ctx context.Context) {
 	a.updateThrottlerSettings(settings)
 
 	// Emit settings to frontend
-	runtime.EventsEmit(ctx, "settings-loaded", settings)
+	if a.wsServer != nil {
+		a.wsServer.Broadcast("settings.loaded", settings)
+	}
 
 	if settings.ShowLogViewerByDefault {
 		runtime.WindowMaximise(ctx)

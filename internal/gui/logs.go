@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/rs/zerolog"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
@@ -178,5 +177,7 @@ func (a *App) RecordWasmState(stateJson string) {
 func (a *App) RequestWasmState() {
 	// Send an event to the frontend requesting the WebAssembly state
 	a.getLogger().Debug().Msg("Requesting WebAssembly state from frontend")
-	runtime.EventsEmit(a.ctx, "request-wasm-state")
+	if a.wsServer != nil {
+		a.wsServer.Broadcast("wasm.state.request", nil)
+	}
 }

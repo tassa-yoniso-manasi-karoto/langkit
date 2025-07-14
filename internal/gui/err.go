@@ -74,7 +74,9 @@ func (a *App) ExportDebugReport() error {
 
 	// Let the user know it's done
 	a.getLogger().Info().Str("path", savePath).Msg("Debug report exported successfully")
-	runtime.EventsEmit(a.ctx, "debugReportExported", savePath)
+	if a.wsServer != nil {
+		a.wsServer.Broadcast("debug.report.exported", savePath)
+	}
 	return nil
 }
 
@@ -114,13 +116,6 @@ func exitOnError(mainErr error) {
 	// Flush any pending events if throttler is available
 	if appThrottler != nil {
 		appThrottler.SyncFlush()
-	}
-	
-	// In case of crash, try to get WebAssembly state
-	// This is a best-effort attempt - there's no guarantee it will succeed in crash scenarios
-	if handler != nil && handler.GetContext() != nil {
-		runtime.EventsEmit(handler.GetContext(), "request-wasm-state")
-		time.Sleep(200 * time.Millisecond) // Brief delay to allow frontend to respond
 	}
 	
 	_, err = crash.WriteReport(crash.ModeCrash, mainErr, settings, handler.GetLogBuffer(), false)

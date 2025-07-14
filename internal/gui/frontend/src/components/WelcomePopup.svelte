@@ -9,7 +9,8 @@ import { get } from 'svelte/store';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import ErrorCard from './ErrorCard.svelte';
     import { OpenExecutableDialog, DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../../wailsjs/go/gui/App';
-    import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime';
+    import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
+    import { wsClient } from '../ws/client';
     
     // Custom slide projector transition
     function slideProjector(node, {
@@ -244,17 +245,18 @@ import { get } from 'svelte/store';
    let mediainfo_description = 'Starting download...';
    let mediainfo_error: string | null = null;
   
-   let unlisten_ffmpeg: () => void;
-   let unlisten_mediainfo: () => void;
+   let ffmpegProgressHandler: ((data: any) => void) | null = null;
+   let mediainfoProgressHandler: ((data: any) => void) | null = null;
     
     async function handleDownload(dependency: 'ffmpeg' | 'mediainfo') {
     if (dependency === 'ffmpeg') {
     ffmpeg_error = null;
     	ffmpeg_downloading = true;
-    unlisten_ffmpeg = EventsOn('ffmpeg-download-progress', (data: any) => {
+    ffmpegProgressHandler = (data: any) => {
     	ffmpeg_progress = data.progress;
     	ffmpeg_description = data.description;
-    });
+    };
+    wsClient.on('download.ffmpeg.progress', ffmpegProgressHandler);
     	try {
     		await DownloadFFmpeg();
     		if (recheckFFmpeg) await recheckFFmpeg();
@@ -263,15 +265,19 @@ import { get } from 'svelte/store';
     	ffmpeg_error = err as string;
     	} finally {
     		ffmpeg_downloading = false;
-    	if (unlisten_ffmpeg) unlisten_ffmpeg();
+    	if (ffmpegProgressHandler) {
+    		wsClient.off('download.ffmpeg.progress', ffmpegProgressHandler);
+    		ffmpegProgressHandler = null;
+    	}
     	}
     } else {
     mediainfo_error = null;
     	mediainfo_downloading = true;
-    unlisten_mediainfo = EventsOn('mediainfo-download-progress', (data: any) => {
+    mediainfoProgressHandler = (data: any) => {
     	mediainfo_progress = data.progress;
     	mediainfo_description = data.description;
-    });
+    };
+    wsClient.on('download.mediainfo.progress', mediainfoProgressHandler);
     	try {
     		await DownloadMediaInfo();
     		if (recheckMediaInfo) await recheckMediaInfo();
@@ -280,7 +286,10 @@ import { get } from 'svelte/store';
     	mediainfo_error = err as string;
     	} finally {
     		mediainfo_downloading = false;
-    	if (unlisten_mediainfo) unlisten_mediainfo();
+    	if (mediainfoProgressHandler) {
+    		wsClient.off('download.mediainfo.progress', mediainfoProgressHandler);
+    		mediainfoProgressHandler = null;
+    	}
     	}
     }
    }

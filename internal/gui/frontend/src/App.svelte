@@ -49,7 +49,6 @@
         CheckMediaInfoAvailability,
         GetSystemInfo
     } from '../wailsjs/go/gui/App';
-    import { EventsOn } from '../wailsjs/runtime/runtime';
     import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces
@@ -1116,6 +1115,39 @@
             }
         });
         
+        // Set up WASM state request handler
+        wsClient.on('wasm.state.request', () => {
+            logger.debug('app', 'Backend requested WebAssembly state');
+            
+            // Update memory info if WebAssembly is active
+            try {
+                const module = getWasmModule();
+                if (module && module.get_memory_usage) {
+                    const memInfo = module.get_memory_usage();
+                    // Direct update via imported function - no command pattern
+                    import('./lib/wasm-state').then(m => m.updateMemoryUsage(memInfo));
+                }
+            } catch (e: any) {
+                logger.error('app', `Failed to get memory info: ${e.message}`);
+            }
+            
+            // Send current state to backend
+            syncWasmStateForReport();
+        });
+        
+        // Set up update available handler
+        wsClient.on('update.available', (newVersion: string) => {
+            logger.info('app', `Update available: ${newVersion}`);
+            version = newVersion; // Update version display if needed
+            updateAvailable = true;
+        });
+        
+        // Set up settings loaded handler
+        wsClient.on('settings.loaded', (loadedSettings) => {
+            logger.debug('app', 'Settings loaded via WebSocket', { settings: loadedSettings });
+            // Settings are already handled by the settings store, this is just for logging
+        });
+        
         // Start WebSocket connection
         try {
             await wsClient.connect();
@@ -1241,25 +1273,7 @@
                 return;
             }
             
-            // Setup the request-wasm-state event handler for crash reporting
-            EventsOn("request-wasm-state", () => {
-                logger.debug('app', 'Backend requested WebAssembly state');
-                
-                // Update memory info if WebAssembly is active
-                try {
-                    const module = getWasmModule();
-                    if (module && module.get_memory_usage) {
-                        const memInfo = module.get_memory_usage();
-                        // Direct update via imported function - no command pattern
-                        import('./lib/wasm-state').then(m => m.updateMemoryUsage(memInfo));
-                    }
-                } catch (e: any) {
-                    logger.error('app', `Failed to get memory info: ${e.message}`);
-                }
-                
-                // Send current state to backend
-                syncWasmStateForReport();
-            });
+            // Setup the request-wasm-state event handler has been moved to WebSocket initialization section
             
             // Subscribe to UI settings changes
             uiSettingsSubscription = settings.subscribe(($newSettings) => {
@@ -1359,15 +1373,6 @@
         
         // Trigger initial activity detection
         handleUserActivity();
-        
-        // Progress handlers have been moved to WebSocket initialization section
-        
-        // Handle application version check
-        EventsOn("update-available", (newVersion: string) => {
-            logger.info('app', `Update available: ${newVersion}`);
-            version = newVersion; // Update version display if needed
-            updateAvailable = true;
-        });
         
         // Check Docker, Internet, FFmpeg and MediaInfo availability on startup
         checkDockerAvailability();
