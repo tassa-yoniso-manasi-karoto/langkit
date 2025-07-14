@@ -7,11 +7,23 @@ BUGS TO CONFIRM:
 - mediainput unhandled err → better err
 - broken feature message on webview2
 
-- broken feature message on WEBKIT. /!\
 - go-ichiran register user cancel as: 14:58:18 WRN Transliteration provider marked as unhealthy due to processing error error="error analyzing chunk 1: failed to read exec output: no valid JSON line found in output" component=provider_manager provider_key=jpn:Hepburn provider_name=jpn-ichiran
+- broken feature message on WEBKIT. /!\
 - crash report fallback API key sanitizer (to guarantee no leaks)
 - truncate WS logs: FRONT: Message received [HUGE STRING]
 - ask Claude thorough critic
+
+
+
+```
+  // GUIHandler implements multiple focused interfaces: compile-time assertions
+  var _ MessageHandler = (*GUIHandler)(nil)
+  var _ ProgressBroadcaster = (*GUIHandler)(nil)
+  var _ DryRunProvider = (*GUIHandler)(nil)
+  var _ SettingsProvider = (*GUIHandler)(nil)
+  // ... etc
+```
+
 
 .
 - finish theme

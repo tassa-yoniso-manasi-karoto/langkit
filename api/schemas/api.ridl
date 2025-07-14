@@ -7,3 +7,4 @@ version = v1.0.0
 
 import ./services/lang.ridl
 import ./services/deps.ridl
+import ./services/dryrun.ridl

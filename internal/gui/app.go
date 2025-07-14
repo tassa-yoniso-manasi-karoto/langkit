@@ -131,6 +131,12 @@ func (a *App) startup(ctx context.Context) {
 		a.getLogger().Fatal().Err(err).Msg("Failed to register dependency service")
 	}
 	
+	// Register dry run service (handler implements DryRunProvider)
+	dryRunSvc := services.NewDryRunService(*a.getLogger(), handler)
+	if err := apiServer.RegisterService(dryRunSvc); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to register dry run service")
+	}
+	
 	// Start API server
 	if err := apiServer.Start(); err != nil {
 		a.getLogger().Fatal().Err(err).Msg("Failed to start API server")

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { logger } from '../../lib/logger';
-    import { SetDryRunConfig, InjectDryRunError, GetDryRunStatus } from '../../../wailsjs/go/gui/App';
+    import { SetDryRunConfig, InjectDryRunError, GetDryRunStatus } from '../../api/services/dryrun';
     
     // Props
     export let isProcessing: boolean = false;

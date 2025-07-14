@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/schollz/progressbar/v3"
 
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/services"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
@@ -354,6 +355,11 @@ type GUIHandler struct {
 	guiLogWriter   *LogWriter
 	wsNotifier     StateChangeNotifier // For WebSocket broadcasting
 }
+
+// GUIHandler implements multiple focused interfaces: compile-time assertions
+var _ MessageHandler = (*GUIHandler)(nil)
+var _ services.ProgressBroadcaster = (*GUIHandler)(nil)
+var _ services.DryRunProvider = (*GUIHandler)(nil)
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
@@ -1030,6 +1036,13 @@ func (h *GUIHandler) GetDryRunStatus() map[string]interface{} {
 	}
 	
 	return status
+}
+
+// Broadcast implements services.ProgressBroadcaster interface
+func (h *GUIHandler) Broadcast(event string, data interface{}) {
+	if h.wsNotifier != nil {
+		h.wsNotifier.Broadcast(event, data)
+	}
 }
 
 // GetCurrentDryRunConfig returns the current dry run configuration (used by Task)

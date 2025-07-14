@@ -1,0 +1,26 @@
+webrpc = v1
+name = langkit-dryrun
+version = v1.0.0
+
+# Dry run testing and debugging service
+
+struct DryRunConfig
+  - enabled: bool
+  - delayMs: int32
+  - processedCount: int32
+  - nextErrorIndex: int32
+  - nextErrorType?: string
+  - errorPoints?: map<int32,string>
+
+struct DryRunStatus
+  - enabled: bool
+  - delayMs: int32
+  - processedCount: int32
+  - nextErrorIndex: int32
+  - nextErrorType?: string
+  - errorPoints?: map<int32,string>
+
+service DryRunService
+  - SetConfig(config: DryRunConfig) => ()
+  - InjectError(errorType: string) => ()
+  - GetStatus() => (status: DryRunStatus)

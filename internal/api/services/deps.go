@@ -23,11 +23,6 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/downloader"
 )
 
-// ProgressBroadcaster interface for broadcasting download progress
-type ProgressBroadcaster interface {
-	Broadcast(event string, data interface{})
-}
-
 // Compile-time check that DependencyService implements api.Service
 var _ api.Service = (*DependencyService)(nil)
 
