@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Default high load mode timeout
@@ -100,7 +99,9 @@ type updateProgressCommand struct {
 func (c *updateProgressCommand) execute(t *AdaptiveEventThrottler) {
 	// Direct send if throttling disabled
 	if !t.enabled {
-		runtime.EventsEmit(t.ctx, "progress", c.data)
+		if t.broadcaster != nil {
+			t.broadcaster("progress.updated", c.data)
+		}
 		return
 	}
 	
@@ -109,7 +110,9 @@ func (c *updateProgressCommand) execute(t *AdaptiveEventThrottler) {
 	
 	// Use direct pass-through for normal operations
 	if (t.currentRate < t.directPassThreshold && !t.highLoadMode) || c.direct {
-		runtime.EventsEmit(t.ctx, "progress", c.data)
+		if t.broadcaster != nil {
+			t.broadcaster("progress.updated", c.data)
+		}
 		return
 	}
 	
@@ -132,7 +135,9 @@ func (c *bulkUpdateProgressCommand) execute(t *AdaptiveEventThrottler) {
 		for _, update := range c.updates {
 			progressUpdates = append(progressUpdates, update)
 		}
-		runtime.EventsEmit(t.ctx, "progress-batch", progressUpdates)
+		if t.broadcaster != nil {
+			t.broadcaster("progress.batch", progressUpdates)
+		}
 		return
 	}
 	
@@ -723,12 +728,14 @@ func (t *AdaptiveEventThrottler) doFlush(sync bool) {
 		t.progressBuffer = make(map[string]map[string]interface{})
 		
 		// Send the batch event
-		if sync {
-			// Synchronous emission
-			runtime.EventsEmit(t.ctx, "progress-batch", progressUpdates)
-		} else {
-			// Asynchronous emission
-			go runtime.EventsEmit(t.ctx, "progress-batch", progressUpdates)
+		if t.broadcaster != nil {
+			if sync {
+				// Synchronous emission
+				t.broadcaster("progress.batch", progressUpdates)
+			} else {
+				// Asynchronous emission
+				go t.broadcaster("progress.batch", progressUpdates)
+			}
 		}
 	}
 }

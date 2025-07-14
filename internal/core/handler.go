@@ -16,7 +16,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/schollz/progressbar/v3"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
@@ -43,7 +42,6 @@ type MessageHandler interface {
 
 	ZeroLog() *zerolog.Logger
 	GetLogBuffer() bytes.Buffer
-	HandleStatus(status string) //TODO
 
 	// Progress tracking methods with specific ETA algorithm choice
 	// CRITICAL: IncrementProgress needs the ACTUAL INCREMENT, not absolute value because it follows the API of github.com/schollz/progressbar used for Langkit-cli which relies on increments: progressbar.Add(x)
@@ -135,10 +133,6 @@ func (h *CLIHandler) ZeroLog() *zerolog.Logger {
 	return h.logger
 }
 
-
-func (h *CLIHandler) HandleStatus(status string) {
-	h.logger.Info().Msg(status)
-}
 
 
 func (h *CLIHandler) ResetProgress() {
@@ -684,7 +678,9 @@ func (h *GUIHandler) ResetProgress() {
 	h.etaCalculators = make(map[string]eta.Provider)
 	
 	// Emit event to frontend to reset all progress bars
-	runtime.EventsEmit(h.ctx, "progress-reset", true)
+	if h.wsNotifier != nil {
+		h.wsNotifier.Broadcast("progress.reset", true)
+	}
 }
 
 
@@ -697,7 +693,9 @@ func (h *GUIHandler) RemoveProgressBar(taskID string) {
 		delete(h.etaCalculators, taskID)
 	}
 
-	runtime.EventsEmit(h.ctx, "progress-remove", taskID)
+	if h.wsNotifier != nil {
+		h.wsNotifier.Broadcast("progress.remove", taskID)
+	}
 
 	h.ZeroLog().Debug().
 		Str("taskID", taskID).
@@ -812,9 +810,9 @@ func (h *GUIHandler) incrementProgressInternal(
 	// Send through throttler if available
 	if h.throttler != nil {
 		h.throttler.UpdateProgress(taskID, payload)
-	} else {
-		// Fallback to direct emission
-		runtime.EventsEmit(h.ctx, "progress", payload)
+	} else if h.wsNotifier != nil {
+		// Fallback to direct WebSocket emission
+		h.wsNotifier.Broadcast("progress.updated", payload)
 	}
 
 	// Cleanup if complete
@@ -903,11 +901,13 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 	// Process through throttler if available
 	if h.throttler != nil {
 		h.throttler.BulkUpdateProgress(updates)
-	} else {
-		// Fallback to individual updates
+	} else if h.wsNotifier != nil {
+		// Fallback to batch update via WebSocket
+		progressUpdates := make([]map[string]interface{}, 0, len(updates))
 		for _, update := range updates {
-			runtime.EventsEmit(h.ctx, "progress", update)
+			progressUpdates = append(progressUpdates, update)
 		}
+		h.wsNotifier.Broadcast("progress.batch", progressUpdates)
 	}
 	
 	// Cleanup completed items
@@ -919,12 +919,8 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 			delete(h.etaCalculators, id)
 		}
 	}
-}
 
-func (h *GUIHandler) HandleStatus(status string) {
-	runtime.EventsEmit(h.ctx, "status", status)
 }
-
 // SetHighLoadMode pre-emptively enables high load mode of Adaptive Event Throttling System
 // This gives a "head start" instead of waiting for auto-detection
 // helpful for previousy interrupted task resumption

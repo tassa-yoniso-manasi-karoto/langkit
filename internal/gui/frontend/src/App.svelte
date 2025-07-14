@@ -1062,6 +1062,60 @@
             }
         });
         
+        // Set up progress handlers
+        wsClient.on('progress.remove', (taskId: string) => {
+            logger.trace('app', `Explicitly removing progress bar: ${taskId}`);
+            removeProgressBar(taskId);
+        });
+        
+        wsClient.on('progress.reset', (data: boolean) => {
+            logger.trace('app', 'Resetting all progress bars');
+            resetAllProgressBars();
+        });
+        
+        // Handle individual progress events (sent in direct-pass mode)
+        wsClient.on('progress.updated', (data) => {
+            updateProgressBar(data);
+        });
+        
+        wsClient.on('progress.batch', (progressBatch) => {
+            if (!Array.isArray(progressBatch) || progressBatch.length === 0) return;
+            
+            // Skip excessive updates when window is minimized to save resources
+            if (isWindowMinimized && progressBatch.length > 10) {
+                // Only process a few important updates for state maintenance
+                const consolidatedUpdates: { [key: string]: any } = {}; // Add index signature
+                
+                // Keep only the latest update for each task ID
+                progressBatch.forEach(update => {
+                    if (update && update.id) {
+                        consolidatedUpdates[update.id] = update;
+                    }
+                });
+                
+                // Apply only the latest updates
+                Object.values(consolidatedUpdates).forEach((update: any) => { // Add type
+                    // Check if update is complete or has error before applying
+                    if (update.progress >= 100 || update.errorState) { 
+                        updateProgressBar(update);
+                    } else {
+                        // For ongoing tasks, maybe only update every Nth time?
+                        // For simplicity now, just update latest state
+                        updateProgressBar(update);
+                    }
+                });
+                
+                // Log skipped updates
+                // console.log(`[${new Date().toISOString()}] ⏭️ Throttled ${progressBatch.length - Object.keys(consolidatedUpdates).length} progress updates while minimized`);
+                
+            } else {
+                // Process all updates normally when window is visible or batch is small
+                progressBatch.forEach(data => {
+                    updateProgressBar(data);
+                });
+            }
+        });
+        
         // Start WebSocket connection
         try {
             await wsClient.connect();
@@ -1306,77 +1360,7 @@
         // Trigger initial activity detection
         handleUserActivity();
         
-        // Log handlers have been moved to WebSocket initialization section
-
-        EventsOn("progress-remove", (taskId: string) => {
-            logger.trace('app', `Explicitly removing progress bar: ${taskId}`);
-            removeProgressBar(taskId);
-        });
-
-        // Efficient progress batch handler with smart grouping
-        // Handle individual progress events (sent in direct-pass mode)
-        EventsOn("progress", (data) => {
-            updateProgressBar(data);
-        });
-
-        EventsOn("progress-batch", (progressBatch) => {
-            if (!Array.isArray(progressBatch) || progressBatch.length === 0) return;
-            
-            // Skip excessive updates when window is minimized to save resources
-            if (isWindowMinimized && progressBatch.length > 10) {
-                // Only process a few important updates for state maintenance
-                const consolidatedUpdates: { [key: string]: any } = {}; // Add index signature
-                
-                // Keep only the latest update for each task ID
-                progressBatch.forEach(update => {
-                    if (update && update.id) {
-                        consolidatedUpdates[update.id] = update;
-                    }
-                });
-                
-                // Apply only the latest updates
-                Object.values(consolidatedUpdates).forEach((update: any) => { // Add type
-                    // Check if update is complete or has error before applying
-                    if (update.progress >= 100 || update.errorState) { 
-                        updateProgressBar(update);
-                    } else {
-                        // For ongoing tasks, maybe only update every Nth time?
-                        // For simplicity now, just update latest state
-                        updateProgressBar(update);
-                    }
-                });
-                
-                // Log skipped updates
-                // console.log(`[${new Date().toISOString()}] ⏭️ Throttled ${progressBatch.length - Object.keys(consolidatedUpdates).length} progress updates while minimized`);
-                
-            } else {
-                // Process all updates normally when window is visible or batch is small
-                progressBatch.forEach(data => {
-                    updateProgressBar(data);
-                });
-            }
-        });
-
-        // Handle task completion events
-        EventsOn("task-complete", (taskId: string) => {
-            logger.trace('app', `Task ${taskId} completed.`);
-            // Optionally remove the progress bar after a short delay
-            setTimeout(() => removeProgressBar(taskId), 2000);
-        });
-
-        // Handle task error events
-        EventsOn("task-error", (errorData: { id: string, error: string }) => {
-            logger.error('app', `Task ${errorData.id} failed: ${errorData.error}`);
-            // Update the specific progress bar to show error state
-            updateProgressBar({
-                id: errorData.id,
-                operation: 'Task Error', // Add default operation
-                color: 'bg-red-500', // Add default color
-                size: 'small', // Add default size
-                progress: 100, // Mark as complete but with error
-                errorState: 'task_error'
-            });
-        });
+        // Progress handlers have been moved to WebSocket initialization section
         
         // Handle application version check
         EventsOn("update-available", (newVersion: string) => {
