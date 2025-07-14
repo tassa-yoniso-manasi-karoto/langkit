@@ -1,0 +1,40 @@
+webrpc = v1
+name = langkit-deps
+version = v1.0.0
+
+# Dependency management and system checks service
+
+struct DockerStatus
+  - available: bool
+  - version: string
+  - engine: string
+  - error?: string
+
+struct InternetStatus
+  - online: bool
+  - latency: int64  # milliseconds
+  - error?: string
+
+struct FFmpegStatus
+  - available: bool
+  - version: string
+  - path: string
+  - error?: string
+
+struct MediaInfoStatus
+  - available: bool
+  - version: string
+  - path: string
+  - error?: string
+
+struct DownloadResult
+  - path: string
+  - error?: string
+
+service DependencyService
+  - CheckDockerAvailability() => (status: DockerStatus)
+  - CheckInternetConnectivity() => (status: InternetStatus)
+  - CheckFFmpegAvailability() => (status: FFmpegStatus)
+  - CheckMediaInfoAvailability() => (status: MediaInfoStatus)
+  - DownloadFFmpeg() => (result: DownloadResult)
+  - DownloadMediaInfo() => (result: DownloadResult)

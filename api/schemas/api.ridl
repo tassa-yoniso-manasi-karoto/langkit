@@ -1,0 +1,9 @@
+webrpc = v1
+name = langkit-api
+version = v1.0.0
+
+# Combined API schema for all Langkit services
+# This is the main generation source to avoid duplicate declarations
+
+import ./services/lang.ridl
+import ./services/deps.ridl

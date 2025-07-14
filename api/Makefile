@@ -5,8 +5,8 @@ SCHEMAS_DIR := schemas
 GO_OUT_DIR := ../internal/api/generated
 TS_OUT_DIR := ../internal/gui/frontend/src/api/generated
 
-# Find all service schemas
-SERVICE_SCHEMAS := $(wildcard $(SCHEMAS_DIR)/services/*.ridl)
+# Main API schema that imports all services
+API_SCHEMA := $(SCHEMAS_DIR)/api.ridl
 
 .PHONY: all clean generate-go generate-ts validate
 
@@ -16,39 +16,28 @@ all: generate-go generate-ts
 $(GO_OUT_DIR) $(TS_OUT_DIR):
 	mkdir -p $@
 
-# Validate all schemas (by attempting to generate)
+# Validate the main API schema
 validate:
-	@echo "Validating schemas..."
-	@for schema in $(SERVICE_SCHEMAS); do \
-		echo "Validating $$schema"; \
-		schema_path=$$(pwd)/$$schema; \
-		$(WEBRPC) -schema=$$schema_path -target=golang -pkg=generated -server -client -out=/tmp/validate.tmp || exit 1; \
-		rm -f /tmp/validate.tmp; \
-	done
-	@echo "All schemas valid!"
+	@echo "Validating API schema..."
+	@schema_path=$$(pwd)/$(API_SCHEMA); \
+	$(WEBRPC) -schema=$$schema_path -target=golang -pkg=generated -server -client -out=/tmp/validate.tmp || exit 1; \
+	rm -f /tmp/validate.tmp
+	@echo "API schema valid!"
 
 # Generate Go code
 generate-go: $(GO_OUT_DIR)
 	@echo "Generating Go code..."
-	@for schema in $(SERVICE_SCHEMAS); do \
-		service=$$(basename $$schema .ridl); \
-		echo "Generating Go code for $$service"; \
-		schema_path=$$(pwd)/$$schema; \
-		$(WEBRPC) -schema=$$schema_path -target=golang -pkg=generated -server -client \
-			-out=$(GO_OUT_DIR)/$${service}.gen.go || exit 1; \
-	done
+	@schema_path=$$(pwd)/$(API_SCHEMA); \
+	$(WEBRPC) -schema=$$schema_path -target=golang -pkg=generated -server -client \
+		-out=$(GO_OUT_DIR)/api.gen.go || exit 1
 	@echo "Go code generation complete!"
 
 # Generate TypeScript code
 generate-ts: $(TS_OUT_DIR)
 	@echo "Generating TypeScript code..."
-	@for schema in $(SERVICE_SCHEMAS); do \
-		service=$$(basename $$schema .ridl); \
-		echo "Generating TypeScript code for $$service"; \
-		schema_path=$$(pwd)/$$schema; \
-		$(WEBRPC) -schema=$$schema_path -target=typescript -client \
-			-out=$(TS_OUT_DIR)/$${service}.gen.ts || exit 1; \
-	done
+	@schema_path=$$(pwd)/$(API_SCHEMA); \
+	$(WEBRPC) -schema=$$schema_path -target=typescript -client \
+		-out=$(TS_OUT_DIR)/api.gen.ts || exit 1
 	@echo "TypeScript code generation complete!"
 
 # Clean generated files

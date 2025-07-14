@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
+	generated "github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"

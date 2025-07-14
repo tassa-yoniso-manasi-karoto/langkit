@@ -8,7 +8,8 @@ import { get } from 'svelte/store';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import ErrorCard from './ErrorCard.svelte';
-    import { OpenExecutableDialog, DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../../wailsjs/go/gui/App';
+    import { OpenExecutableDialog } from '../../wailsjs/go/gui/App';
+    import { DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../api/services/deps';
     import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
     import { wsClient } from '../ws/client';
     

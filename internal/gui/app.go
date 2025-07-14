@@ -125,6 +125,12 @@ func (a *App) startup(ctx context.Context) {
 		a.getLogger().Fatal().Err(err).Msg("Failed to register language service")
 	}
 	
+	// Register dependency service
+	depsSvc := services.NewDependencyService(*a.getLogger(), a.wsServer)
+	if err := apiServer.RegisterService(depsSvc); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to register dependency service")
+	}
+	
 	// Start API server
 	if err := apiServer.Start(); err != nil {
 		a.getLogger().Fatal().Err(err).Msg("Failed to start API server")

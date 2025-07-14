@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
@@ -114,15 +115,49 @@ func (r *Registry) Mount(router chi.Router) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	// Create a dispatcher that routes to the correct service based on path
+	dispatcher := &serviceDispatcher{
+		services: make(map[string]http.Handler),
+		logger:   r.logger,
+	}
+	
 	for name, service := range r.services {
-		// Mount each service under /rpc/ServiceName to match WebRPC expectations
-		// e.g., /rpc/LanguageService/* will be handled by the language service
-		path := "/rpc/" + name
-		router.Mount(path, service.Handler())
+		dispatcher.services[name] = service.Handler()
 		
 		r.logger.Debug().
 			Str("service", name).
-			Str("path", path).
-			Msg("Service mounted")
+			Msg("Service registered in dispatcher")
 	}
+	
+	// Mount the dispatcher at root
+	router.Handle("/*", dispatcher)
+}
+
+// serviceDispatcher routes requests to the appropriate service based on the URL path
+type serviceDispatcher struct {
+	services map[string]http.Handler
+	logger   zerolog.Logger
+}
+
+func (d *serviceDispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Extract service name from path: /rpc/ServiceName/Method
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if len(parts) < 3 || parts[0] != "rpc" {
+		http.NotFound(w, r)
+		return
+	}
+	
+	serviceName := parts[1]
+	handler, exists := d.services[serviceName]
+	if !exists {
+		d.logger.Debug().
+			Str("service", serviceName).
+			Str("path", r.URL.Path).
+			Msg("Service not found")
+		http.NotFound(w, r)
+		return
+	}
+	
+	// Let the service handler process the request
+	handler.ServeHTTP(w, r)
 }

@@ -1,4 +1,4 @@
-import { LanguageService } from '../generated/lang.gen';
+import { LanguageService } from '../generated/api.gen';
 import { getAPIBaseUrl, defaultFetch } from '../client';
 
 // Singleton instance

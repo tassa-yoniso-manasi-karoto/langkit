@@ -42,13 +42,15 @@
         LoadStatistics,
         UpdateStatistics,
         IncrementStatistic,
-        CheckDockerAvailability,
-        CheckInternetConnectivity,
         GetLanguageRequirements,
-        CheckFFmpegAvailability,
-        CheckMediaInfoAvailability,
         GetSystemInfo
     } from '../wailsjs/go/gui/App';
+    import {
+        CheckDockerAvailability,
+        CheckInternetConnectivity,
+        CheckFFmpegAvailability,
+        CheckMediaInfoAvailability
+    } from './api/services/deps';
     import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces
