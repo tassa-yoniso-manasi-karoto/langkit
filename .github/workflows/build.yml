@@ -114,7 +114,10 @@ jobs:
         
       # Generate WebRPC code
       - name: Generate WebRPC code
-        run: go generate ./...
+        working-directory: api
+        shell: bash
+        run: |
+          make generate-go
         
       # Build WASM components with your custom inlining process
       - name: Build WebAssembly components

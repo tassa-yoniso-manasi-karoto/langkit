@@ -21,7 +21,8 @@ validate:
 	@echo "Validating schemas..."
 	@for schema in $(SERVICE_SCHEMAS); do \
 		echo "Validating $$schema"; \
-		$(WEBRPC) -schema=$$schema -target=golang -pkg=generated -server -client -out=/tmp/validate.tmp || exit 1; \
+		schema_path=$$(pwd)/$$schema; \
+		$(WEBRPC) -schema=$$schema_path -target=golang -pkg=generated -server -client -out=/tmp/validate.tmp || exit 1; \
 		rm -f /tmp/validate.tmp; \
 	done
 	@echo "All schemas valid!"
@@ -32,7 +33,8 @@ generate-go: $(GO_OUT_DIR)
 	@for schema in $(SERVICE_SCHEMAS); do \
 		service=$$(basename $$schema .ridl); \
 		echo "Generating Go code for $$service"; \
-		$(WEBRPC) -schema=$$schema -target=golang -pkg=generated -server -client \
+		schema_path=$$(pwd)/$$schema; \
+		$(WEBRPC) -schema=$$schema_path -target=golang -pkg=generated -server -client \
 			-out=$(GO_OUT_DIR)/$${service}.gen.go || exit 1; \
 	done
 	@echo "Go code generation complete!"
@@ -43,7 +45,8 @@ generate-ts: $(TS_OUT_DIR)
 	@for schema in $(SERVICE_SCHEMAS); do \
 		service=$$(basename $$schema .ridl); \
 		echo "Generating TypeScript code for $$service"; \
-		$(WEBRPC) -schema=$$schema -target=typescript -client \
+		schema_path=$$(pwd)/$$schema; \
+		$(WEBRPC) -schema=$$schema_path -target=typescript -client \
 			-out=$(TS_OUT_DIR)/$${service}.gen.ts || exit 1; \
 	done
 	@echo "TypeScript code generation complete!"
