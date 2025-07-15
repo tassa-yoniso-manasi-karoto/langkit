@@ -10,6 +10,7 @@ import { get } from 'svelte/store';
     import ErrorCard from './ErrorCard.svelte';
     import { OpenExecutableDialog } from '../../wailsjs/go/gui/App';
     import { DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../api/services/deps';
+    import { SaveSettings } from '../api/services/settings';
     import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
     import { wsClient } from '../ws/client';
     
@@ -306,7 +307,7 @@ import { get } from 'svelte/store';
                 } else {
                     newSettings.mediainfoPath = path;
                 }
-                await window.go.gui.App.SaveSettings(newSettings);
+                await SaveSettings(newSettings);
                 settings.set(newSettings);
 
                 if (dependency === 'ffmpeg') {

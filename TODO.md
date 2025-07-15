@@ -26,12 +26,46 @@ BUGS TO CONFIRM:
 .
 - LINT
 - update dev.md with build instructions, designs explained in brief
+- stop logger.ts from emitting to browser console
+
 
 .
 - REFACTOR CORE
 
+
 .
 - PYTHAILNLP
+
+  Current State Analysis
+
+  Local Definition (stores.ts):
+  - Has frontend-specific fields like hasSeenLogViewerTooltip
+  - Includes type aliases like IntermediaryFileMode
+  - Has detailed inline documentation
+  - Provides default values in initSettings
+
+  WebRPC Generated:
+  - Single source of truth from backend
+  - Automatically stays synchronized
+  - Type-safe across the full stack
+  - Already being used in the service layer
+
+  Recommendation
+
+  I recommend a hybrid approach for now:
+
+  1. Keep the local Settings type in stores.ts because:
+    - It may have frontend-specific fields not persisted to backend
+    - It provides better documentation for frontend developers
+    - It's already working and tested
+  2. Fix the immediate error by removing the unused import:
+  import { SettingsService } from '../generated/api.gen';
+  3. Future consideration: If you want to fully embrace WebRPC:
+    - Audit which fields are truly frontend-only
+    - Move all persistent fields to the backend schema
+    - Create a separate FrontendSettings type for UI-only state
+    - Use type composition: type AppSettings = Settings & FrontendSettings
+
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE

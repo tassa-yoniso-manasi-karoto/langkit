@@ -63,7 +63,7 @@
     }
 
     // Optional version prop to handle dev vs. prod initialization
-    export let version: string = "dev";
+    export let version: string = "";
     // Add isProcessing prop to receive processing state from App.svelte
     export let isProcessing: boolean = false;
     let prevIsProcessing = false;

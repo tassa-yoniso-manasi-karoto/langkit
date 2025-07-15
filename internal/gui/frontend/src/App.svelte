@@ -34,12 +34,7 @@
     import { 
         SendProcessingRequest, 
         CancelProcessing, 
-        LoadSettings, 
-        SaveSettings, 
         RefreshSTTModelsAfterSettingsUpdate,
-        LoadStatistics,
-        UpdateStatistics,
-        IncrementStatistic,
         GetLanguageRequirements
     } from '../wailsjs/go/gui/App';
     import { GetVersion, GetSystemInfo } from './api/services/system';
@@ -49,6 +44,13 @@
         CheckFFmpegAvailability,
         CheckMediaInfoAvailability
     } from './api/services/deps';
+    import {
+        LoadSettings,
+        SaveSettings,
+        LoadStatistics,
+        UpdateStatistics,
+        IncrementStatistic
+    } from './api/services/settings';
     import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces
@@ -1157,17 +1159,6 @@
             // WebSocket will auto-reconnect, so we continue app initialization
         }
         
-        // Get initial version and pass it to WebAssembly for environment-aware loading
-        GetVersion().then(v => {
-            version = v.version; // Access the version property 
-            // Add version to window for WebAssembly to access
-            (window as any).__LANGKIT_VERSION = version;
-            
-            logger.info('app', `Application version detected: ${version}`, 
-                { isDevMode: version === 'dev' }
-            );
-        });
-        
         // Initialize WebRPC API client
         try {
             const { getAPIBaseUrl } = await import('./api');
@@ -1179,13 +1170,30 @@
             // The API will retry on first use
         }
         
+        // Get initial version and pass it to WebAssembly for environment-aware loading
+        try {
+            const versionInfo = await GetVersion();
+            version = versionInfo.version; // Access the version property 
+            // Add version to window for WebAssembly to access
+            (window as any).__LANGKIT_VERSION = version;
+            
+            logger.info('app', `Application version detected: ${version}`, 
+                { isDevMode: version === 'dev' }
+            );
+        } catch (error) {
+            logger.error('app', 'Failed to get version info', { error });
+            // Keep default version value
+        }
+        
+        
         // Initialize system info store for OS-dependent functionality
-        GetSystemInfo().then(info => {
-            systemInfoStore.set(info);
-            logger.debug('app', 'System info initialized', { os: info.os, arch: info.arch });
-        }).catch(error => {
+        try {
+            const systemInfo = await GetSystemInfo();
+            systemInfoStore.set(systemInfo);
+            logger.debug('app', 'System info initialized', { os: systemInfo.os, arch: systemInfo.arch });
+        } catch (error) {
             logger.error('app', 'Failed to get system info', { error });
-        });
+        }
         
         // Initialize window state detection - check initially and set up interval
         checkWindowState();

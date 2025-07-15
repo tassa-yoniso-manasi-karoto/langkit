@@ -6,6 +6,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     import { OpenExecutableDialog } from '../../wailsjs/go/gui/App';
     import { ValidateLanguageTag } from '../api';
     import { ExportDebugReport } from '../api/services/logging';
+    import { LoadSettings, SaveSettings } from '../api/services/settings';
     import { logger } from '../lib/logger';
     import { debounce } from 'lodash';
     import { getOSDebounceDelay } from '../lib/osUtils';
@@ -249,7 +250,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         }
         try {
             // Save to backend
-            await (window as any).go.gui.App.SaveSettings(currentSettings);
+            await SaveSettings(currentSettings);
             // Update store with our current values
             // Create a new object with the correct type for forceWasmMode before setting
             const settingsToSave = {
@@ -298,7 +299,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         try {
             // Always update settings (not just WebAssembly-related ones)
             // UI settings like enableGlow and showLogViewerByDefault need to update immediately too
-            await (window as any).go.gui.App.SaveSettings(currentSettings);
+            await SaveSettings(currentSettings);
             // Create a new object with the correct type for forceWasmMode before setting
             const settingsToUpdate = {
                 ...currentSettings,
@@ -333,7 +334,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         logger.info('Settings', 'Component mounting, loading settings');
         try {
             // Load settings from backend
-            const loadedSettings = await (window as any).go.gui.App.LoadSettings();
+            const loadedSettings = await LoadSettings();
             settings.set(loadedSettings); // Update store with backend data
             logger.debug('Settings', 'Settings loaded from backend', { 
                 hasApiKeys: !!loadedSettings.apiKeys,

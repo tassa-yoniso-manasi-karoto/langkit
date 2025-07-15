@@ -1,4 +1,4 @@
-import { SettingsService, Settings } from '../generated/api.gen';
+import { SettingsService } from '../generated/api.gen';
 import { getAPIBaseUrl, defaultFetch } from '../client';
 
 // Singleton instance
