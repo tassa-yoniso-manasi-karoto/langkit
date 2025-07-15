@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/interfaces"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 )
@@ -17,11 +18,11 @@ var _ api.Service = (*DryRunService)(nil)
 type DryRunService struct {
 	logger   zerolog.Logger
 	handler  http.Handler
-	provider DryRunProvider
+	provider interfaces.DryRunProvider
 }
 
 // NewDryRunService creates a new dry run service
-func NewDryRunService(logger zerolog.Logger, provider DryRunProvider) *DryRunService {
+func NewDryRunService(logger zerolog.Logger, provider interfaces.DryRunProvider) *DryRunService {
 	svc := &DryRunService{
 		logger:   logger,
 		provider: provider,

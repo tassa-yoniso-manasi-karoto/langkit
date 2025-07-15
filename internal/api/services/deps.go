@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/interfaces"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
@@ -30,11 +31,11 @@ var _ api.Service = (*DependencyService)(nil)
 type DependencyService struct {
 	logger              zerolog.Logger
 	handler             http.Handler
-	progressBroadcaster ProgressBroadcaster
+	progressBroadcaster interfaces.ProgressBroadcaster
 }
 
 // NewDependencyService creates a new dependency service
-func NewDependencyService(logger zerolog.Logger, progressBroadcaster ProgressBroadcaster) *DependencyService {
+func NewDependencyService(logger zerolog.Logger, progressBroadcaster interfaces.ProgressBroadcaster) *DependencyService {
 	svc := &DependencyService{
 		logger:              logger,
 		progressBroadcaster: progressBroadcaster,

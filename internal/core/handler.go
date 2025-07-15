@@ -17,9 +17,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/schollz/progressbar/v3"
 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/services"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/interfaces"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/eta"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
@@ -358,8 +358,8 @@ type GUIHandler struct {
 
 // GUIHandler implements multiple focused interfaces: compile-time assertions
 var _ MessageHandler = (*GUIHandler)(nil)
-var _ services.ProgressBroadcaster = (*GUIHandler)(nil)
-var _ services.DryRunProvider = (*GUIHandler)(nil)
+var _ interfaces.ProgressBroadcaster = (*GUIHandler)(nil)
+var _ interfaces.DryRunProvider = (*GUIHandler)(nil)
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
@@ -982,12 +982,19 @@ func GetScraperLibLogForwarder(handler MessageHandler) func(string) {
 var currentDryRunConfig *DryRunConfig
 
 // SetDryRunConfig stores the dry run configuration for the next processing run
-func (h *GUIHandler) SetDryRunConfig(config *DryRunConfig) {
-	currentDryRunConfig = config
-	if config != nil && config.Enabled {
+func (h *GUIHandler) SetDryRunConfig(config interface{}) {
+	// Type assert to *DryRunConfig
+	dryRunConfig, ok := config.(*DryRunConfig)
+	if !ok && config != nil {
+		h.logger.Error().Msg("Invalid dry run config type")
+		return
+	}
+	
+	currentDryRunConfig = dryRunConfig
+	if dryRunConfig != nil && dryRunConfig.Enabled {
 		h.logger.Info().
-			Int("delayMs", config.DelayMs).
-			Int("errorPoints", len(config.ErrorPoints)).
+			Int("delayMs", dryRunConfig.DelayMs).
+			Int("errorPoints", len(dryRunConfig.ErrorPoints)).
 			Msg("Dry run configuration set")
 	} else {
 		h.logger.Info().Msg("Dry run configuration cleared")
@@ -1038,7 +1045,7 @@ func (h *GUIHandler) GetDryRunStatus() map[string]interface{} {
 	return status
 }
 
-// Broadcast implements services.ProgressBroadcaster interface
+// Broadcast implements interfaces.ProgressBroadcaster interface
 func (h *GUIHandler) Broadcast(event string, data interface{}) {
 	if h.wsNotifier != nil {
 		h.wsNotifier.Broadcast(event, data)
