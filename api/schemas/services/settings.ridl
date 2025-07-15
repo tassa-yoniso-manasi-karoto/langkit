@@ -1,0 +1,49 @@
+webrpc = v1
+name = langkit-settings
+version = v1.0.0
+
+# Settings and configuration service
+
+struct APIKeys
+  - replicate?: string
+  - elevenLabs?: string
+  - openAI?: string
+  - openRouter?: string
+  - google?: string
+
+struct EventThrottling
+  - enabled: bool
+  - minInterval: int32  # milliseconds
+  - maxInterval: int32  # milliseconds
+
+struct Settings
+  - apiKeys: APIKeys
+  - targetLanguage: string
+  - nativeLanguages: string
+  - enableGlow: bool
+  - showLogViewerByDefault: bool
+  - maxLogEntries: int32
+  - maxAPIRetries: int32
+  - maxWorkers: int32
+  - timeoutSep: int32  # seconds
+  - timeoutSTT: int32  # seconds
+  - timeoutDL: int32   # seconds
+  - logViewerVirtualizationThreshold: int32
+  - eventThrottling: EventThrottling
+
+struct StatisticsUpdate
+  - updates: map<string,any>
+
+struct IncrementResult
+  - newValue: int32
+
+service SettingsService
+  # Settings management
+  - InitSettings() => ()
+  - LoadSettings() => (settings: Settings)
+  - SaveSettings(settings: Settings) => ()
+  
+  # Statistics management
+  - LoadStatistics() => (statistics: map<string,any>)
+  - UpdateStatistics(updates: map<string,any>) => ()
+  - IncrementStatistic(key: string) => (result: IncrementResult)

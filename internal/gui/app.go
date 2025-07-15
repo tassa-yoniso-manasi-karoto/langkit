@@ -143,6 +143,13 @@ func (a *App) startup(ctx context.Context) {
 		a.getLogger().Fatal().Err(err).Msg("Failed to register logging service")
 	}
 	
+	// Register settings service with custom provider
+	settingsProvider := &settingsProviderAdapter{app: a}
+	settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
+	if err := apiServer.RegisterService(settingsSvc); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to register settings service")
+	}
+	
 	// Start API server
 	if err := apiServer.Start(); err != nil {
 		a.getLogger().Fatal().Err(err).Msg("Failed to start API server")
@@ -341,4 +348,32 @@ func (a *App) GetAPIPort() (int, error) {
 		return 0, fmt.Errorf("API server not initialized")
 	}
 	return a.apiServer.GetPort(), nil
+}
+
+// settingsProviderAdapter implements interfaces.SettingsProvider
+type settingsProviderAdapter struct {
+	app *App
+}
+
+// UpdateThrottlerSettings implements interfaces.SettingsProvider
+func (s *settingsProviderAdapter) UpdateThrottlerSettings(settings interface{}) {
+	// Type assert to config.Settings
+	if configSettings, ok := settings.(config.Settings); ok {
+		s.app.updateThrottlerSettings(configSettings)
+	} else {
+		s.app.getLogger().Error().Msg("UpdateThrottlerSettings: invalid settings type")
+	}
+}
+
+// TriggerLLMRegistryUpdate implements interfaces.SettingsProvider  
+func (s *settingsProviderAdapter) TriggerLLMRegistryUpdate(settings interface{}) {
+	// Type assert to config.Settings
+	if configSettings, ok := settings.(config.Settings); ok {
+		if s.app.llmRegistry != nil {
+			s.app.getLogger().Info().Msg("Triggering LLM registry update with new settings")
+			s.app.llmRegistry.TriggerUpdate(configSettings)
+		}
+	} else {
+		s.app.getLogger().Error().Msg("TriggerLLMRegistryUpdate: invalid settings type")
+	}
 }
