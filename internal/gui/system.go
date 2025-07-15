@@ -10,11 +10,6 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
 
-// GetOperatingSystem returns the user's operating system.
-func (a *App) GetOperatingSystem() string {
-	return goruntime.GOOS
-}
-
 // GetSystemInfo returns the user's operating system and architecture.
 func (a *App) GetSystemInfo() map[string]string {
 	return map[string]string{
