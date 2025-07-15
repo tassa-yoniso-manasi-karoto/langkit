@@ -34,17 +34,15 @@
     import { 
         SendProcessingRequest, 
         CancelProcessing, 
-        GetVersion, 
         LoadSettings, 
         SaveSettings, 
-        GetCurrentTimestamp,
         RefreshSTTModelsAfterSettingsUpdate,
         LoadStatistics,
         UpdateStatistics,
         IncrementStatistic,
-        GetLanguageRequirements,
-        GetSystemInfo
+        GetLanguageRequirements
     } from '../wailsjs/go/gui/App';
+    import { GetVersion, GetSystemInfo } from './api/services/system';
     import {
         CheckDockerAvailability,
         CheckInternetConnectivity,
@@ -585,7 +583,7 @@
             logger.error('app', 'Failed to increment process start statistic', { error });
         }
 
-        processingStartTime = await GetCurrentTimestamp(); // FIXME it seems that Date.now() is UNIX epoch and can provide unix timestamp : Math.floor(Date.now() / 1000)
+        processingStartTime = Date.now(); // Returns milliseconds since Unix epoch
         logger.trace('app', `Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
         isProcessing = true;
         progress = 0;

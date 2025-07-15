@@ -143,6 +143,12 @@ func (a *App) startup(ctx context.Context) {
 		a.getLogger().Fatal().Err(err).Msg("Failed to register logging service")
 	}
 	
+	// Register system service
+	systemSvc := services.NewSystemService(*a.getLogger())
+	if err := apiServer.RegisterService(systemSvc); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to register system service")
+	}
+	
 	// Register model service (handler implements STTModelProvider and LLMRegistryProvider)
 	modelSvc := services.NewModelService(*a.getLogger(), handler, handler)
 	if err := apiServer.RegisterService(modelSvc); err != nil {

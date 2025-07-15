@@ -1,0 +1,22 @@
+webrpc = v1
+name = langkit-system
+version = v1.0.0
+
+# System information and version service
+
+struct SystemInfo
+  - os: string
+  - arch: string
+
+struct VersionInfo
+  - version: string
+  - commit: string
+  - branch: string
+  - newerVersionAvailable: bool
+
+service SystemService
+  # Get system information (OS and architecture)
+  - GetSystemInfo() => (info: SystemInfo)
+  
+  # Get application version information
+  - GetVersion() => (info: VersionInfo)

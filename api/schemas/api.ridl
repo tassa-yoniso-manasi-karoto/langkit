@@ -9,5 +9,6 @@ import ./services/lang.ridl
 import ./services/deps.ridl
 import ./services/dryrun.ridl
 import ./services/logging.ridl
+import ./services/system.ridl
 import ./services/models.ridl
 import ./services/settings.ridl
