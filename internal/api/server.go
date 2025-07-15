@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -165,6 +166,7 @@ func (s *Server) Shutdown() error {
 }
 
 // Middleware functions
+var logBlacklist = []string{"BackendLogger"}
 
 func loggerMiddleware(logger zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -175,7 +177,13 @@ func loggerMiddleware(logger zerolog.Logger) func(http.Handler) http.Handler {
 			wrapped := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 			next.ServeHTTP(wrapped, r)
-
+			
+			for _, s := range logBlacklist {
+				if strings.HasSuffix(r.URL.Path, s) {
+					return
+				}
+			}
+			
 			logger.Info().
 				Str("method", r.Method).
 				Str("path", r.URL.Path).

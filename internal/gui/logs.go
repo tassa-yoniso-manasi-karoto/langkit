@@ -178,6 +178,6 @@ func (a *App) RequestWasmState() {
 	// Send an event to the frontend requesting the WebAssembly state
 	a.getLogger().Debug().Msg("Requesting WebAssembly state from frontend")
 	if a.wsServer != nil {
-		a.wsServer.Broadcast("wasm.state.request", nil)
+		a.wsServer.Emit("wasm.state.request", nil)
 	}
 }

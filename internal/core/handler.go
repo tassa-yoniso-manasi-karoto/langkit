@@ -358,8 +358,9 @@ type GUIHandler struct {
 
 // GUIHandler implements multiple focused interfaces: compile-time assertions
 var _ MessageHandler = (*GUIHandler)(nil)
-var _ interfaces.ProgressBroadcaster = (*GUIHandler)(nil)
+var _ interfaces.WebsocketService = (*GUIHandler)(nil)
 var _ interfaces.DryRunProvider = (*GUIHandler)(nil)
+var _ interfaces.LoggingProvider = (*GUIHandler)(nil)
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
@@ -399,7 +400,7 @@ func (w *LogWriter) Write(p []byte) (n int, err error) {
 			w.throttler.AddLog(string(p))
 		} else if w.wsNotifier != nil {
 			// Fallback to direct WebSocket emission if throttler isn't available.
-			w.wsNotifier.Broadcast("log.entry", string(p))
+			w.wsNotifier.Emit("log.entry", string(p))
 		}
 	}
 
@@ -685,7 +686,7 @@ func (h *GUIHandler) ResetProgress() {
 	
 	// Emit event to frontend to reset all progress bars
 	if h.wsNotifier != nil {
-		h.wsNotifier.Broadcast("progress.reset", true)
+		h.wsNotifier.Emit("progress.reset", true)
 	}
 }
 
@@ -700,7 +701,7 @@ func (h *GUIHandler) RemoveProgressBar(taskID string) {
 	}
 
 	if h.wsNotifier != nil {
-		h.wsNotifier.Broadcast("progress.remove", taskID)
+		h.wsNotifier.Emit("progress.remove", taskID)
 	}
 
 	h.ZeroLog().Debug().
@@ -818,7 +819,7 @@ func (h *GUIHandler) incrementProgressInternal(
 		h.throttler.UpdateProgress(taskID, payload)
 	} else if h.wsNotifier != nil {
 		// Fallback to direct WebSocket emission
-		h.wsNotifier.Broadcast("progress.updated", payload)
+		h.wsNotifier.Emit("progress.updated", payload)
 	}
 
 	// Cleanup if complete
@@ -913,7 +914,7 @@ func (h *GUIHandler) BulkUpdateProgress(updates map[string]map[string]interface{
 		for _, update := range updates {
 			progressUpdates = append(progressUpdates, update)
 		}
-		h.wsNotifier.Broadcast("progress.batch", progressUpdates)
+		h.wsNotifier.Emit("progress.batch", progressUpdates)
 	}
 	
 	// Cleanup completed items
@@ -1045,10 +1046,10 @@ func (h *GUIHandler) GetDryRunStatus() map[string]interface{} {
 	return status
 }
 
-// Broadcast implements interfaces.ProgressBroadcaster interface
-func (h *GUIHandler) Broadcast(event string, data interface{}) {
+// Emit implements interfaces.WebsocketService interface
+func (h *GUIHandler) Emit(event string, data interface{}) {
 	if h.wsNotifier != nil {
-		h.wsNotifier.Broadcast(event, data)
+		h.wsNotifier.Emit(event, data)
 	}
 }
 

@@ -15,16 +15,6 @@ BUGS TO CONFIRM:
 
 
 
-```
-  // GUIHandler implements multiple focused interfaces: compile-time assertions
-  var _ MessageHandler = (*GUIHandler)(nil)
-  var _ ProgressBroadcaster = (*GUIHandler)(nil)
-  var _ DryRunProvider = (*GUIHandler)(nil)
-  var _ SettingsProvider = (*GUIHandler)(nil)
-  // ... etc
-```
-
-
 .
 - finish theme
   - rm unused selector

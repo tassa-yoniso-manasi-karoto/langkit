@@ -88,7 +88,7 @@ func (a *App) startup(ctx context.Context) {
 	// Create broadcaster function for throttler
 	broadcaster := func(msgType string, data interface{}) {
 		if a.wsServer != nil {
-			a.wsServer.Broadcast(msgType, data)
+			a.wsServer.Emit(msgType, data)
 		}
 	}
 
@@ -137,6 +137,12 @@ func (a *App) startup(ctx context.Context) {
 		a.getLogger().Fatal().Err(err).Msg("Failed to register dry run service")
 	}
 	
+	// Register logging service (handler implements LoggingProvider)
+	loggingSvc := services.NewLoggingService(*a.getLogger(), handler, a.wsServer, a.throttler, handler, a.ctx)
+	if err := apiServer.RegisterService(loggingSvc); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to register logging service")
+	}
+	
 	// Start API server
 	if err := apiServer.Start(); err != nil {
 		a.getLogger().Fatal().Err(err).Msg("Failed to start API server")
@@ -167,7 +173,7 @@ func (a *App) domReady(ctx context.Context) {
 
 	// Emit settings to frontend
 	if a.wsServer != nil {
-		a.wsServer.Broadcast("settings.loaded", settings)
+		a.wsServer.Emit("settings.loaded", settings)
 	}
 
 	if settings.ShowLogViewerByDefault {
@@ -182,7 +188,7 @@ func (a *App) domReady(ctx context.Context) {
 	a.wsServer.SetOnConnect(func() {
 		if a.llmRegistry != nil {
 			stateSnapshot := a.llmRegistry.GetCurrentStateSnapshot()
-			a.wsServer.Broadcast("llm.state.changed", stateSnapshot)
+			a.wsServer.Emit("llm.state.changed", stateSnapshot)
 			a.getLogger().Debug().Msg("Sent initial LLM state to new WebSocket client")
 		}
 	})

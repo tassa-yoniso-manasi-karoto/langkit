@@ -3,6 +3,7 @@ component inform from which part of the frontend was a given log emitted from
 */
 import { get } from 'svelte/store';
 import { enableFrontendLoggingStore, displayFrontendLogsStore, enableTraceLogsStore } from './stores';
+import { BackendLogger, BackendLoggerBatch } from '../api/services/logging';
 
 export enum Lvl {
     TRACE = -1,
@@ -568,7 +569,7 @@ export class Logger {
                 eCopy.ctx = this._sanitizeCtx(eCopy.ctx);
             }
             // Send individual log to BackendLogger
-            (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(eCopy));
+            BackendLogger(e.comp, JSON.stringify(eCopy));
         } catch (err) {
             console.error("Failed to relay log to backend:", err);
             if (e.lvl >= Lvl.ERROR) {
@@ -602,13 +603,13 @@ export class Logger {
                 return copy;
             });
             // This function exists in app.go (line 153)
-            (window as any).go.gui.App.BackendLoggerBatch(component, JSON.stringify(sanEntries));
+            BackendLoggerBatch(component, JSON.stringify(sanEntries));
         } catch (err) {
             console.error("Failed to relay batch to backend:", err);
             // Try to send logs individually
             try {
                 for (const e of sanEntries) {
-                    (window as any).go.gui.App.BackendLogger(e.comp || component, JSON.stringify(e));
+                    BackendLogger(e.comp || component, JSON.stringify(e));
                 }
             } catch (individualErr) {
                 console.error("Failed individual log fallback:", individualErr);
@@ -643,7 +644,7 @@ export class Logger {
                 if (r < this._cfg.batConf.retries) {
                     try {
                         // Use BackendLogger for individual log
-                        (window as any).go.gui.App.BackendLogger(e.comp, JSON.stringify(e));
+                        BackendLogger(e.comp, JSON.stringify(e));
                     } catch (err) {
                         this._retryQ.push({ entry: e, retries: r + 1 });
                         await new Promise(resolve => setTimeout(resolve, this._cfg.batConf.retryDelay));

@@ -1,0 +1,39 @@
+webrpc = v1
+name = langkit-logging
+version = v1.0.0
+
+# Logging and diagnostics service
+
+struct LogEntry
+  - lvl?: float64         # Log level (-1=TRACE, 0=DEBUG, 1=INFO, 2=WARN, 3,4=ERROR, 5=FATAL)
+  - msg?: string          # Log message
+  - comp?: string         # Component name
+  - ctx?: map<string,any> # Context information
+  - op?: string           # Operation name
+  - sid?: string          # Session ID
+
+struct EventThrottlingStatus
+  - enabled: bool
+  - currentRate: float64
+  - currentInterval: int32
+  - error?: string
+
+service LoggingService
+  # Backend logging methods
+  - BackendLogger(component: string, logJson: string) => ()
+  - BackendLoggerBatch(component: string, logsJson: string) => ()
+  
+  # Trace log management
+  - SetTraceLogs(enable: bool) => ()
+  - GetTraceLogs() => (enabled: bool)
+  
+  # WebAssembly state management
+  - RecordWasmState(stateJson: string) => ()
+  - RequestWasmState() => ()
+  
+  # Debug report export
+  - ExportDebugReport() => ()
+  
+  # Event throttling management
+  - SetEventThrottling(enabled: bool) => ()
+  - GetEventThrottlingStatus() => (status: EventThrottlingStatus)

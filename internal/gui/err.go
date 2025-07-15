@@ -75,7 +75,7 @@ func (a *App) ExportDebugReport() error {
 	// Let the user know it's done
 	a.getLogger().Info().Str("path", savePath).Msg("Debug report exported successfully")
 	if a.wsServer != nil {
-		a.wsServer.Broadcast("debug.report.exported", savePath)
+		a.wsServer.Emit("debug.report.exported", savePath)
 	}
 	return nil
 }

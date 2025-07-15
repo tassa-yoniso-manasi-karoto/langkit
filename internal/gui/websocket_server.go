@@ -134,8 +134,8 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// Broadcast sends a message of the specified type to all connected clients
-func (ws *WebSocketServer) Broadcast(msgType string, data interface{}) {
+// Emit sends a message of the specified type to all connected clients
+func (ws *WebSocketServer) Emit(msgType string, data interface{}) {
 	msg := WSMessage{
 		Type:      msgType,
 		Data:      data,

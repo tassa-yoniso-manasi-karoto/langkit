@@ -340,7 +340,7 @@ func (a *App) downloadAndExtract(dependencyName, url string, filesToExtract []st
 		Total:  resp.ContentLength,
 		Handler: func(p float64, read, total int64, speed float64) {
 			if a.wsServer != nil {
-				a.wsServer.Broadcast("download."+dependencyName+".progress", map[string]interface{}{
+				a.wsServer.Emit("download."+dependencyName+".progress", map[string]interface{}{
 					"progress":    p,
 					"read":        read,
 					"total":       total,

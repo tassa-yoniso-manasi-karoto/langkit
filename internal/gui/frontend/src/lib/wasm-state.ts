@@ -2,6 +2,7 @@
 // Import error type for instanceof check, use type-only import
 import type { WasmInitializationError } from './wasm';
 import { logger } from './logger';
+import { RecordWasmState } from '../api/services/logging';
 
 export enum WasmInitStatus {
   NOT_STARTED = "not_started",
@@ -843,7 +844,7 @@ export function reportWasmState(): void {
     };
     
     // Report to backend
-    (window as any).go.gui.App.RecordWasmState(JSON.stringify(stateToReport));
+    RecordWasmState(JSON.stringify(stateToReport));
   } catch (e) {
     // Avoid logging errors here to prevent cascading issues
     logger.error('store/wasm-state', "Failed to report WASM state to backend", { error: e });

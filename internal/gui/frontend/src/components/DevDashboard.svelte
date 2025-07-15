@@ -14,7 +14,7 @@
     import DebugControlsDashboard from './dev/DebugControlsDashboard.svelte';
     import StyleDebugDashboard from './dev/StyleDebugDashboard.svelte';
     import TestsDashboard from './dev/TestsDashboard.svelte';
-    import { SetTraceLogs, GetTraceLogs } from '../../wailsjs/go/gui/App';
+    import { SetTraceLogs, GetTraceLogs } from '../api/services/logging';
     import { 
         forceLLMState, resetLLMState,
         forceUserActivityState, resetUserActivityState,

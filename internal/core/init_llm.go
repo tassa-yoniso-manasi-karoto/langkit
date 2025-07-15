@@ -10,7 +10,7 @@ import (
 
 // StateChangeNotifier is an interface for broadcasting state changes via WebSocket
 type StateChangeNotifier interface {
-	Broadcast(msgType string, data interface{})
+	Emit(msgType string, data interface{})
 }
 
 // InitLLM initializes the LLM subsystem and related components
@@ -29,7 +29,7 @@ func InitLLM(handler MessageHandler, wailsContext context.Context, notifier Stat
 	notifierFunc := func(change llms.StateChange) {
 		// Broadcast via WebSocket
 		if notifier != nil {
-			notifier.Broadcast("llm.state.changed", change)
+			notifier.Emit("llm.state.changed", change)
 		}
 		
 		handler.ZeroLog().Debug().

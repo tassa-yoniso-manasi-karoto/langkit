@@ -2,8 +2,8 @@
 	import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
 	import { get } from 'svelte/store';
 	import { settings, enableTraceLogsStore } from '../lib/stores';
-	import { GetTraceLogs } from '../../wailsjs/go/gui/App';
-    import { logStore, type LogMessage } from '../lib/logStore';
+	import { logStore, type LogMessage } from '../lib/logStore';
+    import { GetTraceLogs } from '../api/services/logging';
     import { logger } from '../lib/logger';
     import { slide, fade } from 'svelte/transition';
     import { backOut } from 'svelte/easing';

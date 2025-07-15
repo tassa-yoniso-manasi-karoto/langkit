@@ -31,14 +31,14 @@ var _ api.Service = (*DependencyService)(nil)
 type DependencyService struct {
 	logger              zerolog.Logger
 	handler             http.Handler
-	progressBroadcaster interfaces.ProgressBroadcaster
+	websocketService interfaces.WebsocketService
 }
 
 // NewDependencyService creates a new dependency service
-func NewDependencyService(logger zerolog.Logger, progressBroadcaster interfaces.ProgressBroadcaster) *DependencyService {
+func NewDependencyService(logger zerolog.Logger, websocketService interfaces.WebsocketService) *DependencyService {
 	svc := &DependencyService{
 		logger:              logger,
-		progressBroadcaster: progressBroadcaster,
+		websocketService: websocketService,
 	}
 	
 	// Create the WebRPC handler
@@ -405,8 +405,8 @@ func (s *DependencyService) downloadAndExtract(dependencyName, url string, files
 		Reader: resp.Body,
 		Total:  resp.ContentLength,
 		Handler: func(p float64, read, total int64, speed float64) {
-			if s.progressBroadcaster != nil {
-				s.progressBroadcaster.Broadcast("download."+dependencyName+".progress", map[string]interface{}{
+			if s.websocketService != nil {
+				s.websocketService.Emit("download."+dependencyName+".progress", map[string]interface{}{
 					"progress":    p,
 					"read":        read,
 					"total":       total,
