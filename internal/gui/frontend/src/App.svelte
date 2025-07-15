@@ -33,9 +33,7 @@
     
     import { 
         SendProcessingRequest, 
-        CancelProcessing, 
-        RefreshSTTModelsAfterSettingsUpdate,
-        GetLanguageRequirements
+        CancelProcessing
     } from '../wailsjs/go/gui/App';
     import { GetVersion, GetSystemInfo } from './api/services/system';
     import {
@@ -51,6 +49,8 @@
         UpdateStatistics,
         IncrementStatistic
     } from './api/services/settings';
+    import { RefreshSTTModelsAfterSettingsUpdate } from './api/services/models';
+    import { GetLanguageRequirements } from './api/services/language';
     import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces

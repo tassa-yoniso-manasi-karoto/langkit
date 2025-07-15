@@ -7,6 +7,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     import { ValidateLanguageTag } from '../api';
     import { ExportDebugReport } from '../api/services/logging';
     import { LoadSettings, SaveSettings } from '../api/services/settings';
+    import { RefreshSTTModelsAfterSettingsUpdate } from '../api/services/models';
     import { logger } from '../lib/logger';
     import { debounce } from 'lodash';
     import { getOSDebounceDelay } from '../lib/osUtils';
@@ -263,7 +264,7 @@ import { isDeveloperMode } from '../lib/developerMode';
             // Trigger STT model refresh after API key changes
             logger.debug('Settings', 'Refreshing STT models after settings update');
             try {
-                await (window as any).go.gui.App.RefreshSTTModelsAfterSettingsUpdate();
+                await RefreshSTTModelsAfterSettingsUpdate();
                 logger.debug('Settings', 'STT models refreshed successfully');
             } catch (error) {
                 logger.error('Settings', 'Failed to refresh STT models', { error });

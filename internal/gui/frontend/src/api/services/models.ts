@@ -1,9 +1,4 @@
-import { 
-    ModelService, 
-    STTModelsResponse, 
-    SummaryProvidersResponse, 
-    SummaryModelsResponse 
-} from '../generated/api.gen';
+import { ModelService } from '../generated/api.gen';
 import { getAPIBaseUrl, defaultFetch } from '../client';
 
 // Singleton instance

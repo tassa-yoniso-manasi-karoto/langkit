@@ -69,7 +69,7 @@ export function forceDockerStatus(available: boolean) {
 
 export function resetDockerStatus() {
     // Re-run the actual check by importing and calling the function from App.svelte
-    import('../../../wailsjs/go/gui/App').then(({ CheckDockerAvailability }) => {
+    import('../../api/services/deps').then(({ CheckDockerAvailability }) => {
         CheckDockerAvailability().then(status => {
             dockerStatusStore.set({
                 available: status.available || false,
@@ -96,7 +96,7 @@ export function forceInternetStatus(online: boolean) {
 
 export function resetInternetStatus() {
     // Re-run the actual check by importing and calling the function from App.svelte
-    import('../../../wailsjs/go/gui/App').then(({ CheckInternetConnectivity }) => {
+    import('../../api/services/deps').then(({ CheckInternetConnectivity }) => {
         CheckInternetConnectivity().then(status => {
             internetStatusStore.set({
                 online: status.online || false,
@@ -122,7 +122,7 @@ export function forceFFmpegStatus(available: boolean) {
 }
 
 export function resetFFmpegStatus() {
-    import('../../../wailsjs/go/gui/App').then(({ CheckFFmpegAvailability }) => {
+    import('../../api/services/deps').then(({ CheckFFmpegAvailability }) => {
         CheckFFmpegAvailability().then(status => {
             ffmpegStatusStore.set({
                 available: status.available || false,
@@ -149,7 +149,7 @@ export function forceMediaInfoStatus(available: boolean) {
 }
 
 export function resetMediaInfoStatus() {
-    import('../../../wailsjs/go/gui/App').then(({ CheckMediaInfoAvailability }) => {
+    import('../../api/services/deps').then(({ CheckMediaInfoAvailability }) => {
         CheckMediaInfoAvailability().then(status => {
             mediainfoStatusStore.set({
                 available: status.available || false,
