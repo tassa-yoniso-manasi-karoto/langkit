@@ -20,6 +20,8 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/interfaces"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/eta"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
@@ -354,6 +356,7 @@ type GUIHandler struct {
 	etaCalculators map[string]eta.Provider
 	guiLogWriter   *LogWriter
 	wsNotifier     StateChangeNotifier // For WebSocket broadcasting
+	llmRegistry    interface{}         // Stores LLM registry instance
 }
 
 // GUIHandler implements multiple focused interfaces: compile-time assertions
@@ -361,6 +364,8 @@ var _ MessageHandler = (*GUIHandler)(nil)
 var _ interfaces.WebsocketService = (*GUIHandler)(nil)
 var _ interfaces.DryRunProvider = (*GUIHandler)(nil)
 var _ interfaces.LoggingProvider = (*GUIHandler)(nil)
+var _ interfaces.STTModelProvider = (*GUIHandler)(nil)
+var _ interfaces.LLMRegistryProvider = (*GUIHandler)(nil)
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
@@ -1051,6 +1056,32 @@ func (h *GUIHandler) Emit(event string, data interface{}) {
 	if h.wsNotifier != nil {
 		h.wsNotifier.Emit(event, data)
 	}
+}
+
+// GetAllSTTModels implements interfaces.STTModelProvider interface
+func (h *GUIHandler) GetAllSTTModels() interface{} {
+	// Import voice package for this
+	return voice.GetAllSTTModels()
+}
+
+// UpdateSTTFactory implements interfaces.STTModelProvider interface
+func (h *GUIHandler) UpdateSTTFactory() {
+	voice.UpdateDefaultFactory()
+}
+
+// GetLLMRegistry implements interfaces.LLMRegistryProvider interface
+func (h *GUIHandler) GetLLMRegistry() interface{} {
+	return h.llmRegistry
+}
+
+// SetLLMRegistry sets the LLM registry instance (called after initialization)
+func (h *GUIHandler) SetLLMRegistry(registry interface{}) {
+	h.llmRegistry = registry
+}
+
+// GetSummaryService implements interfaces.LLMRegistryProvider interface
+func (h *GUIHandler) GetSummaryService() interface{} {
+	return summary.GetDefaultService()
 }
 
 // GetCurrentDryRunConfig returns the current dry run configuration (used by Task)

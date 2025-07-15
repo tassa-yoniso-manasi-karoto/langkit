@@ -1,0 +1,61 @@
+webrpc = v1
+name = langkit-models
+version = v1.0.0
+
+# AI Model service for STT and LLM providers
+
+# STT (Speech-to-Text) types
+struct STTModelUIInfo
+  - name: string
+  - displayName: string
+  - description: string
+  - providerName: string
+  - isDepreciated: bool
+  - isRecommended: bool
+  - takesInitialPrompt: bool
+  - isAvailable: bool
+
+struct STTModelsResponse
+  - models: []STTModelUIInfo
+  - names: []string
+  - available: bool
+  - suggested: string
+
+# LLM (Summary) provider types
+struct ProviderInfo
+  - name: string
+  - displayName: string
+  - description: string
+  - status?: string
+  - error?: string
+
+struct SummaryProvidersResponse
+  - providers: []ProviderInfo
+  - names: []string
+  - available: bool
+  - suggested: string
+  - status: string
+  - message?: string
+
+struct ModelInfo
+  - id: string
+  - name: string
+  - description: string
+  - providerName: string
+
+struct SummaryModelsResponse
+  - models: []ModelInfo
+  - names: []string
+  - available: bool
+  - suggested: string
+  - status: string
+  - message?: string
+
+service ModelService
+  # STT methods
+  - GetAvailableSTTModelsForUI() => (response: STTModelsResponse)
+  - RefreshSTTModelsAfterSettingsUpdate() => (response: STTModelsResponse)
+  
+  # LLM summary methods
+  - GetAvailableSummaryProviders() => (response: SummaryProvidersResponse)
+  - GetAvailableSummaryModels(providerName: string) => (response: SummaryModelsResponse)

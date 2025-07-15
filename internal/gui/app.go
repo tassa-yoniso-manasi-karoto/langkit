@@ -143,6 +143,12 @@ func (a *App) startup(ctx context.Context) {
 		a.getLogger().Fatal().Err(err).Msg("Failed to register logging service")
 	}
 	
+	// Register model service (handler implements STTModelProvider and LLMRegistryProvider)
+	modelSvc := services.NewModelService(*a.getLogger(), handler, handler)
+	if err := apiServer.RegisterService(modelSvc); err != nil {
+		a.getLogger().Fatal().Err(err).Msg("Failed to register model service")
+	}
+	
 	// Register settings service with custom provider
 	settingsProvider := &settingsProviderAdapter{app: a}
 	settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
@@ -190,6 +196,9 @@ func (a *App) domReady(ctx context.Context) {
 	// Initialize LLM system with async registry and WebSocket server
 	a.llmRegistry = core.InitLLM(handler, a.ctx, a.wsServer)
 	a.getLogger().Info().Msg("LLM registry initialized")
+	
+	// Set the LLM registry in the handler so it can be accessed by services
+	handler.SetLLMRegistry(a.llmRegistry)
 	
 	// Set up WebSocket connection callback to send initial LLM state
 	a.wsServer.SetOnConnect(func() {
