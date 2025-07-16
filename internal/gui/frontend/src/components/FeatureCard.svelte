@@ -788,6 +788,9 @@
     // Direct reactive variable for merge message visibility
     $: shouldShowMergeMessage = feature.outputMergeGroup && feature.showMergeBanner && enabled && (options?.mergeOutputFiles || false);
     
+    // Direct reactive variable for dependency message visibility
+    $: shouldShowDependencyMessage = feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled;
+    
     // Track option changes that need animation refresh
     $: if (options && Object.keys(options).some(key => key === 'mergeOutputFiles' || key.startsWith('docker'))) {
         // Schedule animation refresh after options change
@@ -848,7 +851,7 @@
     }
     
     // Reactive variable that combines all message visibility checks
-    $: hasFeatureMessages = hasNonMergeMessages() || shouldShowMergeMessage;
+    $: hasFeatureMessages = hasNonMergeMessages() || shouldShowMergeMessage || shouldShowDependencyMessage;
 </script>
 
 <div class="feature-card bg-white/5 rounded-lg
@@ -1077,7 +1080,7 @@
                     {/if}
 
                     <!-- Dependency messages when a feature depends on dubtitles -->
-                    {#if feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled}
+                    {#if shouldShowDependencyMessage}
                         <div class={messageItemClass}>
                             <span class="material-icons text-[14px] text-log-info mt-0.5 group-hover:animate-subtlePulse">
                                 link
