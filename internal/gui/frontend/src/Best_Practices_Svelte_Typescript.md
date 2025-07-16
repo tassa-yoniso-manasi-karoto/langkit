@@ -2,6 +2,12 @@
 
 This document outlines specific best practices for developing robust applications with Svelte and TypeScript, covering both Svelte 4 and Svelte 5 patterns. Based on real-world experience addressing performance issues, memory leaks, reactivity challenges, and UI inconsistencies.
 
+> **⚠️ CRITICAL BUILD COMPATIBILITY WARNING**
+> 
+> Never use function calls in template conditionals like `{#if someFunction()}`. This pattern can work in development but break in production builds due to how different bundlers optimize code. Always use reactive variables instead: `$: condition = someFunction()` then `{#if condition}`.
+> 
+> This is the #1 cause of "works on my machine" bugs in Svelte applications.
+
 ## Paradigm differences between backend and frontend
 
 Early abstraction mindset:
@@ -281,6 +287,34 @@ Code permanence:
 ## 3. Managing Reactivity
 
 ### DO:
+- **✅ Use reactive variables instead of function calls in templates**
+  ```typescript
+  // ❌ BAD: Function calls in templates are fragile
+  function shouldShowContent() {
+    return isEnabled && hasPermission && data.length > 0;
+  }
+  
+  // Template
+  {#if shouldShowContent()}  // Fragile across builds!
+    <div>Content</div>
+  {/if}
+  
+  // ✅ GOOD: Reactive variable
+  $: shouldShowContent = isEnabled && hasPermission && data.length > 0;
+  
+  // Template
+  {#if shouldShowContent}  // Guaranteed reactivity
+    <div>Content</div>
+  {/if}
+  ```
+  
+  **Why this matters:**
+  - Function calls in templates rely on Svelte's ability to track dependencies inside the function
+  - This tracking can break with different build tools, minification, or optimization settings
+  - Different versions of bundlers (Wails 2.9 vs 2.10) can produce different behavior
+  - Reactive statements (`$:`) are guaranteed to work across all build configurations
+  - This is especially critical for production builds where aggressive optimization occurs
+
 - **✅ Understand Svelte's reactivity boundaries**
   ```typescript
   // Svelte 4 - Compile-time reactivity
@@ -351,6 +385,33 @@ Code permanence:
   ```
 
 ### DON'T:
+- **❌ Call functions directly in template conditionals**
+  ```svelte
+  <!-- BAD: This can break in production builds -->
+  {#if hasMessages()}
+    <div>Messages</div>
+  {/if}
+  
+  <!-- BAD: Even with simple conditions -->
+  {#if isValid() && canProceed()}
+    <button>Continue</button>
+  {/if}
+  
+  <!-- GOOD: Use reactive variables -->
+  <script>
+    $: hasMessages = checkMessages();
+    $: canContinue = isValid() && canProceed();
+  </script>
+  
+  {#if hasMessages}
+    <div>Messages</div>
+  {/if}
+  
+  {#if canContinue}
+    <button>Continue</button>
+  {/if}
+  ```
+
 - **❌ Mix reactive and imperative updates**
 - **❌ Rely on object mutation to trigger updates (Svelte 4)**
 - **❌ Use get(store) within reactive statements**
@@ -889,6 +950,37 @@ function handleClick() {
 }
 ```
 
+### Build Tool Boundaries
+
+**Critical**: Different build tools and optimization levels can create different reactivity behavior!
+
+```typescript
+// ❌ DANGEROUS: Works in dev, breaks in production
+function shouldRender() {
+  return someCondition && otherState > 0;
+}
+
+{#if shouldRender()}  // May lose reactivity after minification!
+  <Component />
+{/if}
+
+// ✅ SAFE: Guaranteed to work across all builds
+$: shouldRender = someCondition && otherState > 0;
+
+{#if shouldRender}  // Always reactive
+  <Component />
+{/if}
+```
+
+**Why this happens:**
+- Development builds preserve more debugging information
+- Production builds aggressively optimize and minify code
+- Function inlining can break Svelte's dependency tracking
+- Different bundler versions (e.g., Wails 2.9 vs 2.10) have different optimization strategies
+- WebKit and WebView2 may execute optimized code differently
+
+**Best Practice**: Always use reactive statements (`$:`) for any computed values used in templates
+
 ## 10. Svelte 5 Migration Patterns
 
 ### Core Migration Strategies
@@ -1065,9 +1157,13 @@ $effect(() => {
 
 This guide represents battle-tested patterns for building robust Svelte applications. Key takeaways:
 
-1. **Understand reactivity boundaries** - Know what Svelte can and cannot track
-2. **Choose the right pattern for your Svelte version** - Svelte 4 and 5 have different strengths
-3. **Prioritize explicit over implicit** - Clear data flow prevents bugs
-4. **Design for maintainability** - Consistent patterns trump clever optimizations
-5. **Measure before optimizing** - Not all performance optimizations are necessary
+1. **Always use reactive statements for template conditions** - Never call functions directly in `{#if}` blocks
+2. **Understand reactivity boundaries** - Know what Svelte can and cannot track
+3. **Choose the right pattern for your Svelte version** - Svelte 4 and 5 have different strengths
+4. **Prioritize explicit over implicit** - Clear data flow prevents bugs
+5. **Design for maintainability** - Consistent patterns trump clever optimizations
+6. **Test with production builds** - Development behavior doesn't guarantee production behavior
+7. **Measure before optimizing** - Not all performance optimizations are necessary
+
+**Most Critical Rule**: If a value is used in a template (especially in conditionals), it MUST be a reactive variable (`$: value = ...`), never a function call. This is the single most important pattern for cross-platform, cross-build-tool compatibility.
 
