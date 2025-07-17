@@ -791,46 +791,6 @@
     // Direct reactive variable for dependency message visibility
     $: shouldShowDependencyMessage = feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled;
     
-    // Direct reactive variables for non-Japanese warning
-    $: shouldShowNonJpnWarning = standardTag !== 'jpn' && showNonJpnMessage;
-    
-    // Direct reactive variables for Docker status messages
-    $: shouldShowDockerRunning = enabled && hasAnyVisibleOptions && needsDocker && !isDockerUnavailable;
-    $: shouldShowDockerUnavailable = needsDocker && isDockerUnavailable;
-    
-    // Docker status for features that check provider option visibility
-    $: shouldShowDockerRunningWithProvider = enabled && hasAnyVisibleOptions && visibleOptions.includes('provider') && needsDocker && !isDockerUnavailable;
-    
-    // Provider error message visibility
-    $: showProviderError = enabled && $invalidationErrorStore.some(e => e.id === `provider-${feature.id}`);
-    
-    // Romanization feature messages
-    $: showRomanizationDockerRunning = feature.id === 'subtitleRomanization' && enabled && hasAnyVisibleOptions && needsDocker && !isDockerUnavailable;
-    $: showRomanizationDockerUnavailable = feature.id === 'subtitleRomanization' && needsDocker && isDockerUnavailable;
-    $: showRomanizationNoLanguage = feature.id === 'subtitleRomanization' && !standardTag;
-    $: showRomanizationNotAvailable = feature.id === 'subtitleRomanization' && !isRomanizationAvailable;
-    $: showRomanizationMessages = showRomanizationDockerRunning || showRomanizationDockerUnavailable || showRomanizationNoLanguage || showRomanizationNotAvailable;
-    
-    // Selective transliteration messages
-    $: showTransliterationDockerRunning = feature.id === 'selectiveTransliteration' && enabled && hasAnyVisibleOptions && visibleOptions.includes('provider') && needsDocker && !isDockerUnavailable;
-    $: showTransliterationDockerUnavailable = feature.id === 'selectiveTransliteration' && needsDocker && isDockerUnavailable;
-    $: showTransliterationNoLanguage = feature.id === 'selectiveTransliteration' && !standardTag;
-    $: showTransliterationNonJpn = feature.id === 'selectiveTransliteration' && shouldShowNonJpnWarning;
-    $: showTransliterationMessages = showTransliterationDockerRunning || showTransliterationDockerUnavailable || showTransliterationNoLanguage || showTransliterationNonJpn;
-    
-    // Tokenization messages
-    $: showTokenizationDockerRunning = feature.id === 'subtitleTokenization' && enabled && hasAnyVisibleOptions && visibleOptions.includes('provider') && needsDocker && !isDockerUnavailable;
-    $: showTokenizationDockerUnavailable = feature.id === 'subtitleTokenization' && needsDocker && isDockerUnavailable;
-    $: showTokenizationNotAvailable = feature.id === 'subtitleTokenization' && showNotAvailableMessage;
-    $: showTokenizationMessages = showTokenizationDockerRunning || showTokenizationDockerUnavailable || showTokenizationNotAvailable;
-    
-    // Condensed audio messages
-    $: showCondensedAudioProviderMessages = feature.id === 'condensedAudio' && enabled && options.enableSummary && isLLMReady && 
-        (feature.options.summaryProvider.choices.length === 0 || missingProviders.length > 0);
-    
-    // Combine all non-merge messages
-    $: hasNonMergeMessages = showProviderError || showRomanizationMessages || showTransliterationMessages || showTokenizationMessages || showCondensedAudioProviderMessages;
-    
     // Track option changes that need animation refresh
     $: if (options && Object.keys(options).some(key => key === 'mergeOutputFiles' || key.startsWith('docker'))) {
         // Schedule animation refresh after options change
@@ -846,11 +806,52 @@
         }, 10);
     }
     
-    // Note: hasNonMergeMessages function has been replaced with reactive variables
-    // to ensure proper reactivity in all build configurations
+    // Helper function to determine if we should show non-merge messages
+    function hasNonMergeMessages() {
+        // API Provider error messages
+        if (enabled && $invalidationErrorStore.some(e => e.id === `provider-${feature.id}`)) {
+            return true;
+        }
+        
+        // Feature-specific messages
+        if (feature.id === 'subtitleRomanization') {
+            if ((enabled && hasAnyVisibleOptions && needsDocker && !isDockerUnavailable) ||
+                    (needsDocker && isDockerUnavailable) ||
+                (!standardTag) ||
+                (!isRomanizationAvailable)) {
+                return true;
+            }
+        } else if (feature.id === 'selectiveTransliteration') {
+            if ((enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
+                    (needsDocker && isDockerUnavailable) ||
+                (!standardTag) ||
+                (standardTag !== 'jpn' && showNonJpnMessage)) {
+                return true;
+            }
+        } else if (feature.id === 'subtitleTokenization') {
+            if ((enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
+                    (needsDocker && isDockerUnavailable) ||
+                showNotAvailableMessage) {
+                return true;
+            }
+        } else if (feature.id === 'condensedAudio') {
+            // Show message if enableSummary is true and LLM is ready
+            if (enabled && options.enableSummary && isLLMReady) {
+                // Show message if no providers at all OR some providers are missing
+                return feature.options.summaryProvider.choices.length === 0 || missingProviders.length > 0;
+            }
+        }
+        
+        // Dependency messages
+        if (feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled) {
+            return true;
+        }
+        
+        return false;
+    }
     
     // Reactive variable that combines all message visibility checks
-    $: hasFeatureMessages = hasNonMergeMessages || shouldShowMergeMessage || shouldShowDependencyMessage;
+    $: hasFeatureMessages = hasNonMergeMessages() || shouldShowMergeMessage || shouldShowDependencyMessage;
 </script>
 
 <div class="feature-card bg-white/5 rounded-lg
@@ -905,7 +906,7 @@
         <div class="feature-message-card ml-7 w-auto animate-fadeIn">
                 <div class="glassmorphism-card">
                     <!-- API Provider error messages -->
-                    {#if showProviderError}
+                    {#if enabled && $invalidationErrorStore.some(e => e.id === `provider-${feature.id}`)}
                         <div class={messageItemClass}>
                             <span class="material-icons text-[14px] text-log-warn mt-0.5 group-hover:animate-subtlePulse">
                                 warning
@@ -924,7 +925,7 @@
                     <!-- Feature-specific messages -->
                     {#if feature.id === 'subtitleRomanization'}
                         <!-- Docker status banners -->
-                        {#if showRomanizationDockerRunning}
+                        {#if enabled && hasAnyVisibleOptions && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -933,16 +934,14 @@
                             </div>
                         {/if}
                         
-                        {#if showRomanizationDockerUnavailable}
+                        {#if needsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
-                        {/if}
-                        
-                        {#if showRomanizationNoLanguage}
+                        {:else if !standardTag}
                             <div class={messageItemClass}>
                                 <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
                                     info
@@ -951,9 +950,7 @@
                                     <span>Please select a language to proceed.</span>
                                 </div>
                             </div>
-                        {/if}
-                        
-                        {#if showRomanizationNotAvailable}
+                        {:else if !isRomanizationAvailable}
                             <div class={messageItemClass}>
                                 <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
                                     info
@@ -978,7 +975,7 @@
                     
                     {:else if feature.id === 'selectiveTransliteration'}
                         <!-- Docker status banners -->
-                        {#if showTransliterationDockerRunning}
+                        {#if enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -987,16 +984,14 @@
                             </div>
                         {/if}
                         
-                        {#if showTransliterationDockerUnavailable}
+                        {#if needsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
-                        {/if}
-                        
-                        {#if showTransliterationNoLanguage}
+                        {:else if !standardTag}
                             <div class={messageItemClass}>
                                 <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
                                     info
@@ -1005,9 +1000,7 @@
                                     <span>Please select a language to proceed.</span>
                                 </div>
                             </div>
-                        {/if}
-                        
-                        {#if showTransliterationNonJpn}
+                        {:else if standardTag !== 'jpn' && showNonJpnMessage}
                             <div class={messageItemClass}>
                                 <span class="material-icons text-[14px] text-error-soft mt-0.5 group-hover:animate-subtlePulse">
                                     warning
@@ -1020,7 +1013,7 @@
                     
                     {:else if feature.id === 'subtitleTokenization'}
                         <!-- Docker status banners -->
-                        {#if showTokenizationDockerRunning}
+                        {#if enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -1029,7 +1022,7 @@
                             </div>
                         {/if}
                         
-                        {#if showTokenizationDockerUnavailable}
+                        {#if needsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
@@ -1038,7 +1031,7 @@
                             </div>
                         {/if}
                         
-                        {#if showTokenizationNotAvailable}
+                        {#if showNotAvailableMessage}
                             <div class={messageItemClass}>
                                 <span class="material-icons text-[14px] text-error-soft mt-0.5 group-hover:animate-subtlePulse">
                                     warning
