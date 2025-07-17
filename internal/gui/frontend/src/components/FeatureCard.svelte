@@ -785,9 +785,6 @@
                            (standardTag !== 'jpn' && feature.id === 'selectiveTransliteration') ||
                            (feature.id === 'subtitleTokenization' && (!tokenizationAllowed || !isRomanizationAvailable)));
     
-    // Direct reactive variable for merge message visibility
-    $: shouldShowMergeMessage = feature.outputMergeGroup && feature.showMergeBanner && enabled && (options?.mergeOutputFiles || false);
-    
     // Track option changes that need animation refresh
     $: if (options && Object.keys(options).some(key => key === 'mergeOutputFiles' || key.startsWith('docker'))) {
         // Schedule animation refresh after options change
@@ -803,8 +800,8 @@
         }, 10);
     }
     
-    // Helper function to determine if we should show non-merge messages
-    function hasNonMergeMessages() {
+    // Helper function to determine if we should show feature messages
+    function hasFeatureMessages() {
         // API Provider error messages
         if (enabled && $invalidationErrorStore.some(e => e.id === `provider-${feature.id}`)) {
             return true;
@@ -812,21 +809,21 @@
         
         // Feature-specific messages
         if (feature.id === 'subtitleRomanization') {
-            if ((enabled && hasAnyVisibleOptions && needsDocker && !isDockerUnavailable) ||
+            if ((enabled && hasVisibleOptions() && needsDocker && !isDockerUnavailable) ||
                     (needsDocker && isDockerUnavailable) ||
                 (!standardTag) ||
                 (!isRomanizationAvailable)) {
                 return true;
             }
         } else if (feature.id === 'selectiveTransliteration') {
-            if ((enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
                     (needsDocker && isDockerUnavailable) ||
                 (!standardTag) ||
                 (standardTag !== 'jpn' && showNonJpnMessage)) {
                 return true;
             }
         } else if (feature.id === 'subtitleTokenization') {
-            if ((enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
                     (needsDocker && isDockerUnavailable) ||
                 showNotAvailableMessage) {
                 return true;
@@ -844,11 +841,13 @@
             return true;
         }
         
+        // Output merge group banner - only shown when merge option is enabled
+        if (feature.outputMergeGroup && feature.showMergeBanner && enabled && options.mergeOutputFiles) {
+            return true;
+        }
+        
         return false;
     }
-    
-    // Reactive variable that combines all message visibility checks
-    $: hasFeatureMessages = hasNonMergeMessages() || shouldShowMergeMessage;
 </script>
 
 <div class="feature-card bg-white/5 rounded-lg
@@ -878,7 +877,7 @@
      on:mouseleave={handleHoverEnd}
 >
     <div class="p-4 pr-1 border-b border-white/10
-                {(enabled && hasFeatureMessages) ? 'pb-1' : 'pb-4'}"
+                {(enabled && hasFeatureMessages()) ? 'pb-1' : 'pb-4'}"
     >
         <div class="flex items-center gap-3 cursor-pointer group
                   {isFeatureDisabled ? 'cursor-not-allowed' : ''}">
@@ -899,7 +898,7 @@
             </span>
         </div>
         
-        {#if hasFeatureMessages}
+        {#if hasFeatureMessages()}
         <div class="feature-message-card ml-7 w-auto animate-fadeIn">
                 <div class="glassmorphism-card">
                     <!-- API Provider error messages -->
@@ -922,7 +921,7 @@
                     <!-- Feature-specific messages -->
                     {#if feature.id === 'subtitleRomanization'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasAnyVisibleOptions && needsDocker && !isDockerUnavailable}
+                        {#if enabled && hasVisibleOptions() && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -972,7 +971,7 @@
                     
                     {:else if feature.id === 'selectiveTransliteration'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -1010,7 +1009,7 @@
                     
                     {:else if feature.id === 'subtitleTokenization'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasAnyVisibleOptions && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -1089,8 +1088,8 @@
                     {/if}
 
                     <!-- Output merge group banner (shown only when merge option is enabled) -->
-                    {#if shouldShowMergeMessage}
-                        <div class={messageItemClass}>
+                    {#if feature.outputMergeGroup && feature.showMergeBanner && enabled && options.mergeOutputFiles}
+                        <div class={messageItemClass} key="{options.mergeOutputFiles}">
                             <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
                                 merge_type
                             </span>
@@ -1106,6 +1105,7 @@
     
     <!-- Options drawer with slide animation - only displayed if the feature has visible options -->
     {#if hasAnyVisibleOptions}
+    {@const _logVisible = logger.trace('featureCard', 'hasVisibleOptions() returned true')}
     <div
     bind:this={optionsContainer} 
     class="overflow-hidden" 

@@ -27,10 +27,6 @@ BUGS TO CONFIRM:
 - LINT
 - update dev.md with build instructions, designs explained in brief
 - stop logger.ts from emitting to browser console
-- memoize validateTargetlang
-- "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
-  - non dismissable too
-- single instance (due to webRPC/WS instead of webengine APIs)
 
 
 .
