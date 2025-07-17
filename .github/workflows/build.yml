@@ -52,6 +52,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+          
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -124,8 +129,8 @@ jobs:
         working-directory: internal/gui/frontend
         shell: bash
         run: |
-          npm install
-          npm run build:wasm
+          pnpm install --frozen-lockfile
+          pnpm run build:wasm
           
       # Prepare version information
       - name: Prepare version info

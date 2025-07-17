@@ -1,0 +1,35 @@
+main
+mainbk
+build/bin
+langkit-cli
+CLAUDE.md
+
+**/node_modules
+**/frontend/node_modules
+**/frontend/dist
+**/frontend/wailsjs
+**package-lock.json
+
+.vscode/
+.DS_Store
+.idea
+
+dist/
+
+scripts/*
+internal/gui/frontend/public/
+internal/gui/frontend/.vite/*
+
+internal/gui/frontend/src/wasm/Cargo.lock
+internal/gui/frontend/src/wasm/target/*
+internal/gui/frontend/src/wasm/pkg/*
+# Generated WebAssembly files
+/internal/gui/frontend/src/wasm-generated/
+
+# WebRPC generated TypeScript files
+internal/gui/frontend/src/api/generated/*.gen.ts 
+
+archive/**
+archive
+
+**/.claude/settings.local.json
