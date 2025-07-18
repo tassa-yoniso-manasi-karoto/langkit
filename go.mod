@@ -29,7 +29,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250708061502-8cbb8df29d51
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.2-beta.0.20250708071046-5188b18644fa
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta
 	github.com/tassa-yoniso-manasi-karoto/go-openrouter v0.0.0-20250603092737-033150d1ff32
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250402043425-6757e4e55314
 	github.com/tidwall/pretty v1.2.1

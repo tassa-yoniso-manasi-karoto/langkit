@@ -1,71 +1,35 @@
 BUGS TO CONFIRM:
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
 
-.
+<hr>
+
 
 - mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
-- go-ichiran register user cancel as: 14:58:18 WRN Transliteration provider marked as unhealthy due to processing error error="error analyzing chunk 1: failed to read exec output: no valid JSON line found in output" component=provider_manager provider_key=jpn:Hepburn provider_name=jpn-ichiran
-- ask Claude thorough critic
 
-.
-- LINT
-- rm unused selector
-- memoize validateTargetlang
+
 - "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
   - non dismissable too
 - single instance (due to webRPC/WS instead of webengine APIs)
 
 
-.
-- REFACTOR CORE
-
+- ask Claude thorough critic
 
 .
+- LINT
+- rm unused selector
+
+.
+- memoize validateTargetlang
 - PYTHAILNLP
-
-  Current State Analysis
-
-  Local Definition (stores.ts):
-  - Has frontend-specific fields like hasSeenLogViewerTooltip
-  - Includes type aliases like IntermediaryFileMode
-  - Has detailed inline documentation
-  - Provides default values in initSettings
-
-  WebRPC Generated:
-  - Single source of truth from backend
-  - Automatically stays synchronized
-  - Type-safe across the full stack
-  - Already being used in the service layer
-
-  Recommendation
-
-  I recommend a hybrid approach for now:
-
-  1. Keep the local Settings type in stores.ts because:
-    - It may have frontend-specific fields not persisted to backend
-    - It provides better documentation for frontend developers
-    - It's already working and tested
-  2. Fix the immediate error by removing the unused import:
-  import { SettingsService } from '../generated/api.gen';
-  3. Future consideration: If you want to fully embrace WebRPC:
-    - Audit which fields are truly frontend-only
-    - Move all persistent fields to the backend schema
-    - Create a separate FrontendSettings type for UI-only state
-    - Use type composition: type AppSettings = Settings & FrontendSettings
-
+- REFACTOR CORE
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - manual GUI tests
-  - make consistent progress bars between GUI and CLI
   - check settings panel from a non dev perspective
   - watch for combinations that should spawn an error and disallow processing:
-    - no docker but japanese transliteration selected
     - Speech-to-Text and voice enhancing will not be available offline
-  - test use case BrowserAccessURL not set 2 time in a row (test logger.go with already downloaded binary)
-- manual CLI tests
 - try offline to see if icon / fonts are missing
-- try a clean install
 
 .
 

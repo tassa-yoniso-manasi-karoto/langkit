@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -94,26 +95,29 @@ func ProcessWithManagedProvider(
 	// Process the text with the provider
 	result, err := pooledProvider.Provider.ProcessText(ctx, text, handler)
 	if err != nil {
-		// Mark provider as unhealthy when errors occur
-		pooledProvider.IsHealthy = false
-		pooledProvider.LastError = err
-		
-		// Log the provider health issue with detailed information
-		if handler != nil && handler.ZeroLog() != nil {
-			handler.ZeroLog().Warn().
-				Str("provider_key", pooledProvider.Key.String()).
-				Str("provider_name", pooledProvider.Provider.ProviderName()).
-				Err(err).
-				Msg("Transliteration provider marked as unhealthy due to processing error")
-		}
-		
-		// Also log to the manager's logger if available
-		if manager != nil {
-			manager.logger.Warn().
-				Str("provider_key", pooledProvider.Key.String()).
-				Str("provider_name", pooledProvider.Provider.ProviderName()).
-				Err(err).
-				Msg("Transliteration provider marked as unhealthy due to processing error")
+		// Don't mark provider as unhealthy if the error is due to context cancellation
+		if !errors.Is(err, context.Canceled) {
+			// Mark provider as unhealthy when errors occur (but not for cancellations)
+			pooledProvider.IsHealthy = false
+			pooledProvider.LastError = err
+			
+			// Log the provider health issue with detailed information
+			if handler != nil && handler.ZeroLog() != nil {
+				handler.ZeroLog().Warn().
+					Str("provider_key", pooledProvider.Key.String()).
+					Str("provider_name", pooledProvider.Provider.ProviderName()).
+					Err(err).
+					Msg("Transliteration provider marked as unhealthy due to processing error")
+			}
+			
+			// Also log to the manager's logger if available
+			if manager != nil {
+				manager.logger.Warn().
+					Str("provider_key", pooledProvider.Key.String()).
+					Str("provider_name", pooledProvider.Provider.ProviderName()).
+					Err(err).
+					Msg("Transliteration provider marked as unhealthy due to processing error")
+			}
 		}
 		
 		return StringResult{}, fmt.Errorf("failed to process text: %w", err)
