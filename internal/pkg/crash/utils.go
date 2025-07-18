@@ -158,6 +158,33 @@ func MaskAPIKey(key string) string {
 	return key[:4] + strings.Repeat("*", len(key)-8) + key[len(key)-4:]
 }
 
+// SanitizeBuffer replaces all occurrences of API keys in the buffer with REDACTED
+func SanitizeBuffer(content []byte, settings config.Settings) []byte {
+	// Convert to string for easier manipulation
+	str := string(content)
+	
+	// List of API keys to sanitize
+	apiKeys := []string{
+		settings.APIKeys.Replicate,
+		settings.APIKeys.ElevenLabs,
+		settings.APIKeys.OpenAI,
+		settings.APIKeys.OpenRouter,
+		settings.APIKeys.Google,
+	}
+	
+	// Replace each API key with REDACTED
+	for _, key := range apiKeys {
+		// Skip empty keys
+		if key == "" {
+			continue
+		}
+		// Replace all occurrences of the API key
+		str = strings.ReplaceAll(str, key, "REDACTED")
+	}
+	
+	return []byte(str)
+}
+
 // DockerNslookupCheck uses the Docker API to run "nslookup <domain>" in a BusyBox
 // container. This check is intended to reveal any Docker-specific networking issues.
 func DockerNslookupCheck(w io.Writer, domain string) {

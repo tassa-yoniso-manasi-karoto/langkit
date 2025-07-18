@@ -4,12 +4,8 @@ BUGS TO CONFIRM:
 
 .
 
-- mediainput unhandled err → better err
-- broken feature message on webview2
-
+- mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
 - go-ichiran register user cancel as: 14:58:18 WRN Transliteration provider marked as unhealthy due to processing error error="error analyzing chunk 1: failed to read exec output: no valid JSON line found in output" component=provider_manager provider_key=jpn:Hepburn provider_name=jpn-ichiran
-- broken feature message on WEBKIT. /!\
-- crash report fallback API key sanitizer (to guarantee no leaks)
 - truncate WS logs: FRONT: Message received [HUGE STRING]
 - ask Claude thorough critic
 
@@ -25,8 +21,11 @@ BUGS TO CONFIRM:
 
 .
 - LINT
-- update dev.md with build instructions, designs explained in brief
 - stop logger.ts from emitting to browser console
+- memoize validateTargetlang
+- "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
+  - non dismissable too
+- single instance (due to webRPC/WS instead of webengine APIs)
 
 
 .

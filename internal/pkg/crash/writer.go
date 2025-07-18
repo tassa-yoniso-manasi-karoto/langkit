@@ -131,41 +131,46 @@ func writeReportContent(
 	logBuffer bytes.Buffer,
 	isCLI bool,
 ) error {
+	// Create a buffer to capture all output before sanitization
+	var buf bytes.Buffer
+	
+	// Use the buffer as the writer for all content
+	bufWriter := &buf
 
 	// 1. Header
 	if mode == ModeCrash {
-		fmt.Fprintln(w, "LANGKIT CRASH REPORT")
+		fmt.Fprintln(bufWriter, "LANGKIT CRASH REPORT")
 	} else {
-		fmt.Fprintln(w, "LANGKIT DEBUG REPORT")
+		fmt.Fprintln(bufWriter, "LANGKIT DEBUG REPORT")
 	}
-	fmt.Fprintln(w, "==================")
-	fmt.Fprintln(w, "This file has syntax highlighting through ANSI escape codes and is best viewed")
-	fmt.Fprintln(w, "in a terminal using 'cat'.")
-	fmt.Fprintf(w, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
+	fmt.Fprintln(bufWriter, "==================")
+	fmt.Fprintln(bufWriter, "This file has syntax highlighting through ANSI escape codes and is best viewed")
+	fmt.Fprintln(bufWriter, "in a terminal using 'cat'.")
+	fmt.Fprintf(bufWriter, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
 
 	// 2. Basic app info
-	fmt.Fprintln(w, version.GetInfo().String())
-	fmt.Fprintf(w, "Interface mode: ")
+	fmt.Fprintln(bufWriter, version.GetInfo().String())
+	fmt.Fprintf(bufWriter, "Interface mode: ")
 	if isCLI {
-		fmt.Fprintln(w, "CLI")
+		fmt.Fprintln(bufWriter, "CLI")
 	} else {
-		fmt.Fprintln(w, "GUI / Wails")
+		fmt.Fprintln(bufWriter, "GUI / Wails")
 	}
-	fmt.Fprint(w, "\n\n")
+	fmt.Fprint(bufWriter, "\n\n")
 
 	// 3. Error details (only if crash mode and mainErr != nil)
 	if mode == ModeCrash {
-		fmt.Fprintln(w, "ERROR DETAILS")
-		fmt.Fprintln(w, "============")
+		fmt.Fprintln(bufWriter, "ERROR DETAILS")
+		fmt.Fprintln(bufWriter, "============")
 		if mainErr == nil {
-			fmt.Fprintln(w, "WARNING: No mainErr provided, but mode is crash.")
+			fmt.Fprintln(bufWriter, "WARNING: No mainErr provided, but mode is crash.")
 		} else {
-			fmt.Fprintf(w, "Error: %v\n", mainErr)
+			fmt.Fprintf(bufWriter, "Error: %v\n", mainErr)
 			if unwrappable, ok := mainErr.(interface{ Unwrap() error }); ok {
-				fmt.Fprintf(w, "Unwrapped Error Chain:\n")
+				fmt.Fprintf(bufWriter, "Unwrapped Error Chain:\n")
 				err := unwrappable.Unwrap()
 				for err != nil {
-					fmt.Fprintf(w, "  → %v\n", err)
+					fmt.Fprintf(bufWriter, "  → %v\n", err)
 					if next, ok := err.(interface{ Unwrap() error }); ok {
 						err = next.Unwrap()
 					} else {
@@ -174,148 +179,156 @@ func writeReportContent(
 				}
 			}
 		}
-		fmt.Fprint(w, "\n")
+		fmt.Fprint(bufWriter, "\n")
 
 		// 4. Stack trace
-		fmt.Fprintln(w, "STACK TRACE")
-		fmt.Fprintln(w, "===========")
-		fmt.Fprintf(w, "%s\n\n", string(debug.Stack()))
+		fmt.Fprintln(bufWriter, "STACK TRACE")
+		fmt.Fprintln(bufWriter, "===========")
+		fmt.Fprintf(bufWriter, "%s\n\n", string(debug.Stack()))
 	} else {
-		fmt.Fprintln(w, "User-triggered debug report.")
+		fmt.Fprintln(bufWriter, "User-triggered debug report.")
 	}
 
 	// 5. Crash reporter scopes (if any)
 	if Reporter != nil {
 		globalScope, execScope := Reporter.GetScopes()
 			
-		fmt.Fprintln(w, "PARENT DIR OF MEDIA FILE")
-		fmt.Fprintln(w, "========================")
-		runWithTimeout(5*time.Second, "FormatDirectoryListing", w, func() {
-			err := FormatDirectoryListing(w, execScope.ParentDirPath)
+		fmt.Fprintln(bufWriter, "PARENT DIR OF MEDIA FILE")
+		fmt.Fprintln(bufWriter, "========================")
+		runWithTimeout(5*time.Second, "FormatDirectoryListing", bufWriter, func() {
+			err := FormatDirectoryListing(bufWriter, execScope.ParentDirPath)
 			if err != nil {
-				fmt.Fprintf(w, "Error listing directory: %v\n", err)
+				fmt.Fprintf(bufWriter, "Error listing directory: %v\n", err)
 			}
 		})
-		fmt.Fprint(w, "\n\n")
+		fmt.Fprint(bufWriter, "\n\n")
 
-		fmt.Fprintln(w, "GLOBAL SCOPE")
-		fmt.Fprintln(w, "============")
-		fmt.Fprintf(w, "Program Start Time: %s\n", globalScope.StartTime.Format(time.RFC3339))
-		fmt.Fprintf(w, "FFmpeg Path: %s\n", globalScope.FFmpegPath)
-		fmt.Fprintf(w, "FFmpeg Version: %s\n", globalScope.FFmpegVersion)
-		fmt.Fprintf(w, "MediaInfo Version: %s\n\n", globalScope.MediaInfoVer)
+		fmt.Fprintln(bufWriter, "GLOBAL SCOPE")
+		fmt.Fprintln(bufWriter, "============")
+		fmt.Fprintf(bufWriter, "Program Start Time: %s\n", globalScope.StartTime.Format(time.RFC3339))
+		fmt.Fprintf(bufWriter, "FFmpeg Path: %s\n", globalScope.FFmpegPath)
+		fmt.Fprintf(bufWriter, "FFmpeg Version: %s\n", globalScope.FFmpegVersion)
+		fmt.Fprintf(bufWriter, "MediaInfo Version: %s\n\n", globalScope.MediaInfoVer)
 
 		if execScope.MediaInfoDump != "" {
-			fmt.Fprintln(w, "CURRENT MEDIA INFORMATION")
-			fmt.Fprintln(w, "=========================")
-			fmt.Fprintf(w, "Processing Start Time: %s\n", execScope.StartTime.Format(time.RFC3339))
-			fmt.Fprintf(w, "MediaInfo Dump:\n%s\n\n", execScope.MediaInfoDump)
+			fmt.Fprintln(bufWriter, "CURRENT MEDIA INFORMATION")
+			fmt.Fprintln(bufWriter, "=========================")
+			fmt.Fprintf(bufWriter, "Processing Start Time: %s\n", execScope.StartTime.Format(time.RFC3339))
+			fmt.Fprintf(bufWriter, "MediaInfo Dump:\n%s\n\n", execScope.MediaInfoDump)
 		}
 
 		// 6. Execution snapshots
-		fmt.Fprintf(w, "%s\n", Reporter.GetSnapshotsString())
+		fmt.Fprintf(bufWriter, "%s\n", Reporter.GetSnapshotsString())
 	}
 	
 	// 6.5 WebAssembly status (if available)
 	if Reporter != nil {
-		fmt.Fprintln(w, "WEBASSEMBLY STATUS")
-		fmt.Fprintln(w, "==================")
+		fmt.Fprintln(bufWriter, "WEBASSEMBLY STATUS")
+		fmt.Fprintln(bufWriter, "==================")
 		
 		// Check for WebAssembly snapshot
 		wasmSnapshot := Reporter.GetSnapshot("wasm_state")
 		if wasmSnapshot != "" {
 			var state map[string]interface{}
 			if err := json.Unmarshal([]byte(wasmSnapshot), &state); err == nil {
-				fmt.Fprintf(w, "Status: %v\n", state["initStatus"])
+				fmt.Fprintf(bufWriter, "Status: %v\n", state["initStatus"])
 				
 				if metrics, ok := state["performanceMetrics"].(map[string]interface{}); ok {
-					fmt.Fprintf(w, "Operations: %v\n", state["totalOperations"])
-					fmt.Fprintf(w, "Speed Ratio: %.2fx\n", metrics["speedupRatio"])
+					fmt.Fprintf(bufWriter, "Operations: %v\n", state["totalOperations"])
+					fmt.Fprintf(bufWriter, "Speed Ratio: %.2fx\n", metrics["speedupRatio"])
 				}
 				
 				if memUsage, ok := state["memoryUsage"].(map[string]interface{}); ok {
-					fmt.Fprintf(w, "Memory Usage: %.1f%%\n", memUsage["utilization"].(float64)*100)
+					fmt.Fprintf(bufWriter, "Memory Usage: %.1f%%\n", memUsage["utilization"].(float64)*100)
 				}
 				
 				if err, ok := state["lastError"].(map[string]interface{}); ok {
-					fmt.Fprintf(w, "Last Error: %s\n", err["message"])
+					fmt.Fprintf(bufWriter, "Last Error: %s\n", err["message"])
 				}
 			} else {
-				fmt.Fprintln(w, "WebAssembly state available but failed to parse")
+				fmt.Fprintln(bufWriter, "WebAssembly state available but failed to parse")
 			}
 		} else {
-			fmt.Fprintln(w, "WebAssembly: Not initialized or state not available")
+			fmt.Fprintln(bufWriter, "WebAssembly: Not initialized or state not available")
 		}
-		fmt.Fprintln(w, "")
+		fmt.Fprintln(bufWriter, "")
 	}
 
 	// 7. System / runtime info
-	fmt.Fprintln(w, "RUNTIME INFORMATION")
-	fmt.Fprintln(w, "==================")
-	runWithTimeout(10*time.Second, "RuntimeInfo", w, func() {
-		fmt.Fprintln(w, NewRuntimeInfo().String())
+	fmt.Fprintln(bufWriter, "RUNTIME INFORMATION")
+	fmt.Fprintln(bufWriter, "==================")
+	runWithTimeout(10*time.Second, "RuntimeInfo", bufWriter, func() {
+		fmt.Fprintln(bufWriter, NewRuntimeInfo().String())
 	})
 
 	// 8. Environment
-	fmt.Fprintln(w, "ENVIRONMENT")
-	fmt.Fprintln(w, "===========")
-	printEnvironment(w)
-	fmt.Fprint(w, "\n")
+	fmt.Fprintln(bufWriter, "ENVIRONMENT")
+	fmt.Fprintln(bufWriter, "===========")
+	printEnvironment(bufWriter)
+	fmt.Fprint(bufWriter, "\n")
 
 	// 9. Settings (mask API keys)
-	fmt.Fprintln(w, "SETTINGS")
-	fmt.Fprintln(w, "========")
+	fmt.Fprintln(bufWriter, "SETTINGS")
+	fmt.Fprintln(bufWriter, "========")
 	sanitizedSettings := settings
 	sanitizedSettings.APIKeys.Replicate = MaskAPIKey(settings.APIKeys.Replicate)
 	sanitizedSettings.APIKeys.ElevenLabs = MaskAPIKey(settings.APIKeys.ElevenLabs)
 	sanitizedSettings.APIKeys.OpenAI = MaskAPIKey(settings.APIKeys.OpenAI)
 	sanitizedSettings.APIKeys.OpenRouter = MaskAPIKey(settings.APIKeys.OpenRouter)
 	sanitizedSettings.APIKeys.Google = MaskAPIKey(settings.APIKeys.Google)
-	fmt.Fprintln(w, pp.Sprint(sanitizedSettings))
+	fmt.Fprintln(bufWriter, pp.Sprint(sanitizedSettings))
 
 	// 10. Log history
-	fmt.Fprintln(w, "LOG HISTORY")
-	fmt.Fprintln(w, "===========")
-	writeLogs(w, &logBuffer)
+	fmt.Fprintln(bufWriter, "LOG HISTORY")
+	fmt.Fprintln(bufWriter, "===========")
+	writeLogs(bufWriter, &logBuffer)
 
 	// 11. Docker log history
-	fmt.Fprintln(w, "DOCKER LOG HISTORY")
-	fmt.Fprintln(w, "==================")
-	writeLogs(w, &dockerutil.DockerLogBuffer)
+	fmt.Fprintln(bufWriter, "DOCKER LOG HISTORY")
+	fmt.Fprintln(bufWriter, "==================")
+	writeLogs(bufWriter, &dockerutil.DockerLogBuffer)
 	
-	fmt.Fprintln(w, "DOCKER INFORMATION")
-	fmt.Fprintln(w, "==================")
-	runWithTimeout(15*time.Second, "DockerInfo", w, func() {
-		captureDockerInfo(w)
+	fmt.Fprintln(bufWriter, "DOCKER INFORMATION")
+	fmt.Fprintln(bufWriter, "==================")
+	runWithTimeout(15*time.Second, "DockerInfo", bufWriter, func() {
+		captureDockerInfo(bufWriter)
 	})
-	fmt.Fprint(w, "\n")
+	fmt.Fprint(bufWriter, "\n")
 
 	// 12. Connectivity status
-	fmt.Fprintln(w, "CONNECTIVITY STATUS")
-	fmt.Fprintln(w, "==================")
+	fmt.Fprintln(bufWriter, "CONNECTIVITY STATUS")
+	fmt.Fprintln(bufWriter, "==================")
 	// Not sure if some AI API services have georestrictions but when in doubt
-	runWithTimeout(5*time.Second, "GetUserCountry", w, func() {
+	runWithTimeout(5*time.Second, "GetUserCountry", bufWriter, func() {
 		if country, err := GetUserCountry(); err == nil {
-			fmt.Fprintln(w, "Requests originate from:", country)
+			fmt.Fprintln(bufWriter, "Requests originate from:", country)
 		}
 	})
 	
-	runWithTimeout(5*time.Second, "CheckReplicate", w, func() {
-		checkEndpointConnectivity(w, "https://replicate.com", "Replicate")
+	runWithTimeout(5*time.Second, "CheckReplicate", bufWriter, func() {
+		checkEndpointConnectivity(bufWriter, "https://replicate.com", "Replicate")
 	})
 	
-	runWithTimeout(5*time.Second, "CheckElevenLabs", w, func() {
-		checkEndpointConnectivity(w, "https://elevenlabs.io", "ElevenLabs")
+	runWithTimeout(5*time.Second, "CheckElevenLabs", bufWriter, func() {
+		checkEndpointConnectivity(bufWriter, "https://elevenlabs.io", "ElevenLabs")
 	})
 	
-	runWithTimeout(10*time.Second, "DockerNslookup", w, func() {
-		DockerNslookupCheck(w, "example.com")
+	runWithTimeout(10*time.Second, "DockerNslookup", bufWriter, func() {
+		DockerNslookupCheck(bufWriter, "example.com")
 	})
-	fmt.Fprint(w, "\n")
+	fmt.Fprint(bufWriter, "\n")
 
-	fmt.Fprintln(w, "==================")
-	fmt.Fprintln(w, "END OF REPORT")
-	fmt.Fprintln(w, "==================")
+	fmt.Fprintln(bufWriter, "==================")
+	fmt.Fprintln(bufWriter, "END OF REPORT")
+	fmt.Fprintln(bufWriter, "==================")
+
+	// Sanitize the buffer to remove all API keys
+	sanitizedContent := SanitizeBuffer(buf.Bytes(), settings)
+	
+	// Write the sanitized content to the original writer
+	if _, err := w.Write(sanitizedContent); err != nil {
+		return fmt.Errorf("failed to write sanitized report: %w", err)
+	}
 
 	return nil
 }
