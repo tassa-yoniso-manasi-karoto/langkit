@@ -1,3 +1,9 @@
+/* Animation timing variables for consistent fade effects */
+:root {
+    --feature-card-fade-duration: 0.8s;
+    --feature-card-fade-timing: ease-out;
+}
+
 /* Grid layout for option rows with fixed widths */
 .option-row {
     display: grid;
@@ -42,7 +48,6 @@
     
 .feature-card {
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform, box-shadow, opacity;
@@ -69,6 +74,9 @@
         bottom: 0;
         border-radius: inherit; /* Inherit rounded corners from parent */
         padding: 1px; /* Border width */
+        transition: background var(--feature-card-fade-duration) var(--feature-card-fade-timing),
+                    padding var(--feature-card-fade-duration) var(--feature-card-fade-timing),
+                    opacity var(--feature-card-fade-duration) var(--feature-card-fade-timing);
         background: linear-gradient(
             to bottom right, 
             rgba(255, 255, 255, 0) 0%, 
@@ -146,7 +154,7 @@
     
     /* Enhanced pseudo-element border for hover+enabled */
     &::before {
-        padding: 2px;
+        padding: 2.5px;
         background: linear-gradient(
             to bottom right, 
             hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6) 0%,
@@ -171,7 +179,6 @@
 .feature-card:not(:hover):not([aria-checked="true"]) {
     transform: translateY(0) translateZ(0) scale(1);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

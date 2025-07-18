@@ -1523,26 +1523,6 @@
                   smoothFlowToLeft 3s 0.8s infinite linear;
     }
     
-    
-    /* Enhanced glassmorphism effect for feature message card 
-    .glassmorphism-card {
-        background-color: rgba(31, 41, 55, 0.15);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-radius: 0.375rem;
-        overflow: hidden;
-        display: inline-block;
-        max-width: max-content;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    
-    .glassmorphism-card:hover {
-        background-color: rgba(31, 41, 55, 0.22);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        transform: translateY(-1px);
-    }*/
-    
     /* Style for the dividing dotted lines */
     .glassmorphism-card > div:not(:first-child) {
         border-top-width: 1px;

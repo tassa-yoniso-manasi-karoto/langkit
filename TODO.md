@@ -1,6 +1,5 @@
 BUGS TO CONFIRM:
 - translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
-- selective translit doesn't briefly show "sorry not available" on webview2
 
 .
 
@@ -8,15 +7,9 @@ BUGS TO CONFIRM:
 - go-ichiran register user cancel as: 14:58:18 WRN Transliteration provider marked as unhealthy due to processing error error="error analyzing chunk 1: failed to read exec output: no valid JSON line found in output" component=provider_manager provider_key=jpn:Hepburn provider_name=jpn-ichiran
 - ask Claude thorough critic
 
-
-
-.
-- finish theme
-  - rm unused selector
-  - scale up on hover for cards + ideally a black shadow like GH Ctrl+F
-
 .
 - LINT
+- rm unused selector
 - stop logger.ts from emitting to browser console
 - memoize validateTargetlang
 - "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
