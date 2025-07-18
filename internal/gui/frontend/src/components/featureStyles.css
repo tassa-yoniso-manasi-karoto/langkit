@@ -110,7 +110,9 @@
         0 2px 4px -1px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
         0 4px 8px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2),
         0 8px 16px -4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15),
-        0 12px 24px -6px rgba(0, 0, 0, 0.2);
+        0 12px 24px -6px rgba(0, 0, 0, 0.2),
+        /* GitHub-inspired floating shadow with inverted light source */
+        -24px -24px 48px 0px rgba(0, 0, 0, 0.2);
     z-index: 5;
     transform-origin: center center;
     position: relative;
@@ -129,7 +131,9 @@
         0 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
         0 4px 8px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
         0 8px 16px -4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
-        0 16px 32px -8px rgba(0, 0, 0, 0.2);
+        0 16px 32px -8px rgba(0, 0, 0, 0.2),
+        /* GitHub-inspired floating shadow with inverted light source */
+        -24px -24px 48px 0px rgba(0, 0, 0, 0.25);
     z-index: 5;
     transform-origin: center center;
     margin: 0;
@@ -157,7 +161,9 @@
         0 4px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
         0 8px 16px -4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
         0 16px 32px -8px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
-        0 24px 48px -12px rgba(0, 0, 0, 0.3);
+        0 24px 48px -12px rgba(0, 0, 0, 0.3),
+        /* GitHub-inspired floating shadow with inverted light source - stronger for hover+enabled */
+        -24px -24px 48px 0px rgba(0, 0, 0, 0.4);
     z-index: 10;
 }
 
