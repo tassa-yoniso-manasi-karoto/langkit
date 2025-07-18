@@ -102,16 +102,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-wasm-pack-bins
             
-      # Install wasm-pack - pinned version for macOS to avoid wasm-opt issues
-      - name: Install wasm-pack (macOS)
-        if: runner.os == 'macOS'
+      # Install wasm-pack
+      - name: Install wasm-pack
         run: |
-          echo "Installing wasm-pack v0.10.3 for macOS (known to work with our WASM)"
-          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- --version 0.10.3
-          
-      - name: Install wasm-pack (Linux/Windows)
-        if: runner.os != 'macOS'
-        uses: jetli/wasm-pack-action@v0.4.0
+          echo "Installing wasm-pack (latest version)"
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
         
       # Install WebRPC code generator
       - name: Install webrpc-gen
