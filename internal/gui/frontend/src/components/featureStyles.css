@@ -54,6 +54,11 @@
     border: none;
     overflow: hidden; /* Prevent borders from overflowing */
     
+    /* Enable 3D transforms */
+    transform-style: preserve-3d;
+    transform-origin: center center;
+    backface-visibility: hidden;
+    
     /* Create a pseudo-element for the gradient border that respects rounded corners */
     &::before {
         content: "";
@@ -84,7 +89,7 @@
 }
 
 .feature-card[aria-checked="true"] {
-    transform: translateY(-1px) scale(1.012);
+    transform: translateY(-3px) translateZ(30px) scale(1.02);
     /* Selected state gradient - enhanced version of base gradient */
     background: var(--style-feature-card-gradient) !important;
     filter: brightness(1.15) saturate(1.1);
@@ -99,13 +104,13 @@
         );
         z-index: 1; /* Increase z-index to ensure hover border appears on top */
     }
-    /* Shadow that emphasizes bottom-right */
+    /* Enhanced shadow for depth perception */
     box-shadow: 
-        1px 1px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2),      /* Subtle overall border highlight */
-        2px 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),     /* Right-bottom purple glow */
-        2px 2px 0 0 hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.15), /* Bottom-right corner pink accent */
-        0 0 5px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1),          /* Subtle overall glow */
-        2px 2px 8px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15); /* Bottom-right shadow */
+        0 1px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2),
+        0 2px 4px -1px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
+        0 4px 8px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.2),
+        0 8px 16px -4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15),
+        0 12px 24px -6px rgba(0, 0, 0, 0.2);
     z-index: 5;
     transform-origin: center center;
     position: relative;
@@ -114,25 +119,51 @@
 
 
 .feature-card:hover:not(.disabled) {
-    transform: translateY(-1px) scale(1.012);
+    transform: translateY(-6px) translateZ(50px) scale(1.025) rotateX(-3deg);
     /* Hover state gradient - enhanced version of base gradient */
     background: var(--style-feature-card-gradient) !important;
     filter: brightness(1.1) saturate(1.05);
     
-    box-shadow: 2px 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
-                4px 4px 8px -1px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
-                4px 4px 16px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
-                /* subtle top/left borders */
-                inset 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
-                inset 0 2px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
+    /* Enhanced shadow for hover depth */
+    box-shadow: 
+        0 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
+        0 4px 8px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
+        0 8px 16px -4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
+        0 16px 32px -8px rgba(0, 0, 0, 0.2);
     z-index: 5;
     transform-origin: center center;
     margin: 0;
 }
 
+/* Combined hover + enabled state for most dramatic effect */
+.feature-card:hover[aria-checked="true"]:not(.disabled) {
+    transform: translateY(-6px) translateZ(55px) scale(1.025) rotateX(-3deg);
+    filter: brightness(1.2) saturate(1.15);
+    
+    /* Enhanced pseudo-element border for hover+enabled */
+    &::before {
+        padding: 2px;
+        background: linear-gradient(
+            to bottom right, 
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6) 0%,
+            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.7) 50%, 
+            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.6) 100%
+        );
+    }
+    
+    /* Dramatic shadow for maximum depth effect */
+    box-shadow: 
+        0 2px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
+        0 4px 0 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
+        0 8px 16px -4px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3),
+        0 16px 32px -8px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25),
+        0 24px 48px -12px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+}
+
 /* Ensure smooth transition back to normal state */
 .feature-card:not(:hover):not([aria-checked="true"]) {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) translateZ(0) scale(1);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
                 box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -214,4 +245,11 @@
         transform: scale(3.5);
         opacity: 0;
     }
+}
+
+/* Container styles for 3D perspective effect */
+.feature-cards-container {
+    perspective: 1200px;
+    perspective-origin: center center;
+    transform-style: preserve-3d;
 }

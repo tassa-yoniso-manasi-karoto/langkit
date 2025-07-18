@@ -1807,7 +1807,7 @@
     </div>
     
     <!-- Feature cards container - only rendered after data is fully loaded -->
-    <div class="space-y-4 overflow-visible">
+    <div class="space-y-4 overflow-visible feature-cards-container">
         {#if isInitialDataLoaded}
             {#each reactiveFeatures.filter(f => visibleFeatures.includes(f.id) && (!f.showCondition || shouldShowFeature(f))) as feature, i (feature.id)}
                 <div 
@@ -1849,6 +1849,8 @@
 </div>
 
 <style>
+    @import './featureStyles.css';
+    
     /* Add smooth animation for cards when scrolling */
     div {
         will-change: transform;
