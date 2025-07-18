@@ -10,7 +10,6 @@ BUGS TO CONFIRM:
 .
 - LINT
 - rm unused selector
-- stop logger.ts from emitting to browser console
 - memoize validateTargetlang
 - "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
   - non dismissable too

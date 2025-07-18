@@ -49,7 +49,7 @@ export interface LogConf {
     bufSz: number;
     thrConf: ThrConf;
     batConf: BatConf;
-    conOut: boolean;
+    logToConsole: boolean;
     capStack: boolean;
     autoErr: boolean;
     devMode: boolean;
@@ -140,7 +140,7 @@ export class Logger {
             retries: 3,
             retryDelay: 1000
         },
-        conOut: true,
+        logToConsole: false,
         capStack: true,
         autoErr: true,
         devMode: false,
@@ -180,15 +180,15 @@ export class Logger {
         this._evtListeners.push(() => {
             window.removeEventListener('beforeunload', unloadHandler);
         });
-        // Log initialization with global context
-        console.info('%c[logger]', 'color: #4caf50; font-weight: normal;', 'Logger initialized with global context:', {
-            developerMode: this._cfg.devMode,
-            minLevel: 'INFO',
-            userAgent: this._gCtx.userAgent,
-            viewport: this._gCtx.viewport,
-            sessionId: this._gCtx.sessionId,
-            appVersion: this._gCtx.appVersion || 'dev'
-        });
+        // Log initialization with global context (disabled console output)
+        // console.info('%c[logger]', 'color: #4caf50; font-weight: normal;', 'Logger initialized with global context:', {
+        //     developerMode: this._cfg.devMode,
+        //     minLevel: 'INFO',
+        //     userAgent: this._gCtx.userAgent,
+        //     viewport: this._gCtx.viewport,
+        //     sessionId: this._gCtx.sessionId,
+        //     appVersion: this._gCtx.appVersion || 'dev'
+        // });
     }
 
     log(lvl: Lvl, comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
@@ -406,8 +406,8 @@ export class Logger {
             if (e.lvl > Lvl.TRACE) {
                  this._buf.add(e);
             }
-            if (this._cfg.conOut) {
-                this._conOut(e);
+            if (this._cfg.logToConsole) {
+                this._logToConsole(e);
             }
             
             // Add to LogViewer if displayFrontendLogs is enabled
@@ -486,8 +486,8 @@ export class Logger {
         if (e.lvl > Lvl.TRACE) {
             this._buf.add(e);
         }
-        if (this._cfg.conOut) {
-            this._conOut(e);
+        if (this._cfg.logToConsole) {
+            this._logToConsole(e);
         }
         this._relayBE(e);
         
@@ -528,7 +528,7 @@ export class Logger {
         return Object.keys(context).length > 0 ? context : {};
     }
 
-    private _conOut(e: LEntry): void {
+    private _logToConsole(e: LEntry): void {
         if (!this._cfg.devMode && e.lvl <= Lvl.DEBUG) {
             return;
         }
