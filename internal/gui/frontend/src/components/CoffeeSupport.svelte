@@ -19,7 +19,7 @@
         on:click={handleClick}
         class="ml-2 inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200"
         title="Support the project!">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="coffee-icon h-7 w-7">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="coffee-icon h-8 w-8">
             <defs>
                 <mask id="steamWispMotionMask">
                     <g stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
@@ -85,18 +85,15 @@
         filter: drop-shadow(0 0 4px rgba(121, 77, 34, 0.5));
     }
 
-    /* Define the keyframe animation for hover */
     @keyframes coffeeHoverEffect {
         0% {
             transform: rotate(0deg) scale(1);
         }
-        50% { 
-            /* Optional: add an intermediate step for a more dynamic feel */
-            /* Example: transform: rotate(-2deg) scale(1.02); */
-            transform: rotate(3.5deg) scale(1.04); /* Halfway to target, slight overshoot on scale */
+        60% { 
+            transform: rotate(4deg) scale(1);
         }
         100% {
-            transform: rotate(7deg) scale(1.07);
+            transform: rotate(12deg) scale(1.1);
         }
     }
 
@@ -109,7 +106,7 @@
     a:hover .coffee-icon #coffeeIconInteractiveGroup {
         /* Apply the keyframe animation on hover */
         animation-name: coffeeHoverEffect;
-        animation-duration: 0.2s; /* Duration of one cycle of the hover animation */
+        animation-duration: 0.4s;
         animation-timing-function: ease-in-out;
         animation-fill-mode: forwards; /* Retain the state of the last keyframe when animation ends */
         /* transform: rotate(7deg) scale(1.05); /* Fallback or if animation is not supported, but animation-fill-mode: forwards handles this */

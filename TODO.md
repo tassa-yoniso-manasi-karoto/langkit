@@ -14,10 +14,7 @@ BUGS TO CONFIRM:
 .
 - finish theme
   - rm unused selector
-  - slightly bigger text on cards, perhaps more white also (better contrast)
   - scale up on hover for cards + ideally a black shadow like GH Ctrl+F
-  - welcome.svelte component: increase borders
-  - scale & rotate coffee some more
 
 .
 - LINT

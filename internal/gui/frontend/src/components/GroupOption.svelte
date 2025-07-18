@@ -200,7 +200,7 @@
 
 <div class="group-option" data-group-id={groupId}>
     <div class="option-label">
-        <span class="text-gray-300 text-sm text-left flex items-center gap-2">
+        <span class="text-gray-200 text-[15px] text-left flex items-center gap-2">
             {optionDef.label}
             {#if optionDef.hovertip}
                 <Hovertip message={optionDef.hovertip}>

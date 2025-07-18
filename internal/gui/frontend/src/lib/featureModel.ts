@@ -178,11 +178,6 @@ const featuresArray: FeatureDefinition[] = [
                 default: '', // 1st of slice returned by backend
                 choices: []  // now dynamically provided by backend
             },
-            sttTimeout: {
-                type: 'number',
-                label: 'Speech-To-Text Timeout (sec)',
-                default: 90
-            },
             initialPrompt: {
                 type: 'string',
                 label: 'Initial prompt for Whisper',
