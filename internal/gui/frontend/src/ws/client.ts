@@ -30,6 +30,37 @@ export class WebSocketClient {
         this.reconnectDelay = this.config.initialReconnectDelay!;
     }
     
+    /**
+     * Truncate data for logging to prevent excessively long log entries
+     * @param data Any data to truncate
+     * @param maxLength Maximum string length (default: 150 chars)
+     * @returns Truncated string representation
+     */
+    private truncateData(data: any, maxLength: number = 150): string {
+        let str: string;
+        
+        if (typeof data === 'string') {
+            str = data;
+        } else if (data === null || data === undefined) {
+            return String(data);
+        } else {
+            try {
+                str = JSON.stringify(data);
+            } catch {
+                str = String(data);
+            }
+        }
+        
+        if (str.length <= maxLength) {
+            return str;
+        }
+        
+        // Show beginning and end with ellipsis in middle
+        const startLength = Math.floor((maxLength - 5) / 2);
+        const endLength = maxLength - startLength - 5;
+        return str.substring(0, startLength) + ' ... ' + str.substring(str.length - endLength);
+    }
+    
     async connect(port?: number): Promise<void> {
         if (this.isDestroyed) return;
         
@@ -65,7 +96,7 @@ export class WebSocketClient {
                     if (this.config.enableDebug) {
                         logger.debug('websocket', 'Message received', { 
                             type: message.type, 
-                            dataKeys: message.data ? Object.keys(message.data) : []
+                            dataPreview: this.truncateData(message.data)
                         });
                     }
                     
@@ -75,7 +106,7 @@ export class WebSocketClient {
                 } catch (err) {
                     logger.error('websocket', 'Failed to parse message', { 
                         error: err, 
-                        rawData: event.data 
+                        rawData: this.truncateData(event.data) 
                     });
                 }
             };

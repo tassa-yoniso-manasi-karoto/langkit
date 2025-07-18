@@ -6,7 +6,6 @@ BUGS TO CONFIRM:
 
 - mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
 - go-ichiran register user cancel as: 14:58:18 WRN Transliteration provider marked as unhealthy due to processing error error="error analyzing chunk 1: failed to read exec output: no valid JSON line found in output" component=provider_manager provider_key=jpn:Hepburn provider_name=jpn-ichiran
-- truncate WS logs: FRONT: Message received [HUGE STRING]
 - ask Claude thorough critic
 
 
