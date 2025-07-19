@@ -71,6 +71,10 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 	}
 	
 	updateBar(0)
+	
+	// Explicitly rm progress bar when function exits to avoid
+	// lingering "Subtitle lines processed (all files)... 0/1" in GUI
+	defer tsk.Handler.RemoveProgressBar("item-bar")
 
 	supCtx, supCancel := context.WithCancel(ctx)
 	defer supCancel()

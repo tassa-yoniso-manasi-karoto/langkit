@@ -714,7 +714,7 @@ func (h *GUIHandler) RemoveProgressBar(taskID string) {
 		Msg("Explicitly removed progress bar")
 }
 
-// incrementProgressInternal handles progress bar updates with specific ETA algorithm
+// incrementProgressInternal handles GUI progress bar updates with specific ETA algorithm
 func (h *GUIHandler) incrementProgressInternal(
 	taskID string,
 	increment, total, priority int,

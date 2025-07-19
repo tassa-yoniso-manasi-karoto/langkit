@@ -1,16 +1,11 @@
-BUGS TO CONFIRM:
-- translit: "Subtitle lines processed (all files)... 0/1" forever on a single media file run
-
-<hr>
-
-
 - mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
-
-- fix log levels spamming useless
 - LOGS DUPLICATED IN LogViewer
-- "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
+
+- "log viewer available" popping up after errors logged in logviewer (OUTSIDE OF PROCESSING)
   - non dismissable too
+
 - single instance (due to webRPC/WS instead of webengine APIs)
+- fix log levels spamming useless
 
 
 - ask Claude thorough critic
@@ -20,6 +15,7 @@ BUGS TO CONFIRM:
 - rm unused selector
 
 .
+- cleanup abandonned wails methods & finish webrpc migration
 - memoize validateTargetlang
 - autoscroll won't reenable when scrolling down.
 - PYTHAILNLP
