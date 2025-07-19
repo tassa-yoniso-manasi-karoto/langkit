@@ -266,3 +266,73 @@
     perspective-origin: center center;
     transform-style: preserve-3d;
 }
+
+/* Animated border elements that respect rounded corners */
+.animated-border-right,
+.animated-border-bottom {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.animated-border-right {
+    width: 3.5px;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+        hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+        hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
+    );
+    background-size: 100% 200%;
+    border-radius: 0 0.5rem 0.5rem 0; /* Match parent's border radius on right side */
+    transition: width 0.3s ease-out;
+}
+
+.animated-border-bottom {
+    height: 3px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        to right,
+        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+        hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
+        hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
+        hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
+    );
+    background-size: 200% 100%;
+    border-radius: 0 0 0.5rem 0.5rem; /* Match parent's border radius on bottom */
+    transition: height 0.3s ease-out;
+}
+
+/* Simple fade animation for borders */
+@keyframes borderFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Show and animate borders on hover */
+.feature-card:hover:not(.disabled) .animated-border-right {
+    animation: borderFadeIn 0.8s ease-out forwards,
+              smoothFlowToTop 3s 0.8s infinite linear;
+}
+
+.feature-card:hover:not(.disabled) .animated-border-bottom {
+    animation: borderFadeIn 0.8s ease-out forwards,
+              smoothFlowToLeft 3s 0.8s infinite linear;
+}
+
+/* Wider borders for hover + enabled state */
+.feature-card:hover[aria-checked="true"]:not(.disabled) .animated-border-right {
+    width: 4.5px;
+}
+
+.feature-card:hover[aria-checked="true"]:not(.disabled) .animated-border-bottom {
+    height: 4px;
+}

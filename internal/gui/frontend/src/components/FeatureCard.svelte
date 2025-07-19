@@ -1464,64 +1464,6 @@
 <style>
     @import './featureStyles.css';
     
-    /* Animated border elements that respect rounded corners */
-    .animated-border-right,
-    .animated-border-bottom {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-    }
-    
-    .animated-border-right {
-        width: 3.5px;
-        top: 0;
-        bottom: 0;
-        right: 0;
-        background: repeating-linear-gradient(
-            to bottom,
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
-        );
-        background-size: 100% 200%;
-        border-radius: 0 0.5rem 0.5rem 0; /* Match parent's border radius on right side */
-    }
-    
-    .animated-border-bottom {
-        height: 3px;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: repeating-linear-gradient(
-            to right,
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6),
-            hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.65),
-            hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6)
-        );
-        background-size: 200% 100%;
-        border-radius: 0 0 0.5rem 0.5rem; /* Match parent's border radius on bottom */
-    }
-    
-    /* Simple fade animation for borders */
-    @keyframes borderFadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    
-    /* Show and animate borders on hover */
-    .feature-card:hover:not(.disabled) .animated-border-right {
-        animation: borderFadeIn 0.8s ease-out forwards,
-                  smoothFlowToTop 3s 0.8s infinite linear;
-    }
-    
-    .feature-card:hover:not(.disabled) .animated-border-bottom {
-        animation: borderFadeIn 0.8s ease-out forwards,
-                  smoothFlowToLeft 3s 0.8s infinite linear;
-    }
     
     /* Style for the dividing dotted lines */
     .glassmorphism-card > div:not(:first-child) {
