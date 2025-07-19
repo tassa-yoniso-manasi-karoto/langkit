@@ -64,31 +64,32 @@ func GeneratePrompt(subtitleText string, inputLanguageName string, options Optio
 	var prompt strings.Builder
 	prompt.WriteString("Generate a thorough, narrative plot summary of the content provided below. ")
 	prompt.WriteString("Your task is to synthesize the key events, character interactions, and significant dialogue into a coherent story. ")
-	prompt.WriteString("Focus on what is needed for understanding the plot's progression & development in detail.")
+	prompt.WriteString("Focus on what is needed for understanding the plot's progression & development in detail. ")
 	prompt.WriteString("Do not simply list events or transcribe dialogue. Instead, connect the dots for the reader into a summary. ")
 	prompt.WriteString("Your response must contain no preambles, no commentary, no thematic analysis, and no meta-statements about the content itself. ")
 
 	if inputLanguageName != "" {
-		prompt.WriteString(fmt.Sprintf(" The content is in %s.", inputLanguageName))
+		prompt.WriteString(fmt.Sprintf("The content is in %s. ", inputLanguageName))
 	}
 
 	if options.OutputLanguage != "" {
-		prompt.WriteString(fmt.Sprintf(" Write the summary in %s.", options.OutputLanguage))
+		prompt.WriteString(fmt.Sprintf("Write the summary in %s. ", options.OutputLanguage))
 	} else {
-		prompt.WriteString(" Write in English, or if the original content is clearly in another language and not English, write in that original language.")
+		prompt.WriteString("Write in English, or if the original content is clearly in another language and not English, write in that original language. ")
 	}
 
 	if options.MaxLength > 0 {
-		prompt.WriteString(fmt.Sprintf(" Keep the summary to approximately %d words.", options.MaxLength))
+		prompt.WriteString(fmt.Sprintf("Keep the summary to approximately %d words. ", options.MaxLength))
 	}
 
 	// Add symbolic emphasis instructions if requested
 	if options.UseSymbolicEmphasis {
-		prompt.WriteString("Format the summary using bold letters (ONLY the bold letters) ")
-		prompt.WriteString("from the 'Mathematical Alphanumeric Symbols' subset of UTF-8 to fairly sparingly add emphasis ")
+		prompt.WriteString("Format the summary using bold letters (ONLY the bold letters, no fraktur,... etc) ")
+		prompt.WriteString("from the 'Mathematical Alphanumeric Symbols' subset of UTF-8 to sparingly add emphasis ")
 		prompt.WriteString("to important key points and relevant character names. DO NOT USE MARKDOWN OR HTML. ")
-		prompt.WriteString("For example, 'Bob has been tasked by someone to infiltrate the Gang' would become ")
-		prompt.WriteString("'Bob has 𝗯𝗲𝗲𝗻 𝘁𝗮𝘀𝗸𝗲𝗱 𝗯𝘆 𝘀𝗼𝗺𝗲𝗼𝗻𝗲 𝘁𝗼 𝗶𝗻𝗳𝗶𝗹𝘁𝗿𝗮𝘁𝗲 𝘁𝗵𝗲 𝗚𝗮𝗻𝗴'.")
+		prompt.WriteString("When adding emphasis use ONLY the bold letters of UTF-8 and NOT ASTERISKS.")
+		prompt.WriteString("For example, 'He has been tasked by his supervisor to infiltrate the Gang' would become ")
+		prompt.WriteString("'He has been 𝘁𝗮𝘀𝗸𝗲𝗱 by his supervisor 𝘁𝗼 𝗶𝗻𝗳𝗶𝗹𝘁𝗿𝗮𝘁𝗲 𝘁𝗵𝗲 𝗚𝗮𝗻𝗴'.")
 	}
 
 	prompt.WriteString("\n\n" + splitter + "\n")

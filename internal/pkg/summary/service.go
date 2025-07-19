@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -17,6 +18,8 @@ var (
 	ErrModelNotFound    = errors.New("model not found for provider")
 	ErrGenerationFailed = errors.New("summary generation failed")
 	ErrInvalidOptions   = errors.New("invalid summary options")
+	
+	thinkRegex = regexp.MustCompile(`(?s)<think>.*?</think>\s*`)
 )
 
 // Service handles generating summaries using LLM providers
@@ -212,10 +215,8 @@ func (p *DefaultSummaryProvider) Generate(ctx context.Context, subtitleText stri
 	}
 	
 	txt := strings.TrimSpace(response.Text)
-	// maverick can't let go of Markdown
-	if strings.Contains(llmRequest.Model, "llama-4-maverick") {
-		txt = strings.ReplaceAll(txt, "*", "")
-	}
+	txt = strings.ReplaceAll(txt, "*", "")
+	txt = thinkRegex.ReplaceAllString(txt, "")
 
 	// Check if the summary is empty
 	if txt == "" {
