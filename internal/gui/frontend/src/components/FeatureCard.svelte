@@ -10,7 +10,7 @@
     import { logger } from '../lib/logger';
     import { ValidateLanguageTag } from '../api';
     import { debounce } from 'lodash';
-    import { getOSDebounceDelay } from '../lib/osUtils';
+    import { getMediumDebounce, getTinyDebounce } from '../lib/debouncePresets';
     
     // Class for message items to keep styling consistent
     const messageItemClass = "flex items-center gap-2 py-2 px-3 first:pt-2 last:pb-2 hover:bg-white/5 transition-colors duration-200 group";
@@ -150,7 +150,7 @@
     }
     
     // Debounced version to prevent rapid validation calls
-    const debouncedCheckNativeLanguageIsEnglish = debounce(checkNativeLanguageIsEnglish, getOSDebounceDelay());
+    const debouncedCheckNativeLanguageIsEnglish = debounce(checkNativeLanguageIsEnglish, getMediumDebounce());
     
     // Reactive computations for LLM state (respecting debug override)
     $: isLLMReady = debugLLMState ? debugLLMState === 'ready' : llmState?.globalState === 'ready';
@@ -295,19 +295,19 @@
             lastEnabledState = enabled;
             lastCheckTime = now;
             // Schedule the check slightly later to ensure DOM is fully updated
-            // Use OS-dependent delay for WebView2 compatibility
-            setTimeout(checkTopmostFeatureStatus, getOSDebounceDelay());
+            // Use tiny debounce for DOM measurements
+            setTimeout(checkTopmostFeatureStatus, getTinyDebounce());
         }
     });
     
     // Update options height when they change
     $: if (enabled && optionsWrapper && !animating) {
-        // OS-dependent delay to ensure DOM is updated
+        // Tiny delay to ensure DOM is updated
         setTimeout(() => {
             if (optionsWrapper) {
                 optionsHeight = optionsWrapper.offsetHeight;
             }
-        }, getOSDebounceDelay());
+        }, getTinyDebounce());
     }
     
     // Helper function for text color classes

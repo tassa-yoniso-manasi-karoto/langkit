@@ -1,5 +1,6 @@
 - mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
 - LOGS DUPLICATED IN LogViewer
+- replace emoji by lottie https://googlefonts.github.io/noto-emoji-animation/ "Wave"
 
 - "log viewer available" popping up after errors logged in logviewer (OUTSIDE OF PROCESSING)
   - non dismissable too

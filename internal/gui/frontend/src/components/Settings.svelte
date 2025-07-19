@@ -10,7 +10,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     import { RefreshSTTModelsAfterSettingsUpdate } from '../api/services/models';
     import { logger } from '../lib/logger';
     import { debounce } from 'lodash';
-    import { getOSDebounceDelay } from '../lib/osUtils';
+    import { getMediumDebounce } from '../lib/debouncePresets';
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
@@ -240,7 +240,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     // Create debounced version of validateLanguages to prevent rapid calls
     const debouncedValidateLanguages = debounce(async () => {
         await validateLanguages();
-    }, getOSDebounceDelay());
+    }, getMediumDebounce());
 
     async function saveSettings() {
         logger.info('Settings', 'Saving settings');

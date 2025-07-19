@@ -2,6 +2,7 @@
     import { createEventDispatcher, onMount } from 'svelte';
     import type { RomanizationScheme } from '../lib/featureModel'; // Import the type
     import { debounce } from 'lodash';
+    import { getSmallDebounce } from '../lib/debouncePresets';
     
     import { featureGroupStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
@@ -133,7 +134,7 @@
     }
     
     // Create a debounced version of user input handler
-    const debouncedUserInput = debounce(handleUserInput, 100);
+    const debouncedUserInput = debounce(handleUserInput, getSmallDebounce());
     
     // Handle option changes from UI events
     function handleChange(event: any) {

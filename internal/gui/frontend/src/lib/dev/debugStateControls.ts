@@ -163,35 +163,53 @@ export function resetMediaInfoStatus() {
     });
 }
 
-// Debounce override state
-let debounceOverrides: { windows?: number; other?: number } = {};
+// Debounce base value state
+let baseDebounceOverride: number | undefined = undefined;
 
 // Debounce control functions
+export function setBaseDebounceValue(value: number) {
+    baseDebounceOverride = value;
+    logger.debug('devDashboard', `Set base debounce override to: ${value}ms`);
+}
+
+export function getBaseDebounceValue(): number | undefined {
+    return baseDebounceOverride;
+}
+
+export function resetBaseDebounceValue() {
+    baseDebounceOverride = undefined;
+    logger.debug('devDashboard', 'Reset base debounce to default (200ms)');
+}
+
+// Legacy functions for backward compatibility (will be removed later)
 export function setDebounceOverride(os: 'windows' | 'other', value: number) {
-    debounceOverrides[os] = value;
-    logger.debug('devDashboard', `Set ${os} debounce override to: ${value}ms`);
+    // Map to base debounce value
+    setBaseDebounceValue(value);
 }
 
 export function getDebounceOverride(os: 'windows' | 'other'): number | undefined {
-    return debounceOverrides[os];
+    // Return base debounce for any OS
+    return baseDebounceOverride;
 }
 
 export function resetDebounceOverride(os: 'windows' | 'other') {
-    delete debounceOverrides[os];
-    logger.debug('devDashboard', `Reset ${os} debounce to default`);
+    // Reset base debounce
+    resetBaseDebounceValue();
 }
 
 export function resetAllDebounceOverrides() {
-    debounceOverrides = {};
-    logger.debug('devDashboard', 'Reset all debounce overrides to defaults');
+    resetBaseDebounceValue();
 }
 
 // Get current debounce state for UI display
 export function getDebounceState() {
     return {
-        windowsOverride: debounceOverrides.windows,
-        otherOverride: debounceOverrides.other,
+        baseOverride: baseDebounceOverride,
+        baseDefault: 200,
+        // Legacy compatibility
+        windowsOverride: baseDebounceOverride,
+        otherOverride: baseDebounceOverride,
         windowsDefault: 200,
-        otherDefault: 10
+        otherDefault: 200
     };
 }

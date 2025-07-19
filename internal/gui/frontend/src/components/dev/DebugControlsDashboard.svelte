@@ -6,8 +6,9 @@
         forceInternetStatus, resetInternetStatus,
         forceFFmpegStatus, resetFFmpegStatus,
         forceMediaInfoStatus, resetMediaInfoStatus,
-        setDebounceOverride, resetDebounceOverride, resetAllDebounceOverrides, getDebounceState
+        setBaseDebounceValue, resetBaseDebounceValue, getDebounceState
     } from '../../lib/dev/debugStateControls';
+    import { getAllDebounceValues } from '../../lib/debouncePresets';
     
     // Props
     export let currentLLMState: any;
@@ -27,42 +28,26 @@
     
     // Debounce state
     let debounceState = getDebounceState();
-    let windowsDebounce = debounceState.windowsOverride || debounceState.windowsDefault;
-    let otherDebounce = debounceState.otherOverride || debounceState.otherDefault;
-    let windowsOverridden = false;
-    let otherOverridden = false;
+    let baseDebounce = debounceState.baseOverride || debounceState.baseDefault;
+    let baseOverridden = false;
+    let calculatedValues = getAllDebounceValues();
     
     
     // Update debounce when slider changes
-    function updateWindowsDebounce() {
-        setDebounceOverride('windows', windowsDebounce);
-        windowsOverridden = true;
-    }
-    
-    function updateOtherDebounce() {
-        setDebounceOverride('other', otherDebounce);
-        otherOverridden = true;
+    function updateBaseDebounce() {
+        setBaseDebounceValue(baseDebounce);
+        baseOverridden = true;
+        // Update calculated values immediately
+        calculatedValues = getAllDebounceValues();
     }
     
     // Reset functions
-    function resetWindowsDebounce() {
-        resetDebounceOverride('windows');
-        windowsDebounce = 200;
-        windowsOverridden = false;
-    }
-    
-    function resetOtherDebounce() {
-        resetDebounceOverride('other');
-        otherDebounce = 10;
-        otherOverridden = false;
-    }
-    
-    function resetAllDebounce() {
-        resetAllDebounceOverrides();
-        windowsDebounce = 200;
-        otherDebounce = 10;
-        windowsOverridden = false;
-        otherOverridden = false;
+    function resetDebounce() {
+        resetBaseDebounceValue();
+        baseDebounce = 200;
+        baseOverridden = false;
+        // Update calculated values immediately
+        calculatedValues = getAllDebounceValues();
     }
 </script>
 
@@ -296,67 +281,93 @@
 {:else if activeSubTab === 'debounce'}
 
 <!-- Debounce Controls -->
-<div class="debug-section">
-    <div class="debounce-info">
-        <p class="text-xs text-gray-400">
-            Control delays for WebView2/WebKit bridge calls.
-        </p>
-        <p class="text-xs text-gray-400">
-            Override: <span class="{windowsOverridden || otherOverridden ? 'text-purple-400' : 'text-gray-500'}">{windowsOverridden || otherOverridden ? 'Yes' : 'No'}</span>
-        </p>
+<div class="debug-section compact">
+    <div class="debounce-info compact">
+        <span class="text-xs text-gray-400">
+            Base value controls all debounce delays. 
+            <span class="override-indicator {baseOverridden ? 'active' : ''}">Override: {baseOverridden ? 'Yes' : 'No'}</span>
+        </span>
     </div>
     
-    <!-- Windows Slider -->
+    <!-- Base Value Slider -->
     <div class="debounce-row">
         <div class="slider-label">
-            <span class="text-xs">Windows</span>
+            <span class="text-xs">Base Value</span>
         </div>
         <div class="slider-group">
-            <span class="text-xs text-gray-500">10</span>
+            <span class="text-xs text-gray-500">50</span>
             <input 
                 type="range" 
-                min="10" 
-                max="800" 
+                min="50" 
+                max="400" 
                 step="10"
-                bind:value={windowsDebounce}
-                on:input={updateWindowsDebounce}
+                bind:value={baseDebounce}
+                on:input={updateBaseDebounce}
                 class="debounce-slider compact"
             />
-            <span class="text-xs text-gray-500">800</span>
-            <span class="slider-value-compact">{windowsDebounce}ms</span>
-            <button class="compact-reset" on:click={resetWindowsDebounce} title="Reset to 200ms">
+            <span class="text-xs text-gray-500">400</span>
+            <span class="slider-value-compact base-value">{baseDebounce}ms</span>
+            <button class="compact-reset" on:click={resetDebounce} title="Reset to 200ms">
                 ↺
             </button>
         </div>
     </div>
     
-    <!-- Other OS Slider -->
-    <div class="debounce-row">
-        <div class="slider-label">
-            <span class="text-xs">Linux/Mac</span>
-        </div>
-        <div class="slider-group">
-            <span class="text-xs text-gray-500">10</span>
-            <input 
-                type="range" 
-                min="10" 
-                max="800" 
-                step="10"
-                bind:value={otherDebounce}
-                on:input={updateOtherDebounce}
-                class="debounce-slider compact"
-            />
-            <span class="text-xs text-gray-500">800</span>
-            <span class="slider-value-compact">{otherDebounce}ms</span>
-            <button class="compact-reset" on:click={resetOtherDebounce} title="Reset to 10ms">
-                ↺
-            </button>
-        </div>
+    <!-- Calculated Values Display -->
+    <div class="calculated-values">
+        <table class="debounce-table">
+            <thead>
+                <tr>
+                    <th>Level</th>
+                    <th>Factor</th>
+                    <th>Time</th>
+                    <th>Usage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="level-name">Tiny</td>
+                    <td class="factor">×0.1</td>
+                    <td class="time-value">{calculatedValues.tiny}</td>
+                    <td class="usage">Store updates, DOM measurements</td>
+                </tr>
+                <tr>
+                    <td class="level-name">Small</td>
+                    <td class="factor">×0.25</td>
+                    <td class="time-value">{calculatedValues.small}</td>
+                    <td class="usage">UI reactivity, hover effects</td>
+                </tr>
+                <tr>
+                    <td class="level-name">Medium</td>
+                    <td class="factor">×0.5</td>
+                    <td class="time-value">{calculatedValues.medium}</td>
+                    <td class="usage">API calls, validation</td>
+                </tr>
+                <tr>
+                    <td class="level-name">Normal</td>
+                    <td class="factor">×1.0</td>
+                    <td class="time-value">{calculatedValues.normal}</td>
+                    <td class="usage">General operations</td>
+                </tr>
+                <tr>
+                    <td class="level-name">Large</td>
+                    <td class="factor">×2.0</td>
+                    <td class="time-value">{calculatedValues.large}</td>
+                    <td class="usage">Expensive operations</td>
+                </tr>
+                <tr>
+                    <td class="level-name">Huge</td>
+                    <td class="factor">×4.0</td>
+                    <td class="time-value">{calculatedValues.huge}</td>
+                    <td class="usage">Batch processing</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
     
     <div class="debounce-footer">
-        <button class="debug-button reset small" on:click={resetAllDebounce}>
-            Reset All
+        <button class="debug-button reset small" on:click={resetDebounce}>
+            Reset
         </button>
         <span class="text-xs text-gray-500">Changes apply immediately</span>
     </div>
@@ -381,6 +392,11 @@
     .debug-section:last-child {
         border-bottom: none;
         margin-bottom: 0;
+    }
+    
+    .debug-section.compact {
+        margin-bottom: 8px;
+        padding-bottom: 8px;
     }
     
     .status-row {
@@ -510,6 +526,19 @@
         margin-bottom: 8px;
     }
     
+    .debounce-info.compact {
+        margin-bottom: 6px;
+    }
+    
+    .override-indicator {
+        color: rgba(255, 255, 255, 0.5);
+        margin-left: 8px;
+    }
+    
+    .override-indicator.active {
+        color: #a78bfa;
+    }
+    
     .debounce-slider {
         width: 100%;
         height: 4px;
@@ -557,7 +586,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        margin: 8px 0;
+        margin: 4px 0;
     }
     
     .slider-label {
@@ -612,8 +641,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-top: 12px;
-        padding-top: 8px;
+        margin-top: 8px;
+        padding-top: 6px;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
     
@@ -622,4 +651,76 @@
         font-size: 11px;
         min-width: auto;
     }
+    
+    /* Calculated values display */
+    .calculated-values {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .debounce-table {
+        width: 100%;
+        font-size: 11px;
+        border-collapse: collapse;
+    }
+    
+    .debounce-table thead tr {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .debounce-table th {
+        padding: 4px 6px;
+        text-align: left;
+        color: rgba(255, 255, 255, 0.6);
+        font-weight: 600;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .debounce-table th:nth-child(3) {
+        text-align: center;
+    }
+    
+    .debounce-table tbody tr {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .debounce-table tbody tr:hover {
+        background-color: rgba(255, 255, 255, 0.02);
+    }
+    
+    .debounce-table td {
+        padding: 4px 6px;
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .debounce-table .level-name {
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .debounce-table .factor {
+        color: rgba(255, 255, 255, 0.6);
+        font-family: 'DM Mono', monospace;
+    }
+    
+    .debounce-table .time-value {
+        color: var(--primary-color);
+        font-weight: 700;
+        text-align: center;
+        font-family: 'DM Mono', monospace;
+    }
+    
+    .debounce-table .usage {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 10px;
+    }
+    
+    .slider-value-compact.base-value {
+        color: #68e796;
+        font-weight: 700;
+    }
+    
 </style>

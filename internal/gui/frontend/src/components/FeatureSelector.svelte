@@ -42,7 +42,7 @@
         GetAvailableSummaryModels
     } from '../api/services/models';
     import { debounce } from 'lodash';
-    import { getOSDebounceDelay } from '../lib/osUtils';
+    import { getMediumDebounce, getTinyDebounce, getSmallDebounce } from '../lib/debouncePresets';
     
     import FeatureCard from './FeatureCard.svelte';
     import QuickAccessLangSelector from './QuickAccessLangSelector.svelte';
@@ -435,7 +435,7 @@
     }
     
     // Debounced version of processLanguageChange to prevent rapid calls
-    const debouncedProcessLanguageChange = debounce(processLanguageChange, getOSDebounceDelay());
+    const debouncedProcessLanguageChange = debounce(processLanguageChange, getMediumDebounce());
     
     /**
      * Update error messages based on feature availability
@@ -1322,8 +1322,8 @@
     // Update display order when features are fully rendered
     afterUpdate(() => {
         if (isInitialDataLoaded && visibleFeatures.length > 0) {
-            // Use OS-dependent delay to ensure the DOM is fully updated
-            setTimeout(registerFeatureDisplayOrder, getOSDebounceDelay());
+            // Use tiny delay to ensure the DOM is fully updated
+            setTimeout(registerFeatureDisplayOrder, getTinyDebounce());
         }
     });
     
@@ -1723,7 +1723,7 @@
     const debouncedSettingsUpdate = debounce(() => {
         ensureValidSTTModel();
         updateProviderWarnings();
-    }, getOSDebounceDelay());
+    }, getSmallDebounce());
     
     // Also call it when settings change
     settings.subscribe(value => {
