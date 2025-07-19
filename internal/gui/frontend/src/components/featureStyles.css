@@ -154,7 +154,7 @@
     
     /* Enhanced pseudo-element border for hover+enabled */
     &::before {
-        padding: 2.5px;
+        padding: 1px;
         background: linear-gradient(
             to bottom right, 
             hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.6) 0%,
