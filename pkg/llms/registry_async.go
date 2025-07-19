@@ -59,14 +59,12 @@ func NewRegistry(initialSettings config.Settings, baseLogger zerolog.Logger, not
 		initialized:         false,
 		isShutdown:          false,
 	}
-	r.logger.Trace().Msg("NewRegistry: Instance created.")
 	return r
 }
 
 // Start initializes the registry and begins the background worker
 func (r *Registry) Start() error {
 	r.mu.Lock()
-	r.logger.Trace().Msg("Start: Acquired mutex.")
 	if r.isShutdown {
 		r.mu.Unlock()
 		r.logger.Warn().Msg("Start: Attempted to start a shutdown registry.")
@@ -79,9 +77,8 @@ func (r *Registry) Start() error {
 	}
 	r.initialized = true
 	r.mu.Unlock()
-	r.logger.Trace().Msg("Start: Released mutex.")
 
-	r.logger.Info().Msg("LLM Registry: Scheduling background worker to start initialization.")
+	r.logger.Trace().Msg("LLM Registry: Scheduling background worker to start initialization.")
 	r.backgroundWorkerWG.Add(1)
 	go r.backgroundWorker()
 
@@ -97,21 +94,21 @@ func (r *Registry) backgroundWorker() {
 	r.setGlobalStateAndNotify(GSInitializing, "LLM services initializing...", nil)
 	r.performFullInitialization(r.config) // Use initial config
 
-	r.logger.Debug().Msg("backgroundWorker: Initial full initialization complete. Entering update/shutdown loop.")
+	r.logger.Trace().Msg("backgroundWorker: Initial full initialization complete. Entering update/shutdown loop.")
 	for {
 		select {
 		case newSettings, ok := <-r.updateTriggerChan:
 			if !ok {
-				r.logger.Info().Msg("backgroundWorker: Update trigger channel closed, likely during shutdown.")
+				r.logger.Trace().Msg("backgroundWorker: Update trigger channel closed, likely during shutdown.")
 				return
 			}
-			r.logger.Info().Msg("backgroundWorker: Configuration update received via trigger channel.")
+			r.logger.Debug().Msg("backgroundWorker: Configuration update received via trigger channel.")
 			r.config = newSettings // Update internal config
 			r.setGlobalStateAndNotify(GSUpdating, "Configuration changed, re-initializing LLM providers...", nil)
 			r.performFullInitialization(newSettings) // Re-run initialization with new settings
-			r.logger.Info().Msg("backgroundWorker: Re-initialization due to configuration update complete.")
+			r.logger.Debug().Msg("backgroundWorker: Re-initialization due to configuration update complete.")
 		case <-r.shutdownChan:
-			r.logger.Info().Msg("backgroundWorker: Shutdown signal received. Terminating worker.")
+			r.logger.Trace().Msg("backgroundWorker: Shutdown signal received. Terminating worker.")
 			return
 		}
 	}
@@ -119,16 +116,16 @@ func (r *Registry) backgroundWorker() {
 
 // performFullInitialization initializes all providers based on configuration
 func (r *Registry) performFullInitialization(settings config.Settings) {
-	r.logger.Trace().Msg("performFullInitialization: Starting.")
+	r.logger.Trace().Msg("performFullInit: Starting.")
 	r.mu.Lock()
-	r.logger.Trace().Msg("performFullInitialization: Acquired main mutex.")
+	r.logger.Trace().Msg("performFullInit: Acquired main mutex.")
 	r.client = NewClient() // Create a fresh client for this initialization cycle
 	r.providerStates = make(map[string]ProviderState)
 	r.mu.Unlock()
-	r.logger.Trace().Msg("performFullInitialization: Released main mutex. Client and providerStates reset.")
+	r.logger.Trace().Msg("performFullInit: Released main mutex. Client and providerStates reset.")
 
 	// Refresh the global APIKeys store with the current settings for this cycle.
-	r.logger.Trace().Msg("performFullInitialization: Calling LoadAPIKeysFromSettings to refresh global API key store.")
+	r.logger.Trace().Msg("performFullInit: Calling LoadAPIKeysFromSettings to refresh global API key store.")
 	LoadAPIKeysFromSettings(settings)
 
 	providersToInit := make(map[string]string)
@@ -143,20 +140,20 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 	}
 	r.logger.Trace().
 		Dict("providers_to_init", providersLogDict).
-		Msg("performFullInitialization: Determined providers to initialize based on refreshed APIKeys.")
+		Msg("performFullInit: Determined providers to initialize based on refreshed APIKeys.")
 	
 	if len(providersToInit) == 0 {
-		r.logger.Warn().Msg("performFullInitialization: No LLM providers to initialize (no API keys configured or found in current settings).")
+		r.logger.Warn().Msg("performFullInit: No LLM providers to initialize (no API keys configured or found in current settings).")
 		r.setGlobalStateAndNotify(GSReady, "No LLM providers available for initialization.", nil)
 		r.signalReady()
-		r.logger.Trace().Msg("performFullInitialization: Finished due to no providers to init.")
+		r.logger.Trace().Msg("performFullInit: Finished due to no providers to init.")
 		return
 	}
 
-	r.logger.Info().Int("count", len(providersToInit)).Msg("performFullInitialization: Starting initialization of LLM providers.")
+	r.logger.Debug().Int("count", len(providersToInit)).Msg("Starting initialization of LLM providers.")
 
 	r.mu.Lock()
-	r.logger.Trace().Msg("performFullInitialization: Acquired main mutex for initial provider state setup.")
+	r.logger.Trace().Msg("performFullInit: Acquired main mutex for initial provider state setup.")
 	for providerName := range providersToInit {
 		r.providerStates[providerName] = ProviderState{
 			Status:      "not_attempted",
@@ -164,7 +161,7 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 		}
 	}
 	r.mu.Unlock()
-	r.logger.Trace().Msg("performFullInitialization: Released main mutex after initial provider state setup.")
+	r.logger.Trace().Msg("performFullInit: Released main mutex after initial provider state setup.")
 	r.notifyStateChange("Starting individual provider initializations.", "")
 
 	var wg sync.WaitGroup
@@ -175,12 +172,12 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 		go r.initializeSingleProvider(pName, pApiKey, &wg)
 	}
 
-	r.logger.Trace().Msg("performFullInitialization: All single provider initialization goroutines launched. Waiting for WaitGroup...")
+	r.logger.Trace().Msg("performFullInit: All single provider initialization goroutines launched. Waiting for WaitGroup...")
 	wg.Wait()
-	r.logger.Info().Msg("performFullInitialization: All LLM provider initialization attempts completed.")
+	r.logger.Debug().Msg("All LLM provider initialization attempts completed.")
 
 	r.mu.Lock()
-	r.logger.Trace().Msg("performFullInitialization: Acquired main mutex for final client setup and global state.")
+	r.logger.Trace().Msg("performFullInit: Acquired main mutex for final client setup and global state.")
 
 	readyProvidersCount := 0
 	var actualRegisteredProviders []string
@@ -190,7 +187,7 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 			// Get the API key that was used for this provider's initialization attempt
 			apiKeyForProvider, keyExists := providersToInit[providerNameInState]
 			if !keyExists {
-				r.logger.Error().Str("provider", providerNameInState).Msg("performFullInitialization: API key not found in providersToInit map for a provider marked ready. This is a bug.")
+				r.logger.Error().Str("provider", providerNameInState).Msg("performFullInit: API key not found in providersToInit map for a provider marked ready. This is a bug.")
 				continue
 			}
 
@@ -224,7 +221,7 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 			case "google":
 				providerInstance = NewGoogleProvider(apiKeyForProvider)
 			default:
-				r.logger.Warn().Str("provider_name", providerNameInState).Msg("performFullInitialization: Unknown provider type during client population.")
+				r.logger.Warn().Str("provider_name", providerNameInState).Msg("performFullInit: Unknown provider type during client population.")
 				continue
 			}
 
@@ -236,7 +233,7 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 			}
 		}
 	}
-	r.logger.Debug().Int("ready_providers_count", readyProvidersCount).Strs("registered_to_client", actualRegisteredProviders).Msg("performFullInitialization: Client populated with ready providers.")
+	r.logger.Debug().Int("ready_providers_count", readyProvidersCount).Strs("registered_to_client", actualRegisteredProviders).Msg("Client populated with ready providers.")
 
 	if readyProvidersCount > 0 {
 		defaultSet := false
@@ -244,7 +241,7 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 		for _, name := range preferredOrder {
 			if _, ok := r.client.GetProvider(name); ok {
 				r.client.SetDefaultProvider(name)
-				r.logger.Info().Str("provider", name).Msg("performFullInitialization: Set as default LLM provider on client.")
+				r.logger.Debug().Str("provider", name).Msg("performFullInit: Set as default LLM provider on client.")
 				defaultSet = true
 				break
 			}
@@ -252,29 +249,27 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 		if !defaultSet && len(r.client.ListProviders()) > 0 {
 			firstProviderName := r.client.ListProviders()[0].GetName()
 			r.client.SetDefaultProvider(firstProviderName)
-			r.logger.Info().Str("provider", firstProviderName).Msg("performFullInitialization: Set first available provider as default on client.")
+			r.logger.Debug().Str("provider", firstProviderName).Msg("performFullInit: Set first available provider as default on client.")
 		}
 	}
 
 	if readyProvidersCount > 0 {
 		r.globalState = GSReady
-		r.logger.Info().Int("ready_providers", readyProvidersCount).Msg("performFullInitialization: LLM registry is now Ready.")
+		r.logger.Debug().Int("ready_providers", readyProvidersCount).Msg("performFullInit: LLM registry is now Ready.")
 	} else if len(providersToInit) > 0 { // If attempts were made but none succeeded
 		r.globalState = GSError
-		r.logger.Warn().Msg("performFullInitialization: No LLM providers successfully initialized. Registry state is Error.")
+		r.logger.Warn().Msg("performFullInit: No LLM providers successfully initialized. Registry state is Error.")
 	} else { // No providers were configured to attempt
 		r.globalState = GSReady // Ready, but empty
-		r.logger.Info().Msg("performFullInitialization: No LLM providers configured. Registry initialization phase complete (effectively Ready but empty).")
+		r.logger.Info().Msg("No LLM providers configured.")
 	}
 
 	// Release mutex before notifications to prevent deadlock
 	r.mu.Unlock()
-	r.logger.Trace().Msg("performFullInitialization: Released main mutex after final client setup and global state.")
 
-	// Now safe to call functions that need to acquire locks
 	r.notifyStateChange("All provider initialization attempts complete.", "")
 	r.signalReady()
-	r.logger.Trace().Msg("performFullInitialization: Finished.")
+	r.logger.Trace().Msg("performFullInit: Finished.")
 }
 
 // initializeSingleProvider initializes a single provider
@@ -339,7 +334,7 @@ func (r *Registry) initializeSingleProvider(providerName, apiKey string, wg *syn
 	}
 
 	successMsg := fmt.Sprintf("Provider %s: Ready with %d models.", providerName, len(models))
-	r.logger.Info().Str("provider", providerName).Int("models_count", len(models)).Msg("initializeSingleProvider: Models fetched successfully.")
+	r.logger.Debug().Str("provider", providerName).Int("models_count", len(models)).Msg("initializeSingleProvider: Models fetched successfully.")
 	r.updateProviderState(providerName, "ready", nil, models, successMsg) // Or "models_loaded" if there's another step
 }
 
@@ -479,7 +474,7 @@ func (r *Registry) TriggerUpdate(newSettings config.Settings) {
 
 	select {
 	case r.updateTriggerChan <- newSettings:
-		r.logger.Info().Msg("TriggerUpdate: New settings sent to updateTriggerChan.")
+		r.logger.Debug().Msg("TriggerUpdate: New settings sent to updateTriggerChan.")
 	default:
 		r.logger.Warn().Msg("TriggerUpdate: updateTriggerChan is full. Update might be delayed or skipped if not processed quickly.")
 	}
@@ -488,19 +483,17 @@ func (r *Registry) TriggerUpdate(newSettings config.Settings) {
 // Shutdown stops the background worker and cleans up
 func (r *Registry) Shutdown() {
 	r.mu.Lock()
-	r.logger.Trace().Msg("Shutdown: Acquired main mutex.")
 	if r.isShutdown {
 		r.mu.Unlock()
-		r.logger.Info().Msg("Shutdown: Registry already shut down or in process.")
+		r.logger.Debug().Msg("Shutdown: Registry already shut down or in process.")
 		return
 	}
 	r.isShutdown = true
 	r.globalState = GSError // Or a new GSShutdown state
 	shutdownMessage := "Registry shutting down"
 	r.mu.Unlock()
-	r.logger.Trace().Msg("Shutdown: Released main mutex. Marked as shutdown.")
-
-	r.logger.Info().Msg("LLM Registry: Initiating shutdown sequence.")
+	
+	r.logger.Debug().Msg("LLM Registry: Initiating shutdown sequence.")
 	r.notifyStateChange(shutdownMessage, "")
 
 	// Close shutdownChan to signal worker. Use select for non-blocking close.
@@ -550,7 +543,7 @@ func (r *Registry) Shutdown() {
 	}
 	r.mu.Unlock()
 
-	r.logger.Info().Msg("LLM Registry: Shutdown complete.")
+	r.logger.Debug().Msg("LLM Registry: Shutdown complete.")
 }
 
 // SubscribeToStateChanges returns a new channel that will receive state change events.

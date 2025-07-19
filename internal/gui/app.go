@@ -47,8 +47,6 @@ func NewApp() *App {
 
 
 func (a *App) bindEnvironmentVariables() {
-	a.getLogger().Debug().Msg("Binding environment variables to config")
-
 	// Set environment prefix and automatic env
 	viper.SetEnvPrefix("LANGKIT")
 	viper.AutomaticEnv()

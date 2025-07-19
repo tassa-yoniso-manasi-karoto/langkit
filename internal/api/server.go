@@ -65,7 +65,7 @@ func NewServer(config *Config, logger zerolog.Logger) (*Server, error) {
 	}
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	logger.Info().
+	logger.Debug().
 		Str("host", config.Host).
 		Int("port", port).
 		Msg("WebRPC server listening")
@@ -138,10 +138,6 @@ func (s *Server) RegisterService(service Service) error {
 
 // Start begins serving requests
 func (s *Server) Start() error {
-	s.logger.Info().
-		Int("port", s.port).
-		Msg("Starting WebRPC server")
-
 	go func() {
 		if err := s.server.Serve(s.listener); err != nil && err != http.ErrServerClosed {
 			s.logger.Error().Err(err).Msg("WebRPC server error")
@@ -153,7 +149,7 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully stops the server
 func (s *Server) Shutdown() error {
-	s.logger.Info().Msg("Shutting down WebRPC server")
+	s.logger.Debug().Msg("Shutting down WebRPC server")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -184,7 +180,7 @@ func loggerMiddleware(logger zerolog.Logger) func(http.Handler) http.Handler {
 				}
 			}
 			
-			logger.Info().
+			logger.Trace().
 				Str("method", r.Method).
 				Str("path", r.URL.Path).
 				Int("status", wrapped.Status()).

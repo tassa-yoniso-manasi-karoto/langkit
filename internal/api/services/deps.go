@@ -64,8 +64,6 @@ func (s *DependencyService) Description() string {
 
 // CheckDockerAvailability checks if Docker is available on the system
 func (s *DependencyService) CheckDockerAvailability(ctx context.Context) (*generated.DockerStatus, error) {
-	s.logger.Debug().Msg("Checking Docker availability")
-
 	// Try to run docker version command
 	cmd := executils.NewCommand("docker", "version", "--format", "json")
 	output, err := cmd.Output()
@@ -112,8 +110,6 @@ func (s *DependencyService) CheckDockerAvailability(ctx context.Context) (*gener
 
 // CheckInternetConnectivity checks if the system has internet connectivity
 func (s *DependencyService) CheckInternetConnectivity(ctx context.Context) (*generated.InternetStatus, error) {
-	s.logger.Debug().Msg("Checking internet connectivity")
-
 	result := &generated.InternetStatus{
 		Online:  false,
 		Latency: 0,
@@ -154,8 +150,6 @@ func (s *DependencyService) CheckInternetConnectivity(ctx context.Context) (*gen
 
 // CheckFFmpegAvailability checks if FFmpeg is available on the system
 func (s *DependencyService) CheckFFmpegAvailability(ctx context.Context) (*generated.FFmpegStatus, error) {
-	s.logger.Debug().Msg("Checking FFmpeg availability")
-
 	result := &generated.FFmpegStatus{
 		Available: false,
 		Version:   "",
@@ -209,8 +203,6 @@ func (s *DependencyService) CheckFFmpegAvailability(ctx context.Context) (*gener
 
 // CheckMediaInfoAvailability checks if MediaInfo is available on the system
 func (s *DependencyService) CheckMediaInfoAvailability(ctx context.Context) (*generated.MediaInfoStatus, error) {
-	s.logger.Debug().Msg("Checking MediaInfo availability")
-
 	result := &generated.MediaInfoStatus{
 		Available: false,
 		Version:   "",

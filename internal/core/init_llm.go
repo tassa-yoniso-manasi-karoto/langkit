@@ -46,7 +46,7 @@ func InitLLM(handler MessageHandler, wailsContext context.Context, notifier Stat
 	// Initialize summary service (which depends on LLM)
 	summary.Initialize(*handler.ZeroLog(), registry)
 	
-	handler.ZeroLog().Info().Msg("LLM and summary services initialized")
+	handler.ZeroLog().Debug().Msg("LLM and summary services initialized")
 	
 	return registry
 }
@@ -61,5 +61,5 @@ func ShutdownLLM(handler MessageHandler) {
 	// Clean up summary service
 	summary.Shutdown()
 	
-	handler.ZeroLog().Info().Msg("LLM and summary services shut down")
+	handler.ZeroLog().Debug().Msg("LLM and summary services shut down")
 }

@@ -322,7 +322,7 @@ func (tsk *Task) Autosub() *ProcessingError {
 		trimmed := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
 
 		if file.IsDir() {
-			tsk.Handler.ZeroLog().Debug().
+			tsk.Handler.ZeroLog().Trace().
 				Str("directory", file.Name()).
 				Msg("Skipping: Entry is a directory")
 			continue
