@@ -6,7 +6,12 @@ BUGS TO CONFIRM:
 
 - mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
 
-
+- remove "Cleaning up Langkit-managed browser instance"
+- better error wrapping for go-rod returned err
+- feature card animated border unseen on WebView2
+- eliminate </think> tags from summaries
+- fix log levels spamming useless
+- LOGS DUPLICATED IN LogViewer
 - "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
   - non dismissable too
 - single instance (due to webRPC/WS instead of webengine APIs)
@@ -20,6 +25,7 @@ BUGS TO CONFIRM:
 
 .
 - memoize validateTargetlang
+- autoscroll won't reenable when scrolling down.
 - PYTHAILNLP
 - REFACTOR CORE
 

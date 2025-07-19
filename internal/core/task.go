@@ -172,9 +172,6 @@ type Task struct {
 	MergeOutputFiles     bool                // Whether to merge all output files
 	OutputFiles          []MediaOutputFile   // Files to be included in merged output
 	
-	// Browser management for transliteration  
-	managedLauncher      interface{}         // Stores *launcher.Launcher to avoid import cycle
-	
 	// Intermediary file management
 	fileManager          *IntermediaryFileManager
 	
