@@ -29,6 +29,9 @@ function createErrorStore() {
 
     // Store the entire writable store in a variable.
     const store = writable<ErrorMessage[]>(initial);
+    
+    // Track active error IDs to prevent redundant operations
+    const activeErrorIds = new Set<string>(initial.map((e: ErrorMessage) => e.id));
 
     // Subscribe to changes and persist only critical errors.
     store.subscribe(($errors) => {
@@ -51,6 +54,21 @@ function createErrorStore() {
     }
 
     function addError(error: ErrorMessage) {
+        // Check if this exact error already exists
+        if (activeErrorIds.has(error.id)) {
+            // Get current error to check if content changed
+            store.update(errors => {
+                const existingError = errors.find(e => e.id === error.id);
+                if (existingError && existingError.message === error.message && existingError.severity === error.severity) {
+                    // Exact same error, skip update
+                    logger.trace('store/invalidationErrorStore', 'Skipping duplicate error', { errorId: error.id });
+                    return errors;
+                }
+                // Content changed, proceed with update
+                return errors;
+            });
+        }
+        
         logger.debug('store/invalidationErrorStore', 'Adding error', { errorId: error.id, error });
         trackErrorMetric(error);
 
@@ -64,6 +82,9 @@ function createErrorStore() {
                 timestamp: Date.now(),
                 dismissible: error.dismissible ?? (error.severity !== 'critical')
             };
+            
+            // Update tracking
+            activeErrorIds.add(error.id);
             
             // Setup auto-dismiss if needed
             const timeout = AUTODISMISS_TIMEOUTS[error.severity];
@@ -80,18 +101,32 @@ function createErrorStore() {
     }
 
     function removeError(id: string) {
+        // Guard: Check if error exists before attempting removal
+        if (!activeErrorIds.has(id)) {
+            logger.trace('store/invalidationErrorStore', 'Error not found, skipping removal', { errorId: id });
+            return;
+        }
+        
         logger.debug('store/invalidationErrorStore', 'Removing error', { errorId: id });
+        activeErrorIds.delete(id);
         store.update(errors => errors.filter(e => e.id !== id));
     }
 
     function clearErrors() {
         logger.debug('store/invalidationErrorStore', 'Clearing all errors');
+        activeErrorIds.clear();
         store.set([]);
     }
 
     function clearErrorsOfType(severity: ErrorSeverity) {
         logger.debug('store/invalidationErrorStore', 'Clearing errors of type', { severity });
-        store.update(errors => errors.filter(e => e.severity !== severity));
+        store.update(errors => {
+            const remaining = errors.filter(e => e.severity !== severity);
+            // Update tracking to only include remaining error IDs
+            activeErrorIds.clear();
+            remaining.forEach(e => activeErrorIds.add(e.id));
+            return remaining;
+        });
     }
 
     // Return the public API

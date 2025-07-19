@@ -87,6 +87,17 @@
     // New loading state flags
     let isProcessingLanguage = false;
     let isLoadingSchemes = false;
+    
+    // Fetch state tracking to prevent concurrent operations
+    let isFetchingProviders = false;
+    let isFetchingModels = false;
+    let lastProvidersFetchTime = 0;
+    let lastModelsFetchTime = 0;
+    
+    // Previous value tracking for change detection
+    let previousLLMState: LLMStateChange | null = null;
+    let previousSTTModels = { models: [], names: [], available: false, suggested: "" };
+    let previousQuickAccessLangTag = '';
 
     // Group tracking for reference
     let providerGroups: Record<string, string[]> = {
@@ -117,7 +128,7 @@
      * Main language validation function
      * Separated from UI updates for cleaner architecture
      */
-    async function validateLanguage(code: string, maxOne: boolean = true): Promise<void> {
+    const validateLanguage = debounce(async function(code: string, maxOne: boolean = true): Promise<void> {
         if (!code) {
             isValidLanguage = null;
             standardTag = '';
@@ -145,12 +156,32 @@
         } finally {
             isChecking = false;
         }
-    }
+    }, getMediumDebounce());
     
     /**
      * Fetch available summary providers from the backend
      */
     async function fetchSummaryProviders() {
+        // Guard: Prevent concurrent fetches
+        if (isFetchingProviders) {
+            logger.trace('FeatureSelector', 'Already fetching providers, skipping');
+            return currentSummaryProviders;
+        }
+        
+        // Guard: Rate limiting - don't fetch if we just fetched recently
+        const now = Date.now();
+        const timeSinceLastFetch = now - lastProvidersFetchTime;
+        if (timeSinceLastFetch < getMediumDebounce()) {
+            logger.trace('FeatureSelector', 'Providers fetched recently, skipping', { 
+                timeSinceLastFetch,
+                threshold: getMediumDebounce()
+            });
+            return currentSummaryProviders;
+        }
+        
+        isFetchingProviders = true;
+        lastProvidersFetchTime = now;
+        
         logger.info('FeatureSelector', 'Fetching available summary providers');
         try {
             const summaryProviders = await GetAvailableSummaryProviders();
@@ -191,6 +222,8 @@
         } catch (error) {
             logger.error('featureSelector', 'Failed to load summary providers', { error });
             return { providers: [], names: [], available: false, suggested: "" };
+        } finally {
+            isFetchingProviders = false;
         }
     }
     
@@ -205,6 +238,27 @@
             logger.warn('featureSelector', 'Cannot fetch summary models: No provider specified');
             return { models: [], names: [], available: false, suggested: "" };
         }
+        
+        // Guard: Prevent concurrent fetches for the same provider
+        if (isFetchingModels) {
+            logger.trace('featureSelector', 'Already fetching models, skipping', { providerName });
+            return currentSummaryModels;
+        }
+        
+        // Guard: Rate limiting
+        const now = Date.now();
+        const timeSinceLastFetch = now - lastModelsFetchTime;
+        if (timeSinceLastFetch < getMediumDebounce()) {
+            logger.trace('featureSelector', 'Models fetched recently, skipping', { 
+                providerName,
+                timeSinceLastFetch,
+                threshold: getMediumDebounce()
+            });
+            return currentSummaryModels;
+        }
+        
+        isFetchingModels = true;
+        lastModelsFetchTime = now;
         
         logger.debug('featureSelector', `Fetching available summary models for provider: ${providerName}`);
         try {
@@ -274,6 +328,8 @@
         } catch (error) {
             logger.error('featureSelector', `Failed to load summary models for provider: ${providerName}`, { error });
             return { models: [], names: [], available: false, suggested: "" };
+        } finally {
+            isFetchingModels = false;
         }
     }
     
@@ -1333,6 +1389,13 @@
     onMount(async () => {
         // Subscribe to STT models store
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
+            // Guard: Check if models actually changed
+            if (JSON.stringify(previousSTTModels.names) === JSON.stringify(value.names)) {
+                logger.trace('featureSelector', 'STT models unchanged, skipping update');
+                return;
+            }
+            
+            previousSTTModels = currentSTTModels;
             currentSTTModels = value;
         });
         
@@ -1352,14 +1415,22 @@
         
         // Subscribe to LLM state changes
         llmStateUnsubscribe = llmStateStore.subscribe(state => {
+            // Guard: Check if state actually changed
+            if (previousLLMState?.globalState === state?.globalState) {
+                logger.trace('featureSelector', 'LLM state unchanged, skipping update');
+                return;
+            }
+            
             logger.trace('featureSelector', 'LLM state updated:', state?.globalState);
+            const wasReady = previousLLMState?.globalState === 'ready';
+            previousLLMState = llmState;
             llmState = state;
             
             // Update initialization flag (include 'updating' state)
             isLLMInitializing = !state || state.globalState === 'initializing' || state.globalState === 'uninitialized' || state.globalState === 'updating';
             
             // When LLM system becomes ready, fetch providers and prefetch all models
-            if (state?.globalState === 'ready' && !currentSummaryProviders.available) {
+            if (state?.globalState === 'ready' && !wasReady && !currentSummaryProviders.available) {
                 logger.debug('featureSelector', 'LLM system ready, fetching providers');
                 fetchSummaryProviders().then(async (providers) => {
                     logger.debug('featureSelector', `Providers fetched: ${providers.names.length} available`);
@@ -1469,9 +1540,10 @@
                 logger.error('FeatureSelector', 'Failed to load STT models', { error });
             }
             
-            // Only load summary providers if LLM is ready, otherwise wait for state subscription
-            if (llmState?.globalState === 'ready') {
+            // Only load summary providers if LLM is ready and not already fetched
+            if (llmState?.globalState === 'ready' && !currentSummaryProviders.available) {
                 try {
+                    // The subscription will handle this, but in case it hasn't fired yet
                     const summaryProviders = await fetchSummaryProviders();
                     
                     if (!summaryProviders.available) {
@@ -1503,7 +1575,10 @@
                     logger.error('FeatureSelector', 'Failed to load summary providers', { error });
                 }
             } else {
-                logger.debug('FeatureSelector', 'LLM not ready, skipping summary provider fetch');
+                logger.debug('FeatureSelector', 'LLM not ready or providers already loaded, skipping fetch', {
+                    llmReady: llmState?.globalState === 'ready',
+                    providersAvailable: currentSummaryProviders.available
+                });
             }
             
             // Initialize canonical feature order from feature definitions
@@ -1733,22 +1808,7 @@
       }
     });
     
-    // React to programmatic changes to quickAccessLangTag (e.g., from settings)
-    let previousQuickAccessLangTag = quickAccessLangTag;
-    $: {
-        if (quickAccessLangTag !== previousQuickAccessLangTag && isInitialDataLoaded) {
-            logger.info('FeatureSelector', 'Language tag changed programmatically', { 
-                previousTag: previousQuickAccessLangTag, 
-                newTag: quickAccessLangTag 
-            });
-            
-            // Process the language change
-            debouncedProcessLanguageChange(quickAccessLangTag);
-            
-            // Update the previous value
-            previousQuickAccessLangTag = quickAccessLangTag;
-        }
-    }
+    // Removed duplicate reactive statement - language changes are already handled above
     
     // update provider warnings when STT model changes
     $: if (currentFeatureOptions?.dubtitles?.stt) {
@@ -1760,26 +1820,33 @@
     }
     
     $: if (currentSTTModels && currentSTTModels.models && currentSTTModels.models.length > 0) {
-        logger.debug('FeatureSelector', 'STT models updated, checking default model selection');
-        
-        // Make sure dubtitles feature options exist
-        if (!currentFeatureOptions.dubtitles) {
-            currentFeatureOptions.dubtitles = {};
-        }
-        
-        // If no model is selected or the selected model isn't in the list, use the first one
-        const currentModel = currentFeatureOptions.dubtitles.stt;
-        if (!currentModel || !currentSTTModels.names.includes(currentModel)) {
-            const firstModel = currentSTTModels.names[0];
-            logger.info('FeatureSelector', 'Setting initial STT model', { 
-                model: firstModel 
-            });
+        // Check if models actually changed to prevent duplicate processing
+        const prevModelNames = previousSTTModels?.names || [];
+        const currModelNames = currentSTTModels?.names || [];
+        if (JSON.stringify(prevModelNames) === JSON.stringify(currModelNames)) {
+            logger.trace('FeatureSelector', 'STT models unchanged in reactive statement, skipping');
+        } else {
+            logger.debug('FeatureSelector', 'STT models updated, checking default model selection');
             
-            // Update the feature options directly
-            currentFeatureOptions.dubtitles.stt = firstModel;
+            // Make sure dubtitles feature options exist
+            if (!currentFeatureOptions.dubtitles) {
+                currentFeatureOptions.dubtitles = {};
+            }
             
-            // And dispatch the change
-            dispatch('optionsChange', currentFeatureOptions);
+            // If no model is selected or the selected model isn't in the list, use the first one
+            const currentModel = currentFeatureOptions.dubtitles.stt;
+            if (!currentModel || !currentSTTModels.names.includes(currentModel)) {
+                const firstModel = currentSTTModels.names[0];
+                logger.info('FeatureSelector', 'Setting initial STT model', { 
+                    model: firstModel 
+                });
+                
+                // Update the feature options directly
+                currentFeatureOptions.dubtitles.stt = firstModel;
+                
+                // And dispatch the change
+                dispatch('optionsChange', currentFeatureOptions);
+            }
         }
     }
 </script>
