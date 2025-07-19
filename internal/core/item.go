@@ -200,7 +200,7 @@ func (tsk *Task) ProcessItem(ctx context.Context, indexedSub IndexedSubItem) (it
 
 
 
-func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
+func (tsk *Task) ConcatWAVsToAudio() error {
 	errFmt := fmt.Errorf("invalid or missing audio format")
 	var ext string
 	switch tsk.CondensedAudioFmt {
@@ -214,7 +214,7 @@ func (tsk *Task) ConcatWAVsToAudio(suffix string) error {
 		return tsk.Handler.LogErr(fmt.Errorf("%w: \"%s\" isn't recognized", errFmt, tsk.CondensedAudioFmt), AbortAllTasks, "")
 	}
 	
-	out := fmt.Sprintf("%s.%s.%s", tsk.MediaPrefix, suffix, ext)
+	out := filepath.Join(filepath.Dir(tsk.MediaSourceFile), fmt.Sprintf("%s.CONDENSED.%s", tsk.audioBase(), ext))
 	tsk.Handler.ZeroLog().Debug().
 		Str("outFile", out).
 		Msg("Condensed audio initialized")

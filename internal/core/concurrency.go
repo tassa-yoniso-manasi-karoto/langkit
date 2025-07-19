@@ -316,7 +316,7 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 	// If in Condense mode or WantCondensedAudio is true, create the condensed audio file
 	if tsk.Mode == Condense || tsk.WantCondensedAudio {
 		tsk.Handler.ZeroLog().Info().Msg("Creating condensed audio file...")
-		if err := tsk.ConcatWAVsToAudio("CONDENSED"); err != nil {
+		if err := tsk.ConcatWAVsToAudio(); err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to create condensed audio file")
 		}
 	}

@@ -7,7 +7,6 @@ BUGS TO CONFIRM:
 - mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
 
 - fix log levels spamming useless
-- create condensed outside of .media directory
 - LOGS DUPLICATED IN LogViewer
 - "log viewer available" popping up after see error in logviewer (OUTSIDE OF PROCESSING)
   - non dismissable too
