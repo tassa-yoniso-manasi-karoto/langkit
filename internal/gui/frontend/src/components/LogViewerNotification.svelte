@@ -10,6 +10,7 @@
     export let position = { x: 0, y: 0 };
     export let isProcessing: boolean = false;
     export let isVisible: boolean = false;
+    export let hasErrorsFromParent: boolean = false;
     export let onOpenLogViewer: () => void;
     export let onDismiss: () => void = () => {};
 
@@ -228,6 +229,9 @@
                             {/if}
                         {:else if isProcessing}
                             Processing in progress
+                        {:else if hasErrorsFromParent}
+                            <!-- Errors detected by parent but filtered out here -->
+                            Recent errors detected
                         {:else}
                             <!-- This shouldn't happen given visibility logic -->
                             Log viewer available
@@ -270,6 +274,8 @@
                                 {/if}
                             {:else if isProcessing}
                                 Open the Log Viewer to see ongoing processing details
+                            {:else if hasErrorsFromParent}
+                                Open the Log Viewer to see recent errors
                             {:else}
                                 Open the Log Viewer
                             {/if}

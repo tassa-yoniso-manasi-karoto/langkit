@@ -460,12 +460,16 @@
     // Helper to check for actual error logs (not user cancellations)
     function hasErrorLogs(): boolean {
         return $logStore.some(log => {
-            // Only consider logs from current run
             const logTime = log._unix_time || 0;
-            const isCurrentRun = logTime >= processingStartTime;
             
-            // Only show errors from current run
-            if (!isCurrentRun) return false;
+            // If processing, only show errors from current run
+            if (isProcessing && processingStartTime > 0) {
+                if (logTime < processingStartTime) return false;
+            } else {
+                // When not processing, only show recent errors (last 5 minutes)
+                const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+                if (logTime < fiveMinutesAgo) return false;
+            }
             
             return (log.behavior === 'abort_task' && log.level.toUpperCase() === 'ERROR') || 
                    (log.behavior === 'abort_all' && log.level.toUpperCase() === 'ERROR') ||
@@ -477,6 +481,7 @@
     
     // Tooltip visibility state
     let tooltipDismissed = false;
+    let errorTooltipDismissed = false; // Track error notification dismissal separately
     let tooltipVisible = false;
     
     // Show tooltip when hovering over the button (if errors exist)
@@ -589,6 +594,7 @@
         logger.trace('app', `Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
         isProcessing = true;
         progress = 0;
+        errorTooltipDismissed = false; // Reset error notification dismissal for new run
         
         // Apply "Show log viewer by default" setting when starting a process
         const currentSettings = get(settings);
@@ -1624,15 +1630,19 @@
                                 processingStartTime={processingStartTime}
                                 position={logViewerButtonPosition} 
                                 isProcessing={isProcessing}
+                                hasErrorsFromParent={hasErrorLogs()}
                                 isVisible={((isProcessing && !tooltipDismissed) || 
-                                            hasErrorLogs() || 
-                                            tooltipVisible) && 
+                                            (hasErrorLogs() && (!errorTooltipDismissed || tooltipVisible))) && 
                                             !showLogViewer && 
                                             !!logViewerButtonPosition}
                                 onOpenLogViewer={toggleLogViewer}
                                 onDismiss={() => {
                                     tooltipDismissed = true;
                                     tooltipVisible = false;
+                                    // Also dismiss error notifications
+                                    if (hasErrorLogs()) {
+                                        errorTooltipDismissed = true;
+                                    }
                                 }}
                             />
                         </div>
