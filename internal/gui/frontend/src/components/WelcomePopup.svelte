@@ -424,7 +424,7 @@ import { get } from 'svelte/store';
                              out:slideProjectorOut={{ duration: 800 }}>
                             <!-- Welcome header -->
                             <div class="text-center mb-8 pt-4">
-                                <h1 class="text-4xl md:text-5xl font-[Outfit] font-bold mb-3 flex items-center justify-center gap-2"
+                                <h1 class="text-5xl md:text-5xl font-[Outfit] font-bold mb-3 flex items-center justify-center gap-2"
                                     style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                     Welcome to Langkit
                                     <div bind:this={lottieContainer} class="inline-block w-12 h-12 md:w-14 md:h-14"></div>
@@ -829,7 +829,7 @@ import { get } from 'svelte/store';
                             
                             <div class="text-center max-w-lg mx-auto px-4">
                                 <!-- API Keys header grouped with content -->
-                                <h2 class="text-3xl font-semibold mb-6 flex items-center justify-center gap-2"
+                                <h2 class="text-4xl font-semibold mb-6 flex items-center justify-center gap-2"
                                     style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 32 32" class="text-primary" stroke-width="1" stroke="currentColor">
                                         <path fill="currentColor" d="M28 26c-.178 0-.347.03-.511.074l-1.056-1.055c.352-.595.567-1.28.567-2.019s-.215-1.424-.567-2.019l1.055-1.055c.165.043.334.074.512.074a2 2 0 1 0-2-2c0 .178.03.347.074.512l-1.055 1.055C24.424 19.215 23.739 19 23 19s-1.424.215-2.019.567l-1.055-1.055c.043-.165.074-.334.074-.512a2 2 0 1 0-2 2c.178 0 .347-.03.512-.074l1.055 1.055C19.215 21.576 19 22.261 19 23s.215 1.424.567 2.019l-1.055 1.055A2 2 0 0 0 18 26a2 2 0 1 0 2 2c0-.178-.03-.347-.074-.512l1.055-1.055c.595.352 1.28.567 2.019.567s1.424-.215 2.019-.567l1.055 1.055A2 2 0 0 0 26 28a2 2 0 1 0 2-2m-7-3c0-1.102.897-2 2-2s2 .898 2 2s-.897 2-2 2s-2-.897-2-2"/>
@@ -840,20 +840,26 @@ import { get } from 'svelte/store';
                                 </h2>
                                 
                                 <div class="space-y-4">
-                                    <p class="text-base leading-relaxed"
+                                    <p class="text-lg leading-relaxed"
                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         API keys are <strong>secure, confidential codes</strong> that allow Langkit to access cloud-based AI services.
                                     </p>
-                                    <p class="text-base leading-relaxed"
+                                    <p class="text-lg leading-relaxed"
                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         <strong>
-                                            An API key is like your private electricity meter number that tracks how much power you use so the company can bill you accurately. Don't share it with anyone!
+                                            An API key is like your private electricity meter number that tracks how much power you use so the company can bill you accurately.
+                                        </strong>
+                                    </p>
+                                    <p class="text-lg leading-relaxed"
+                                       style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                        <strong>
+                                            Don't share it with anyone!
                                         </strong>
                                     </p>
                                     
-                                    <p class="text-base leading-relaxed"
+                                    <p class="text-lg leading-relaxed"
                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
-                                        They enable powerful features like speech-to-text, subtitle summarization and voice enhancement at a low cost without requiring expensive local hardware.
+                                        They enable powerful features like speech-to-text (making dubtites), subtitle summarization and voice enhancement at a low cost or for free without requiring expensive local hardware.
                                     </p>
                                 </div>
                             </div>
@@ -872,18 +878,18 @@ import { get } from 'svelte/store';
                                     A Note on Specific Languages
                                 </h2>
                                 <div class="space-y-4">
-                                    <p class="text-base leading-relaxed"
+                                    <p class="text-lg leading-relaxed"
                                         style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
-                                        For some languages with complex writing systems (like Japanese and Indic scripts), Langkit rely on external tools.
+                                        For languages with complex writing systems (like Japanese & Indic scripts), Langkit rely on external tools.
                                         These tools run inside a system called <strong>Docker Desktop</strong>.
                                     </p>
-                                    <p class="text-base leading-relaxed"
+                                    <p class="text-lg leading-relaxed"
                                         style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         Docker solves the problem of "this tool is too complicated for normal people to install". 
                                         Docker packages these nightmare-to-install tools into something that works out-of-the-box.
                                     </p>
                                     {#if systemInfo.os === 'windows'}
-                                    <p class="text-base leading-relaxed"
+                                    <p class="text-lg leading-relaxed"
                                     	style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
                                     	⚠️ In addition to installing Docker Desktop itself, Windows users require a one-time setup of the <strong>Windows Subsystem for Linux (WSL)</strong> for Docker to work.
                                     </p>
