@@ -1,8 +1,6 @@
-- mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
-
-
 - single instance (due to webRPC/WS instead of webengine APIs)
 - fix log levels spamming useless
+- recompress by default
 
 .
 - LINT

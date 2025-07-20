@@ -28,7 +28,11 @@
                 logger.info('MediaInput', 'Directory selected', { path: dirPath });
                 
                 // Get preview of videos in directory
-                previewFiles = await GetVideosInDirectory(dirPath);
+                const videos = await GetVideosInDirectory(dirPath);
+                previewFiles = videos.map(v => ({
+                    name: v.Name,
+                    path: v.Path
+                }));
                 logger.debug('MediaInput', 'Videos found in directory', { 
                     path: dirPath, 
                     videoCount: previewFiles.length 
@@ -101,9 +105,8 @@
                     path: filePath
                 };
                 previewFiles = videos.map(v => ({
-                    name: v.name,
-                    path: v.path,
-                    size: v.size
+                    name: v.Name,
+                    path: v.Path
                 }));
                 logger.info('MediaInput', 'Directory dropped', { 
                     path: filePath, 
