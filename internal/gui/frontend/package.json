@@ -20,6 +20,7 @@
     "@material-design-icons/font": "^0.14.13",
     "chromedriver": "^135.0.0",
     "lodash": "^4.17.21",
+    "lottie-web": "^5.13.0",
     "svelte-portal": "^2.2.1",
     "tailwind-merge": "^3.0.2"
   },

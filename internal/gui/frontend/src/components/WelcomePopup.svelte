@@ -3,6 +3,7 @@
     import { fade, scale, fly, slide } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
 import { get } from 'svelte/store';
+    import lottie from 'lottie-web';
     import { statisticsStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, settings, systemInfoStore } from '../lib/stores';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
@@ -107,6 +108,12 @@ import { get } from 'svelte/store';
     // Button ripple effect
     let getStartedButton: HTMLButtonElement | null = null;
     
+    // Lottie animation
+    let lottieContainer: HTMLDivElement;
+    let lottieAnimation: any = null;
+    let animationTimeout: ReturnType<typeof setTimeout> | null = null;
+    let waveCount = 0;
+    
     function handleMouseEnter(event: MouseEvent) {
         if (!getStartedButton) return;
         
@@ -180,12 +187,55 @@ import { get } from 'svelte/store';
     	setTimeout(() => contentVisible = true, 300);
     	setTimeout(() => actionsVisible = true, 500);
     	
+    	// Initialize Lottie animation
+    	if (lottieContainer) {
+    		lottieAnimation = lottie.loadAnimation({
+    			container: lottieContainer,
+    			renderer: 'svg',
+    			loop: false,
+    			autoplay: false,
+    			path: '/waving-hand.json'
+    		});
+    		
+    		lottieAnimation.setSpeed(1.35);
+    		
+    		// Add complete event listener for double wave behavior
+    		lottieAnimation.addEventListener('complete', () => {
+    			waveCount++;
+    			if (waveCount < 2) {
+    				// Play second wave immediately
+    				lottieAnimation.goToAndPlay(0);
+    			} else {
+    				// Reset count and wait 4 seconds before next double wave
+    				waveCount = 0;
+    				animationTimeout = setTimeout(() => {
+    					if (lottieAnimation) {
+    						lottieAnimation.goToAndPlay(0);
+    					}
+    				}, 4000);
+    			}
+    		});
+    		
+    		// Initial 4-second delay before first animation
+    		animationTimeout = setTimeout(() => {
+    			if (lottieAnimation) {
+    				lottieAnimation.play();
+    			}
+    		}, 4000);
+    	}
+    	
     	// Add keyboard listener
     	window.addEventListener('keydown', handleKeydown);
     });
     
     onDestroy(() => {
         window.removeEventListener('keydown', handleKeydown);
+        if (animationTimeout) {
+            clearTimeout(animationTimeout);
+        }
+        if (lottieAnimation) {
+            lottieAnimation.destroy();
+        }
     });
     
     function handleNext() {
@@ -377,7 +427,7 @@ import { get } from 'svelte/store';
                                 <h1 class="text-4xl md:text-5xl font-[Outfit] font-bold mb-3 flex items-center justify-center gap-2"
                                     style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                     Welcome to Langkit
-                                    <span class="waving-hand text-4xl md:text-5xl">👋</span>
+                                    <div bind:this={lottieContainer} class="inline-block w-12 h-12 md:w-14 md:h-14"></div>
                                 </h1>
                                 <p class="text-lg min-h-[28px]"
                                    style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
@@ -911,30 +961,6 @@ import { get } from 'svelte/store';
         overflow: hidden;
     }
     
-    /* Waving hand animation */
-    .waving-hand {
-        display: inline-block;
-        transform-origin: 70% 70%;
-        animation: wave 4s ease-in-out infinite;
-    }
-    
-    @keyframes wave {
-        0%, 80%, 100% {
-            transform: rotate(0deg);
-        }
-        5%, 15% {
-            transform: rotate(14deg);
-        }
-        10% {
-            transform: rotate(-8deg);
-        }
-        20% {
-            transform: rotate(14deg);
-        }
-        25% {
-            transform: rotate(-4deg);
-        }
-    }
     
     /* Fade and drop animation */
     @keyframes fade-drop {
