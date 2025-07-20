@@ -1,6 +1,6 @@
 - single instance (due to webRPC/WS instead of webengine APIs)
 - fix log levels spamming useless
-- recompress by default
+- fix zh-Hans/Hant
 
 .
 - LINT
@@ -10,6 +10,7 @@
 - cleanup abandoned wails methods & finish webrpc migration
 - memoize validateTargetlang
 - autoscroll won't reenable when scrolling down.
+- update check exclude snapshots
 - PYTHAILNLP
 - REFACTOR CORE
 

@@ -960,9 +960,6 @@ func (h *GUIHandler) GetContext() context.Context {
 func (h *GUIHandler) SetTraceLogs(enable bool) {
 	if h.guiLogWriter != nil {
 		h.guiLogWriter.sendTraceLogs.Store(enable)
-		if h.logger != nil {
-			h.logger.Info().Msgf("Trace logs for GUI set to: %v", enable)
-		}
 	}
 }
 

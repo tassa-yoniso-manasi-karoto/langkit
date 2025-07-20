@@ -111,6 +111,10 @@
     let llmStateUnsubscribe: () => void;
     let isLLMInitializing = true;
     
+    // WebSocket event handlers for proper cleanup
+    let llmStateChangedHandler: (data: any) => void;
+    let connectedHandler: () => void;
+    
     const dispatch = createEventDispatcher();
     
     /**
@@ -1438,20 +1442,20 @@
         logger.info('FeatureSelector', 'Connecting to WebSocket');
         
         // Register handler for LLM state changes
-        wsClient.on('llm.state.changed', (data) => {
+        llmStateChangedHandler = (data) => {
             logger.debug('FeatureSelector', 'LLM state change received', { 
                 globalState: data.globalState 
             });
             llmStateStore.set(data);
-        });
+        };
+        wsClient.on('llm.state.changed', llmStateChangedHandler);
         
         // Also handle initial state if server sends it on connection
-        wsClient.on('connected', async () => {
+        connectedHandler = async () => {
             logger.info('FeatureSelector', 'WebSocket connected, requesting initial LLM state');
             // The server will send the current LLM state automatically
-        });
-        
-        await wsClient.connect();
+        };
+        wsClient.on('connected', connectedHandler);
         
         logger.info('FeatureSelector', 'Component mounting - loading data', { 
             llmState: llmState?.globalState 
@@ -1660,7 +1664,12 @@
         
         // Note: WebSocket disconnection is handled globally in App.svelte
         // We just need to remove our event handlers
-        wsClient.off('llm.state.changed', (data) => llmStateStore.set(data));
+        if (llmStateChangedHandler) {
+            wsClient.off('llm.state.changed', llmStateChangedHandler);
+        }
+        if (connectedHandler) {
+            wsClient.off('connected', connectedHandler);
+        }
         
         // Clean up any error messages we created
         invalidationErrorStore.removeError('no-stt-models');

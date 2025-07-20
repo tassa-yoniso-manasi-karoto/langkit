@@ -61,6 +61,7 @@ export class WebSocketClient {
         return str.substring(0, startLength) + ' ... ' + str.substring(str.length - endLength);
     }
     
+    // ⚠️ CRITICAL: THIS IS CALLED IN APP.SVELTE AND SHOULD NEVER BE CALLED ELSEWHERE ⚠️
     async connect(port?: number): Promise<void> {
         if (this.isDestroyed) return;
         

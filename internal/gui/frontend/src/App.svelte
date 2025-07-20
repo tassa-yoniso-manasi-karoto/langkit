@@ -894,33 +894,14 @@
             const minimized = await WindowIsMinimised();
             const timestamp = new Date().toISOString();
             
-            // Log every state check for verification
-            //console.log(`[${timestamp}] Window state check - minimized: ${minimized}, previous state: ${isWindowMinimized}`);
-            
             // Only update if state changed to avoid unnecessary re-renders
             if (minimized !== isWindowMinimized) {
                 isWindowMinimized = minimized;
                 
                 // If window is minimized, reduce animations and processing
                 if (minimized) {
-                    // console.log(`[${timestamp}] 🔴 WINDOW MINIMIZED - reducing UI animations and processing`);
-                    // logStore.addLog({
-                    //     level: 'INFO',
-                    //     message: '🔴 Window minimized - performance optimizations active',
-                    //     time: timestamp
-                    // });
-                    
-                    // Hide glow effect when minimized regardless of settings
                     showGlow = false;
                 } else {
-                    // console.log(`[${timestamp}] 🟢 WINDOW RESTORED - resuming normal operation`);
-                    // logStore.addLog({
-                    //     level: 'INFO',
-                    //     message: '🟢 Window restored - normal performance mode',
-                    //     time: timestamp
-                    // });
-                    
-                    // Restore glow effect based on user settings
                     showGlow = $settings?.enableGlow ?? true; // Use nullish coalescing
                 }
                 
@@ -962,11 +943,6 @@
         if (isWindowMinimized) {
             // Log skipped updates stats
             skippedUpdateCount += pendingProgressUpdates.length;
-            
-            // Every 10 skipped updates, log summary
-            if (skippedUpdateCount % 10 === 0) {
-                // console.log(`[${new Date().toISOString()}] ⏭️ Throttled ${skippedUpdateCount} progress updates while minimized`);
-            }
             
             // Process only the most recent update for each unique progress bar ID
             // This ensures state is maintained even when visual updates are skipped
@@ -1112,9 +1088,6 @@
                     }
                 });
                 
-                // Log skipped updates
-                // console.log(`[${new Date().toISOString()}] ⏭️ Throttled ${progressBatch.length - Object.keys(consolidatedUpdates).length} progress updates while minimized`);
-                
             } else {
                 // Process all updates normally when window is visible or batch is small
                 progressBatch.forEach(data => {
@@ -1157,6 +1130,7 @@
         });
         
         // Start WebSocket connection
+        // CRITICAL: wsClient.connect SHOULD NEVER BE CALLED ELSEWHERE
         try {
             await wsClient.connect();
             logger.info('app', 'WebSocket connected successfully');
@@ -1231,23 +1205,6 @@
         OnFileDrop(handleGlobalFileDrop, true);
         logger.trace('app', 'Global drag and drop handler set up');
         document.addEventListener('transitionend', handleTransitionEnd);
-        
-        // Log initialization of performance monitoring
-        logger.trace('app', `🚀 Initializing window-state based performance optimizations:
-        - Window state checked every 2 seconds
-        - Visual updates throttled when minimized
-        - Progress updates batched for efficiency
-        - Animations reduced when window not visible
-        - Glow effect disabled when minimized
-        - Log updates filtered when minimized
-        - Deferred feature selector loading`);
-        
-        // Add to application logs
-        logStore.addLog({
-            level: 'INFO',
-            message: '🚀 Initialized window-state performance optimizations',
-            time: new Date().toISOString()
-        });
         
         // Check window state every 2 seconds to optimize resource usage
         windowCheckInterval = window.setInterval(checkWindowState, 2000);
