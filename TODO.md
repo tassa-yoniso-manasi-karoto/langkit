@@ -1,8 +1,5 @@
 - mediainput unhandled err → better err: Recently @internal/gui/frontend/src/components/MediaInput.svelte  has been failing to display content of selected directory properly. Investigate.
-- replace emoji by lottie https://googlefonts.github.io/noto-emoji-animation/ "Wave"
 
-- "log viewer available" popping up after errors logged in logviewer (OUTSIDE OF PROCESSING)
-  - non dismissable too
 
 - single instance (due to webRPC/WS instead of webengine APIs)
 - fix log levels spamming useless
@@ -12,7 +9,7 @@
 - rm unused selector
 
 .
-- cleanup abandonned wails methods & finish webrpc migration
+- cleanup abandoned wails methods & finish webrpc migration
 - memoize validateTargetlang
 - autoscroll won't reenable when scrolling down.
 - PYTHAILNLP
@@ -22,8 +19,6 @@
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - manual GUI tests
   - check settings panel from a non dev perspective
-  - watch for combinations that should spawn an error and disallow processing:
-    - Speech-to-Text and voice enhancing will not be available offline
 - try offline to see if icon / fonts are missing
 
 .

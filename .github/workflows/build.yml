@@ -127,6 +127,14 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run build:wasm
           
+      # Prepare static assets for production build
+      - name: Prepare static assets
+        working-directory: internal/gui/frontend
+        shell: bash
+        run: |
+          mkdir -p public
+          cp icon/waving-hand.json public/
+          
       # Prepare version information
       - name: Prepare version info
         id: version
