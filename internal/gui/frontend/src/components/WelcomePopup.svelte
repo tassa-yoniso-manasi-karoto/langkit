@@ -459,7 +459,7 @@ import { get } from 'svelte/store';
                                     <div class="w-8 h-8 flex items-center justify-center">
                                         {#if ffmpegReady}
                                             {#if ffmpegStatus?.available}
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-pale-green">
                                                     <mask id="ffmpegCheckMask">
                                                         <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
                                                             <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
@@ -566,7 +566,7 @@ import { get } from 'svelte/store';
                                     <div class="w-8 h-8 flex items-center justify-center">
                                         {#if mediainfoReady}
                                             {#if mediainfoStatus?.available}
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-pale-green">
                                                     <mask id="mediainfoCheckMask">
                                                         <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
                                                             <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
@@ -673,7 +673,7 @@ import { get } from 'svelte/store';
                                     <div class="w-8 h-8 flex items-center justify-center">
                                         {#if dockerReady}
                                             {#if dockerStatus?.available}
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-primary">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" class="text-pale-green">
                                                     <mask id="dockerCheckMask">
                                                         <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
                                                             <path fill="#fff" fill-opacity="0" stroke-dasharray="64" stroke-dashoffset="64" d="M3 12c0 -4.97 4.03 -9 9 -9c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9Z">
