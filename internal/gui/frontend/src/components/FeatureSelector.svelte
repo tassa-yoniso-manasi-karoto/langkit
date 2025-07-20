@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount, onDestroy, afterUpdate } from 'svelte';
+    import { createEventDispatcher, onMount, onDestroy, afterUpdate, tick } from 'svelte';
     import { fly } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { get } from 'svelte/store';
@@ -149,6 +149,8 @@
     
     /**
      * Fetch available summary providers from the backend
+     * NOTE: This is NOT debounced because the UI needs immediate updates
+     * for proper dropdown reactivity and auto-selection
      */
     async function fetchSummaryProviders() {
         logger.info('FeatureSelector', 'Fetching available summary providers');
@@ -199,6 +201,8 @@
     
     /**
      * Fetch available models for a specified summary provider
+     * NOTE: This is NOT debounced because the UI needs immediate updates
+     * for proper dropdown reactivity and auto-selection
      */
     async function fetchSummaryModels(providerName: string) {
         if (!providerName) {
@@ -420,7 +424,7 @@
             }
             
             // Step 7: Update errors based on availability
-            updateFeatureAvailabilityErrors();
+            debouncedUpdateFeatureAvailabilityErrors();
             
         } catch (error) {
             logger.error('FeatureSelector', 'Error during language change processing', { error });
@@ -434,8 +438,10 @@
         }
     }
     
-    // Debounced version of processLanguageChange to prevent rapid calls
-    const debouncedProcessLanguageChange = debounce(processLanguageChange, getMediumDebounce());
+    // Declare debounced functions - will be initialized in onMount
+    let debouncedProcessLanguageChange: typeof processLanguageChange;
+    let debouncedUpdateProviderWarnings: typeof updateProviderWarnings;
+    let debouncedUpdateFeatureAvailabilityErrors: typeof updateFeatureAvailabilityErrors;
     
     /**
      * Update error messages based on feature availability
@@ -497,7 +503,7 @@
         
         // Update the selected features state
         selectedFeatures[id] = enabled;
-        updateProviderWarnings();
+        debouncedUpdateProviderWarnings();
         
         // Find the feature definition
         const featureDef = reactiveFeatures.find(f => f.id === id);
@@ -853,7 +859,7 @@
                 logger.info('FeatureSelector', 'Handling STT model change', { newModel: value });
                 
                 // Force provider warnings check immediately
-                updateProviderWarnings();
+                debouncedUpdateProviderWarnings();
             } finally {
                 // Always reset flag
                 isProcessingSTTChange = false;
@@ -1035,7 +1041,12 @@
         
         // Process language change if it's different (case-insensitive)
         if (lastProcessedLangTag.toLowerCase() !== quickAccessLangTag.toLowerCase()) {
-            debouncedProcessLanguageChange(quickAccessLangTag);
+            if (debouncedProcessLanguageChange) {
+                debouncedProcessLanguageChange(quickAccessLangTag);
+            } else {
+                // If debounced function not ready yet, call directly
+                processLanguageChange(quickAccessLangTag);
+            }
         }
         
         // Update the last processed value
@@ -1322,8 +1333,10 @@
     // Update display order when features are fully rendered
     afterUpdate(() => {
         if (isInitialDataLoaded && visibleFeatures.length > 0) {
-            // Use tiny delay to ensure the DOM is fully updated
-            setTimeout(registerFeatureDisplayOrder, getTinyDebounce());
+            // Use tick to ensure the DOM is fully updated
+            tick().then(() => {
+                registerFeatureDisplayOrder();
+            });
         }
     });
     
@@ -1331,6 +1344,17 @@
     let invalidationErrorStoreUnsubscribe: () => void;
     
     onMount(async () => {
+        // Initialize debounced functions
+        debouncedProcessLanguageChange = debounce(processLanguageChange, getMediumDebounce());
+        debouncedUpdateProviderWarnings = debounce(updateProviderWarnings, getSmallDebounce());
+        debouncedUpdateFeatureAvailabilityErrors = debounce(updateFeatureAvailabilityErrors, getSmallDebounce());
+        
+        // Initialize debounced settings update handler
+        debouncedSettingsUpdate = debounce(() => {
+            ensureValidSTTModel();
+            debouncedUpdateProviderWarnings();
+        }, getSmallDebounce());
+        
         // Subscribe to STT models store
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
             currentSTTModels = value;
@@ -1526,7 +1550,7 @@
             }
             
             // Prepare component by loading config and options
-            updateProviderWarnings();
+            debouncedUpdateProviderWarnings();
             cleanupFeatureOptions(); // Clean up feature options on mount
             
             // Make sure we're fully loaded before starting animations
@@ -1568,7 +1592,7 @@
             
             // Do an initial provider warning check after everything is set up
             setTimeout(() => {
-                updateProviderWarnings();
+                debouncedUpdateProviderWarnings();
                 logger.debug('FeatureSelector', 'Initial provider warnings check completed');
             }, 500);
             
@@ -1719,15 +1743,12 @@
       ensureValidSTTModel();
     }
 
-    // Create debounced settings update handler
-    const debouncedSettingsUpdate = debounce(() => {
-        ensureValidSTTModel();
-        updateProviderWarnings();
-    }, getSmallDebounce());
+    // Declare debounced settings update handler - will be initialized in onMount
+    let debouncedSettingsUpdate: () => void;
     
     // Also call it when settings change
     settings.subscribe(value => {
-      if (value) {
+      if (value && debouncedSettingsUpdate) {
         // Use debounced update for WebView2 compatibility
         debouncedSettingsUpdate();
       }
@@ -1743,7 +1764,12 @@
             });
             
             // Process the language change
-            debouncedProcessLanguageChange(quickAccessLangTag);
+            if (debouncedProcessLanguageChange) {
+                debouncedProcessLanguageChange(quickAccessLangTag);
+            } else {
+                // If debounced function not ready yet, call directly
+                processLanguageChange(quickAccessLangTag);
+            }
             
             // Update the previous value
             previousQuickAccessLangTag = quickAccessLangTag;
@@ -1756,7 +1782,7 @@
         logger.debug('FeatureSelector', 'STT model changed reactively', { 
             model: currentFeatureOptions.dubtitles.stt 
         });
-        updateProviderWarnings();
+        debouncedUpdateProviderWarnings();
     }
     
     $: if (currentSTTModels && currentSTTModels.models && currentSTTModels.models.length > 0) {
