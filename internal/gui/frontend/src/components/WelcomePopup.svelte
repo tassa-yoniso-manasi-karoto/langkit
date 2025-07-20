@@ -113,6 +113,7 @@ import { get } from 'svelte/store';
     let lottieAnimation: any = null;
     let animationTimeout: ReturnType<typeof setTimeout> | null = null;
     let waveCount = 0;
+    let isAnimationInitialized = false;
     
     function handleMouseEnter(event: MouseEvent) {
         if (!getStartedButton) return;
@@ -167,6 +168,71 @@ import { get } from 'svelte/store';
     }
     
     // Keyboard handling
+    function initializeLottieAnimation() {
+    	if (!lottieContainer || isAnimationInitialized) return;
+    	
+    	// Clean up any existing animation first
+    	cleanupLottieAnimation();
+    	
+    	lottieAnimation = lottie.loadAnimation({
+    		container: lottieContainer,
+    		renderer: 'svg',
+    		loop: false,
+    		autoplay: false,
+    		path: '/waving-hand.json'
+    	});
+    	
+    	lottieAnimation.setSpeed(1.35);
+    	isAnimationInitialized = true;
+    	waveCount = 0;
+    	
+    	// Add complete event listener for double wave behavior
+    	lottieAnimation.addEventListener('complete', () => {
+    		waveCount++;
+    		if (waveCount < 2) {
+    			// Play second wave immediately
+    			lottieAnimation.goToAndPlay(0);
+    		} else {
+    			// Reset count and wait 4 seconds before next double wave
+    			waveCount = 0;
+    			animationTimeout = setTimeout(() => {
+    				if (lottieAnimation) {
+    					lottieAnimation.goToAndPlay(0);
+    				}
+    			}, 4000);
+    		}
+    	});
+    	
+    	// Initial 4-second delay before first animation
+    	animationTimeout = setTimeout(() => {
+    		if (lottieAnimation) {
+    			lottieAnimation.play();
+    		}
+    	}, 4000);
+    }
+    
+    function cleanupLottieAnimation() {
+    	if (animationTimeout) {
+    		clearTimeout(animationTimeout);
+    		animationTimeout = null;
+    	}
+    	if (lottieAnimation) {
+    		lottieAnimation.destroy();
+    		lottieAnimation = null;
+    	}
+    	isAnimationInitialized = false;
+    	waveCount = 0;
+    }
+    
+    // Reactive statement to handle navigation back to welcome page
+    $: if (showWelcome && lottieContainer) {
+    	// Use a small delay to ensure DOM is fully ready
+    	setTimeout(() => initializeLottieAnimation(), 50);
+    } else if (!showWelcome) {
+    	// Clean up when navigating away
+    	cleanupLottieAnimation();
+    }
+    
     function handleKeydown(e: KeyboardEvent) {
         if (e.key === 'Escape') {
             onClose();
@@ -187,42 +253,8 @@ import { get } from 'svelte/store';
     	setTimeout(() => contentVisible = true, 300);
     	setTimeout(() => actionsVisible = true, 500);
     	
-    	// Initialize Lottie animation
-    	if (lottieContainer) {
-    		lottieAnimation = lottie.loadAnimation({
-    			container: lottieContainer,
-    			renderer: 'svg',
-    			loop: false,
-    			autoplay: false,
-    			path: '/waving-hand.json'
-    		});
-    		
-    		lottieAnimation.setSpeed(1.35);
-    		
-    		// Add complete event listener for double wave behavior
-    		lottieAnimation.addEventListener('complete', () => {
-    			waveCount++;
-    			if (waveCount < 2) {
-    				// Play second wave immediately
-    				lottieAnimation.goToAndPlay(0);
-    			} else {
-    				// Reset count and wait 4 seconds before next double wave
-    				waveCount = 0;
-    				animationTimeout = setTimeout(() => {
-    					if (lottieAnimation) {
-    						lottieAnimation.goToAndPlay(0);
-    					}
-    				}, 4000);
-    			}
-    		});
-    		
-    		// Initial 4-second delay before first animation
-    		animationTimeout = setTimeout(() => {
-    			if (lottieAnimation) {
-    				lottieAnimation.play();
-    			}
-    		}, 4000);
-    	}
+    	// Initialize Lottie animation on mount (will be called again reactively)
+    	initializeLottieAnimation();
     	
     	// Add keyboard listener
     	window.addEventListener('keydown', handleKeydown);
@@ -230,12 +262,7 @@ import { get } from 'svelte/store';
     
     onDestroy(() => {
         window.removeEventListener('keydown', handleKeydown);
-        if (animationTimeout) {
-            clearTimeout(animationTimeout);
-        }
-        if (lottieAnimation) {
-            lottieAnimation.destroy();
-        }
+        cleanupLottieAnimation();
     });
     
     function handleNext() {
