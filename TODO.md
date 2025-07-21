@@ -1,10 +1,9 @@
-- single instance (due to webRPC/WS instead of webengine APIs)
 - fix log levels spamming useless
-- fix zh-Hans/Hant
+- versioning flag
+- export debug report broken
 
 .
 - LINT
-- rm unused selector
 
 .
 - cleanup abandoned wails methods & finish webrpc migration

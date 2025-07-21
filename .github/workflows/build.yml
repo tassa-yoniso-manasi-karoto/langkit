@@ -199,41 +199,16 @@ jobs:
             go build -ldflags="$LDFLAGS" -o langkit-cli${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/cli
           fi
           
-      # Inject version info into wails.json
-      - name: Inject version info into wails.json
-        shell: bash
-        run: |
-          # Backup original wails.json
-          cp wails.json wails.json.backup
-          
-          # Prepare ldflags
-          LDFLAGS="-s -w -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
-          
-          # Use jq if available, otherwise use a simple sed approach
-          if command -v jq &> /dev/null; then
-            echo "Using jq to update wails.json"
-            jq --arg ldflags "$LDFLAGS" '.build = {"ldflags": $ldflags}' wails.json > wails.json.tmp
-            mv wails.json.tmp wails.json
-          else
-            echo "jq not found, using sed to update wails.json"
-            # Add build section before the last closing brace
-            # Escape special characters in LDFLAGS for sed
-            ESCAPED_LDFLAGS=$(echo "$LDFLAGS" | sed 's/[[\.*^$()+?{|]/\\&/g')
-            sed -i.bak 's/}$/,\n  "build": {\n    "ldflags": "'"$ESCAPED_LDFLAGS"'"\n  }\n}/' wails.json
-          fi
-          
-          echo "Updated wails.json with version info"
-          cat wails.json
-          
       # Build GUI with Wails using the action
       - name: Build GUI with Wails (Windows)
-        uses: dAppServer/wails-build-action@main
+        uses: tassa-yoniso-manasi-karoto/wails-build-action@main
         if: runner.os == 'Windows'
         env:
           CGO_ENABLED: 1
           CGO_LDFLAGS: "-static"
         with:
           build-name: ${{ matrix.build.name }}
+          build-ldflags: "-s -w -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
           build-platform: ${{ matrix.build.platform }}
           wails-version: ${{ env.WAILS_VERSION }}
           go-version: ${{ env.GO_VERSION }}
@@ -242,10 +217,11 @@ jobs:
           package: false
           app-working-directory: "."
       - name: Build GUI with Wails (non-Windows)
-        uses: dAppServer/wails-build-action@main
+        uses: tassa-yoniso-manasi-karoto/wails-build-action@main
         if: runner.os != 'Windows'
         with:
           build-name: ${{ matrix.build.name }}
+          build-ldflags: "-s -w -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
           build-platform: ${{ matrix.build.platform }}
           wails-version: ${{ env.WAILS_VERSION }}
           go-version: ${{ env.GO_VERSION }}
@@ -277,16 +253,6 @@ jobs:
               echo "build/windows contents:"
               ls -la build/windows/
             fi
-          fi
-          
-      # Restore original wails.json
-      - name: Restore original wails.json
-        if: always()
-        shell: bash
-        run: |
-          if [ -f wails.json.backup ]; then
-            mv wails.json.backup wails.json
-            echo "Restored original wails.json"
           fi
           
       # Package both CLI and GUI together
