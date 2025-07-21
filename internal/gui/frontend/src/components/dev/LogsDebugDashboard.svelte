@@ -1,7 +1,23 @@
 <script lang="ts">
-    import { enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore } from '../../lib/stores';
+    import { onMount } from 'svelte';
+    import { enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore, settings } from '../../lib/stores';
+    import { isWasmSupported } from '../../lib/wasm';
+    import { LoadSettings } from '../../api/services/settings';
     
-    // No props needed - using stores directly
+    // Ensure settings are loaded
+    onMount(async () => {
+        // Settings should already be loaded from App.svelte, but verify they exist
+        // If settings look like defaults (e.g., no apiKeys), reload them
+        const currentSettings = $settings;
+        if (!currentSettings.apiKeys) {
+            try {
+                const loadedSettings = await LoadSettings();
+                settings.set(loadedSettings);
+            } catch (error) {
+                console.error('Failed to load settings in LogsDebugDashboard:', error);
+            }
+        }
+    });
 </script>
 
 <h4>Log Viewer Controls</h4>
@@ -62,6 +78,86 @@
         </button>
 
     </div>
+</div>
+
+<div class="control-section mb-4">
+    <h5 class="text-xs font-semibold mb-2 opacity-80">WebAssembly Settings</h5>
+    {#if !isWasmSupported()}
+        <p class="text-xs text-gray-500">WebAssembly not supported in this browser</p>
+    {:else}
+        <div class="flex items-center gap-3 mb-3">
+            <label class="switch">
+                <input type="checkbox" bind:checked={$settings.useWasm}>
+                <span class="toggle-slider round"></span>
+            </label>
+            <span class="text-sm text-gray-300">Enable WebAssembly</span>
+        </div>
+        
+        {#if $settings.useWasm}
+            <div class="mb-3">
+                <label class="text-xs text-gray-300 block mb-1">WebAssembly Mode</label>
+                <select 
+                    bind:value={$settings.forceWasmMode}
+                    class="control-select text-xs"
+                    style="padding: 4px 8px; background: hsla(215, 20%, 20%, 0.9); border: 1px solid hsla(215, 30%, 40%, 0.4); border-radius: 4px; color: white; min-width: 150px;"
+                >
+                    <option value="auto">Auto (Based on threshold)</option>
+                    <option value="enabled">Always Enabled</option>
+                    <option value="disabled">Always Disabled</option>
+                </select>
+            </div>
+            
+            {#if $settings.forceWasmMode === 'auto'}
+                <div class="mb-2">
+                    <label class="text-xs text-gray-300 block mb-1">
+                        Size Threshold: {$settings.wasmSizeThreshold} logs
+                    </label>
+                    <input 
+                        type="range"
+                        bind:value={$settings.wasmSizeThreshold}
+                        min="100"
+                        max="5000"
+                        step="100"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                        style="background: linear-gradient(to right, hsl(261, 90%, 70%) 0%, hsl(261, 90%, 70%) {($settings.wasmSizeThreshold - 100) / 49}%, #4b5563 {($settings.wasmSizeThreshold - 100) / 49}%, #4b5563 100%);"
+                    >
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>100</span>
+                        <span>5000</span>
+                    </div>
+                </div>
+            {/if}
+        {/if}
+        
+        <p class="text-xs text-gray-500 mt-1">
+            Controls WebAssembly usage for log processing performance.
+        </p>
+    {/if}
+</div>
+
+<div class="control-section mb-4">
+    <h5 class="text-xs font-semibold mb-2 opacity-80">LogViewer Performance</h5>
+    <div class="mb-2">
+        <label class="text-xs text-gray-300 block mb-1">
+            Virtualization Threshold: {$settings.logViewerVirtualizationThreshold} logs
+        </label>
+        <input 
+            type="range"
+            bind:value={$settings.logViewerVirtualizationThreshold}
+            min="500"
+            max="10000"
+            step="500"
+            class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            style="background: linear-gradient(to right, hsl(261, 90%, 70%) 0%, hsl(261, 90%, 70%) {($settings.logViewerVirtualizationThreshold - 500) / 95}%, #4b5563 {($settings.logViewerVirtualizationThreshold - 500) / 95}%, #4b5563 100%);"
+        >
+        <div class="flex justify-between text-xs text-gray-500 mt-1">
+            <span>500</span>
+            <span>10000</span>
+        </div>
+    </div>
+    <p class="text-xs text-gray-500 mt-1">
+        Enable virtualization when log count exceeds threshold.
+    </p>
 </div>
 
 <div class="control-section mb-4">

@@ -16,8 +16,6 @@ import { isDeveloperMode } from '../lib/developerMode';
     import NumericInput from './NumericInput.svelte';
     import SelectInput from './SelectInput.svelte';
     import Hovertip from './Hovertip.svelte'; // Import hovertip component
-    import { isWasmSupported, getWasmState, resetWasmMetrics } from '../lib/wasm'; // Import WASM utils
-    import { WasmInitStatus } from '../lib/wasm-state'; // Import enum
 
     // Track if we're currently resetting the animation state
     let isResetting = false;
@@ -120,11 +118,6 @@ import { isDeveloperMode } from '../lib/developerMode';
     let exportSuccess = false;
     let exportError = '';
     
-    // WASM state for UI binding
-    let wasmState = getWasmState();
-    // Update wasmState periodically for the dashboard
-    let wasmStateUpdateInterval: number | null = null;
-    
     let cancelButton: HTMLButtonElement | null = null; // Add type
 
     function handleMouseEnter(event: MouseEvent) { // Add type
@@ -178,8 +171,6 @@ import { isDeveloperMode } from '../lib/developerMode';
         fills.forEach((fill: Element) => cancelButton?.removeChild(fill)); // Add type and optional chaining
       }
     }
-
-    // Moved definition earlier
 
     // Check if we should show dev-only features (either by version or developer mode)
     $: isDevVersion = version === "dev" || $isDeveloperMode;
@@ -270,8 +261,6 @@ import { isDeveloperMode } from '../lib/developerMode';
                 logger.error('Settings', 'Failed to refresh STT models', { error });
             }
             
-            // Update local wasmState
-            wasmState = getWasmState(); 
             
             // Close settings modal on save
             onClose();
@@ -307,7 +296,6 @@ import { isDeveloperMode } from '../lib/developerMode';
                 forceWasmMode: currentSettings.forceWasmMode as "auto" | "enabled" | "disabled"
             };
             settings.set(settingsToUpdate);
-            wasmState = getWasmState();
             logger.debug('Settings', 'Settings updated successfully');
         } catch (error) {
             logger.error('Settings', 'Failed to update settings', { error });
@@ -370,12 +358,6 @@ import { isDeveloperMode } from '../lib/developerMode';
             logger.error('Settings', 'Failed to load settings', { error });
         }
 
-        // Update local wasmState on mount as well
-        wasmState = getWasmState();
-        // Start interval to keep dashboard updated
-        wasmStateUpdateInterval = window.setInterval(() => {
-            wasmState = getWasmState();
-        }, 1000); // Update every second
     });
 
     // Re-validate whenever relevant parts of currentSettings change
@@ -458,10 +440,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     
     // Clear interval on component destroy
     onDestroy(() => {
-    logger.info('Settings', 'Component unmounting');
-        if (wasmStateUpdateInterval) {
-            clearInterval(wasmStateUpdateInterval);
-        }
+        logger.info('Settings', 'Component unmounting');
     });
 
     async function handleLocate(dependency: 'ffmpeg' | 'mediainfo') {
@@ -762,113 +741,6 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     </div>
                                 </div>
                             {/if}
-                        </section>
-                        
-                        <!-- Performance Settings -->
-                        <section class="space-y-6">
-                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
-                                <span class="material-icons text-primary">speed</span> <!-- Changed icon -->
-                                Performance Settings
-                            </h3>
-
-                            <!-- WebAssembly Settings -->
-                            <div class="mb-5 pb-4">
-                                <h4 class="text-base font-medium mb-2 text-gray-200">WebAssembly Optimization</h4>
-
-                                {#if !isWasmSupported()}
-                                    <div class="p-3 bg-warning-all/10 border border-warning-all/30 rounded-lg">
-                                        <span class="text-warning-all text-sm">WebAssembly is not supported in this browser. Optimization is unavailable.</span>
-                                    </div>
-                                {:else}
-                                    <!-- Enable WebAssembly -->
-                                    <div class="setting-row">
-                                        <div class="setting-label">
-                                            <span>Enable WebAssembly</span>
-                                            <span class="setting-description">Use WebAssembly for improved performance in log processing</span>
-                                        </div>
-                                        <div class="setting-control">
-                                            <label class="toggle-switch">
-                                                <input
-                                                    type="checkbox"
-                                                    bind:checked={currentSettings.useWasm}
-                                                    on:change={updateSettings}
-                                                />
-                                                <span class="slider round"></span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <!-- WebAssembly Mode -->
-                                    <div class="setting-row" class:disabled={!currentSettings.useWasm}>
-                                        <div class="setting-label">
-                                            <span>WebAssembly Mode</span>
-                                            <span class="setting-description">Control when WebAssembly optimization is used</span>
-                                        </div>
-                                        <div class="setting-control">
-                                            <SelectInput
-                                                bind:value={currentSettings.forceWasmMode}
-                                                on:change={updateSettings}
-                                                disabled={!currentSettings.useWasm}
-                                                className="px-3 py-2 rounded-lg disabled:opacity-50"
-                                            >
-                                                <option value="auto">Auto (Based on threshold)</option>
-                                                <option value="enabled">Always Enabled</option>
-                                                <option value="disabled">Always Disabled</option>
-                                            </SelectInput>
-                                        </div>
-                                    </div>
-
-                                    <!-- WebAssembly Threshold -->
-                                    <div class="setting-row" class:disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}>
-                                        <div class="setting-label">
-                                            <span>WebAssembly Size Threshold</span>
-                                            <span class="setting-description">Use WebAssembly for operations with more than {currentSettings.wasmSizeThreshold} logs (Range: 100-5000)</span>
-                                        </div>
-                                        <div class="setting-control">
-                                            <NumericInput
-                                                bind:value={currentSettings.wasmSizeThreshold}
-                                                min={100}
-                                                max={5000}
-                                                step={100}
-                                                disabled={!currentSettings.useWasm || currentSettings.forceWasmMode !== 'auto'}
-                                                className="w-48 px-3 py-2 hover:border-primary/55
-                                                        hover:shadow-input focus:shadow-input-focus
-                                                        focus:border-primary focus:ring-1
-                                                        focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white disabled:opacity-50"
-                                            />
-                                        </div>
-                                    </div>
-                                {/if}
-                            </div>
-                            <!-- LogViewer Settings -->
-                            <div class="mb-5 mt-6 pt-6 border-t border-primary/20"> <!-- Added top margin/border -->
-                                <h4 class="text-base font-medium mb-2 text-gray-200">LogViewer Performance</h4>
-
-                                <!-- Virtualization Threshold -->
-                                <div class="setting-row">
-                                    <div class="setting-label">
-                                        <span>Virtualization Threshold</span>
-                                        <span class="setting-description">Enable virtualization when log count exceeds this threshold (Range: 500-10000)</span>
-                                    </div>
-                                    <div class="setting-control">
-                                        <NumericInput
-                                            bind:value={currentSettings.logViewerVirtualizationThreshold}
-                                            min={500}
-                                            max={10000}
-                                            step={500}
-                                            className="w-48 px-3 py-2 hover:border-primary/55
-                                                    hover:shadow-input focus:shadow-input-focus
-                                                    focus:border-primary focus:ring-1
-                                                    focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
-                                        />
-                                    </div>
-                                </div>
-
-                                <!-- Information about virtualization -->
-                                <div class="text-xs text-unobtrusive mt-2 bg-primary/5 p-2 rounded">
-                                    <p>Virtualization improves performance with large log volumes by only rendering visible logs. Lower thresholds improve performance but may cause visual glitches in some browsers.</p>
-                                </div>
-                            </div>
                         </section>
 
                         <!-- UI Settings with improved styling -->
@@ -1316,9 +1188,9 @@ import { isDeveloperMode } from '../lib/developerMode';
         100% {
             border-color: var(--success-color-light);
             box-shadow:
-                0 0 8px 2px var(--success-color-light),
-                0 0 16px 4px hsla(145, 63%, 49%, 0.6),
-                0 0 24px 6px hsla(145, 63%, 49%, 0.4),
+                0 0 6px 2px var(--success-color-light),
+                0 0 12px 4px hsla(145, 63%, 49%, 0.6),
+                0 0 18px 6px hsla(145, 63%, 49%, 0.4),
                 inset 0 0 3px hsla(145, 63%, 60%, 0.3);
         }
     }
@@ -1332,9 +1204,9 @@ import { isDeveloperMode } from '../lib/developerMode';
         100% {
             border-color: var(--error-color-light);
             box-shadow:
-                0 0 8px 2px var(--error-color-light),
-                0 0 16px 4px hsla(0, 84%, 60%, 0.6),
-                0 0 24px 6px hsla(0, 84%, 60%, 0.4),
+                0 0 6px 2px var(--error-color-light),
+                0 0 12px 4px hsla(0, 84%, 60%, 0.6),
+                0 0 18px 6px hsla(0, 84%, 60%, 0.4),
                 inset 0 0 3px hsla(0, 84%, 70%, 0.3);
         }
     }
@@ -1418,8 +1290,8 @@ import { isDeveloperMode } from '../lib/developerMode';
     .toggle-switch {
         position: relative;
         display: inline-block;
-        width: 64px;  /* 1.5x from original 46px */
-        height: 34px; /* 1.5x from original 24px */
+        width: 64px; 
+        height: 34px;
     }
     
     .toggle-switch input {
