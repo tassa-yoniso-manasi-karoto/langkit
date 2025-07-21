@@ -156,6 +156,14 @@ jobs:
           # Get branch name
           if [[ "${{ github.ref_type }}" == "branch" ]]; then
             BRANCH="${{ github.ref_name }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # For tags, try to get the base branch or default to the tag name
+            if [[ -n "${{ github.base_ref }}" ]]; then
+              BRANCH="${{ github.base_ref }}"
+            else
+              # Use the tag name itself as branch info
+              BRANCH="${{ github.ref_name }}"
+            fi
           else
             BRANCH="unknown"
           fi

@@ -32,12 +32,11 @@ Example:
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Check if version flag is set
 		if v, _ := cmd.Flags().GetBool("version"); v {
-			info := version.GetInfo()
-			fmt.Printf("langkit version %s\n", info.Version)
-			fmt.Printf("  commit: %s\n", info.Commit)
-			fmt.Printf("  branch: %s\n", info.Branch)
+			info := version.GetInfo(true)  // Wait for update check
+			fmt.Printf("langkit version %s\t", info.Version)
+			fmt.Printf("commit: %s\n", info.Commit)
 			if info.NewerVersionAvailable {
-				fmt.Println("\nA newer version is available! Visit https://github.com/tassa-yoniso-manasi-karoto/langkit/releases")
+				fmt.Println("\nA newer version is available! Visit https://github.com/tassa-yoniso-manasi-karoto/langkit/releases\n")
 			}
 			os.Exit(0)
 		}

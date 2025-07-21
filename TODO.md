@@ -1,6 +1,7 @@
 - fix log levels spamming useless
-- versioning flag
-- export debug report broken
+- fix dangling update.available
+- hide log / wasm in Settings.Svelte
+- cloudflare 2 bucket for nightlies
 
 .
 - LINT
@@ -25,7 +26,6 @@
 - Browse / check FIXMEs in codebase
 
 .
-
 - test more memory management of WASM (remove 50Mib preallocated)
 
 

@@ -16,10 +16,11 @@ const githubAPI = "https://api.github.com/repos/tassa-yoniso-manasi-karoto/langk
 var (
 	Version = "dev"
 	Commit  = "unknown"
-	Branch  = "unknown"
+	Branch  = "unknown" // Set via -ldflags "-X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=$(git branch --show-current)"
 	
 	infoInstance Info
 	infoMutex    sync.RWMutex
+	updateCheckDone chan struct{}
 )
 
 type Info struct {
@@ -39,8 +40,13 @@ func init() {
 	}
 	infoMutex.Unlock()
 	
+	// Initialize the channel
+	updateCheckDone = make(chan struct{})
+	
 	// Check for updates asynchronously
 	go func() {
+		defer close(updateCheckDone)
+		
 		// Only check GitHub if not a dev version
 		if Version != "dev" {
 			remoteTag, err := getLatestVersionFromGithub()
@@ -60,7 +66,18 @@ func init() {
 	}()
 }
 
-func GetInfo() Info {
+// GetInfo returns version information. If waitForUpdate is true, it waits up to 3 seconds
+// for the update check to complete.
+func GetInfo(waitForUpdate bool) Info {
+	if waitForUpdate {
+		select {
+		case <-updateCheckDone:
+			// Update check completed
+		case <-time.After(3 * time.Second):
+			// Timeout - return whatever we have
+		}
+	}
+	
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
 	return infoInstance

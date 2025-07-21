@@ -149,7 +149,7 @@ func writeReportContent(
 	fmt.Fprintf(bufWriter, "Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
 
 	// 2. Basic app info
-	fmt.Fprintln(bufWriter, version.GetInfo().String())
+	fmt.Fprintln(bufWriter, version.GetInfo(false).String())  // Don't wait in crash reports
 	fmt.Fprintf(bufWriter, "Interface mode: ")
 	if isCLI {
 		fmt.Fprintln(bufWriter, "CLI")

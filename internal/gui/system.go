@@ -39,5 +39,5 @@ func (a *App) OpenURL(url string) {
 
 // GetVersion returns version information
 func (a *App) GetVersion() version.Info {
-	return version.GetInfo()
+	return version.GetInfo(false)  // Don't wait for update check in GUI calls
 }

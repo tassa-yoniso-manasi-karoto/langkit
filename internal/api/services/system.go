@@ -58,7 +58,7 @@ func (s *SystemService) GetSystemInfo(ctx context.Context) (*generated.SystemInf
 
 // GetVersion returns version information
 func (s *SystemService) GetVersion(ctx context.Context) (*generated.VersionInfo, error) {
-	info := version.GetInfo()
+	info := version.GetInfo(false)  // Don't wait for update check in API calls
 	return &generated.VersionInfo{
 		Version:               info.Version,
 		Commit:                info.Commit,
