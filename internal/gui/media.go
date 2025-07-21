@@ -7,9 +7,9 @@ import (
 	goruntime "runtime"
 	"strings"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
 )
 
 // VideoInfo represents information about a video file
@@ -64,9 +64,9 @@ func (a *App) GetVideosInDirectory(dirPath string) ([]VideoInfo, error) {
 }
 
 func (a *App) OpenVideoDialog() (string, error) {
-	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+	return ui.GetFileDialog().OpenFile(dialogs.OpenFileOptions{
 		Title: "Select Video File",
-		Filters: []runtime.FileFilter{
+		Filters: []dialogs.FileFilter{
 			{
 				DisplayName: "Video Files",
 				Pattern:     "*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.m4v",
@@ -76,15 +76,15 @@ func (a *App) OpenVideoDialog() (string, error) {
 }
 
 func (a *App) OpenDirectoryDialog() (string, error) {
-	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+	return ui.GetFileDialog().OpenDirectory(dialogs.OpenDirectoryOptions{
 		Title: "Select Media Directory",
 	})
 }
 
 func (a *App) OpenExecutableDialog(title string) (string, error) {
-	var filters []runtime.FileFilter
+	var filters []dialogs.FileFilter
 	if goruntime.GOOS == "windows" {
-		filters = []runtime.FileFilter{
+		filters = []dialogs.FileFilter{
 			{
 				DisplayName: "Executables",
 				Pattern:     "*.exe",
@@ -95,14 +95,14 @@ func (a *App) OpenExecutableDialog(title string) (string, error) {
 			},
 		}
 	} else {
-		filters = []runtime.FileFilter{
+		filters = []dialogs.FileFilter{
 			{
 				DisplayName: "All Files",
 				Pattern:     "*.*",
 			},
 		}
 	}
-	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+	return ui.GetFileDialog().OpenFile(dialogs.OpenFileOptions{
 		Title:   title,
 		Filters: filters,
 	})

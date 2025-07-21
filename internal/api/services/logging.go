@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -16,6 +18,8 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
 )
 
 // Compile-time check that LoggingService implements api.Service
@@ -266,10 +270,34 @@ func (s *LoggingService) ExportDebugReport(ctx context.Context) error {
 		return err
 	}
 
-	// For now, just log the path and let the GUI layer handle the file dialog
-	s.logger.Info().Str("path", zipPath).Msg("Debug report created successfully")
+	// Prompt user for a place to save the file
+	savePath, err := ui.GetFileDialog().SaveFile(dialogs.SaveFileOptions{
+		Title:           "Save Debug Report",
+		DefaultFilename: "langkit_debug_report.zip",
+		Filters: []dialogs.FileFilter{
+			{
+				DisplayName: "Zip Archive",
+				Pattern:     "*.zip",
+			},
+		},
+	})
+	if err != nil || savePath == "" {
+		// user canceled or error
+		s.logger.Info().Msg("User canceled debug report save dialog or error occurred")
+		return err
+	}
+
+	// Copy the file from zipPath to savePath
+	err = copyFile(zipPath, savePath)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to copy debug report file")
+		return err
+	}
+
+	// Let the user know it's done
+	s.logger.Info().Str("path", savePath).Msg("Debug report exported successfully")
 	if s.wsServer != nil {
-		s.wsServer.Emit("debug.report.created", zipPath)
+		s.wsServer.Emit("debug.report.exported", savePath)
 	}
 	return nil
 }
@@ -313,3 +341,23 @@ func (s *LoggingService) GetEventThrottlingStatus(ctx context.Context) (*generat
 	return result, nil
 }
 
+// copyFile is a simple utility to copy a file from src to dst
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
+}

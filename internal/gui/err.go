@@ -8,10 +8,11 @@ import (
 	
 	"github.com/ncruces/zenity"
 	"github.com/gookit/color"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
 )
 
 func (a *App) ExportDebugReport() error {
@@ -49,10 +50,10 @@ func (a *App) ExportDebugReport() error {
 	}
 
 	// Prompt user for a place to save the file
-	savePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+	savePath, err := ui.GetFileDialog().SaveFile(dialogs.SaveFileOptions{
 		Title:           "Save Debug Report",
 		DefaultFilename: "langkit_debug_report.zip",
-		Filters: []runtime.FileFilter{
+		Filters: []dialogs.FileFilter{
 			{
 				DisplayName: "Zip Archive",
 				Pattern:     "*.zip",
