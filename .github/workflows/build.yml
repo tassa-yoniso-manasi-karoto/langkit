@@ -263,22 +263,14 @@ jobs:
           
           mkdir -p dist
           
-          # Set platform suffix for file naming
-          PLATFORM_SUFFIX=""
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            PLATFORM_SUFFIX="windows-amd64"
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            PLATFORM_SUFFIX="macos-universal"
-          else
-            PLATFORM_SUFFIX="linux-amd64"
-          fi
-          
-          # Copy and rename CLI with platform suffix
+          # Copy and rename CLI binaries with "terminal-only" naming
           if ls langkit-cli* 1> /dev/null 2>&1; then
             if [[ "${{ runner.os }}" == "Windows" ]]; then
-              cp langkit-cli.exe "dist/langkit-cli-${PLATFORM_SUFFIX}.exe"
+              cp langkit-cli.exe "dist/langkit-terminal-only.exe"
+            elif [[ "${{ runner.os }}" == "macOS" ]]; then
+              cp langkit-cli "dist/langkit-terminal-only-macos"
             else
-              cp langkit-cli "dist/langkit-cli-${PLATFORM_SUFFIX}"
+              cp langkit-cli "dist/langkit-terminal-only-linux"
             fi
           else
             echo "Warning: CLI binary not found"
@@ -288,44 +280,35 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             # Check multiple possible locations for Windows executable
             if ls langkit.exe 1> /dev/null 2>&1; then
-              cp langkit.exe "dist/langkit-${PLATFORM_SUFFIX}.exe"
+              cp langkit.exe "dist/langkit-app.exe"
             elif ls build/bin/langkit.exe 1> /dev/null 2>&1; then
-              cp build/bin/langkit.exe "dist/langkit-${PLATFORM_SUFFIX}.exe"
+              cp build/bin/langkit.exe "dist/langkit-app.exe"
             elif ls build/bin/langkit 1> /dev/null 2>&1; then
               # Found Windows executable without .exe extension - this is suspicious
               echo "WARNING: Found Windows executable without .exe extension at build/bin/langkit"
               echo "This suggests GOOS/GOARCH were not properly set during build"
-              cp build/bin/langkit "dist/langkit-${PLATFORM_SUFFIX}.exe"
+              cp build/bin/langkit "dist/langkit-app.exe"
             elif ls build/windows/*.exe 1> /dev/null 2>&1; then
-              cp build/windows/*.exe "dist/langkit-${PLATFORM_SUFFIX}.exe"
+              cp build/windows/*.exe "dist/langkit-app.exe"
             else
               echo "Error: Windows executable not found"
               echo "Searched: ./langkit.exe, build/bin/langkit.exe, build/bin/langkit, build/windows/*.exe"
               exit 1
             fi
-            # Copy installer if it exists (check both locations)
-            if ls build/windows/*-installer.exe 1> /dev/null 2>&1; then
-              cp build/windows/*-installer.exe "dist/langkit-installer-${PLATFORM_SUFFIX}.exe"
-            elif ls build/bin/*-installer.exe 1> /dev/null 2>&1; then
-              cp build/bin/*-installer.exe "dist/langkit-installer-${PLATFORM_SUFFIX}.exe"
-            fi
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            # Copy app bundle (keep original name for .app bundle)
+            # Create a zip of the app bundle
             if ls build/bin/*.app 1> /dev/null 2>&1; then
-              cp -r build/bin/*.app dist/
+              cd build/bin
+              zip -r ../../dist/langkit-app-macos.zip *.app
+              cd ../..
             else
               echo "Error: macOS app bundle not found"
               exit 1
             fi
-            # Copy pkg installer if it exists
-            if ls build/bin/*.pkg 1> /dev/null 2>&1; then
-              cp build/bin/*.pkg "dist/langkit-installer-${PLATFORM_SUFFIX}.pkg"
-            fi
-            # Skip app.zip - it's redundant
           else
-            # Linux - copy executables with platform suffix
+            # Linux - copy executable with simple platform suffix
             if ls build/bin/langkit 1> /dev/null 2>&1; then
-              cp build/bin/langkit "dist/langkit-${PLATFORM_SUFFIX}"
+              cp build/bin/langkit "dist/langkit-app-linux"
             else
               echo "Error: Linux binaries not found"
               exit 1
@@ -385,13 +368,18 @@ jobs:
           # Create directories for each platform
           mkdir -p release-files
           
-          # Move all downloaded files to release-files, excluding README.txt
+          # Copy only specific file patterns from artifacts
           for dir in langkit-*/; do
             if [ -d "$dir" ]; then
-              # Copy files except README.txt
-              find "$dir" -type f ! -name "README.txt" -exec cp {} release-files/ \;
-              # Copy .app bundles (directories) for macOS
-              find "$dir" -name "*.app" -type d -exec cp -r {} release-files/ \;
+              # GUI binaries
+              [ -f "$dir/langkit-app.exe" ] && cp "$dir/langkit-app.exe" release-files/
+              [ -f "$dir/langkit-app-linux" ] && cp "$dir/langkit-app-linux" release-files/
+              [ -f "$dir/langkit-app-macos.zip" ] && cp "$dir/langkit-app-macos.zip" release-files/
+              
+              # Terminal-only binaries
+              [ -f "$dir/langkit-terminal-only.exe" ] && cp "$dir/langkit-terminal-only.exe" release-files/
+              [ -f "$dir/langkit-terminal-only-linux" ] && cp "$dir/langkit-terminal-only-linux" release-files/
+              [ -f "$dir/langkit-terminal-only-macos" ] && cp "$dir/langkit-terminal-only-macos" release-files/
             fi
           done
           
@@ -407,24 +395,22 @@ jobs:
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
           generate_release_notes: true
           body: |
-            **Prior to use, please read the "FAQ", "Requirements", and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
+            - **Prior to use, please read the "FAQ", "Requirements", and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
+            - All binaries for macOS are provided as-is and are entirely untested.
             
-            ## Windows Installation
-            When running for the first time, Windows **may show a blue popup** that says "This app can't run on your PC":
+            ##  "Windows protected your PC" popup
+            When running for the first time, Windows **may show a blue popup** that says "Windows protected your PC":
             1. Click **"More info"** 
             2. Click **"Run anyway"**
 
-            This is normal for unsigned software that isn't widely used and should only happen once.
+            This is **normal for unsigned software that isn't widely used** and should only happen once.
             
-            Langkit also requires WebView2 but it comes pre-installed with all modern versions of Windows.
+            Langkit also requires **WebView2** but it comes pre-installed with all modern versions of Windows.
             
-            ## MacOS Installation
-            - Files ending in `-macos-universal` should support both Intel and Apple Silicon.
-            - **All binaries for MacOS are provided as-is and are entirely untested.**
+            ## CLI version (advanced users only)
             
-            #### What's included
-            
-            - `langkit-<platform>` - GUI application (can also be used as CLI with arguments)
-            - `langkit-cli-<platform>` - Command line interface (for power users)
-            - `langkit.app` - macOS application bundle (GUI)
+            For automation and scripting in terminal:
+            - Windows: `langkit-terminal-only.exe`
+            - Mac: `langkit-terminal-only-macos`
+            - Linux: `langkit-terminal-only-linux`
             
