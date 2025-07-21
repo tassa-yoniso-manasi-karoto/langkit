@@ -14,8 +14,10 @@ export async function testWasmMemoryAccess(): Promise<void> {
   try {
     // Initialize the WASM module using our inlined binary
     logger.info(MEMORY_TEST_COMPONENT, "Initializing WASM module...");
-    const exports = await wasmModule.initializeWithInlinedBinary();
+    await wasmModule.initializeWithInlinedBinary();
     logger.info(MEMORY_TEST_COMPONENT, "WASM initialization complete");
+    
+    // Important: We use wasmModule directly for all function calls, not the exports object
     
     // First check: verification through inliner status
     if (typeof wasmModule.get_memory_api_access_status === 'function') {
@@ -34,8 +36,8 @@ export async function testWasmMemoryAccess(): Promise<void> {
     }
     
     // Second check: verification through Rust memory usage function
-    if (typeof exports.get_memory_usage === 'function') {
-      const memUsage = exports.get_memory_usage();
+    if (typeof (wasmModule as any).get_memory_usage === 'function') {
+      const memUsage = (wasmModule as any).get_memory_usage();
       
       // First, check if memUsage is a Map
       const isMap = Object.prototype.toString.call(memUsage) === '[object Map]';
@@ -139,7 +141,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
     }
     
     // Third check: test memory growth
-    if (typeof exports.ensure_sufficient_memory === 'function') {
+    if (typeof (wasmModule as any).ensure_sufficient_memory === 'function') {
       // Test with 10MB, 20MB, 30MB
       const sizes = [10, 20, 30];
       
@@ -148,7 +150,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
         logger.info(MEMORY_TEST_COMPONENT, `Testing memory growth to ${size}MB...`);
         
         // Before growth
-        const beforeMem = exports.get_memory_usage();
+        const beforeMem = (wasmModule as any).get_memory_usage();
         
         // Check if beforeMem is a Map
         const beforeIsMap = Object.prototype.toString.call(beforeMem) === '[object Map]';
@@ -171,11 +173,11 @@ export async function testWasmMemoryAccess(): Promise<void> {
         
         // Attempt growth
         logger.info(MEMORY_TEST_COMPONENT, `Calling ensure_sufficient_memory(${formatBytes(sizeBytes)})`);
-        const success = exports.ensure_sufficient_memory(sizeBytes);
+        const success = (wasmModule as any).ensure_sufficient_memory(sizeBytes);
         logger.info(MEMORY_TEST_COMPONENT, `ensure_sufficient_memory returned: ${success}`);
         
         // After growth
-        const afterMem = exports.get_memory_usage();
+        const afterMem = (wasmModule as any).get_memory_usage();
         
         // Check if afterMem is a Map
         const afterIsMap = Object.prototype.toString.call(afterMem) === '[object Map]';
@@ -232,7 +234,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
     }
     
     // Fourth check: test merge operation to verify memory is truly accessible
-    if (typeof exports.merge_insert_logs === 'function') {
+    if (typeof (wasmModule as any).merge_insert_logs === 'function') {
       // Create test data - ensure they're plain objects, not Maps
       // IMPORTANT: Create serializable objects to avoid Map conversion
       function createSerializableLogObject(index: number, offset: number = 0) {
@@ -273,7 +275,7 @@ export async function testWasmMemoryAccess(): Promise<void> {
       
       try {
         // Get memory before operation
-        const beforeMem = exports.get_memory_usage();
+        const beforeMem = (wasmModule as any).get_memory_usage();
         
         // Check if beforeMem is a Map
         const beforeIsMap = Object.prototype.toString.call(beforeMem) === '[object Map]';
@@ -303,10 +305,11 @@ export async function testWasmMemoryAccess(): Promise<void> {
 
         // Perform merge with serialized data
         logger.info(MEMORY_TEST_COMPONENT, "Calling merge_insert_logs with serialized arrays");
-        const resultArray = exports.merge_insert_logs(serializedA, serializedB);
+        // Use wasmModule directly, not exports!
+        const resultArray = (wasmModule as any).merge_insert_logs(serializedA, serializedB);
         
         // Get memory after operation
-        const afterMem = exports.get_memory_usage();
+        const afterMem = (wasmModule as any).get_memory_usage();
         
         // Check if afterMem is a Map
         const afterIsMap = Object.prototype.toString.call(afterMem) === '[object Map]';
