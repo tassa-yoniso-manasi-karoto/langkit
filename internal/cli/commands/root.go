@@ -18,6 +18,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -28,6 +29,23 @@ media content into flash cards for an SRS application like Anki.
 
 Example:
   langkit subs2cards media-content.mp4 foreign.srt native.srt`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Check if version flag is set
+		if v, _ := cmd.Flags().GetBool("version"); v {
+			info := version.GetInfo()
+			fmt.Printf("langkit version %s\n", info.Version)
+			fmt.Printf("  commit: %s\n", info.Commit)
+			fmt.Printf("  branch: %s\n", info.Branch)
+			if info.NewerVersionAvailable {
+				fmt.Println("\nA newer version is available! Visit https://github.com/tassa-yoniso-manasi-karoto/langkit/releases")
+			}
+			os.Exit(0)
+		}
+	},
+	Run: func(cmd *cobra.Command, args []string) {
+		// This Run function ensures PersistentPreRun is called even with no subcommand
+		cmd.Help()
+	},
 }
 
 type RunFunc func(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args []string) *core.ProcessingError
@@ -118,6 +136,9 @@ func init() {
 // initCommandsWithSettings initializes commands using settings from config
 func initCommandsWithSettings() {
 	// Initialize flags with values from config or defaults if config loading failed
+	
+	// Add version flag
+	RootCmd.PersistentFlags().BoolP("version", "v", false, "print version information")
 	
 	// Convert languages to string slice for flag default
 	langs := []string{}

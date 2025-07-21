@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -18,6 +19,7 @@ var (
 	Branch  = "unknown"
 	
 	infoInstance Info
+	infoMutex    sync.RWMutex
 )
 
 type Info struct {
@@ -28,10 +30,39 @@ type Info struct {
 }
 
 func init() {
-	infoInstance = GetInfoFromGithub()
+	// Initialize with local info immediately
+	infoMutex.Lock()
+	infoInstance = Info{
+		Version: Version,
+		Commit:  Commit,
+		Branch:  Branch,
+	}
+	infoMutex.Unlock()
+	
+	// Check for updates asynchronously
+	go func() {
+		// Only check GitHub if not a dev version
+		if Version != "dev" {
+			remoteTag, err := getLatestVersionFromGithub()
+			if err != nil {
+				return
+			}
+			
+			// Attempt to parse both local and remote versions as semver.
+			localVer, errLocal := semver.NewVersion(Version)
+			remoteVer, errRemote := semver.NewVersion(remoteTag)
+			if errLocal == nil && errRemote == nil && remoteVer.GreaterThan(localVer) {
+				infoMutex.Lock()
+				infoInstance.NewerVersionAvailable = true
+				infoMutex.Unlock()
+			}
+		}
+	}()
 }
 
 func GetInfo() Info {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
 	return infoInstance
 }
 
