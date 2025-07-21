@@ -10,9 +10,6 @@ struct SystemInfo
 
 struct VersionInfo
   - version: string
-  - commit: string
-  - branch: string
-  - newerVersionAvailable: bool
 
 service SystemService
   # Get system information (OS and architecture)
@@ -20,3 +17,6 @@ service SystemService
   
   # Get application version information
   - GetVersion() => (info: VersionInfo)
+  
+  # Check if a newer version is available
+  - CheckForUpdate() => (updateAvailable: bool)

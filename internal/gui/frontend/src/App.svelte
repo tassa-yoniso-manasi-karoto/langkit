@@ -35,7 +35,7 @@
         SendProcessingRequest, 
         CancelProcessing
     } from '../wailsjs/go/gui/App';
-    import { GetVersion, GetSystemInfo } from './api/services/system';
+    import { GetVersion, GetSystemInfo, CheckForUpdate } from './api/services/system';
     import {
         CheckDockerAvailability,
         CheckInternetConnectivity,
@@ -1116,13 +1116,6 @@
             syncWasmStateForReport();
         });
         
-        // Set up update available handler
-        wsClient.on('update.available', (newVersion: string) => {
-            logger.info('app', `Update available: ${newVersion}`);
-            version = newVersion; // Update version display if needed
-            updateAvailable = true;
-        });
-        
         // Set up settings loaded handler
         wsClient.on('settings.loaded', (loadedSettings) => {
             logger.debug('app', 'Settings loaded via WebSocket', { settings: loadedSettings });
@@ -1160,6 +1153,16 @@
             logger.info('app', `Application version detected: ${version}`, 
                 { isDevMode: version === 'dev' }
             );
+            
+            // Check for updates asynchronously (don't await)
+            CheckForUpdate().then(result => {
+                updateAvailable = result.updateAvailable;
+                if (updateAvailable) {
+                    logger.info('app', 'Update available detected');
+                }
+            }).catch(error => {
+                logger.error('app', 'Failed to check for update', { error });
+            });
         } catch (error) {
             logger.error('app', 'Failed to get version info', { error });
             // Keep default version value

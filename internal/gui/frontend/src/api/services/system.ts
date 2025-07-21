@@ -44,13 +44,27 @@ export async function GetVersion(): Promise<any> {
     try {
         const response = await service.getVersion();
         return {
-            version: response.info.version,
-            commit: response.info.commit,
-            branch: response.info.branch,
-            newerVersionAvailable: response.info.newerVersionAvailable
+            version: response.info.version
         };
     } catch (error) {
         console.error('GetVersion error:', error);
+        throw error;
+    }
+}
+
+/**
+ * CheckForUpdate - Check if a newer version is available
+ */
+export async function CheckForUpdate(): Promise<{ updateAvailable: boolean }> {
+    const service = await getSystemService();
+    
+    try {
+        const response = await service.checkForUpdate();
+        return {
+            updateAvailable: response.updateAvailable
+        };
+    } catch (error) {
+        console.error('CheckForUpdate error:', error);
         throw error;
     }
 }
