@@ -1,6 +1,4 @@
 - fix log levels spamming useless
-- fix dangling update.available
-- hide log / wasm in Settings.Svelte
 - cloudflare 2 bucket for nightlies
 
 .

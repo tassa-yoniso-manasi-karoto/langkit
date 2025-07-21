@@ -7,9 +7,11 @@
 </p>
 
 
-### Status: prerelease
+### Status: alpha
 
-Langkit is an all-in-one tool designed to **facilitate language learning from native media content** using a collection of diverse features to transform movies, TV shows, etc., into **easily ‘digestible’ material**. It was made with scalability, fault-tolerance in mind and supports automatic subtitle detection, bulk/recursive directory processing, seamless resumption of previously interrupted processing runs and multiple native (reference) language fallback.
+Langkit is an all-in-one tool designed to **facilitate language learning from native media content** using a collection of diverse features to transform movies, TV shows, etc., into **easily ‘digestible’ material**.
+
+It supports automatic subtitle detection, bulk/recursive directory processing, seamless resumption of previously interrupted processing runs and multiple native (reference) language fallback.
 
 ### Features
 
@@ -27,10 +29,10 @@ Langkit is an all-in-one tool designed to **facilitate language learning from na
 <br>
 
 > [!IMPORTANT]
-> **Some features require an API key because certain processing tasks, such as speech-to-text, audio enhancement, are outsourced to an external provider** like Replicate. These companies offer cloud-based machine learning models that handle complex tasks remotely, allowing Langkit to leverage the models without requiring local computation. <br> The cost of running a few processing tasks using these models is typically very low. 
+> **Some features require an API key because certain processing tasks, such as speech-to-text, audio enhancement, are outsourced to an external provider** like Replicate. These companies offer cloud-based machine learning models that handle complex tasks remotely, allowing Langkit to leverage the models without requiring local computation. <br> The cost of running a few processing tasks using these models is typically very low or free. 
 
 > [!WARNING]
-> ⚠️ **About Feature Combinations**: ⚠️<br> langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior, especially when utilizing less common or more intricate feature combinations. Users are encouraged to **report any issues encountered either with the debug info exported from the Settings panel or with the Crash Report log**.
+> ⚠️ **About Feature Combinations**: ⚠️<br> langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior, especially when utilizing less common or more intricate feature combinations. Users are encouraged to **report any issues encountered either with the Debug Report exported from the Settings panel or with the Crash Report.**
 
 # tldr cli
 
@@ -38,7 +40,7 @@ Langkit is an all-in-one tool designed to **facilitate language learning from na
 𝗕𝗮𝘀𝗶𝗰 𝘀𝘂𝗯𝘀𝟮𝘀𝗿𝘀 𝗳𝘂𝗻𝗰𝘁𝗶𝗼𝗻𝗮𝗹𝗶𝘁𝘆
 $ langkit subs2cards media.mp4 media.th.srt media.en.srt
 
-𝗕𝘂𝗹𝗸 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 𝘄𝗶𝘁𝗵 𝗮𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗰 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘀𝗲𝗹𝗲𝗰𝘁𝗶𝗼𝗻 (𝘩𝘦𝘳𝘦: 𝘭𝘦𝘢𝘳𝘯 𝘣𝘳𝘢𝘻𝘪𝘭𝘪𝘢𝘯 𝘱𝘰𝘳𝘵𝘶𝘨𝘦𝘴𝘦 𝘧𝘳𝘰𝘮 𝘤𝘢𝘯𝘵𝘰𝘯𝘦𝘴𝘦 𝘰𝘳 𝘪𝘧 𝘶𝘯𝘢𝘷𝘢𝘪𝘭𝘢𝘣𝘭𝘦, 𝘵𝘳𝘢𝘥𝘪𝘵𝘪𝘰𝘯𝘢𝘭 𝘤𝘩𝘪𝘯𝘦𝘴𝘦)
+𝗕𝘂𝗹𝗸 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 𝘄𝗶𝘁𝗵 𝗮𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗰 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘀𝗲𝗹𝗲𝗰𝘁𝗶𝗼𝗻 (𝘩𝘦𝘳𝘦: 𝘭𝘦𝘢𝘳𝘯 𝘣𝘳𝘢𝘻𝘪𝘭𝘪𝘢𝘯 𝘱𝘰𝘳𝘵𝘶𝘨𝘦𝘴𝘦 𝘧𝘳𝘰𝘮 𝘤𝘢𝘯𝘵𝘰𝘯𝘦𝘴𝘦 𝘰𝘳 𝘵𝘳𝘢𝘥𝘪𝘵𝘪𝘰𝘯𝘢𝘭 𝘤𝘩𝘪𝘯𝘦𝘴𝘦)
 $ langkit subs2cards media.mp4 -l "pt-BR,yue,zh-Hant"
 
 𝗦𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘁𝗿𝗮𝗻𝘀𝗹𝗶𝘁𝗲𝗿𝗮𝘁𝗶𝗼𝗻 (+𝘁𝗼𝗸𝗲𝗻𝗶𝘇𝗮𝘁𝗶𝗼𝗻 𝗶𝗳 𝗻𝗲𝗰𝗲𝘀𝘀𝗮𝗿𝘆)
@@ -133,18 +135,50 @@ The frequency list comes from 6th edition of "Remembering the Kanji" by James W.
 <details>
 <summary> 
     
-#### On Windows I get a blue popup that says "This app can't run on your PC" error when trying to run Langkit.
+#### On Windows I get a blue popup that says "Windows protected your PC" error when trying to run Langkit.
 </summary>
 
-When running for the first time, Windows may show "This app can't run on your PC":
+When running for the first time, Windows may show "Windows protected your PC":
 1. Click "More info" 
 2. Click "Run anyway"
 
-This is normal for unsigned software that isn't widely used and should only happen once.
+This is **normal for unsigned software that isn't widely used** and should only happen once.
 
 For a more technical explanation: This error is triggered by Windows Defender SmartScreen, a security feature that protects against unknown applications. Langkit is flagged because it  is not a widely-used application, it has not been seen by Microsoft's telemetry systems and therefore has no history of being safe.
 
-Additionally, Langkit is a "statically linked" application, meaning it includes all of its necessary component (notably for language processing!) in a single, large executable file. While this makes installaton simple for users, it can sometimes make it appear more suspicious to Defender.
+</details>
+
+<details>
+<summary> 
+    
+#### How do I get these API keys?
+</summary>
+API keys are only visible once during creation.
+
+### Replicate
+- **Navigation:** Click your username (top left) → API Tokens → Create token
+- **URL:** https://replicate.com/account/api-tokens  
+- Limited free credits for new users. After free credits, pay-as-you-go starting at $0.000100/second for CPU.
+
+### OpenRouter
+- **Navigation:** Login → Keys → Create API Key → Name Key → Create
+- **URL:** https://openrouter.ai  
+- Small free allowance for testing. Several models offer free variants marked with `:free`.
+
+### OpenAI
+- **Navigation:** Dashboard → API Keys (left menu under "Organization") → Create new secret key → Name key → Generate  
+- **URL:** https://platform.openai.com  
+- No free credits for new accounts. Phone verification required. Must purchase credits before API usage.
+
+### Google AI
+- **Navigation:** Dashboard (top right) → Create an API key
+- **URLs:** https://aistudio.google.com  
+- Generious free tier. No credit card required for free access but rated limited.
+
+### ElevenLabs
+- **Navigation:** Profile (bottom left) → My Account → API Keys → Create  
+- **URL:** https://elevenlabs.io/app/settings/api-keys  
+- 10,000 free credits monthly.
 
 </details>
 
@@ -167,31 +201,16 @@ Because I only have a 10 year old Pentium CPU with a graphic chipset.
 The official Docker + Docker Compose libraries and their dependencies make up most of the size of the executable.
 </details>
 
-<details>
-<summary> 
-    
-#### Why use subs2srs approach nowdays?
-</summary>
 
-There are plenty of alternative comprehensible input companion already: [Language Reactor](https://www.languagereactor.com/) (previously Language Learning With Netflix), [asbplayer](https://github.com/killergerbah/asbplayer), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [voracious](https://github.com/rsimmons/voracious), [memento](https://github.com/ripose-jp/Memento)...
+# Download
 
-They are awesome but all of them are media-centric: they are implemented around watching shows.
-
-The approach I take for card-making here is language-centric:
-- **word-centric notes referencing all common meanings**: I cross-source dictionaries, LLMs to map the meanings, connotations, register of a word. Searching my database of generated TSV I can illustrate & disambiguate with real-world examples the meanings I have found. This results in high quality notes regrouping all examples sentences, TTS, picture... and any other fields related to the word, allowing for maximum context.
-- **word-note reuse for language laddering**: another advantage of this approach it that you can use this very note as basis for making cards for a new target language further down the line, while keeping all your previous note fields at hand for making the cards template for your new target language. The initial language acts just like Note ID for a meaning mapped across multiple languages. The majority of the basic vocabulary can be translated across languages directly with no real loss of meaning (and you can go on to disambiguate it further, using the method above for example). The effort that you spend on your first target language will thus pay off on subsequent languages.
-
-There are several additional tools I made to accomplish this but they are hardcoded messes and not meant to be published.
-
-**Future developement could entirely automate the process of making cards described above using LLMs.**
-</details>
-
+See [Releases](https://github.com/tassa-yoniso-manasi-karoto/langkit/releases)
 
 # Requirements
 - FFmpeg **v6 or higher (dev builds being preferred)**,
   - The FFmpeg dev team recommends end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
 - [MediaInfo](https://mediaarea.net/en/MediaInfo/Download),
-- *(optional)* [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/MacOS) / Engine (Linux): only if you need to process subtitles in Japanese or any Indic languages
+- *(optional)* [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/MacOS) / Docker Engine (Linux): only if you need to process subtitles in Japanese or any Indic languages
 
 The binary's location for FFmpeg and Mediainfo can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is. 
 
@@ -230,6 +249,7 @@ For CLI users or those who prefer not to store keys in a file, you can use envir
 1.  **Environment variables always take precedence.** If an environment variable is set, its value will be used for processing, even if a different key is saved in the GUI's configuration file.
 2.  **The GUI is designed to protect your keys.** When you open the settings panel, it will load and display keys from your environment variables. However, to avoid writing secrets from your environment to disk, it will only save a key to the configuration file if you **explicitly paste a new value** into an API key field in the GUI.
 3.  **The CLI does not write to the configuration file.** It will read and use keys from environment variables or the config file but will never save them.
+4.  **Exported crash/debug reports are sanitized.** They are guaranteed not to leak any API keys.
 
 # Output
 

@@ -134,6 +134,7 @@ func (i Info) ToJSON() (string, error) {
 }
 
 
+// IMPORTANT: this will ignore "pre-release" releases!
 func getLatestVersionFromGithub() (string, error) {
 	client := &http.Client{
 		Timeout: 3 * time.Second,
