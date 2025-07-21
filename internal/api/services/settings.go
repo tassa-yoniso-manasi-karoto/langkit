@@ -87,6 +87,9 @@ func (s *SettingsService) LoadSettings(ctx context.Context) (*generated.Settings
 			MinInterval: int32(settings.EventThrottling.MinInterval),
 			MaxInterval: int32(settings.EventThrottling.MaxInterval),
 		},
+		UseWasm:           settings.UseWasm,
+		WasmSizeThreshold: int32(settings.WasmSizeThreshold),
+		ForceWasmMode:     settings.ForceWasmMode,
 	}
 	
 	return genSettings, nil
@@ -109,6 +112,9 @@ func (s *SettingsService) SaveSettings(ctx context.Context, genSettings *generat
 		TimeoutSTT:                       int(genSettings.TimeoutSTT),
 		TimeoutDL:                        int(genSettings.TimeoutDL),
 		LogViewerVirtualizationThreshold: int(genSettings.LogViewerVirtualizationThreshold),
+		UseWasm:                          genSettings.UseWasm,
+		WasmSizeThreshold:                int(genSettings.WasmSizeThreshold),
+		ForceWasmMode:                    genSettings.ForceWasmMode,
 	}
 	
 	// Handle API keys if provided

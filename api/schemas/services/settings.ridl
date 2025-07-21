@@ -30,6 +30,9 @@ struct Settings
   - timeoutDL: int32   # seconds
   - logViewerVirtualizationThreshold: int32
   - eventThrottling: EventThrottling
+  - useWasm: bool
+  - wasmSizeThreshold: int32
+  - forceWasmMode: string
 
 struct StatisticsUpdate
   - updates: map<string,any>

@@ -126,7 +126,7 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("timeout_stt", 90)   // 90 seconds for each subtitle segment transcription 
 	viper.SetDefault("timeout_dl", 600)   // 10 minutes for downloading files
 
-	viper.SetDefault("log_viewer_virtualization_threshold", 2000)
+	viper.SetDefault("log_viewer_virtualization_threshold", 500)
 
 	// Default throttling settings
 	viper.SetDefault("event_throttling.enabled", true)
@@ -139,7 +139,7 @@ func InitConfig(customPath string) error {
 
 	// Default WebAssembly settings
 	viper.SetDefault("use_wasm", true)
-	viper.SetDefault("wasm_size_threshold", 500)
+	viper.SetDefault("wasm_size_threshold", 1)
 	viper.SetDefault("force_wasm_mode", "enabled")
 
 	viper.SetDefault("ffmpeg_path", "")
