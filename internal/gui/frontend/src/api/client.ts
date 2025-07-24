@@ -1,4 +1,4 @@
-import { GetAPIPort } from '../../wailsjs/go/gui/App';
+import { getConfig } from '../config';
 
 // Singleton for API configuration
 let apiPort: number | null = null;
@@ -6,7 +6,7 @@ let apiBaseUrl: string | null = null;
 let initPromise: Promise<void> | null = null;
 
 /**
- * Initialize the API client by discovering the port from the backend
+ * Initialize the API client by getting the port from injected config
  */
 async function initializeAPI(): Promise<void> {
     if (initPromise) {
@@ -15,11 +15,8 @@ async function initializeAPI(): Promise<void> {
 
     initPromise = (async () => {
         try {
-            const result = await GetAPIPort();
-            if (typeof result === 'object' && result !== null && 'error' in result) {
-                throw new Error(result.error);
-            }
-            apiPort = result as number;
+            const config = getConfig();
+            apiPort = config.apiPort;
             apiBaseUrl = `http://localhost:${apiPort}`;
             console.log(`WebRPC API initialized on port ${apiPort}`);
         } catch (error) {

@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"fmt"
 	goruntime "runtime"
 	"time"
 
@@ -16,14 +15,6 @@ func (a *App) GetSystemInfo() map[string]string {
 		"os":   goruntime.GOOS,
 		"arch": goruntime.GOARCH,
 	}
-}
-
-// GetWebSocketPort returns the port the WebSocket server is listening on
-func (a *App) GetWebSocketPort() (int, error) {
-	if a.wsServer == nil {
-		return 0, fmt.Errorf("WebSocket server not initialized")
-	}
-	return a.wsServer.GetPort(), nil
 }
 
 // GetCurrentTimestamp returns the current timestamp in milliseconds since Unix epoch,

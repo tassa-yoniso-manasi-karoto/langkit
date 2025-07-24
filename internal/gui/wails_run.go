@@ -1,11 +1,15 @@
 package gui
 
 import (
+	"context"
 	"embed"
 	"fmt"
+	"os"
+	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/logger"
+	wailslogger "github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
@@ -27,9 +31,33 @@ func Run() {
 			exitOnError(fmt.Errorf("panic: %v", r))
 		}
 	}()
-	app := NewApp()
+	
+	// Setup logger for server initialization
+	writer := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: time.TimeOnly,
+	}
+	logger := zerolog.New(writer).With().Timestamp().Str("module", "gui").Logger()
+	
+	// Initialize servers before creating Wails app
+	logger.Info().Msg("Initializing servers...")
+	servers, err := InitializeServers(context.Background(), logger)
+	if err != nil {
+		exitOnError(fmt.Errorf("failed to initialize servers: %w", err))
+	}
+	
+	// Create app with pre-initialized servers
+	app := NewAppWithServers(servers)
+	
+	// Create runtime config for middleware
+	config := RuntimeConfig{
+		APIPort: servers.APIServer.GetPort(),
+		WSPort:  servers.WSServer.GetPort(),
+		Mode:    "wails",
+		Runtime: "wails",
+	}
 
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:             name,
 		Height:            1024,
 		MinWidth:          1030,
@@ -44,10 +72,11 @@ func Run() {
 		BackgroundColour:  &options.RGBA{R: 26, G: 26, B: 26, A: 255},
 		AssetServer:       &assetserver.Options{
 			Assets: assets,
+			Middleware: NewConfigInjectionMiddleware(config),
 		},
 		Menu:              nil,
 		Logger:            nil,
-		LogLevel:          logger.DEBUG,
+		LogLevel:          wailslogger.DEBUG,
 		OnStartup:         app.startup,
 		OnDomReady:        app.domReady,
 		OnBeforeClose:     app.beforeClose,

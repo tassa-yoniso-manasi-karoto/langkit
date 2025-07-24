@@ -32,6 +32,9 @@ type App struct {
 	llmRegistry *llms.Registry   // LLM Registry for async provider management
 	wsServer    *WebSocketServer // WebSocket server for state updates
 	apiServer   *api.Server      // WebRPC API server
+	
+	// Pre-initialized servers (when using shared initialization)
+	preInitialized bool
 }
 
 func NewApp() *App {
@@ -45,6 +48,20 @@ func NewApp() *App {
 	return &App{
 		logger: &logger,
 	}
+}
+
+// NewAppWithServers creates an App with pre-initialized servers
+func NewAppWithServers(servers *ServerComponents) *App {
+	app := NewApp()
+	app.wsServer = servers.WSServer
+	app.apiServer = servers.APIServer
+	app.throttler = servers.Throttler
+	app.preInitialized = true
+	
+	// Set the global handler
+	handler = servers.Handler
+	
+	return app
 }
 
 
@@ -80,96 +97,42 @@ func (a *App) startup(ctx context.Context) {
 
 	a.getLogger().Info().Msg("Application starting up")
 
-	// Create WebSocket server first (needed by throttler)
-	wsServer, err := NewWebSocketServer(*a.getLogger())
-	if err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to create WebSocket server")
-	}
-	a.wsServer = wsServer
-	a.getLogger().Info().Int("port", wsServer.GetPort()).Msg("WebSocket server created")
-
-	// Create broadcaster function for throttler
-	broadcaster := func(msgType string, data interface{}) {
-		if a.wsServer != nil {
-			a.wsServer.Emit(msgType, data)
+	// If servers are not pre-initialized, create them now
+	if !a.preInitialized {
+		// Initialize servers using shared logic
+		servers, err := InitializeServers(ctx, *a.getLogger())
+		if err != nil {
+			a.getLogger().Fatal().Err(err).Msg("Failed to initialize servers")
+		}
+		
+		// Store the initialized components
+		a.wsServer = servers.WSServer
+		a.apiServer = servers.APIServer
+		a.throttler = servers.Throttler
+		handler = servers.Handler
+		appThrottler = servers.Throttler
+		
+		// Register settings service (needs App reference, so done here)
+		settingsProvider := &settingsProviderAdapter{app: a}
+		settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
+		if err := a.apiServer.RegisterService(settingsSvc); err != nil {
+			a.getLogger().Fatal().Err(err).Msg("Failed to register settings service")
+		}
+	} else {
+		// Servers are pre-initialized, just set the global handler
+		// (handler should have been created during InitializeServers)
+		if handler == nil {
+			a.getLogger().Fatal().Msg("Handler not initialized with pre-initialized servers")
+		}
+		appThrottler = a.throttler
+		
+		// Register settings service (needs App reference, so done here)
+		settingsProvider := &settingsProviderAdapter{app: a}
+		settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
+		if err := a.apiServer.RegisterService(settingsSvc); err != nil {
+			a.getLogger().Fatal().Err(err).Msg("Failed to register settings service")
 		}
 	}
-
-	// Initialize the throttler with WebSocket broadcaster
-	// These settings will be updated when settings are loaded
-	a.throttler = batch.NewAdaptiveEventThrottler(
-		ctx,
-		0,                    // minInterval - will be updated from settings
-		250*time.Millisecond, // maxInterval - will be updated from settings
-		500*time.Millisecond, // rateWindow for measuring event frequency
-		true,                 // enabled by default
-		a.getLogger(),        // Logger for throttler
-		broadcaster,          // WebSocket broadcaster
-	)
-
-	// Store throttler references for global access
-	appThrottler = a.throttler
-
-	// Initialize handler with throttler and WebSocket server
-	handler = core.NewGUIHandler(ctx, a.throttler, a.wsServer)
-
-	a.getLogger().Debug().Msg("Event throttler initialized")
-	
-	// Create WebRPC API server
-	apiServer, err := api.NewServer(api.DefaultConfig(), *a.getLogger())
-	if err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to create API server")
-	}
-	a.apiServer = apiServer
-	
-	// Register language service
-	langSvc := services.NewLanguageService(*a.getLogger())
-	if err := apiServer.RegisterService(langSvc); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to register language service")
-	}
-	
-	// Register dependency service
-	depsSvc := services.NewDependencyService(*a.getLogger(), a.wsServer)
-	if err := apiServer.RegisterService(depsSvc); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to register dependency service")
-	}
-	
-	// Register dry run service (handler implements DryRunProvider)
-	dryRunSvc := services.NewDryRunService(*a.getLogger(), handler)
-	if err := apiServer.RegisterService(dryRunSvc); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to register dry run service")
-	}
-	
-	// Register logging service (handler implements LoggingProvider)
-	loggingSvc := services.NewLoggingService(*a.getLogger(), handler, a.wsServer, a.throttler, handler, a.ctx)
-	if err := apiServer.RegisterService(loggingSvc); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to register logging service")
-	}
-	
-	// Register system service
-	systemSvc := services.NewSystemService(*a.getLogger())
-	if err := apiServer.RegisterService(systemSvc); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to register system service")
-	}
-	
-	// Register model service (handler implements STTModelProvider and LLMRegistryProvider)
-	modelSvc := services.NewModelService(*a.getLogger(), handler, handler)
-	if err := apiServer.RegisterService(modelSvc); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to register model service")
-	}
-	
-	// Register settings service with custom provider
-	settingsProvider := &settingsProviderAdapter{app: a}
-	settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
-	if err := apiServer.RegisterService(settingsSvc); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to register settings service")
-	}
-	
-	// Start API server
-	if err := apiServer.Start(); err != nil {
-		a.getLogger().Fatal().Err(err).Msg("Failed to start API server")
-	}
-	a.getLogger().Info().Int("port", apiServer.GetPort()).Msg("WebRPC API server started")
 }
 
 func (a *App) domReady(ctx context.Context) {
@@ -357,15 +320,6 @@ func parseStringToInt(s string) (int, error) {
 	var i int
 	_, err := fmt.Sscanf(s, "%d", &i)
 	return i, err
-}
-
-
-// GetAPIPort returns the port the WebRPC API server is listening on
-func (a *App) GetAPIPort() (int, error) {
-	if a.apiServer == nil {
-		return 0, fmt.Errorf("API server not initialized")
-	}
-	return a.apiServer.GetPort(), nil
 }
 
 // settingsProviderAdapter implements interfaces.SettingsProvider

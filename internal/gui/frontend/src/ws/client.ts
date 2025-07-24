@@ -1,5 +1,6 @@
 import { logger } from '../lib/logger';
 import type { WSMessage, MessageHandler, ConnectionStats, WebSocketClientConfig } from './types';
+import { getConfig } from '../config';
 
 export class WebSocketClient {
     private ws: WebSocket | null = null;
@@ -68,9 +69,10 @@ export class WebSocketClient {
         this.connectionAttempts++;
         
         try {
-            // Get port from backend if not provided
+            // Get port from injected config if not provided
             if (!port && !this.port) {
-                this.port = await window.go.gui.App.GetWebSocketPort();
+                const config = getConfig();
+                this.port = config.wsPort;
             } else if (port) {
                 this.port = port;
             }
