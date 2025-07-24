@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../../wailsjs/go/gui/App';
+    import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../api/services/media';
     import { logger } from '../lib/logger';
 
     export let mediaSource: MediaSource | null = null;  // Single selected video/directory

@@ -3,7 +3,7 @@
     import { slide, fade } from 'svelte/transition';
     import { settings, showSettings } from '../lib/stores';
 import { isDeveloperMode } from '../lib/developerMode';
-    import { OpenExecutableDialog } from '../../wailsjs/go/gui/App';
+    import { OpenExecutableDialog } from '../api/services/media';
     import { ValidateLanguageTag } from '../api';
     import { ExportDebugReport } from '../api/services/logging';
     import { LoadSettings, SaveSettings } from '../api/services/settings';

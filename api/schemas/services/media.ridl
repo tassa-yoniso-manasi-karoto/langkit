@@ -1,0 +1,22 @@
+webrpc = v1
+name = langkit-media
+version = v1.0.0
+
+# Media file operations service
+
+struct VideoInfo
+  - name: string
+  - path: string
+
+struct MediaLanguageInfo
+  - hasLanguageTags: bool
+
+service MediaService
+  # File dialogs (uses UI abstraction layer)
+  - OpenVideoDialog() => (path: string)
+  - OpenDirectoryDialog() => (path: string)
+  - OpenExecutableDialog(title: string) => (path: string)
+  
+  # File operations
+  - GetVideosInDirectory(dirPath: string) => (videos: []VideoInfo)
+  - CheckMediaLanguageTags(path: string) => (info: MediaLanguageInfo)

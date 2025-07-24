@@ -124,6 +124,12 @@ func registerServices(
 		return fmt.Errorf("failed to register model service: %w", err)
 	}
 	
+	// Register media service (handler implements MediaProvider)
+	mediaSvc := services.NewMediaService(logger, handler)
+	if err := apiServer.RegisterService(mediaSvc); err != nil {
+		return fmt.Errorf("failed to register media service: %w", err)
+	}
+	
 	// Note: Settings service is not registered here because it needs
 	// a reference to the App struct which is Wails-specific
 	

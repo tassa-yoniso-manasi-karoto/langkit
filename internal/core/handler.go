@@ -8,6 +8,8 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -366,6 +368,7 @@ var _ interfaces.DryRunProvider = (*GUIHandler)(nil)
 var _ interfaces.LoggingProvider = (*GUIHandler)(nil)
 var _ interfaces.STTModelProvider = (*GUIHandler)(nil)
 var _ interfaces.LLMRegistryProvider = (*GUIHandler)(nil)
+var _ interfaces.MediaProvider = (*GUIHandler)(nil)
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
@@ -1084,6 +1087,96 @@ func (h *GUIHandler) GetSummaryService() interface{} {
 // GetCurrentDryRunConfig returns the current dry run configuration (used by Task)
 func GetCurrentDryRunConfig() *DryRunConfig {
 	return currentDryRunConfig
+}
+
+// GetVideosInDirectory implements interfaces.MediaProvider interface
+func (h *GUIHandler) GetVideosInDirectory(dirPath string) ([]interface{}, error) {
+	var videos []interface{}
+
+	// Common video file extensions
+	videoExts := map[string]bool{
+		".mp4":  true,
+		".mkv":  true,
+		".avi":  true,
+		".mov":  true,
+		".wmv":  true,
+		".flv":  true,
+		".webm": true,
+		".m4v":  true,
+	}
+
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Check if file has video extension
+		ext := strings.ToLower(filepath.Ext(path))
+		if videoExts[ext] {
+			// Create VideoInfo that matches the generated type
+			videos = append(videos, map[string]string{
+				"name": info.Name(),
+				"path": path,
+			})
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return videos, nil
+}
+
+// CheckMediaLanguageTags implements interfaces.MediaProvider interface
+func (h *GUIHandler) CheckMediaLanguageTags(path string) (interface{}, error) {
+	// Default result
+	result := map[string]bool{
+		"hasLanguageTags": false,
+	}
+
+	// Check if path is a directory
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return result, err
+	}
+
+	if fileInfo.IsDir() {
+		// Get the first video file in the directory
+		videos, err := h.GetVideosInDirectory(path)
+		if err != nil {
+			return result, err
+		}
+		if len(videos) == 0 {
+			return result, fmt.Errorf("no video files found in directory")
+		}
+		// Use the first video file for checking
+		if videoMap, ok := videos[0].(map[string]string); ok {
+			path = videoMap["path"]
+		}
+	}
+
+	mediaInfo, err := Mediainfo(path)
+	if err != nil {
+		return result, err
+	}
+
+	// Check if any audio tracks have language tags
+	for _, track := range mediaInfo.AudioTracks {
+		if track.Language != nil {
+			result["hasLanguageTags"] = true
+			break
+		}
+	}
+
+	return result, nil
 }
 
 

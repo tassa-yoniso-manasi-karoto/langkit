@@ -9,7 +9,7 @@ import { get } from 'svelte/store';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import ErrorCard from './ErrorCard.svelte';
-    import { OpenExecutableDialog } from '../../wailsjs/go/gui/App';
+    import { OpenExecutableDialog } from '../api/services/media';
     import { DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../api/services/deps';
     import { SaveSettings } from '../api/services/settings';
     import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';

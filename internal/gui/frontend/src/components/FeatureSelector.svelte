@@ -30,7 +30,7 @@
     } from '../lib/featureGroupStore';
     import { 
         CheckMediaLanguageTags
-    } from '../../wailsjs/go/gui/App';
+    } from '../api/services/media';
     import {
         GetRomanizationStyles,
         ValidateLanguageTag,
