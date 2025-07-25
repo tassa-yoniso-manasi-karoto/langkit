@@ -11,6 +11,7 @@ Wails modules latest v2 <br>
 > When contributing you **must use go 1.23** for `go mod tidy` otherwise the toolchain will be overwritten to a newer version. <br> <br>
 > In other words, even if go1.23 is specified as go version, the **GH action will use the version specified by the toolchain for the build process** and thus it will fail. Use go version manager github.com/voidint/g to stay at 1.23 or correct manually the go.mod.
 
+
 # Frontend Dependencies
 
 ⚠️ **Svelte 5.19.2** (exact version required) <br>
@@ -66,6 +67,35 @@ wails build
 ```bash
 wails dev
 ```
+
+# Architecture Overview
+
+Langkit uses a hybrid architecture designed for maximum flexibility.
+
+This design allows the same codebase to adapt to different UI runtimes without modification while avoiding bugs of specific webviews (well, just WebView2 bugs really).
+
+## Binary Modes
+The application compiles to a single binary that operates in two modes:
+- **GUI mode** (default): Full Wails-based desktop application
+- **Server mode** (`--server` flag): Headless HTTP/WebSocket server for Qt WebEngine integration (Anki)
+
+## Communication Architecture
+The frontend-backend communication has been migrated away from Wails-specific APIs:
+- **WebRPC over HTTP**: Type-safe RPC for all request/response operations (replaced Wails App methods)
+- **WebSocket**: Real-time event broadcasting (logs, progress, state changes)
+- **DOM injection**: API/WebSocket ports are injected into the HTML via `window.__LANGKIT_CONFIG__`
+
+## UI Abstraction Layer
+The `internal/ui` package provides a singleton-based abstraction for runtime-specific operations:
+- **FileDialog interface**: Abstracts file/folder selection dialogs
+- **Wails mode**: Uses native Wails dialogs (Windows/macOS/Linux integrated)
+- **Server/Qt mode**: Uses [ncruces/zenity](github.com/ncruces/zenity) for cross-platform native dialogs, avoiding the need for Python IPC
+
+## Key Architectural Decisions
+- **No Wails dependencies in services**: All services use interfaces, enabling server mode to bypass Wails entirely while reusing its production-ready code wherever possible
+- **Embedded frontend**: The Svelte frontend is embedded by wails in the binary using Go's `embed` package
+- **Runtime detection**: The binary detects its mode at startup and initializes the appropriate UI provider
+- **WebSocket service interface**: The `WebsocketService` interface (with `Emit` method) decouples services from the concrete WebSocket implementation
 
 # Feature(s) selection to internal mode matrix
 
