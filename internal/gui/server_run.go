@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -43,6 +44,13 @@ func RunServerMode() {
 	}
 	logger := zerolog.New(writer).With().Timestamp().Str("module", "server").Logger()
 	logger.Info().Msg("Starting Langkit in server mode...")
+
+	// Check for optional Anki addon config path
+	var ankiConfigPath string
+	if len(os.Args) > 2 {
+		ankiConfigPath = os.Args[2]
+		logger.Info().Str("config_path", ankiConfigPath).Msg("Anki addon config path provided")
+	}
 
 	// Initialize UI manager with Zenity dialogs for native file operations and URL opening
 	ui.Initialize(dialogs.NewZenityFileDialog(), browser.NewZenityURLOpener())
@@ -103,6 +111,14 @@ func RunServerMode() {
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Update Anki config if path was provided
+	if ankiConfigPath != "" {
+		if err := updateAnkiConfig(ankiConfigPath, frontendPort, config.APIPort, config.WSPort, &logger); err != nil {
+			logger.Error().Err(err).Msg("Failed to update Anki config")
+			// Continue anyway - the addon can still discover ports through logs
+		}
+	}
 
 	// Start frontend server in goroutine
 	go func() {
@@ -231,4 +247,47 @@ func (l *simpleLogger) Debug(message string, args ...interface{}) {
 
 func (l *simpleLogger) Error(message string, args ...interface{}) {
 	l.logger.Error().Msgf(message, args...)
+}
+
+// updateAnkiConfig updates the Anki addon's config.json with server port information
+func updateAnkiConfig(configPath string, frontendPort, apiPort, wsPort int, logger *zerolog.Logger) error {
+	// Read existing config
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Parse JSON into a map to preserve existing keys
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("failed to parse config JSON: %w", err)
+	}
+
+	// Add langkit server information
+	config["langkit_server"] = map[string]interface{}{
+		"frontend_port": frontendPort,
+		"api_port":      apiPort,
+		"ws_port":       wsPort,
+		"updated_at":    time.Now().Unix(),
+	}
+
+	// Marshal back to JSON with indentation
+	updatedData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config JSON: %w", err)
+	}
+
+	// Write back to file
+	if err := os.WriteFile(configPath, updatedData, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	logger.Info().
+		Str("path", configPath).
+		Int("frontend_port", frontendPort).
+		Int("api_port", apiPort).
+		Int("ws_port", wsPort).
+		Msg("Updated Anki addon config with server ports")
+
+	return nil
 }
