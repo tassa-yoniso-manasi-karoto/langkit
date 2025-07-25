@@ -20,3 +20,6 @@ service SystemService
   
   # Check if a newer version is available
   - CheckForUpdate() => (updateAvailable: bool)
+  
+  # Opens a URL in the user's default browser
+  - OpenURL(url: string) => ()

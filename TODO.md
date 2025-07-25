@@ -1,5 +1,4 @@
 - fix log levels spamming useless
-- cloudflare 2 bucket for nightlies
 - welcomepop displays forever ignoring countAppStart
 - build.yml add "Give executable permission to run it (chmod +x)"
 
@@ -7,8 +6,7 @@
 - LINT
 
 .
-- cleanup abandoned wails methods & finish webrpc migration
-- memoize validateTargetlang
+- cleanup abandoned wails methods
 - autoscroll won't reenable when scrolling down.
 
 - ⭐ ANKI ADDON

@@ -1,5 +1,5 @@
 <script>
-    import { OpenURL } from '../../wailsjs/go/gui/App';
+    import { OpenURL } from '../api/services/system';
     import { statisticsStore } from '../lib/stores';
     
     export let version = '';

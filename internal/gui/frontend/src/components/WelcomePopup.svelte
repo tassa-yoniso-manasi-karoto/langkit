@@ -12,7 +12,7 @@ import { get } from 'svelte/store';
     import { OpenExecutableDialog } from '../api/services/media';
     import { DownloadFFmpeg, DownloadMediaInfo, CheckFFmpegAvailability, CheckMediaInfoAvailability } from '../api/services/deps';
     import { SaveSettings } from '../api/services/settings';
-    import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
+    import { OpenURL as BrowserOpenURL } from '../api/services/system';
     import { wsClient } from '../ws/client';
     
     // Custom slide projector transition

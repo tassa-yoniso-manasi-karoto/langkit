@@ -9,6 +9,7 @@ import (
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
 
@@ -67,4 +68,9 @@ func (s *SystemService) GetVersion(ctx context.Context) (*generated.VersionInfo,
 func (s *SystemService) CheckForUpdate(ctx context.Context) (bool, error) {
 	info := version.GetInfo(true)  // Wait for update check
 	return info.NewerVersionAvailable, nil
+}
+
+// OpenURL opens a URL in the user's default browser
+func (s *SystemService) OpenURL(ctx context.Context, url string) error {
+	return ui.GetURLOpener().OpenURL(url)
 }

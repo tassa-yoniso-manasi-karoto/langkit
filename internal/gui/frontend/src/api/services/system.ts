@@ -1,4 +1,5 @@
 import { SystemService } from '../generated/api.gen';
+import type { OpenURLArgs } from '../generated/api.gen';
 import { getAPIBaseUrl, defaultFetch } from '../client';
 
 // Singleton instance
@@ -65,6 +66,22 @@ export async function CheckForUpdate(): Promise<{ updateAvailable: boolean }> {
         };
     } catch (error) {
         console.error('CheckForUpdate error:', error);
+        throw error;
+    }
+}
+
+/**
+ * OpenURL - Drop-in replacement for Wails method
+ * Opens a URL in the user's default browser
+ * Maintains exact same signature as the Wails version
+ */
+export async function OpenURL(url: string): Promise<void> {
+    const service = await getSystemService();
+    
+    try {
+        await service.openURL({ url });
+    } catch (error) {
+        console.error('OpenURL error:', error);
         throw error;
     }
 }

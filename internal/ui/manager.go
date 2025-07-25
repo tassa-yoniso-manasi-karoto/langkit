@@ -2,6 +2,7 @@ package ui
 
 import (
 	"sync"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/browser"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
 )
 
@@ -13,6 +14,7 @@ var (
 // Manager provides access to UI runtime-specific operations
 type Manager struct {
 	fileDialog dialogs.FileDialog
+	urlOpener  browser.URLOpener
 	// Future extensions:
 	// messageDialog MessageDialog
 	// clipboard     Clipboard
@@ -20,10 +22,11 @@ type Manager struct {
 }
 
 // Initialize sets up the UI manager with specific implementations
-func Initialize(fileDialog dialogs.FileDialog) {
+func Initialize(fileDialog dialogs.FileDialog, urlOpener browser.URLOpener) {
 	once.Do(func() {
 		instance = &Manager{
 			fileDialog: fileDialog,
+			urlOpener:  urlOpener,
 		}
 	})
 }
@@ -34,6 +37,14 @@ func GetFileDialog() dialogs.FileDialog {
 		panic("ui manager not initialized")
 	}
 	return instance.fileDialog
+}
+
+// GetURLOpener returns the URL opener interface
+func GetURLOpener() browser.URLOpener {
+	if instance == nil {
+		panic("ui manager not initialized")
+	}
+	return instance.urlOpener
 }
 
 // IsInitialized returns whether the UI manager has been initialized

@@ -16,6 +16,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/browser"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/pkg/llms"
 )
@@ -93,7 +94,10 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
 	// Initialize UI manager with Wails implementation
-	ui.Initialize(dialogs.NewWailsFileDialog(ctx))
+	ui.Initialize(
+		dialogs.NewWailsFileDialog(ctx),
+		browser.NewWailsURLOpener(ctx),
+	)
 
 	a.getLogger().Info().Msg("Application starting up")
 

@@ -24,6 +24,7 @@
     import DockerIcon from './icons/DockerIcon.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import GroupOption from './GroupOption.svelte';
+    import ExternalLink from './ExternalLink.svelte';
     
     export let feature: FeatureDefinition;
     export let enabled = false;
@@ -970,12 +971,10 @@
                                 <span class="w-[14px] ml-3"></span>
                                 <div class="flex-1 text-xs text-white/90">
                                     <span>Pull requests and feedback are welcome.</span>
-                                    <a href="https://github.com/tassa-yoniso-manasi-karoto/translitkit" 
-                                       class="ml-1 text-primary hover:text-primary-300 transition-colors duration-200"
-                                       target="_blank" 
-                                       rel="noopener noreferrer">
+                                    <ExternalLink href="https://github.com/tassa-yoniso-manasi-karoto/translitkit" 
+                                       className="ml-1 text-primary hover:text-primary-300 transition-colors duration-200">
                                         Learn more
-                                    </a>
+                                    </ExternalLink>
                                 </div>
                             </div>
                         {/if}
