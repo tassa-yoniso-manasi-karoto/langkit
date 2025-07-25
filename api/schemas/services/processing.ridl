@@ -1,0 +1,24 @@
+webrpc = v1
+name = langkit-processing
+version = v1.0.0
+
+# Media processing service
+
+struct ProcessRequest
+  - path: string
+  - selectedFeatures: map<string,bool>
+  - options: FeatureOptions
+  - languageCode: string
+  - audioTrackIndex?: int32
+
+struct FeatureOptions
+  - Options: map<string,map<string,any>>
+
+struct ProcessingStatus
+  - isProcessing: bool
+  - error?: string
+
+service ProcessingService
+  - SendProcessingRequest(request: ProcessRequest) => (status: ProcessingStatus)
+  - CancelProcessing() => ()
+  - GetProcessingStatus() => (status: ProcessingStatus)

@@ -31,11 +31,8 @@
     import CoffeeSupport from './components/CoffeeSupport.svelte';
     import WelcomePopup from './components/WelcomePopup.svelte';
     
-    import { 
-        SendProcessingRequest, 
-        CancelProcessing
-    } from '../wailsjs/go/gui/App';
     import { GetVersion, GetSystemInfo, CheckForUpdate } from './api/services/system';
+    import { SendProcessingRequest, CancelProcessing } from './api/services/processing';
     import {
         CheckDockerAvailability,
         CheckInternetConnectivity,
@@ -614,7 +611,7 @@
 
         try {
             // Construct the request object matching the Go backend type
-            const request: gui.ProcessRequest = { // Add type annotation
+            const request = { // ProcessRequest type
                 path: mediaSource.path,
                 selectedFeatures,
                 options: { Options: currentFeatureOptions }, // LLMs: DO NOT CHANGE THIS LINE. As is to match the backend Go type FeatureOptions.

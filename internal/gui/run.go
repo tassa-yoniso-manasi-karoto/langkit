@@ -130,6 +130,12 @@ func registerServices(
 		return fmt.Errorf("failed to register media service: %w", err)
 	}
 	
+	// Register processing service (handler implements ProcessingProvider)
+	processingSvc := services.NewProcessingService(logger, handler)
+	if err := apiServer.RegisterService(processingSvc); err != nil {
+		return fmt.Errorf("failed to register processing service: %w", err)
+	}
+	
 	// Note: Settings service is not registered here because it needs
 	// a reference to the App struct which is Wails-specific
 	

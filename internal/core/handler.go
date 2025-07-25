@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +23,9 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/interfaces"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/summary"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
@@ -359,6 +363,10 @@ type GUIHandler struct {
 	guiLogWriter   *LogWriter
 	wsNotifier     StateChangeNotifier // For WebSocket broadcasting
 	llmRegistry    interface{}         // Stores LLM registry instance
+	
+	// Processing management
+	cancelMu   sync.Mutex
+	cancelFunc context.CancelFunc
 }
 
 // GUIHandler implements multiple focused interfaces: compile-time assertions
@@ -369,6 +377,7 @@ var _ interfaces.LoggingProvider = (*GUIHandler)(nil)
 var _ interfaces.STTModelProvider = (*GUIHandler)(nil)
 var _ interfaces.LLMRegistryProvider = (*GUIHandler)(nil)
 var _ interfaces.MediaProvider = (*GUIHandler)(nil)
+var _ interfaces.ProcessingProvider = (*GUIHandler)(nil)
 
 // LogWriter is the io.Writer that processes logs and routes them through the throttler
 type LogWriter struct {
@@ -1181,8 +1190,442 @@ func (h *GUIHandler) CheckMediaLanguageTags(path string) (interface{}, error) {
 
 
 
+// SendProcessingRequest implements interfaces.ProcessingProvider
+func (h *GUIHandler) SendProcessingRequest(ctx context.Context, request interface{}) error {
+	req, ok := request.(*generated.ProcessRequest)
+	if !ok {
+		return fmt.Errorf("invalid request type: expected *generated.ProcessRequest, got %T", request)
+	}
+	
+	// Create our own cancellable context, not tied to HTTP request
+	processCtx, cancel := context.WithCancel(context.Background())
+	
+	// Store cancel function for explicit cancellation
+	h.cancelMu.Lock()
+	h.cancelFunc = cancel
+	h.cancelMu.Unlock()
+	
+	// Reset progress
+	h.ResetProgress()
+	
+	// Create and configure task
+	tsk := NewTask(h)
+	h.translateReq2Tsk(*req, tsk)
+	
+	// Language validation (except for language-agnostic audio enhancement)
+	if !(tsk.Mode == Enhance && req.AudioTrackIndex != nil && *req.AudioTrackIndex > 0) {
+		settings, err := config.LoadSettings()
+		if err != nil {
+			h.LogErr(err, AbortAllTasks, "failed to load settings")
+			return err
+		}
+		
+		if req.LanguageCode == "" || settings.NativeLanguages == "" {
+			err := fmt.Errorf("no target language was passed or no native languages is configured in settings")
+			h.Log(Error, AbortAllTasks, err.Error())
+			return err
+		}
+		
+		tsk.Langs = append([]string{req.LanguageCode}, TagsStr2TagsArr(settings.NativeLanguages)...)
+		if procErr := tsk.PrepareLangs(); procErr != nil {
+			h.logger.Error().Err(procErr.Err).Msg("PrepareLangs failed")
+			return procErr.Err
+		}
+	}
+	
+	tsk.MediaSourceFile = req.Path
+	
+	h.logger.Info().
+		Str("file", tsk.MediaSourceFile).
+		Int("mode", int(tsk.Mode)).
+		Bool("MergeOutputFiles", tsk.MergeOutputFiles).
+		Msg("Starting processing")
+	
+	// Run the processing with our managed context
+	// Only explicit cancellation via CancelProcessing() will stop it
+	go func() {
+		defer func() {
+			h.cancelMu.Lock()
+			h.cancelFunc = nil
+			h.cancelMu.Unlock()
+		}()
+		
+		tsk.Routing(processCtx)
+	}()
+	
+	return nil
+}
+
+// CancelProcessing implements interfaces.ProcessingProvider
+func (h *GUIHandler) CancelProcessing() {
+	h.cancelMu.Lock()
+	defer h.cancelMu.Unlock()
+	
+	if h.cancelFunc != nil {
+		h.logger.Debug().Msg("Calling cancel function")
+		h.cancelFunc()
+		h.cancelFunc = nil
+		h.ResetProgress()
+	} else {
+		h.logger.Debug().Msg("CancelProcessing called but no cancel function available")
+	}
+}
+
+// IsProcessing implements interfaces.ProcessingProvider
+func (h *GUIHandler) IsProcessing() bool {
+	h.cancelMu.Lock()
+	defer h.cancelMu.Unlock()
+	
+	return h.cancelFunc != nil
+}
+
+// translateReq2Tsk translates ProcessRequest to Task configuration
+func (h *GUIHandler) translateReq2Tsk(req generated.ProcessRequest, tsk *Task) {
+	// Set audio track if specified
+	if req.AudioTrackIndex != nil && *req.AudioTrackIndex > 0 {
+		// internally tsk.UseAudiotrack refers to first track as the track whose index is 0
+		tsk.UseAudiotrack = int(*req.AudioTrackIndex) - 1
+		h.logger.Debug().
+			Int("UseAudiotrack", tsk.UseAudiotrack).
+			Msg("Set audio track index")
+	}
+	
+	// Check all enabled features for mergeOutputFiles=true
+	tsk.MergeOutputFiles = false
+	if req.Options != nil && req.Options.Options != nil {
+		for feature, enabled := range req.SelectedFeatures {
+			if !enabled {
+				continue
+			}
+			
+			featureOpts, ok := req.Options.Options[feature]
+			if !ok {
+				continue
+			}
+		
+		if mergeOutput, ok := featureOpts["mergeOutputFiles"]; ok {
+			if shouldMerge, ok := mergeOutput.(bool); ok && shouldMerge {
+				tsk.MergeOutputFiles = true
+				
+				// Get the mergingFormat from this feature
+				if mergingFormat, ok := featureOpts["mergingFormat"]; ok {
+					if format, ok := mergingFormat.(string); ok {
+						tsk.MergingFormat = format
+						
+						h.logger.Debug().
+							Str("feature", feature).
+							Str("mergingFormat", format).
+							Msg("Enabling merge output files")
+					}
+				}
+				
+				// We found a feature with mergeOutputFiles=true, no need to check others
+				break
+			}
+		}
+		}
+	}
+	
+	// Voice Enhancing feature
+	if req.SelectedFeatures["voiceEnhancing"] && req.Options != nil && req.Options.Options != nil {
+		featureOpts, ok := req.Options.Options["voiceEnhancing"]
+		if !ok {
+			h.Log(Error, AbortTask, "voiceEnhancing options not found")
+			return
+		}
+		
+		tsk.Mode = Enhance
+		
+		if sepLib, ok := featureOpts["sepLib"]; ok {
+			if sepLibStr, ok := sepLib.(string); ok {
+				tsk.SeparationLib = sepLibStr
+			}
+		}
+		
+		if voiceBoost, ok := featureOpts["voiceBoost"]; ok {
+			if boost, ok := voiceBoost.(float64); ok {
+				tsk.VoiceBoost = boost
+			}
+		}
+		
+		if originalBoost, ok := featureOpts["originalBoost"]; ok {
+			if boost, ok := originalBoost.(float64); ok {
+				tsk.OriginalBoost = boost
+			}
+		}
+		
+		if limiter, ok := featureOpts["limiter"]; ok {
+			if limit, ok := limiter.(float64); ok {
+				tsk.Limiter = limit
+			}
+		}
+
+		h.logger.Debug().
+			Interface("voice_enhancing_options", featureOpts).
+			Msg("Configured Voice Enhancing")
+	}
+
+	// Condensed Audio feature
+	if req.SelectedFeatures["condensedAudio"] {
+		featureOpts, ok := req.Options.Options["condensedAudio"]
+		if !ok {
+			h.Log(Error, AbortTask, "condensedAudio options not found")
+			return
+		}
+
+		if tsk.Mode == 0 {
+			tsk.Mode = Condense
+		}
+		tsk.WantCondensedAudio = true
+
+		if audioFormat, ok := featureOpts["audioFormat"].(string); ok {
+			tsk.CondensedAudioFmt = audioFormat
+		}
+
+		// Handle summary options if present
+		if enableSummary, ok := featureOpts["enableSummary"].(bool); ok && enableSummary {
+			tsk.WantSummary = true
+
+			if useSymbolicEmphasis, ok := featureOpts["useSymbolicEmphasis"].(bool); ok && useSymbolicEmphasis {
+				tsk.UseSymbolicEmphasis = true
+			}
+			
+			if provider, ok := featureOpts["summaryProvider"].(string); ok && provider != "" {
+				tsk.SummaryProvider = provider
+			}
+
+			if model, ok := featureOpts["summaryModel"].(string); ok && model != "" {
+				tsk.SummaryModel = model
+			}
+
+			if maxLength, ok := featureOpts["summaryMaxLength"].(float64); ok && maxLength > 0 {
+				tsk.SummaryMaxLength = int(maxLength)
+			}
+
+			if temp, ok := featureOpts["summaryTemperature"].(float64); ok && temp >= 0 && temp <= 2.0 {
+				tsk.SummaryTemperature = temp
+			}
+
+			if customPrompt, ok := featureOpts["summaryCustomPrompt"].(string); ok && customPrompt != "" {
+				tsk.SummaryCustomPrompt = customPrompt
+			}
+
+			h.logger.Debug().
+				Bool("enableSummary", true).
+				Str("provider", tsk.SummaryProvider).
+				Str("model", tsk.SummaryModel).
+				Str("outputLang", tsk.SummaryOutputLang).
+				Int("maxLength", tsk.SummaryMaxLength).
+				Float64("temperature", tsk.SummaryTemperature).
+				Bool("hasCustomPrompt", tsk.SummaryCustomPrompt != "").
+				Msg("Configured summary generation for condensed audio")
+		}
+
+		h.logger.Debug().
+			Interface("condensedAudio_options", featureOpts).
+			Msg("Configured Condensed Audio")
+	}
+	
+	// Transliteration-related features
+	var subtitleFeatures []string
+	if req.SelectedFeatures["subtitleRomanization"] {
+		subtitleFeatures = append(subtitleFeatures, "subtitleRomanization")
+	}
+	if req.SelectedFeatures["selectiveTransliteration"] {
+		subtitleFeatures = append(subtitleFeatures, "selectiveTransliteration")
+	}
+	if req.SelectedFeatures["subtitleTokenization"] {
+		subtitleFeatures = append(subtitleFeatures, "subtitleTokenization")
+	}
+	
+	// If any subtitle feature is selected, set up the transliteration mode
+	if len(subtitleFeatures) > 0 {
+		tsk.Mode = Translit
+		tsk.WantTranslit = true
+		
+		// Initialize TranslitTypes to ensure we know which outputs to generate
+		tsk.TranslitTypes = []TranslitType{}
+		
+		// Process common provider settings from subtitleRomanization
+		// (or from other features if romanization isn't selected)
+		var providerFeature string
+		if req.SelectedFeatures["subtitleRomanization"] {
+			providerFeature = "subtitleRomanization"
+		} else if req.SelectedFeatures["subtitleTokenization"] {
+			providerFeature = "subtitleTokenization"
+		} else if req.SelectedFeatures["selectiveTransliteration"] {
+			providerFeature = "selectiveTransliteration"
+		}
+		
+		if providerFeature != "" {
+			featureOpts, ok := req.Options.Options[providerFeature]
+			if !ok {
+				h.Log(Error, AbortTask, providerFeature + " options not found")
+				return
+			}
+			
+			// Process common provider settings
+			if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
+				if recreate, ok := dockerRecreate.(bool); ok {
+					tsk.DockerRecreate = recreate
+				}
+			}
+			
+			if browserAccessURL, ok := featureOpts["browserAccessURL"]; ok {
+				if url, ok := browserAccessURL.(string); ok {
+					tsk.BrowserAccessURL = url
+				}
+			}
+			
+			if style, ok := featureOpts["style"]; ok {
+				if styleStr, ok := style.(string); ok {
+					tsk.RomanizationStyle = styleStr
+				}
+			}
+			
+			if provider, ok := featureOpts["provider"]; ok {
+				// Provider info is captured in the style selection for romanization
+				h.logger.Debug().Interface("provider", provider).Msg("Provider info")
+			}
+			
+			h.logger.Debug().
+				Interface("subtitle_provider_options", featureOpts).
+				Bool("docker_recreate", tsk.DockerRecreate).
+				Str("browser_url", tsk.BrowserAccessURL).
+				Str("romanization_style", tsk.RomanizationStyle).
+				Msg("Configured Subtitle Provider")
+		}
+		
+		// Selective Transliteration
+		if req.SelectedFeatures["selectiveTransliteration"] {
+			tsk.TranslitTypes = append(tsk.TranslitTypes, Selective)
+
+			// Get selective transliteration specific options
+			featureOpts, ok := req.Options.Options["selectiveTransliteration"]
+			if ok {
+				if tokenizeOutput, ok := featureOpts["tokenizeOutput"]; ok {
+					if tokenize, ok := tokenizeOutput.(bool); ok {
+						tsk.TokenizeSelectiveTranslit = tokenize
+					} else {
+						// Default to true if not a boolean
+						tsk.TokenizeSelectiveTranslit = true
+					}
+				} else {
+					// Default to true if not specified (matching UI default)
+					tsk.TokenizeSelectiveTranslit = true
+				}
+
+				// Add TokenizedSelective type if tokenization is enabled
+				if tsk.TokenizeSelectiveTranslit {
+					tsk.TranslitTypes = append(tsk.TranslitTypes, TokenizedSelective)
+				}
+
+				if kanjiThreshold, ok := featureOpts["kanjiFrequencyThreshold"]; ok {
+					if threshold, ok := kanjiThreshold.(float64); ok {
+						tsk.KanjiThreshold = int(threshold)
+					}
+				}
+
+				h.logger.Debug().
+					Interface("selective_transliteration_options", featureOpts).
+					Int("kanji_threshold", tsk.KanjiThreshold).
+					Bool("tokenized_selective", tsk.TokenizeSelectiveTranslit).
+					Msg("Configured Selective Transliteration")
+			} else {
+				// No options found, use defaults
+				tsk.TokenizeSelectiveTranslit = true
+				tsk.TranslitTypes = append(tsk.TranslitTypes, TokenizedSelective)
+			}
+		}
+		
+		// Subtitle Romanization
+		if req.SelectedFeatures["subtitleRomanization"] {
+			tsk.TranslitTypes = append(tsk.TranslitTypes, Romanize)
+			h.logger.Debug().Msg("Subtitle Romanization enabled")
+		}
+		
+		// Subtitle Tokenization
+		if req.SelectedFeatures["subtitleTokenization"] {
+			tsk.TranslitTypes = append(tsk.TranslitTypes, Tokenize)
+			h.logger.Debug().Msg("Subtitle Tokenization enabled")
+		}
+	}
+
+	// Dubtitles feature
+	if req.SelectedFeatures["dubtitles"] {
+		featureOpts, ok := req.Options.Options["dubtitles"]
+		if !ok {
+			h.Log(Error, AbortTask, "dubtitles options not found")
+			return
+		}
+		
+		tsk.Mode = Subs2Dubs
+		
+		if padTiming, ok := featureOpts["padTiming"]; ok {
+			if padding, ok := padTiming.(float64); ok {
+				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+			}
+		}
+		
+		if stt, ok := featureOpts["stt"]; ok {
+			if sttStr, ok := stt.(string); ok {
+				tsk.STT = sttStr
+			}
+		}
+		
+		if sttTimeout, ok := featureOpts["sttTimeout"]; ok {
+			if timeout, ok := sttTimeout.(float64); ok {
+				tsk.TimeoutSTT = int(timeout)
+			}
+		}
+		
+		if initialPrompt, ok := featureOpts["initialPrompt"]; ok {
+			if prompt, ok := initialPrompt.(string); ok {
+				tsk.InitialPrompt = prompt
+			}
+		}
+
+		h.logger.Debug().
+			Interface("dubtitles_options", featureOpts).
+			Msg("Configured Dubtitles")
+	}
+
+	// Subs2Cards feature
+	if req.SelectedFeatures["subs2cards"] {
+		featureOpts, ok := req.Options.Options["subs2cards"]
+		if !ok {
+			h.Log(Error, AbortTask, "subs2cards options not found")
+			return
+		}
+		
+		tsk.Mode = Subs2Cards
+		
+		if padTiming, ok := featureOpts["padTiming"]; ok {
+			if padding, ok := padTiming.(float64); ok {
+				tsk.Offset = time.Duration(int(padding)) * time.Millisecond
+			}
+		}
+		
+		if screenshotWidth, ok := featureOpts["screenshotWidth"]; ok {
+			if width, ok := screenshotWidth.(float64); ok {
+				media.MaxWidth = int(width)
+			}
+		}
+		
+		if screenshotHeight, ok := featureOpts["screenshotHeight"]; ok {
+			if height, ok := screenshotHeight.(float64); ok {
+				media.MaxHeight = int(height)
+			}
+		}
+
+		h.logger.Debug().
+			Interface("subs2cards_options", featureOpts).
+			Msg("Configured Subs2Cards")
+	}
+}
+
 func placeholder3456() {
 	fmt.Println("")
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")
-	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓂𝓹𝓲𝓵𝓮𝓻")
+	pp.Println("𝓯*** 𝔂𝓸𝓾 𝓬𝓸𝓶𝓹𝓲𝓵𝓮𝓻")
 }

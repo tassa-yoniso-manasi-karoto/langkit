@@ -220,6 +220,15 @@ export async function SetTraceLogs(enable: boolean): Promise<void> {
 }
 ```
 
+CRITICAL: When importing type make sure to use a dedicated "import type" as in this example:
+```typescript
+import { ProcessingService } from '../generated/api.gen';
+import type { ProcessRequest, ProcessingStatus } from '../generated/api.gen';
+```
+If you don't use "import type" the bundler tree-shaking optimization will throw an error:
+	webkit: [Error] SyntaxError: Importing binding name 'ProcessRequest' is not found.
+	V8: Uncaught SyntaxError: The requested module '/src/api/generated/api.gen.ts' does not provide an export named 'ProcessRequest'
+
 ### Step 9: Update Frontend Usage
 
 Replace Wails method calls with your new WebRPC methods:
