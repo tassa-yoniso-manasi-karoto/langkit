@@ -2,7 +2,6 @@ package gui
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"os"
 	"time"
@@ -18,12 +17,6 @@ import (
 )
 
 const name = "langkit"
-
-//go:embed all:frontend/dist
-var assets embed.FS
-
-//go:embed frontend/icon/appicon.png
-var icon []byte
 
 func Run() {
 	defer func() {

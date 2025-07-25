@@ -8,7 +8,11 @@ import (
 
 func main() {
 	if len(os.Args) > 1 {
-		cli.Run()
+		if os.Args[1] == "--server" {
+			gui.RunServerMode()
+		} else {
+			cli.Run()
+		}
 	} else {
 		gui.Run()
 	}

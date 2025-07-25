@@ -247,14 +247,14 @@ This approach reuses Wails' battle-tested asset serving logic while bypassing al
 
 - [ ] Create `runHeadlessServer()` function with Chi router
 - [ ] Integrate Wails AssetHandler for asset serving
-- [ ] Implement config injection middleware (ports) using httptest.ResponseRecorder
+- [x] Implement config injection middleware (ports) using httptest.ResponseRecorder
 - [ ] Test embedded assets are accessible without Wails runtime
 
 ### Phase 2: Frontend Compatibility
 
-- [ ] Update frontend API client to check `window.__LANGKIT_CONFIG__`
+- [x] Update frontend API client to check `window.__LANGKIT_CONFIG__`
 - [ ] Add fallback logic: DOM config → default ports
-- [ ] Update WebSocket client to use injected configuration
+- [x] Update WebSocket client to use injected configuration
 - [ ] Add runtime-specific UI adjustments (exit button for Qt mode)
 
 ### Phase 3: Anki Add-on Development
@@ -262,7 +262,7 @@ This approach reuses Wails' battle-tested asset serving logic while bypassing al
 - [ ] Create minimal Python wrapper with process management
 - [ ] Implement binary downloader with progress UI
 - [ ] Add checksum verification
-- [ ] Implement ZenityFileDialog for Qt/headless mode
+- [x] Implement ZenityFileDialog for Qt/headless mode
 - [ ] Implement main tab integration in Anki UI
 
 ### Phase 4: Integration & Polish

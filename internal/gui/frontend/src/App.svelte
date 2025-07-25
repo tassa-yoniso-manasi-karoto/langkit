@@ -14,8 +14,8 @@
     import { enableWasm, isWasmEnabled, getWasmModule } from './lib/wasm'; // Removed setWasmSizeThreshold
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
-    // Import window API from Wails
-    import { WindowIsMinimised, WindowIsMaximised, OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime';
+    // Import runtime-safe wrappers
+    import { safeWindowIsMinimised, safeWindowIsMaximised, safeOnFileDrop, safeOnFileDropOff, isWailsMode } from './lib/runtime-bridge';
 
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -888,7 +888,7 @@
     async function checkWindowState() {
         try {
             // Check window minimized state
-            const minimized = await WindowIsMinimised();
+            const minimized = await safeWindowIsMinimised();
             const timestamp = new Date().toISOString();
             
             // Only update if state changed to avoid unnecessary re-renders
@@ -911,7 +911,7 @@
             }
             
             // Check maximized state too (could be used for enhancing UI on large screens)
-            const maximized = await WindowIsMaximised();
+            const maximized = await safeWindowIsMaximised();
             
             // Only log if maximized state changes
             if (maximized !== isWindowMaximized) {
@@ -1202,7 +1202,7 @@
         };
         
         // Set up global drag and drop handling
-        OnFileDrop(handleGlobalFileDrop, true);
+        safeOnFileDrop(handleGlobalFileDrop, true);
         logger.trace('app', 'Global drag and drop handler set up');
         document.addEventListener('transitionend', handleTransitionEnd);
         
@@ -1383,7 +1383,7 @@
         }
         
         // Clean up global drag and drop handler
-        OnFileDropOff();
+        safeOnFileDropOff();
         logger.trace('app', 'Global drag and drop handler cleaned up');
         
         // Clean up user activity event listeners

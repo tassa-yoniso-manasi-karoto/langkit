@@ -3,13 +3,16 @@ package gui
 import (
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 )
 
-// updateThrottlerSettings when config changes
-func (a *App) updateThrottlerSettings(settings config.Settings) {
-	if a.throttler == nil {
-		a.getLogger().Warn().Msg("Cannot update throttler settings: throttler is nil")
+// UpdateThrottlerWithSettings updates a throttler with the given settings
+// This is a shared function used by both Wails and server modes
+func UpdateThrottlerWithSettings(throttler *batch.AdaptiveEventThrottler, settings config.Settings, logger zerolog.Logger) {
+	if throttler == nil {
+		logger.Warn().Msg("Cannot update throttler settings: throttler is nil")
 		return
 	}
 
@@ -26,15 +29,20 @@ func (a *App) updateThrottlerSettings(settings config.Settings) {
 	}
 
 	// Set the throttler parameters
-	a.throttler.SetMinInterval(minInterval)
-	a.throttler.SetMaxInterval(maxInterval)
-	a.throttler.SetEnabled(settings.EventThrottling.Enabled)
+	throttler.SetMinInterval(minInterval)
+	throttler.SetMaxInterval(maxInterval)
+	throttler.SetEnabled(settings.EventThrottling.Enabled)
 
-	a.getLogger().Debug().
+	logger.Debug().
 		Bool("enabled", settings.EventThrottling.Enabled).
 		Dur("minInterval", minInterval).
 		Dur("maxInterval", maxInterval).
 		Msg("Throttler settings updated")
+}
+
+// updateThrottlerSettings when config changes
+func (a *App) updateThrottlerSettings(settings config.Settings) {
+	UpdateThrottlerWithSettings(a.throttler, settings, *a.getLogger())
 }
 
 // SetEventThrottling enables or disables the event throttling
