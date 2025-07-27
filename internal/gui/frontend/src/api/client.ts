@@ -17,8 +17,21 @@ async function initializeAPI(): Promise<void> {
         try {
             const config = getConfig();
             apiPort = config.apiPort;
-            apiBaseUrl = `http://localhost:${apiPort}`;
-            console.log(`WebRPC API initialized on port ${apiPort}`);
+            
+            // Check if we're in single-port mode (same origin)
+            // In single-port mode, use relative URLs to avoid CORS
+            const currentPort = window.location.port ? parseInt(window.location.port) : 
+                              (window.location.protocol === 'https:' ? 443 : 80);
+            
+            if (apiPort === currentPort || config.mode === 'qt') {
+                // Single-port mode or Qt mode - use relative URLs
+                apiBaseUrl = '/api';
+                console.log('WebRPC API using relative URLs (single-port mode)');
+            } else {
+                // Multi-port mode (Wails) - use absolute URLs with /api prefix
+                apiBaseUrl = `http://localhost:${apiPort}/api`;
+                console.log(`WebRPC API initialized on port ${apiPort}/api (multi-port mode)`);
+            }
         } catch (error) {
             console.error('Failed to initialize API:', error);
             throw error;

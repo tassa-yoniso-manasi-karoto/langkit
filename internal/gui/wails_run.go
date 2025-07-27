@@ -43,9 +43,11 @@ func Run() {
 	app := NewAppWithServers(servers)
 	
 	// Create runtime config for middleware
+	// Both API and WebSocket are served on the same port by UnifiedServer
+	unifiedPort := servers.WSServer.GetPort()
 	config := RuntimeConfig{
-		APIPort: servers.APIServer.GetPort(),
-		WSPort:  servers.WSServer.GetPort(),
+		APIPort: unifiedPort,
+		WSPort:  unifiedPort,
 		Mode:    "wails",
 		Runtime: "wails",
 	}

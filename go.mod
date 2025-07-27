@@ -17,6 +17,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/klauspost/compress v1.17.11
+	github.com/labstack/echo/v4 v4.13.3
 	github.com/ncruces/zenity v0.10.14
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openai/openai-go v0.1.0-beta.10
@@ -153,7 +154,6 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/labstack/echo/v4 v4.13.3 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leaanthony/go-ansi-parser v1.6.1 // indirect
 	github.com/leaanthony/gosod v1.0.4 // indirect

@@ -152,7 +152,13 @@ class ProcessManager:
     def get_frontend_url(self) -> Optional[str]:
         """Get the frontend URL if server is running."""
         if self.server_config and "langkit_server" in self.server_config:
-            port = self.server_config["langkit_server"].get("frontend_port")
+            server_info = self.server_config["langkit_server"]
+            # Check for single-port mode first
+            if server_info.get("single_port"):
+                port = server_info.get("port")
+            else:
+                # Fallback to frontend_port for backward compatibility
+                port = server_info.get("frontend_port")
             if port:
                 return f"http://localhost:{port}"
         return None

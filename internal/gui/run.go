@@ -6,6 +6,7 @@ import (
 	"time"
 	
 	"github.com/rs/zerolog"
+	assetserveroptions "github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/services"
@@ -13,10 +14,18 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 )
 
+// WebSocketEmitter interface for WebSocket broadcasting
+type WebSocketEmitter interface {
+	Emit(msgType string, data interface{})
+	SetOnConnect(fn func())
+	GetPort() int
+	Shutdown()
+}
+
 // ServerComponents holds the initialized servers and related components
 type ServerComponents struct {
 	APIServer *api.Server
-	WSServer  *WebSocketServer
+	WSServer  WebSocketEmitter
 	Throttler *batch.AdaptiveEventThrottler
 	Handler   *core.GUIHandler
 }
@@ -24,17 +33,42 @@ type ServerComponents struct {
 // InitializeServers creates and starts the API and WebSocket servers
 // This is shared logic used by both Wails and Qt runtimes
 func InitializeServers(ctx context.Context, logger zerolog.Logger) (*ServerComponents, error) {
-	// Create WebSocket server first (needed by throttler)
-	// Note: WebSocket server starts automatically in NewWebSocketServer
-	wsServer, err := NewWebSocketServer(logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create WebSocket server: %w", err)
+	// Create WebRPC API server without listener (router only)
+	apiServer := api.NewServerWithoutListener(api.DefaultConfig(), logger)
+	
+	// Create runtime config for unified server
+	// Both Wails and server modes will use backend-only mode here
+	// Frontend is handled separately in each mode
+	runtimeConfig := RuntimeConfig{
+		Mode:    "unified",
+		Runtime: "unified",
 	}
-	logger.Info().Int("port", wsServer.GetPort()).Msg("WebSocket server started")
+	
+	// Create unified server configuration
+	unifiedConfig := UnifiedServerConfig{
+		RuntimeConfig: runtimeConfig,
+		AssetOptions:  assetserveroptions.Options{}, // Empty - backend only
+		Logger:        logger,
+		APIServer:     apiServer,
+		BackendOnly:   true, // Only serve API and WebSocket
+		OnWSConnect:   nil,  // Will be set later if needed
+	}
+	
+	// Create unified server
+	unifiedServer, err := NewUnifiedServer(unifiedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create unified server: %w", err)
+	}
+	
+	// Start unified server
+	if err := unifiedServer.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start unified server: %w", err)
+	}
+	logger.Info().Int("port", unifiedServer.GetPort()).Msg("Unified server started (API + WebSocket)")
 	
 	// Create broadcaster function for throttler
 	broadcaster := func(msgType string, data interface{}) {
-		wsServer.Emit(msgType, data)
+		unifiedServer.Emit(msgType, data)
 	}
 	
 	// Initialize the throttler with WebSocket broadcaster
@@ -48,32 +82,18 @@ func InitializeServers(ctx context.Context, logger zerolog.Logger) (*ServerCompo
 		broadcaster,          // WebSocket broadcaster
 	)
 	
-	// Initialize handler with throttler and WebSocket server
-	handler := core.NewGUIHandler(ctx, throttler, wsServer)
+	// Initialize handler with throttler and unified server
+	handler := core.NewGUIHandler(ctx, throttler, unifiedServer)
 	
-	// Create WebRPC API server
-	apiServer, err := api.NewServer(api.DefaultConfig(), logger)
-	if err != nil {
-		wsServer.Shutdown()
-		return nil, fmt.Errorf("failed to create API server: %w", err)
-	}
-	
-	// Register all services
-	if err := registerServices(apiServer, logger, wsServer, throttler, handler, ctx); err != nil {
-		wsServer.Shutdown()
+	// Register all services with API server
+	if err := registerServices(apiServer, logger, unifiedServer, throttler, handler, ctx); err != nil {
+		unifiedServer.Shutdown()
 		return nil, fmt.Errorf("failed to register services: %w", err)
 	}
 	
-	// Start API server
-	if err := apiServer.Start(); err != nil {
-		wsServer.Shutdown()
-		return nil, fmt.Errorf("failed to start API server: %w", err)
-	}
-	logger.Info().Int("port", apiServer.GetPort()).Msg("WebRPC API server started")
-	
 	return &ServerComponents{
 		APIServer: apiServer,
-		WSServer:  wsServer,
+		WSServer:  unifiedServer,
 		Throttler: throttler,
 		Handler:   handler,
 	}, nil
@@ -83,7 +103,7 @@ func InitializeServers(ctx context.Context, logger zerolog.Logger) (*ServerCompo
 func registerServices(
 	apiServer *api.Server,
 	logger zerolog.Logger,
-	wsServer *WebSocketServer,
+	wsServer WebSocketEmitter,
 	throttler *batch.AdaptiveEventThrottler,
 	handler *core.GUIHandler,
 	ctx context.Context,

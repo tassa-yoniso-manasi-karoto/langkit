@@ -79,3 +79,10 @@ window.__LANGKIT_CONFIG__ = %s;
 		})
 	}
 }
+
+// NewEchoConfigInjectionMiddleware creates Echo-compatible middleware that injects runtime configuration
+func NewEchoConfigInjectionMiddleware(config RuntimeConfig) func(http.Handler) http.Handler {
+	// Echo middleware can use the same http.Handler pattern
+	// This allows us to reuse the existing injection logic
+	return NewConfigInjectionMiddleware(config)
+}

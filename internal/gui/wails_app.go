@@ -29,10 +29,10 @@ type App struct {
 	ctx         context.Context
 	procCancel  context.CancelFunc
 	throttler   *batch.AdaptiveEventThrottler
-	logger      *zerolog.Logger  // Only for early initialization before handler is ready
-	llmRegistry *llms.Registry   // LLM Registry for async provider management
-	wsServer    *WebSocketServer // WebSocket server for state updates
-	apiServer   *api.Server      // WebRPC API server
+	logger      *zerolog.Logger   // Only for early initialization before handler is ready
+	llmRegistry *llms.Registry    // LLM Registry for async provider management
+	wsServer    WebSocketEmitter  // WebSocket server for state updates
+	apiServer   *api.Server       // WebRPC API server
 	
 	// Pre-initialized servers (when using shared initialization)
 	preInitialized bool
@@ -211,9 +211,7 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	// Properly shut down the WebSocket server
 	if a.wsServer != nil {
 		a.getLogger().Info().Msg("Application closing, shutting down WebSocket server")
-		if err := a.wsServer.Shutdown(); err != nil {
-			a.getLogger().Error().Err(err).Msg("Failed to shutdown WebSocket server")
-		}
+		a.wsServer.Shutdown()
 		a.wsServer = nil
 	}
 	

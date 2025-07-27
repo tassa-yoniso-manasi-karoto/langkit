@@ -77,7 +77,25 @@ export class WebSocketClient {
                 this.port = port;
             }
             
-            const url = `ws://localhost:${this.port}/ws`;
+            // Build WebSocket URL based on current location and port configuration
+            let url: string;
+            
+            // Check if we're in single-port mode
+            const currentPort = window.location.port ? parseInt(window.location.port) : 
+                              (window.location.protocol === 'https:' ? 443 : 80);
+            const config = getConfig();
+            
+            if (this.port === currentPort || config.mode === 'qt') {
+                // Single-port mode - use relative URL
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.host;
+                url = `${protocol}//${host}/ws`;
+                logger.trace('[WebSocket] Using relative URL (single-port mode):', url);
+            } else {
+                // Multi-port mode - use absolute URL
+                url = `ws://localhost:${this.port}/ws`;
+                logger.trace('[WebSocket] Using absolute URL (multi-port mode):', url);
+            }
             logger.info('websocket', 'Connecting to WebSocket', { url });
             
             this.ws = new WebSocket(url);

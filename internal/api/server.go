@@ -70,6 +70,30 @@ func NewServer(config *Config, logger zerolog.Logger) (*Server, error) {
 		Int("port", port).
 		Msg("WebRPC server listening")
 
+	// Create server with router
+	srv := newServerWithRouter(config, logger)
+	srv.listener = listener
+	srv.port = port
+	srv.server = &http.Server{
+		Handler:      srv.router,
+		ReadTimeout:  config.ReadTimeout,
+		WriteTimeout: config.WriteTimeout,
+	}
+
+	return srv, nil
+}
+
+// NewServerWithoutListener creates a new WebRPC server without binding to a port
+func NewServerWithoutListener(config *Config, logger zerolog.Logger) *Server {
+	if config == nil {
+		config = DefaultConfig()
+	}
+	
+	return newServerWithRouter(config, logger)
+}
+
+// newServerWithRouter creates the core server with router but without network binding
+func newServerWithRouter(config *Config, logger zerolog.Logger) *Server {
 	// Create chi router
 	r := chi.NewRouter()
 
@@ -95,20 +119,13 @@ func NewServer(config *Config, logger zerolog.Logger) (*Server, error) {
 	srv := &Server{
 		registry: NewRegistry(logger),
 		router:   r,
-		listener: listener,
-		port:     port,
 		logger:   logger,
-		server: &http.Server{
-			Handler:      r,
-			ReadTimeout:  config.ReadTimeout,
-			WriteTimeout: config.WriteTimeout,
-		},
 	}
 
 	// Update service discovery handler
 	r.Get("/services", srv.servicesHandler)
 
-	return srv, nil
+	return srv
 }
 
 // GetPort returns the port the server is listening on
@@ -119,6 +136,11 @@ func (s *Server) GetPort() int {
 // Registry returns the service registry
 func (s *Server) Registry() *Registry {
 	return s.registry
+}
+
+// Router returns the Chi router instance
+func (s *Server) Router() chi.Router {
+	return s.router
 }
 
 // RegisterService adds a service to the server
@@ -136,6 +158,11 @@ func (s *Server) RegisterService(service Service) error {
 	return nil
 }
 
+// ServeHTTP implements http.Handler interface
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.router.ServeHTTP(w, r)
+}
+
 // Start begins serving requests
 func (s *Server) Start() error {
 	go func() {
@@ -150,6 +177,11 @@ func (s *Server) Start() error {
 // Shutdown gracefully stops the server
 func (s *Server) Shutdown() error {
 	s.logger.Debug().Msg("Shutting down WebRPC server")
+
+	// Skip shutdown if server was never created (router-only mode)
+	if s.server == nil {
+		return nil
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
