@@ -406,6 +406,9 @@ export const enableFrontendLoggingStore = writable<boolean>(true);
 // Store to control whether frontend logs are displayed in the LogViewer
 export const displayFrontendLogsStore = writable<boolean>(false);
 
+// Store to control whether frontend trace logs are sent to the backend
+export const sendFrontendTraceLogsStore = writable<boolean>(false);
+
 // System information store
 export interface SystemInfo {
     os: string;

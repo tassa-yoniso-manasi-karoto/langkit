@@ -2,7 +2,7 @@
 component inform from which part of the frontend was a given log emitted from
 */
 import { get } from 'svelte/store';
-import { enableFrontendLoggingStore, displayFrontendLogsStore, enableTraceLogsStore } from './stores';
+import { enableFrontendLoggingStore, displayFrontendLogsStore, enableTraceLogsStore, sendFrontendTraceLogsStore } from './stores';
 import { BackendLogger, BackendLoggerBatch } from '../api/services/logging';
 
 export enum Lvl {
@@ -623,6 +623,11 @@ export class Logger {
             return;
         }
         
+        // Skip trace logs if sendFrontendTraceLogsStore is disabled
+        if (e.lvl === Lvl.TRACE && !get(sendFrontendTraceLogsStore)) {
+            return;
+        }
+        
         // Track backend call for rate limiting
         this._backendCallTimes.push(Date.now());
         
@@ -650,12 +655,18 @@ export class Logger {
             return;
         }
         
+        // Filter out trace logs if sendFrontendTraceLogsStore is disabled
+        const filteredEntries = entries.filter(e => 
+            e.lvl > Lvl.TRACE || get(sendFrontendTraceLogsStore)
+        );
+        if (filteredEntries.length === 0) return;
+        
         // Track backend call for rate limiting
         this._backendCallTimes.push(Date.now());
         
         try {
-            const component = entries[0].comp;
-            const sanEntries = entries.map(e => {
+            const component = filteredEntries[0].comp;
+            const sanEntries = filteredEntries.map(e => {
                 const copy = { ...e };
                 if (copy.ctx) {
                     copy.ctx = this._sanitizeCtx(copy.ctx);
@@ -667,7 +678,7 @@ export class Logger {
         } catch (err) {
             console.error("Failed to relay batch to backend:", err);
             // Queue error logs for retry (they will be batched by retry processor)
-            for (const e of entries) {
+            for (const e of filteredEntries) {
                 if (e.lvl >= Lvl.ERROR) {
                     this._retryQ.push({ entry: e, retries: 0 });
                 }

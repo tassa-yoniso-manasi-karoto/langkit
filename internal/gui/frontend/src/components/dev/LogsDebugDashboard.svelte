@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore, settings } from '../../lib/stores';
+    import { enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore, sendFrontendTraceLogsStore, settings } from '../../lib/stores';
     import { isWasmSupported } from '../../lib/wasm';
     import { LoadSettings } from '../../api/services/settings';
     
@@ -20,9 +20,8 @@
     });
 </script>
 
-<h4>Log Viewer Controls</h4>
+<h4>Log Controls</h4>
 <div class="control-section mb-4">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">Trace Logs</h5>
     <div class="flex items-center gap-3">
         <label class="switch">
             <input type="checkbox" bind:checked={$enableTraceLogsStore}>
@@ -31,12 +30,11 @@
         <span class="text-sm text-gray-300">Enable Trace Logs</span>
     </div>
     <p class="text-xs text-gray-500 mt-1">
-        Streams verbose trace logs to the GUI log viewer. Impacts performance.
+        Streams verbose trace logs to the GUI log viewer.
     </p>
 </div>
 
 <div class="control-section mb-4">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">Frontend Logging</h5>
     <div class="flex items-center gap-3">
         <label class="switch">
             <input type="checkbox" bind:checked={$enableFrontendLoggingStore}>
@@ -45,12 +43,21 @@
         <span class="text-sm text-gray-300">Send Frontend Logs to Backend</span>
     </div>
     <p class="text-xs text-gray-500 mt-1">
-        Forwards frontend logs to the backend for logging through zerolog.
+        Forwards frontend logs to the backend for logging.
     </p>
+    
+    {#if $enableFrontendLoggingStore}
+        <div class="ml-8 mt-3 flex items-center gap-3">
+            <label class="switch">
+                <input type="checkbox" bind:checked={$sendFrontendTraceLogsStore}>
+                <span class="toggle-slider round"></span>
+            </label>
+            <span class="text-sm text-gray-300">Include Trace Logs</span>
+        </div>
+    {/if}
 </div>
 
 <div class="control-section mb-4">
-    <h5 class="text-xs font-semibold mb-2 opacity-80">Frontend Log Display</h5>
     <div class="flex items-center gap-3">
         <label class="switch">
             <input type="checkbox" bind:checked={$displayFrontendLogsStore}>
@@ -63,6 +70,7 @@
     </p>
 </div>
 
+<h4>LogViewer Controls</h4>
 <div class="control-section mb-4">
     <h5 class="text-xs font-semibold mb-2 opacity-80">Virtualization</h5>
     <div class="flex flex-wrap gap-2">
@@ -337,5 +345,13 @@
     
     .gap-3 {
         gap: 0.75rem;
+    }
+    
+    .ml-8 {
+        margin-left: 2rem;
+    }
+    
+    .mt-3 {
+        margin-top: 0.75rem;
     }
 </style>
