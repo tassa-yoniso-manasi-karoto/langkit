@@ -20,7 +20,7 @@ Since Langkit has migrated to WebRPC for API calls, we can bypass Wails' complex
 
 ## Architecture Design
 
-### Single Binary, Two Modes
+### Single Binary, Two Modes (technically 3 with the CLI)
 
 ```go
 //go:embed all:frontend/dist
@@ -245,15 +245,14 @@ This approach reuses Wails' battle-tested asset serving logic while bypassing al
 
 ### Phase 1: Core Server Mode
 
-- [ ] Create `runHeadlessServer()` function with Chi router
-- [ ] Integrate Wails AssetHandler for asset serving
+- [x] Create `runHeadlessServer()` function with Chi router
+- [x] Integrate Wails AssetHandler for asset serving
 - [x] Implement config injection middleware (ports) using httptest.ResponseRecorder
-- [ ] Test embedded assets are accessible without Wails runtime
+- [x] Test embedded assets are accessible without Wails runtime
 
 ### Phase 2: Frontend Compatibility
 
 - [x] Update frontend API client to check `window.__LANGKIT_CONFIG__`
-- [ ] Add fallback logic: DOM config → default ports
 - [x] Update WebSocket client to use injected configuration
 - [ ] Add runtime-specific UI adjustments (exit button for Qt mode)
 
@@ -268,7 +267,7 @@ This approach reuses Wails' battle-tested asset serving logic while bypassing al
 ### Phase 4: Integration & Polish
 
 - [ ] Test Windows binary with `--server` flag (no console output expected)
-- [ ] Verify file dialogs work with Zenity
+- [x] Verify file dialogs work with Zenity
 - [ ] Test complete user flow from Anki
 
 ### Phase 5: Distribution
@@ -413,10 +412,12 @@ For deeper understanding, these Wails files are most relevant:
 
 ### Port Management
 
-- Frontend: 8080 (fixed for simplicity [dev note: why?])
+- Frontend:  OS-assigned dynamic port
 - WebRPC API: OS-assigned dynamic port
 - WebSocket: OS-assigned dynamic port
-- All ports injected via DOM, very low conflict risk
+- All ports:
+  - injected via DOM, very low conflict risk
+  - shared inside config.json
 
 ### Binary Distribution
 

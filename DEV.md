@@ -97,6 +97,12 @@ The `internal/ui` package provides a singleton-based abstraction for runtime-spe
 - **Runtime detection**: The binary detects its mode at startup and initializes the appropriate UI provider
 - **WebSocket service interface**: The `WebsocketService` interface (with `Emit` method) decouples services from the concrete WebSocket implementation
 
+### Project stats
+
+```bash
+cloc . --include-ext=go,ts,svelte,rs,css --exclude-dir=node_modules,vendor,dist,build --not-match-f="\.gen\.(go|ts)$"  --by-file-by-lang
+```
+
 # Feature(s) selection to internal mode matrix
 
 Feature selection must be 'translated' into a Task mode. These modes for the most part correspond to CLI subcommands.

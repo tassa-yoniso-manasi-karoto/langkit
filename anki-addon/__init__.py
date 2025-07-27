@@ -1,0 +1,349 @@
+"""
+Langkit Addon for Anki
+Integrates Langkit's language learning tools directly into Anki.
+"""
+
+import os
+import sys
+from pathlib import Path
+from typing import Optional
+
+import aqt
+from aqt import mw, gui_hooks
+from aqt.qt import *
+from aqt.utils import showInfo, showWarning, qconnect
+from aqt.utils import tr
+import aqt.toolbar
+
+# Add addon directory to path for imports
+addon_dir = os.path.dirname(__file__)
+if addon_dir not in sys.path:
+    sys.path.insert(0, addon_dir)
+
+from binary_manager import BinaryManager
+from process_manager import ProcessManager
+from webview_tab import LangkitTab
+
+
+class LangkitAddon:
+    """Main addon controller."""
+    
+    def __init__(self):
+        self.addon_path = Path(__file__).parent
+        self.config = mw.addonManager.getConfig(__name__)
+        self.binary_manager: Optional[BinaryManager] = None
+        self.process_manager: Optional[ProcessManager] = None
+        self.webview_tab: Optional[LangkitTab] = None
+        
+        # Save config on changes
+        mw.addonManager.setConfigAction(__name__, self._on_config_changed)
+        
+    def initialize(self):
+        """Initialize the addon after profile is loaded."""
+        # Create binary manager
+        self.binary_manager = BinaryManager(self.addon_path, self.config)
+        
+        # Don't create process manager yet - wait until binary is available
+        # Don't create webview tab yet - it needs process manager
+        
+        # Setup toolbar button
+        self._setup_toolbar()
+        
+        # Add menu items
+        self._setup_menu()
+        
+        # Check for updates if enabled
+        if self.config.get("auto_update", True):
+            self._check_for_updates()
+            
+        # Start on startup if configured (only if binary exists)
+        if self.config.get("launch_on_startup", False) and self.binary_manager.check_binary_exists():
+            QTimer.singleShot(1000, self._start_server)
+            
+    def _setup_toolbar(self):
+        """Setup toolbar button using Anki's hook system."""
+        gui_hooks.top_toolbar_did_init_links.append(self._on_toolbar_init)
+        
+        # Force toolbar redraw to show our button
+        if hasattr(mw, 'toolbar') and mw.toolbar:
+            mw.toolbar.draw()
+        
+    def _on_toolbar_init(self, links: list[str], toolbar: aqt.toolbar.Toolbar) -> None:
+        """Add Langkit button to the main toolbar."""
+        langkit_link = toolbar.create_link(
+            cmd="langkit",
+            label="Langkit",
+            func=self._on_open_langkit,
+            tip="Open Langkit (K)",
+            id="langkit"
+        )
+        # Insert before the last item (Sync) to place it between Stats and Sync
+        if links:
+            links.insert(-1, langkit_link)
+        else:
+            links.append(langkit_link)
+            
+    def _setup_menu(self):
+        """Add Langkit menu items."""
+        menu = QMenu("Langkit", mw)
+        mw.menuBar().addMenu(menu)
+        
+        # Open Langkit action
+        open_action = QAction("Open Langkit", mw)
+        qconnect(open_action.triggered, self._on_open_langkit)
+        menu.addAction(open_action)
+        
+        menu.addSeparator()
+        
+        # Server control actions
+        start_action = QAction("Start Server", mw)
+        qconnect(start_action.triggered, self._start_server)
+        menu.addAction(start_action)
+        
+        stop_action = QAction("Stop Server", mw)
+        qconnect(stop_action.triggered, self._stop_server)
+        menu.addAction(stop_action)
+        
+        restart_action = QAction("Restart Server", mw)
+        qconnect(restart_action.triggered, self._restart_server)
+        menu.addAction(restart_action)
+        
+        menu.addSeparator()
+        
+        # Download action
+        download_action = QAction("Download Langkit Application", mw)
+        qconnect(download_action.triggered, self._download_binary_manual)
+        menu.addAction(download_action)
+        
+        # Update action
+        update_action = QAction("Check for Updates", mw)
+        qconnect(update_action.triggered, self._check_for_updates_manual)
+        menu.addAction(update_action)
+        
+        # Diagnostics action
+        diag_action = QAction("Show Diagnostics", mw)
+        qconnect(diag_action.triggered, self._show_diagnostics)
+        menu.addAction(diag_action)
+        
+    def _on_open_langkit(self):
+        """Open Langkit interface."""
+        # Check if we need to download the binary first
+        if not self.binary_manager.check_binary_exists():
+            binary_path = self.binary_manager.download_with_confirmation()
+            if not binary_path:
+                # User cancelled download or download failed
+                return
+                
+            # Binary downloaded successfully, create process manager
+            self.process_manager = ProcessManager(binary_path, self.config)
+            
+            # Create webview tab
+            self.webview_tab = LangkitTab(self.process_manager)
+        else:
+            # Binary exists, ensure process manager and webview are created
+            if not self.process_manager:
+                binary_path = self.binary_manager.get_binary_path_if_exists()
+                if binary_path:
+                    self.process_manager = ProcessManager(binary_path, self.config)
+                    
+            if not self.webview_tab and self.process_manager:
+                self.webview_tab = LangkitTab(self.process_manager)
+                
+        # Show the interface
+        if self.webview_tab:
+            # show() will handle server startup and clean up on failure
+            self.webview_tab.show()
+            
+    def _start_server(self):
+        """Start the Langkit server."""
+        # Ensure binary exists
+        if not self.binary_manager.check_binary_exists():
+            showWarning("Langkit application is not installed. Click the Langkit button to download it.")
+            return
+            
+        # Create process manager if needed
+        if not self.process_manager:
+            binary_path = self.binary_manager.get_binary_path_if_exists()
+            if binary_path:
+                self.process_manager = ProcessManager(binary_path, self.config)
+            else:
+                showWarning("Could not find Langkit binary")
+                return
+            
+        if self.process_manager.is_running():
+            showInfo("Langkit server is already running")
+            return
+            
+        if self.process_manager.start():
+            showInfo("Langkit server started successfully")
+        else:
+            showWarning("Failed to start Langkit server")
+            
+    def _stop_server(self):
+        """Stop the Langkit server."""
+        if not self.process_manager:
+            return
+            
+        self.process_manager.stop()
+        showInfo("Langkit server stopped")
+        
+    def _restart_server(self):
+        """Restart the Langkit server."""
+        if not self.process_manager:
+            return
+            
+        if self.process_manager.restart():
+            showInfo("Langkit server restarted successfully")
+        else:
+            showWarning("Failed to restart Langkit server")
+            
+    def _download_binary_manual(self):
+        """Manually trigger binary download."""
+        if self.binary_manager.check_binary_exists():
+            showInfo("Langkit application is already installed.")
+            return
+            
+        binary_path = self.binary_manager.download_with_confirmation()
+        if binary_path:
+            # Create process manager with new binary
+            self.process_manager = ProcessManager(binary_path, self.config)
+            showInfo("Langkit application downloaded successfully!")
+        
+    def _check_for_updates(self):
+        """Check for updates in background."""
+        def check():
+            if not self.binary_manager:
+                return
+                
+            # Only check for updates if we have a known version
+            current_version = self.config.get("last_known_version")
+            if not current_version or current_version == "unknown":
+                print("[Langkit] Skipping update check - no known version")
+                return
+                
+            new_version = self.binary_manager.check_for_updates()
+            if new_version:
+                # Show update notification on main thread
+                mw.taskman.run_on_main(
+                    lambda: self._show_update_notification(new_version)
+                )
+                
+        QTimer.singleShot(5000, check)  # Check after 5 seconds
+        
+    def _check_for_updates_manual(self):
+        """Manual update check."""
+        if not self.binary_manager:
+            return
+            
+        new_version = self.binary_manager.check_for_updates()
+        if new_version:
+            self._show_update_notification(new_version)
+        else:
+            showInfo("Langkit is up to date!")
+            
+    def _show_update_notification(self, new_version: str):
+        """Show update available notification."""
+        current = self.config.get("last_known_version")
+        if not current:
+            current = "unknown"
+        msg = f"A new version of Langkit is available!\n\n"
+        msg += f"Current version: {current}\n"
+        msg += f"New version: {new_version}\n\n"
+        msg += "Would you like to update now?"
+        
+        ret = QMessageBox.question(
+            mw,
+            "Langkit Update Available",
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if ret == QMessageBox.StandardButton.Yes:
+            self._perform_update()
+            
+    def _perform_update(self):
+        """Perform the update."""
+        # Stop server if running
+        was_running = False
+        if self.process_manager and self.process_manager.is_running():
+            was_running = True
+            self.process_manager.stop()
+            
+        # Update binary
+        if self.binary_manager.update_binary():
+            # Update process manager with new binary
+            binary_path = self.binary_manager.get_binary_path()
+            if binary_path:
+                self.process_manager.binary_path = binary_path
+                
+            # Save updated config
+            self._save_config()
+            
+            # Restart if was running
+            if was_running:
+                self.process_manager.start()
+                
+            showInfo("Langkit updated successfully!")
+        else:
+            showWarning("Failed to update Langkit")
+            
+    def _show_diagnostics(self):
+        """Show diagnostic information."""
+        info = ["Langkit Addon Diagnostics\n"]
+        info.append(f"Addon Path: {self.addon_path}")
+        info.append(f"Config: {self.config}")
+        
+        if self.binary_manager:
+            platform_info = self.binary_manager.get_platform_info()
+            info.append(f"\nPlatform: {platform_info}")
+            binary_name = self.binary_manager.get_binary_name()
+            info.append(f"Expected Binary: {binary_name}")
+            
+        if self.process_manager:
+            diag = self.process_manager.get_diagnostics()
+            info.append(f"\nProcess Diagnostics:")
+            for key, value in diag.items():
+                info.append(f"  {key}: {value}")
+                
+        showInfo("\n".join(info))
+        
+    def _on_config_changed(self):
+        """Handle configuration changes."""
+        self.config = mw.addonManager.getConfig(__name__)
+        self._save_config()
+        
+    def _save_config(self):
+        """Save configuration."""
+        mw.addonManager.writeConfig(__name__, self.config)
+        
+    def cleanup(self):
+        """Clean up resources on shutdown."""
+        if self.webview_tab:
+            self.webview_tab.cleanup()
+            
+        if self.process_manager:
+            self.process_manager.stop()
+
+
+# Global addon instance
+addon = None
+
+
+def initialize_addon():
+    """Initialize the addon after profile load."""
+    global addon
+    addon = LangkitAddon()
+    addon.initialize()
+
+
+def cleanup_addon():
+    """Clean up on profile close."""
+    global addon
+    if addon:
+        addon.cleanup()
+        addon = None
+
+
+# Register hooks
+gui_hooks.profile_did_open.append(initialize_addon)
+gui_hooks.profile_will_close.append(cleanup_addon)

@@ -1,0 +1,12 @@
+{
+    "binary_path": null,
+    "auto_update": true,
+    "launch_on_startup": false,
+    "server_config_path": null,
+    "last_known_version": null,
+    "github_repo": "tassa-yoniso-manasi-karoto/langkit",
+    "download_timeout": 300,
+    "process_startup_timeout": 30,
+    "config_poll_interval": 0.5,
+    "config_poll_timeout": 10
+}
