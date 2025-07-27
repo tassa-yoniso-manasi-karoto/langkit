@@ -52,10 +52,6 @@ class LangkitWebView(QWebEngineView):
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
-        
-        # Enable developer tools in debug mode
-        if os.environ.get("QTWEBENGINE_REMOTE_DEBUGGING"):
-            settings.setAttribute(QWebEngineSettings.WebAttribute.DeveloperExtrasEnabled, True)
             
         # Set focus policy to ensure webview can receive input
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)

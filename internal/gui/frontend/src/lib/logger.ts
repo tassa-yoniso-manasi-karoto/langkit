@@ -189,6 +189,9 @@ export class Logger {
         //     sessionId: this._gCtx.sessionId,
         //     appVersion: this._gCtx.appVersion || 'dev'
         // });
+        
+        // Enable batch mode by default to reduce request volume
+        this.beginBatch();
     }
 
     log(lvl: Lvl, comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
@@ -574,14 +577,8 @@ export class Logger {
             console.error("Failed to relay log to backend:", err);
             if (e.lvl >= Lvl.ERROR) {
                 this._retryQ.push({ entry: e, retries: 0 });
-            } else if (navigator.sendBeacon) {
-                try {
-                    const beacon = new Blob([JSON.stringify({ component: e.comp, log: e })], { type: 'application/json' });
-                    navigator.sendBeacon('/api/logs', beacon);
-                } catch (beaconErr) {
-                    console.error("Failed to send log via beacon:", beaconErr);
-                }
             }
+            // Drop non-error logs if they fail (no sendBeacon fallback)
         }
     }
 
@@ -606,26 +603,11 @@ export class Logger {
             BackendLoggerBatch(component, JSON.stringify(sanEntries));
         } catch (err) {
             console.error("Failed to relay batch to backend:", err);
-            // Try to send logs individually
-            try {
-                for (const e of sanEntries) {
-                    BackendLogger(e.comp || component, JSON.stringify(e));
+            // Queue error logs for retry (they will be batched by retry processor)
+            for (const e of entries) {
+                if (e.lvl >= Lvl.ERROR) {
+                    this._retryQ.push({ entry: e, retries: 0 });
                 }
-            } catch (individualErr) {
-                console.error("Failed individual log fallback:", individualErr);
-                // Queue error logs for retry
-                for (const e of entries) {
-                    if (e.lvl >= Lvl.ERROR) {
-                        this._retryQ.push({ entry: e, retries: 0 });
-                    }
-                }
-            }
-
-            if (navigator.sendBeacon) {
-                try {
-                    const beacon = new Blob([JSON.stringify({ batch: entries })], { type: 'application/json' });
-                    navigator.sendBeacon('/api/logs/batch', beacon);
-                } catch (beaconErr) { /* Already logged */ }
             }
         }
     }
@@ -635,32 +617,52 @@ export class Logger {
             if (this._isProcRetryQ || this._retryQ.length === 0) return;
             this._isProcRetryQ = true;
             try {
-                const item = this._retryQ.shift();
-                if (!item) {
+                // Batch process retries instead of one at a time
+                const batchSize = Math.min(this._retryQ.length, 10); // Process up to 10 retries at once
+                const batch: Array<{ entry: LEntry; retries: number }> = [];
+                
+                for (let i = 0; i < batchSize; i++) {
+                    const item = this._retryQ.shift();
+                    if (item) batch.push(item);
+                }
+                
+                if (batch.length === 0) {
                     this._isProcRetryQ = false;
                     return;
                 }
-                const { entry: e, retries: r } = item;
-                if (r < this._cfg.batConf.retries) {
-                    try {
-                        // Use BackendLogger for individual log
-                        BackendLogger(e.comp, JSON.stringify(e));
-                    } catch (err) {
-                        this._retryQ.push({ entry: e, retries: r + 1 });
-                        await new Promise(resolve => setTimeout(resolve, this._cfg.batConf.retryDelay));
+                
+                // Separate items that can be retried from those that have exceeded max retries
+                const toRetry: LEntry[] = [];
+                const failedRetries: Array<{ entry: LEntry; retries: number }> = [];
+                
+                for (const item of batch) {
+                    if (item.retries < this._cfg.batConf.retries) {
+                        toRetry.push(item.entry);
+                        failedRetries.push({ entry: item.entry, retries: item.retries + 1 });
                     }
-                } else {
-                    if (navigator.sendBeacon) {
-                        try {
-                            const beacon = new Blob([JSON.stringify({ component: e.comp, log: e })], { type: 'application/json' });
-                            navigator.sendBeacon('/api/logs', beacon);
-                        } catch (beaconErr) { /* Give up */ }
+                    // Drop logs that exceed max retries (no sendBeacon fallback)
+                }
+                
+                if (toRetry.length > 0) {
+                    try {
+                        // Try to send as a batch
+                        const component = toRetry[0].comp || 'logger';
+                        BackendLoggerBatch(component, JSON.stringify(toRetry));
+                    } catch (err) {
+                        // If batch fails, add back to retry queue with exponential backoff
+                        for (const item of failedRetries) {
+                            this._retryQ.push(item);
+                        }
+                        // Exponential backoff: delay doubles with each retry (1s, 2s, 4s...)
+                        const maxRetries = Math.max(...failedRetries.map(item => item.retries));
+                        const backoffDelay = Math.min(this._cfg.batConf.retryDelay * Math.pow(2, maxRetries - 1), 30000); // Cap at 30s
+                        await new Promise(resolve => setTimeout(resolve, backoffDelay));
                     }
                 }
             } finally {
                 this._isProcRetryQ = false;
                 if (this._retryQ.length > 0) {
-                    setTimeout(procQ, 10);
+                    setTimeout(procQ, 100); // Check retry queue more frequently
                 }
             }
         };
@@ -795,17 +797,7 @@ export class Logger {
         if (this._batLogs.length > 0) {
             this.flushBatch();
         }
-        if (this._retryQ.length > 0 && navigator.sendBeacon) {
-            try {
-                const criticalRetries = this._retryQ
-                    .filter(item => item.entry.lvl >= Lvl.ERROR)
-                    .map(item => item.entry);
-                if (criticalRetries.length > 0) {
-                    const beacon = new Blob([JSON.stringify({ batch: criticalRetries })], { type: 'application/json' });
-                    navigator.sendBeacon('/api/logs/batch', beacon);
-                }
-            } catch (err) { /* Ignore errors during unload */ }
-        }
+        // Critical logs in retry queue are lost on unload (no sendBeacon fallback)
     }
 
     private _sanitizeCtx(context: Record<string, any>): Record<string, any> {

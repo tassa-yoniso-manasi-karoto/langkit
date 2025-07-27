@@ -162,7 +162,7 @@ func (s *Server) Shutdown() error {
 }
 
 // Middleware functions
-var logBlacklist = []string{"BackendLogger"}
+var logBlacklist = []string{"BackendLogger", "BackendLoggerBatch"}
 
 func loggerMiddleware(logger zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
