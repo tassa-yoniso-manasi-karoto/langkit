@@ -118,6 +118,12 @@ export class Logger {
     private _isProcRetryQ = false;
     private _evtListeners: Array<() => void> = [];
     private _logViewerCallback?: (logMessage: any) => void;
+    
+    // Rate tracking for dynamic batching
+    private _backendCallTimes: number[] = [];  // Sliding window of call timestamps
+    private _rateWindowMs = 10000;  // 10 second window for rate calculation
+    private _penaltyFactor = 1.0;   // Dynamic penalty factor (1.0 - 3.0)
+    private _lastRateCalc = 0;      // Last time we calculated the rate
 
     private _cfg: LogConf = {
         minLvl: Lvl.TRACE,
@@ -193,6 +199,41 @@ export class Logger {
         // Enable batch mode by default to reduce request volume
         this.beginBatch();
     }
+    
+    private _calculatePenaltyFactor(): number {
+        const now = Date.now();
+        
+        // Clean old entries from sliding window
+        this._backendCallTimes = this._backendCallTimes.filter(
+            time => now - time < this._rateWindowMs
+        );
+        
+        // Calculate calls per second
+        const callsPerSecond = (this._backendCallTimes.length / this._rateWindowMs) * 1000;
+        
+        // Calculate penalty factor based on rate
+        // Normal: <5 calls/sec = factor 1.0
+        // Medium: 5-10 calls/sec = factor 1.0-2.0 (linear)
+        // High: >10 calls/sec = factor 2.0-3.0 (linear, capped at 3.0)
+        let factor = 1.0;
+        if (callsPerSecond > 5) {
+            if (callsPerSecond <= 10) {
+                factor = 1.0 + ((callsPerSecond - 5) / 5);  // 1.0 to 2.0
+            } else {
+                factor = 2.0 + Math.min((callsPerSecond - 10) / 10, 1.0);  // 2.0 to 3.0
+            }
+        }
+        
+        this._penaltyFactor = factor;
+        this._lastRateCalc = now;
+        
+        // Debug logging for high load
+        if (this._cfg.devMode && factor > 1.5) {
+            console.debug(`[Logger] High load detected: ${callsPerSecond.toFixed(1)} calls/s, penalty factor: ${factor.toFixed(2)}`);
+        }
+        
+        return factor;
+    }
 
     log(lvl: Lvl, comp: string, msg: string, ctx?: Record<string, any>, op?: string): void {
         if (lvl < this._cfg.minLvl) return;
@@ -230,15 +271,31 @@ export class Logger {
             e.stack = this._capStack();
         }
         if (this._batchMode && this._cfg.batConf.en) {
-            this._batLogs.push(e);
-            if (!this._batTimer && this._cfg.batConf.maxWait > 0) {
-                this._batTimer = window.setTimeout(() => {
-                    this.flushBatch();
-                    this._batTimer = undefined;
-                }, this._cfg.batConf.maxWait);
+            // Recalculate penalty factor every second
+            if (Date.now() - this._lastRateCalc > 1000) {
+                this._calculatePenaltyFactor();
             }
-            if (this._batLogs.length >= this._cfg.batConf.maxSz) {
-                this.flushBatch();
+            
+            // Apply penalty factor to thresholds
+            const effectiveMaxWait = Math.round(this._cfg.batConf.maxWait * this._penaltyFactor);
+            const effectiveMaxSize = Math.round(this._cfg.batConf.maxSz * this._penaltyFactor);
+            
+            this._batLogs.push(e);
+            
+            // Check if we should flush due to priority (ERROR/CRITICAL)
+            if (e.lvl >= Lvl.ERROR) {
+                this.flushBatch();  // Immediate flush for critical logs
+            } else {
+                // Normal batching with dynamic thresholds
+                if (!this._batTimer && effectiveMaxWait > 0) {
+                    this._batTimer = window.setTimeout(() => {
+                        this.flushBatch();
+                        this._batTimer = undefined;
+                    }, effectiveMaxWait);
+                }
+                if (this._batLogs.length >= effectiveMaxSize) {
+                    this.flushBatch();
+                }
             }
         } else {
             this._procLEntry(e);
@@ -566,6 +623,9 @@ export class Logger {
             return;
         }
         
+        // Track backend call for rate limiting
+        this._backendCallTimes.push(Date.now());
+        
         try {
             const eCopy = { ...e };
             if (eCopy.ctx) {
@@ -589,6 +649,9 @@ export class Logger {
         if (!get(enableFrontendLoggingStore)) {
             return;
         }
+        
+        // Track backend call for rate limiting
+        this._backendCallTimes.push(Date.now());
         
         try {
             const component = entries[0].comp;
