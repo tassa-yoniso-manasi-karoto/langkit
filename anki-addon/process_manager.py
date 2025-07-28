@@ -77,8 +77,8 @@ class ProcessManager:
                 
             self.process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=None, # CRITICAL: Do NOT monitor with PIPE
+                stderr=None, # see https://github.com/ankitects/anki/issues/4230#issuecomment-3127202125
                 startupinfo=startupinfo,
                 text=True,
                 bufsize=1  # Line buffered

@@ -1008,6 +1008,14 @@
     }
 
     onMount(async () => { // Make onMount async
+        // Add delay for Chrome DevTools debugging
+        // const debugDelay = 10000; // 10 seconds
+        // logger.warn('app', `DEBUG MODE: Waiting ${debugDelay/1000} seconds for Chrome DevTools connection...`);
+        // console.log(`DEBUG MODE: Waiting ${debugDelay/1000} seconds for Chrome DevTools connection...`);
+        // await new Promise(resolve => setTimeout(resolve, debugDelay));
+        // logger.warn('app', 'DEBUG MODE: Starting initialization after delay');
+        // console.log('DEBUG MODE: Starting initialization after delay');
+        
         // Register callback to send frontend logs to LogViewer
         logger.registerLogViewerCallback((logMessage) => {
             logStore.addLog(logMessage);
