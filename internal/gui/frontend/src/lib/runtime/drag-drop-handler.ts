@@ -64,15 +64,6 @@ export async function initializeDragDrop(onFileDrop: WailsDropCallback) {
             // Convert single file to Wails format (0, 0 for coordinates, array for paths)
             onFileDrop(0, 0, [filePath]);
         };
-        
-        // Visual feedback handlers
-        (window as any).handleDragEnter = () => {
-            document.body.classList.add('drag-over');
-        };
-        
-        (window as any).handleDragLeave = () => {
-            document.body.classList.remove('drag-over');
-        };
     }
     
     // For browser mode, no drag-drop support

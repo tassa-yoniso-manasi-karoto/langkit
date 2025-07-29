@@ -453,45 +453,6 @@ input[type="number"]::-webkit-outer-spin-button {
 
 
 
-
-
-
-
-
-
-
-
-
-/* Drag and drop visual feedback */
-body.drag-over {
-  position: relative;
-}
-
-body.drag-over::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1);
-  border: 2px dashed hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.5);
-  border-radius: 0.5rem;
-  margin: 1rem;
-  pointer-events: none;
-  z-index: 9990;
-  animation: dragOverPulse 1.5s ease-in-out infinite;
-}
-
-@keyframes dragOverPulse {
-  0%, 100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
 /* FONT SECTION STARTS HERE */
 
 /* dm-sans-100 - latin_latin-ext */
