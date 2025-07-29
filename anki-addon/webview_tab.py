@@ -63,9 +63,6 @@ class LangkitTab:
     def __init__(self, process_manager):
         self.process_manager = process_manager
         self.web_view: Optional[LangkitWebView] = None
-        self.tab_widget: Optional[QTabWidget] = None
-        self.tab_index: Optional[int] = None
-        self.original_central_widget: Optional[QWidget] = None
         self.is_visible = False
         
         # Don't create webview here - wait until show() is called
@@ -126,6 +123,10 @@ class LangkitTab:
         # Handle load finished
         self.web_view.loadFinished.connect(self._on_load_finished)
         
+        # Add ESC key shortcut to return to Anki
+        escape_shortcut = QShortcut(QKeySequence("Escape"), self.web_view)
+        escape_shortcut.activated.connect(self.hide)
+        
         
     def show(self):
         """Show the Langkit interface."""
@@ -160,36 +161,15 @@ class LangkitTab:
         # Load the URL into webview
         self.web_view.setUrl(QUrl(url))
         
-        # Store original central widget
-        self.original_central_widget = mw.centralWidget()
+        # Hide Anki's webviews (push approach)
+        print("[Langkit] Hiding Anki's webviews")
+        mw.toolbarWeb.hide()
+        mw.web.hide()
+        mw.bottomWeb.hide()
         
-        # Create a container with back button
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        # Create toolbar with back button
-        toolbar = QToolBar()
-        toolbar.setMovable(False)
-        toolbar.setIconSize(QSize(16, 16))
-        
-        back_action = QAction("← Back to Anki", toolbar)
-        back_action.triggered.connect(self.hide)
-        toolbar.addAction(back_action)
-        
-        # Add some space
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        toolbar.addWidget(spacer)
-        
-        # Add toolbar and webview to container
-        layout.addWidget(toolbar)
-        layout.addWidget(self.web_view)
-        
-        # Replace central widget
-        print("[Langkit] Replacing central widget - window should appear now")
-        mw.setCentralWidget(container)
+        # Add Langkit webview to the main layout
+        print("[Langkit] Adding Langkit webview to main layout")
+        mw.mainLayout.addWidget(self.web_view)
         
         self.is_visible = True
         print("[Langkit] UI creation complete")
@@ -201,10 +181,20 @@ class LangkitTab:
             
         mw = aqt.mw
         
-        # Restore original central widget
-        if self.original_central_widget:
-            mw.setCentralWidget(self.original_central_widget)
-            self.original_central_widget = None
+        # Remove Langkit webview from the layout
+        print("[Langkit] Removing Langkit webview from layout")
+        mw.mainLayout.removeWidget(self.web_view)
+        self.web_view.setParent(None)  # Detach from layout but keep alive
+        
+        # Show Anki's webviews again
+        print("[Langkit] Showing Anki's webviews")
+        mw.toolbarWeb.show()
+        mw.web.show()
+        mw.bottomWeb.show()
+        
+        # Redraw toolbar to ensure theme consistency
+        if hasattr(mw, 'toolbar') and mw.toolbar:
+            mw.toolbar.redraw()
             
         self.is_visible = False
         
@@ -212,7 +202,10 @@ class LangkitTab:
         
     def _on_load_finished(self, ok: bool):
         """Handle page load completion."""
-        if not ok and self.is_visible and self.web_view:
+        if ok and self.is_visible and self.web_view:
+            # Inject a subtle hint about ESC key
+            self._inject_return_hint()
+        elif not ok and self.is_visible and self.web_view:
             # Check if server is still running
             if not self.process_manager.is_running():
                 showWarning("Langkit server has stopped. Attempting to restart...")
@@ -225,9 +218,43 @@ class LangkitTab:
                     self.hide()
                     showWarning("Failed to restart Langkit server")
                     
+    def _inject_return_hint(self):
+        """Inject a subtle hint about returning to Anki."""
+        js_code = """
+        (function() {
+            // Create hint element
+            const hint = document.createElement('div');
+            hint.innerHTML = 'Press ESC to return to Anki';
+            hint.style.cssText = `
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 13px;
+                z-index: 99999;
+                opacity: 0.8;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            `;
+            document.body.appendChild(hint);
+            
+            // Fade out after 3 seconds
+            setTimeout(() => {
+                hint.style.opacity = '0';
+                setTimeout(() => hint.remove(), 300);
+            }, 3000);
+        })();
+        """
+        self.web_view.page().runJavaScript(js_code)
+                    
     def cleanup(self):
         """Clean up resources."""
         if self.is_visible:
+            # Make sure to restore Anki's webviews before cleanup
             self.hide()
             
         if self.web_view:

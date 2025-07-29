@@ -258,9 +258,9 @@ This approach reuses Wails' battle-tested asset serving logic while bypassing al
 
 ### Phase 3: Anki Add-on Development
 
-- [ ] Create minimal Python wrapper with process management
-- [ ] Implement binary downloader with progress UI
-- [ ] Add checksum verification
+- [x] Create minimal Python wrapper with process management
+- [x] Implement binary downloader with progress UI
+- [x] Add checksum verification
 - [x] Implement ZenityFileDialog for Qt/headless mode
 - [ ] Implement main tab integration in Anki UI
 
@@ -412,12 +412,17 @@ For deeper understanding, these Wails files are most relevant:
 
 ### Port Management
 
-- Frontend:  OS-assigned dynamic port
-- WebRPC API: OS-assigned dynamic port
-- WebSocket: OS-assigned dynamic port
+originally one port per service but now it is A SINGLE PORT (OS-assigned dynamic port) FOR EVERYTHING:
+
+- Frontend
+- WebRPC API
+- WebSocket
+
+
+
 - All ports:
-  - injected via DOM, very low conflict risk
-  - shared inside config.json
+  - injected via DOM and
+  - injected inside config.json (backend is run like this: langkit --server /path/to/addon/config.json)
 
 ### Binary Distribution
 
