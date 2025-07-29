@@ -40,8 +40,7 @@ func InitializeServers(ctx context.Context, logger zerolog.Logger) (*ServerCompo
 	// Both Wails and server modes will use backend-only mode here
 	// Frontend is handled separately in each mode
 	runtimeConfig := RuntimeConfig{
-		Mode:    "unified",
-		Runtime: "unified",
+		Runtime: "wails", // Default to wails, will be overridden in server mode
 	}
 	
 	// Create unified server configuration

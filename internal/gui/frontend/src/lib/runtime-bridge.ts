@@ -18,7 +18,7 @@ let wailsRuntime: any = null;
 async function loadWailsRuntime() {
     if (wailsRuntime) return wailsRuntime;
     
-    if (hasConfig() && getConfig().mode === 'wails') {
+    if (hasConfig() && getConfig().runtime === 'wails') {
         try {
             wailsRuntime = await import('../../wailsjs/runtime/runtime');
             return wailsRuntime;
@@ -84,14 +84,22 @@ export async function safeWindowIsMaximised(): Promise<boolean> {
  * Check if we're running in Wails mode
  */
 export function isWailsMode(): boolean {
-    if (!hasConfig()) return true; // Default to Wails mode if no config
-    return getConfig().mode === 'wails';
+    if (!hasConfig()) return false; // Don't assume any mode if no config
+    return getConfig().runtime === 'wails';
 }
 
 /**
- * Check if we're running in Qt/server mode
+ * Check if we're running in browser mode
  */
-export function isQtMode(): boolean {
+export function isBrowserMode(): boolean {
     if (!hasConfig()) return false;
-    return getConfig().mode === 'qt';
+    return getConfig().runtime === 'browser';
+}
+
+/**
+ * Check if we're running in Anki mode
+ */
+export function isAnkiMode(): boolean {
+    if (!hasConfig()) return false;
+    return getConfig().runtime === 'anki';
 }

@@ -15,8 +15,7 @@ type RuntimeConfig struct {
 	APIPort      int    `json:"apiPort"`
 	WSPort       int    `json:"wsPort"`
 	FrontendPort int    `json:"frontendPort,omitempty"` // Only populated in server mode
-	Mode         string `json:"mode"`                   // "wails" or "qt"
-	Runtime      string `json:"runtime"`                // "wails" or "anki"
+	Runtime      string `json:"runtime"`                // "wails", "browser", or "anki"
 }
 
 // NewConfigInjectionMiddleware creates a middleware that injects runtime configuration

@@ -23,8 +23,8 @@ async function initializeAPI(): Promise<void> {
             const currentPort = window.location.port ? parseInt(window.location.port) : 
                               (window.location.protocol === 'https:' ? 443 : 80);
             
-            if (apiPort === currentPort || config.mode === 'qt') {
-                // Single-port mode or Qt mode - use relative URLs
+            if (apiPort === currentPort || config.runtime === 'browser' || config.runtime === 'anki') {
+                // Single-port mode or server mode - use relative URLs
                 apiBaseUrl = '/api';
                 console.log('WebRPC API using relative URLs (single-port mode)');
             } else {

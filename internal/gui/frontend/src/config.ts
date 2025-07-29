@@ -2,8 +2,7 @@
 export interface LangkitConfig {
     apiPort: number;
     wsPort: number;
-    mode: 'wails' | 'qt';
-    runtime: 'wails' | 'anki';
+    runtime: 'wails' | 'browser' | 'anki';
 }
 
 // Extend Window interface to include our config

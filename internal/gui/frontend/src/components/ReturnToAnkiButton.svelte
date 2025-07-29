@@ -4,18 +4,20 @@
     import { cubicOut } from 'svelte/easing';
     import Portal from 'svelte-portal/src/Portal.svelte';
     import { logger } from '../lib/logger';
-    import { isQtMode } from '../lib/runtime-bridge';
+    import { isAnkiMode } from '../lib/runtime-bridge';
+    import { hasConfig } from '../config';
     
-    // Check if we're in Qt mode
-    const inQtMode = isQtMode();
+    // State for runtime detection
+    let inAnkiMode = false;
+    let configLoaded = false;
     
     // State for the return hint drawer
     let showReturnHint = false;
     let hideHintTimeout: number;
     
     onMount(() => {
-        // Show return hint drawer after 3 seconds (Qt mode only)
-        if (inQtMode) {
+        // Function to show hint
+        const showHintDelayed = () => {
             setTimeout(() => {
                 showReturnHint = true;
                 // Hide after 5 seconds
@@ -23,6 +25,36 @@
                     showReturnHint = false;
                 }, 5000);
             }, 3000);
+        };
+        
+        // Check for config and determine runtime mode
+        if (hasConfig()) {
+            configLoaded = true;
+            inAnkiMode = isAnkiMode();
+            logger.debug('ReturnToAnkiButton', 'Config loaded', { inAnkiMode });
+            
+            // Show hint if in Anki mode
+            if (inAnkiMode) {
+                showHintDelayed();
+            }
+        } else {
+            // Wait a bit for config to load
+            const checkInterval = setInterval(() => {
+                if (hasConfig()) {
+                    configLoaded = true;
+                    inAnkiMode = isAnkiMode();
+                    logger.debug('ReturnToAnkiButton', 'Config loaded after wait', { inAnkiMode });
+                    clearInterval(checkInterval);
+                    
+                    // Show hint if in Anki mode
+                    if (inAnkiMode) {
+                        showHintDelayed();
+                    }
+                }
+            }, 100);
+            
+            // Stop checking after 5 seconds
+            setTimeout(() => clearInterval(checkInterval), 5000);
         }
     });
     
@@ -48,7 +80,7 @@
     }
 </script>
 
-{#if inQtMode}
+{#if configLoaded && inAnkiMode}
     <Portal target="body">
         <div class="fixed top-4 left-4" style="z-index: var(--z-index-return-to-anki);">
             <button

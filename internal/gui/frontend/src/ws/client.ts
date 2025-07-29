@@ -85,7 +85,7 @@ export class WebSocketClient {
                               (window.location.protocol === 'https:' ? 443 : 80);
             const config = getConfig();
             
-            if (this.port === currentPort || config.mode === 'qt') {
+            if (this.port === currentPort || config.runtime === 'browser' || config.runtime === 'anki') {
                 // Single-port mode - use relative URL
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const host = window.location.host;

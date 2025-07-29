@@ -48,7 +48,6 @@ func Run() {
 	config := RuntimeConfig{
 		APIPort: unifiedPort,
 		WSPort:  unifiedPort,
-		Mode:    "wails",
 		Runtime: "wails",
 	}
 

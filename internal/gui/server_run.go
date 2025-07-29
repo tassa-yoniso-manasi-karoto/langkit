@@ -41,11 +41,16 @@ func RunServerMode() {
 	logger := zerolog.New(writer).With().Timestamp().Str("module", "server").Logger()
 	logger.Info().Msg("Starting Langkit in server mode...")
 
-	// Check for optional Anki addon config path
+	// Check for optional Anki addon config path and determine runtime
 	var ankiConfigPath string
-	if len(os.Args) > 2 {
+	var runtime string
+	if len(os.Args) > 2 && os.Args[2] != "" {
 		ankiConfigPath = os.Args[2]
-		logger.Info().Str("config_path", ankiConfigPath).Msg("Anki addon config path provided")
+		runtime = "anki"
+		logger.Info().Str("config_path", ankiConfigPath).Msg("Anki addon config path provided - running in Anki mode")
+	} else {
+		runtime = "browser"
+		logger.Info().Msg("No config path provided - running in browser mode")
 	}
 
 	// Initialize UI manager with Zenity dialogs for native file operations and URL opening
@@ -61,8 +66,7 @@ func RunServerMode() {
 
 	// Create runtime config
 	runtimeConfig := RuntimeConfig{
-		Mode:    "qt",
-		Runtime: "anki",
+		Runtime: runtime,
 	}
 
 	// Create asset options for frontend

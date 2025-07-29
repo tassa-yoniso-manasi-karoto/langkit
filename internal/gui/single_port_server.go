@@ -143,7 +143,7 @@ func (s *UnifiedServer) setupRoutes() {
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"status":       "healthy",
 			"port":         s.port,
-			"mode":         s.config.Mode,
+			"runtime":      s.config.Runtime,
 			"backend_only": s.assetHandler == nil,
 		})
 	})
@@ -257,7 +257,7 @@ func (s *UnifiedServer) handleIndexWithConfig(c echo.Context) error {
 func (s *UnifiedServer) Start() error {
 	s.logger.Info().
 		Int("port", s.port).
-		Str("mode", s.config.Mode).
+		Str("runtime", s.config.Runtime).
 		Msg("Starting unified server")
 	
 	// Start Echo server with existing listener
