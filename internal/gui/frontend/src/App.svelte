@@ -14,9 +14,14 @@
     import { enableWasm, isWasmEnabled, getWasmModule } from './lib/wasm'; // Removed setWasmSizeThreshold
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
-    // Import runtime-safe wrappers
-    import { safeWindowIsMinimised, safeWindowIsMaximised } from './lib/runtime/bridge';
-    import { initializeDragDrop, cleanupDragDrop } from './lib/runtime/drag-drop-handler';
+    // Import runtime utilities
+    import { 
+        safeWindowIsMinimised, 
+        safeWindowIsMaximised,
+        initializeDragDrop, 
+        cleanupDragDrop,
+        initializeRuntimeStores 
+    } from './lib/runtime/stores';
 
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -1010,6 +1015,9 @@
     }
 
     onMount(async () => { // Make onMount async
+        // Initialize runtime stores
+        await initializeRuntimeStores();
+        
         // Add delay for Chrome DevTools debugging
         // const debugDelay = 10000; // 10 seconds
         // logger.warn('app', `DEBUG MODE: Waiting ${debugDelay/1000} seconds for Chrome DevTools connection...`);

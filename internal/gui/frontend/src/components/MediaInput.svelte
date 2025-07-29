@@ -1,7 +1,7 @@
 <script lang="ts">
     import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../api/services/media';
     import { logger } from '../lib/logger';
-    import { isBrowserMode } from '../lib/runtime/bridge';
+    import { isBrowserMode } from '../lib/runtime/stores';
 
     export let mediaSource: MediaSource | null = null;  // Single selected video/directory
     export let previewFiles: MediaSource[] = [];        // Preview only for directories
@@ -135,18 +135,16 @@
     // Visual feedback for drag over - simplified since Wails handles the actual drop
     function handleDragEnter(e: DragEvent) {
         e.preventDefault();
-        if (!isBrowserMode()) {
-            dragOver = true;
-            logger.trace('MediaInput', 'Drag entered drop zone');
-        }
+        // Always allow drag visual feedback regardless of mode
+        dragOver = true;
+        logger.trace('MediaInput', 'Drag entered drop zone');
     }
 
     function handleDragLeave(e: DragEvent) {
         e.preventDefault();
-        if (!isBrowserMode()) {
-            dragOver = false;
-            logger.trace('MediaInput', 'Drag left drop zone');
-        }
+        // Always allow drag visual feedback regardless of mode
+        dragOver = false;
+        logger.trace('MediaInput', 'Drag left drop zone');
     }
     
     function handleDragOver(e: DragEvent) {
@@ -172,7 +170,7 @@
                 <div class="flex items-center flex-wrap justify-center gap-1 text-sm text-gray-300">
                     <!-- First item will wrap separately -->
                     <span class="w-full text-center mb-1">
-                        {#if !isBrowserMode()}
+                        {#if $isBrowserMode === false}
                             Drag &amp; drop here or select
                         {:else}
                             Select

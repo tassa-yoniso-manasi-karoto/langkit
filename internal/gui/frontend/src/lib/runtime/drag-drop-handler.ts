@@ -2,11 +2,10 @@
  * Global drag and drop handler for different runtime modes
  */
 
-import { isAnkiMode, isBrowserMode, isWailsMode } from './bridge';
+import { getCurrentRuntime, runtimeInitialized } from './stores';
 import { logger } from '../logger';
-import { hasConfig } from '../../config';
+import { get } from 'svelte/store';
 
-type FileDropCallback = (filePath: string) => void;
 type WailsDropCallback = (x: number, y: number, paths: string[]) => void;
 
 let wailsRuntime: any = null;
@@ -17,7 +16,8 @@ let wailsRuntime: any = null;
 async function loadWailsRuntime() {
     if (wailsRuntime) return wailsRuntime;
     
-    if (isWailsMode()) {
+    const runtime = getCurrentRuntime();
+    if (runtime === 'wails') {
         try {
             wailsRuntime = await import('../../../wailsjs/runtime/runtime');
             return wailsRuntime;
@@ -34,26 +34,28 @@ async function loadWailsRuntime() {
  * @param onFileDrop Callback to handle dropped files (Wails signature for compatibility)
  */
 export async function initializeDragDrop(onFileDrop: WailsDropCallback) {
-    // Wait for config to be available if not already loaded
-    if (!hasConfig()) {
+    // Wait for runtime to be initialized
+    if (!get(runtimeInitialized)) {
         await new Promise<void>((resolve) => {
-            const checkInterval = setInterval(() => {
-                if (hasConfig()) {
-                    clearInterval(checkInterval);
+            const unsubscribe = runtimeInitialized.subscribe(initialized => {
+                if (initialized) {
+                    unsubscribe();
                     resolve();
                 }
-            }, 100);
+            });
             
             // Timeout after 5 seconds
             setTimeout(() => {
-                clearInterval(checkInterval);
+                unsubscribe();
                 resolve();
             }, 5000);
         });
     }
     
+    const runtime = getCurrentRuntime();
+    
     // For Anki mode, set up the window functions that Qt will call
-    if (isAnkiMode()) {
+    if (runtime === 'anki') {
         logger.info('drag-drop', 'Initializing Qt drag-drop handlers');
         
         // Handler for file drops from Qt
@@ -74,16 +76,16 @@ export async function initializeDragDrop(onFileDrop: WailsDropCallback) {
     }
     
     // For browser mode, no drag-drop support
-    else if (isBrowserMode()) {
+    else if (runtime === 'browser') {
         logger.info('drag-drop', 'Browser mode - drag-drop not supported, use file picker buttons');
     }
     
     // Wails mode uses its own drag-drop system
-    else if (isWailsMode()) {
+    else if (runtime === 'wails') {
         logger.info('drag-drop', 'Initializing Wails drag-drop handlers');
-        const runtime = await loadWailsRuntime();
-        if (runtime?.OnFileDrop) {
-            runtime.OnFileDrop(onFileDrop, true);
+        const wailsRuntime = await loadWailsRuntime();
+        if (wailsRuntime?.OnFileDrop) {
+            wailsRuntime.OnFileDrop(onFileDrop, true);
             logger.trace('drag-drop', 'Wails file drop handler registered');
         } else {
             logger.error('drag-drop', 'Wails runtime OnFileDrop not available');
@@ -95,7 +97,9 @@ export async function initializeDragDrop(onFileDrop: WailsDropCallback) {
  * Clean up drag and drop handlers
  */
 export async function cleanupDragDrop() {
-    if (isAnkiMode()) {
+    const runtime = getCurrentRuntime();
+    
+    if (runtime === 'anki') {
         delete (window as any).handleFileDrop;
         delete (window as any).handleDragEnter;
         delete (window as any).handleDragLeave;
@@ -103,10 +107,10 @@ export async function cleanupDragDrop() {
         logger.trace('drag-drop', 'Qt drag-drop handlers cleaned up');
     }
     
-    else if (isWailsMode()) {
-        const runtime = await loadWailsRuntime();
-        if (runtime?.OnFileDropOff) {
-            runtime.OnFileDropOff();
+    else if (runtime === 'wails') {
+        const wailsRuntimeModule = await loadWailsRuntime();
+        if (wailsRuntimeModule?.OnFileDropOff) {
+            wailsRuntimeModule.OnFileDropOff();
             logger.trace('drag-drop', 'Wails file drop handler cleaned up');
         }
     }

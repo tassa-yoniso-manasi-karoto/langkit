@@ -4,58 +4,32 @@
     import { cubicOut } from 'svelte/easing';
     import Portal from 'svelte-portal/src/Portal.svelte';
     import { logger } from '../lib/logger';
-    import { isAnkiMode } from '../lib/runtime/bridge';
-    import { hasConfig } from '../config';
-    
-    // State for runtime detection
-    let inAnkiMode = false;
-    let configLoaded = false;
+    import { isAnkiMode, runtimeInitialized } from '../lib/runtime/stores';
+    import { get } from 'svelte/store';
     
     // State for the return hint drawer
     let showReturnHint = false;
     let hideHintTimeout: number;
     
     onMount(() => {
-        // Function to show hint
-        const showHintDelayed = () => {
-            setTimeout(() => {
-                showReturnHint = true;
-                // Hide after 5 seconds
-                hideHintTimeout = setTimeout(() => {
-                    showReturnHint = false;
-                }, 5000);
-            }, 3000);
-        };
-        
-        // Check for config and determine runtime mode
-        if (hasConfig()) {
-            configLoaded = true;
-            inAnkiMode = isAnkiMode();
-            logger.debug('ReturnToAnkiButton', 'Config loaded', { inAnkiMode });
-            
-            // Show hint if in Anki mode
-            if (inAnkiMode) {
-                showHintDelayed();
+        // Subscribe to runtime mode changes
+        const unsubscribe = isAnkiMode.subscribe(isAnki => {
+            if (isAnki && get(runtimeInitialized)) {
+                logger.debug('ReturnToAnkiButton', 'Anki mode detected, showing hint');
+                // Show hint after 3 seconds
+                setTimeout(() => {
+                    showReturnHint = true;
+                    // Hide after 5 seconds
+                    hideHintTimeout = setTimeout(() => {
+                        showReturnHint = false;
+                    }, 5000);
+                }, 3000);
             }
-        } else {
-            // Wait a bit for config to load
-            const checkInterval = setInterval(() => {
-                if (hasConfig()) {
-                    configLoaded = true;
-                    inAnkiMode = isAnkiMode();
-                    logger.debug('ReturnToAnkiButton', 'Config loaded after wait', { inAnkiMode });
-                    clearInterval(checkInterval);
-                    
-                    // Show hint if in Anki mode
-                    if (inAnkiMode) {
-                        showHintDelayed();
-                    }
-                }
-            }, 100);
-            
-            // Stop checking after 5 seconds
-            setTimeout(() => clearInterval(checkInterval), 5000);
-        }
+        });
+        
+        return () => {
+            unsubscribe();
+        };
     });
     
     onDestroy(() => {
@@ -80,7 +54,7 @@
     }
 </script>
 
-{#if configLoaded && inAnkiMode}
+{#if $runtimeInitialized && $isAnkiMode}
     <Portal target="body">
         <div class="fixed top-4 left-4" style="z-index: var(--z-index-return-to-anki);">
             <button
