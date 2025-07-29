@@ -64,6 +64,8 @@ class LangkitTab:
         self.process_manager = process_manager
         self.web_view: Optional[LangkitWebView] = None
         self.is_visible = False
+        self.original_toolbar_height: Optional[int] = None
+        self.original_bottom_height: Optional[int] = None
         
         # Don't create webview here - wait until show() is called
         
@@ -161,10 +163,22 @@ class LangkitTab:
         # Load the URL into webview
         self.web_view.setUrl(QUrl(url))
         
-        # Hide Anki's webviews (push approach)
+        # Store original heights and hide Anki's webviews (push approach)
         print("[Langkit] Hiding Anki's webviews")
+        
+        # Store and collapse toolbar height
+        self.original_toolbar_height = mw.toolbarWeb.height()
+        print(f"[Langkit] Storing toolbar height: {self.original_toolbar_height}")
+        mw.toolbarWeb.setFixedHeight(0)
         mw.toolbarWeb.hide()
+        
+        # Hide main webview (no height adjustment needed)
         mw.web.hide()
+        
+        # Store and collapse bottom bar height
+        self.original_bottom_height = mw.bottomWeb.height()
+        print(f"[Langkit] Storing bottom bar height: {self.original_bottom_height}")
+        mw.bottomWeb.setFixedHeight(0)
         mw.bottomWeb.hide()
         
         # Add Langkit webview to the main layout
@@ -186,11 +200,21 @@ class LangkitTab:
         mw.mainLayout.removeWidget(self.web_view)
         self.web_view.setParent(None)  # Detach from layout but keep alive
         
-        # Show Anki's webviews again
+        # Show and restore Anki's webviews
         print("[Langkit] Showing Anki's webviews")
+        
+        # Restore toolbar
         mw.toolbarWeb.show()
+        if self.original_toolbar_height:
+            mw.toolbarWeb.setFixedHeight(self.original_toolbar_height)
+        
+        # Show main webview
         mw.web.show()
+        
+        # Restore bottom bar
         mw.bottomWeb.show()
+        if self.original_bottom_height:
+            mw.bottomWeb.setFixedHeight(self.original_bottom_height)
         
         # Redraw toolbar to ensure theme consistency
         if hasattr(mw, 'toolbar') and mw.toolbar:
