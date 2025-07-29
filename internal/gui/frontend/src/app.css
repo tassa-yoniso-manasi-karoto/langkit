@@ -34,7 +34,8 @@
     --z-index-log-viewer-notification: 40;
     --z-index-settings-modal: 50;
     --z-index-dropdown: 9000;
-    --z-index-welcome-popup: 9997;
+    --z-index-welcome-popup: 9996;
+    --z-index-return-to-anki: 9997;
     --z-index-hovertip: 9998;
     --z-index-dev-dashboard: 9999;
     

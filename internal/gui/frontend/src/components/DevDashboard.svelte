@@ -31,7 +31,7 @@
     
     // State variables
     let isExpanded = false;
-    let position = { x: 20, y: 20 }; // Initial position
+    let position = { x: 18, y: 90 }; // Initial position
     let isDragging = false; // For DraggableContainer
     
     // Component references

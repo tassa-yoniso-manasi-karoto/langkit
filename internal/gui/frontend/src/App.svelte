@@ -30,6 +30,7 @@
     import DevDashboard from './components/DevDashboard.svelte';
     import CoffeeSupport from './components/CoffeeSupport.svelte';
     import WelcomePopup from './components/WelcomePopup.svelte';
+    import ReturnToAnkiButton from './components/ReturnToAnkiButton.svelte';
     
     import { GetVersion, GetSystemInfo, CheckForUpdate } from './api/services/system';
     import { SendProcessingRequest, CancelProcessing } from './api/services/processing';
@@ -1463,6 +1464,9 @@
     {#if showGlow && !isWindowMinimized && userActivityState !== UserActivityState.AFK}
         <GlowEffect {isProcessing} />
     {/if}
+
+    <!-- Return to Anki button (Qt mode only) -->
+    <ReturnToAnkiButton />
 
     <!-- Settings button  -->
     <div class="absolute top-4 right-4 z-20 flex items-center gap-4">

@@ -203,8 +203,15 @@ class LangkitTab:
     def _on_load_finished(self, ok: bool):
         """Handle page load completion."""
         if ok and self.is_visible and self.web_view:
-            # Inject a subtle hint about ESC key
-            self._inject_return_hint()
+            # Set up global function for returning to Anki (without visual hint)
+            js_code = """
+            window.returnToAnki = function() {
+                document.title = '__LANGKIT_RETURN_TO_ANKI__';
+            };
+            """
+            self.web_view.page().runJavaScript(js_code)
+            # Connect to title change signal
+            self.web_view.titleChanged.connect(self._on_title_changed)
         elif not ok and self.is_visible and self.web_view:
             # Check if server is still running
             if not self.process_manager.is_running():
@@ -218,38 +225,11 @@ class LangkitTab:
                     self.hide()
                     showWarning("Failed to restart Langkit server")
                     
-    def _inject_return_hint(self):
-        """Inject a subtle hint about returning to Anki."""
-        js_code = """
-        (function() {
-            // Create hint element
-            const hint = document.createElement('div');
-            hint.innerHTML = 'Press ESC to return to Anki';
-            hint.style.cssText = `
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                background: rgba(0, 0, 0, 0.7);
-                color: white;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 13px;
-                z-index: 99999;
-                opacity: 0.8;
-                transition: opacity 0.3s ease;
-                pointer-events: none;
-            `;
-            document.body.appendChild(hint);
-            
-            // Fade out after 3 seconds
-            setTimeout(() => {
-                hint.style.opacity = '0';
-                setTimeout(() => hint.remove(), 300);
-            }, 3000);
-        })();
-        """
-        self.web_view.page().runJavaScript(js_code)
+    def _on_title_changed(self, title: str):
+        """Handle title changes as a communication channel."""
+        if title == "__LANGKIT_RETURN_TO_ANKI__":
+            print("[Langkit] Return to Anki requested via title change")
+            self.hide()
                     
     def cleanup(self):
         """Clean up resources."""
