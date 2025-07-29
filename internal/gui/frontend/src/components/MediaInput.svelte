@@ -1,6 +1,7 @@
 <script lang="ts">
     import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../api/services/media';
     import { logger } from '../lib/logger';
+    import { isBrowserMode } from '../lib/runtime/bridge';
 
     export let mediaSource: MediaSource | null = null;  // Single selected video/directory
     export let previewFiles: MediaSource[] = [];        // Preview only for directories
@@ -134,14 +135,18 @@
     // Visual feedback for drag over - simplified since Wails handles the actual drop
     function handleDragEnter(e: DragEvent) {
         e.preventDefault();
-        dragOver = true;
-        logger.trace('MediaInput', 'Drag entered drop zone');
+        if (!isBrowserMode()) {
+            dragOver = true;
+            logger.trace('MediaInput', 'Drag entered drop zone');
+        }
     }
 
     function handleDragLeave(e: DragEvent) {
         e.preventDefault();
-        dragOver = false;
-        logger.trace('MediaInput', 'Drag left drop zone');
+        if (!isBrowserMode()) {
+            dragOver = false;
+            logger.trace('MediaInput', 'Drag left drop zone');
+        }
     }
     
     function handleDragOver(e: DragEvent) {
@@ -166,7 +171,13 @@
             <div class="text-primary/80 flex flex-col items-center justify-center gap-2 py-1">
                 <div class="flex items-center flex-wrap justify-center gap-1 text-sm text-gray-300">
                     <!-- First item will wrap separately -->
-                    <span class="w-full text-center mb-1">Drag &amp; drop here or select</span>
+                    <span class="w-full text-center mb-1">
+                        {#if !isBrowserMode()}
+                            Drag &amp; drop here or select
+                        {:else}
+                            Select
+                        {/if}
+                    </span>
                     
                     <!-- Group buttons together to keep them on same line -->
                     <div class="flex items-center flex-nowrap">

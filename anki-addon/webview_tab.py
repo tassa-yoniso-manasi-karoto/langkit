@@ -55,6 +55,73 @@ class LangkitWebView(QWebEngineView):
             
         # Set focus policy to ensure webview can receive input
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        
+        # Enable drag and drop
+        self.setAcceptDrops(True)
+    
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        """Handle drag enter events."""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            # Inject visual feedback into the page
+            self.page().runJavaScript("""
+                if (window.handleDragEnter) {
+                    window.handleDragEnter();
+                }
+            """)
+        else:
+            event.ignore()
+    
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        """Handle drag move events."""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    
+    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
+        """Handle drag leave events."""
+        event.accept()
+        # Remove visual feedback
+        self.page().runJavaScript("""
+            if (window.handleDragLeave) {
+                window.handleDragLeave();
+            }
+        """)
+    
+    def dropEvent(self, event: QDropEvent) -> None:
+        """Handle drop events."""
+        print("[Langkit] Drop event received")
+        
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            
+            # Remove visual feedback first
+            self.page().runJavaScript("""
+                if (window.handleDragLeave) {
+                    window.handleDragLeave();
+                }
+            """)
+            
+            # Process the dropped files
+            for url in event.mimeData().urls():
+                file_path = url.toLocalFile()
+                if file_path:  # Ensure it's a local file
+                    print(f"[Langkit] Dropped file: {file_path}")
+                    # Escape the file path for JavaScript
+                    escaped_path = file_path.replace('\\', '\\\\').replace('"', '\\"')
+                    # Inject the file drop into the page
+                    self.page().runJavaScript(f"""
+                        if (window.handleFileDrop) {{
+                            window.handleFileDrop("{escaped_path}");
+                        }} else {{
+                            console.warn('[Langkit] window.handleFileDrop not found');
+                        }}
+                    """)
+                    # Only handle the first file for now
+                    break
+        else:
+            event.ignore()
 
 
 class LangkitTab:

@@ -4,7 +4,7 @@
     import { cubicOut } from 'svelte/easing';
     import Portal from 'svelte-portal/src/Portal.svelte';
     import { logger } from '../lib/logger';
-    import { isAnkiMode } from '../lib/runtime-bridge';
+    import { isAnkiMode } from '../lib/runtime/bridge';
     import { hasConfig } from '../config';
     
     // State for runtime detection

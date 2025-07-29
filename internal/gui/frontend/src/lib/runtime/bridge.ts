@@ -3,11 +3,8 @@
  * Allows the app to work in both Wails and Qt/server modes
  */
 
-import { getConfig, hasConfig } from '../config';
-import { logger } from './logger';
-
-// Type definitions for Wails runtime functions
-type FileDropHandler = (files: string[]) => void;
+import { getConfig, hasConfig } from '../../config';
+import { logger } from '../logger';
 
 // Cache for loaded Wails runtime module
 let wailsRuntime: any = null;
@@ -20,7 +17,7 @@ async function loadWailsRuntime() {
     
     if (hasConfig() && getConfig().runtime === 'wails') {
         try {
-            wailsRuntime = await import('../../wailsjs/runtime/runtime');
+            wailsRuntime = await import('../../../wailsjs/runtime/runtime');
             return wailsRuntime;
         } catch (error) {
             logger.error('runtime-bridge', 'Failed to load Wails runtime', { error });
@@ -28,32 +25,6 @@ async function loadWailsRuntime() {
         }
     }
     return null;
-}
-
-/**
- * Safe wrapper for OnFileDrop
- * Only registers handler in Wails mode
- */
-export async function safeOnFileDrop(handler: FileDropHandler, useNativePath: boolean) {
-    const runtime = await loadWailsRuntime();
-    if (runtime?.OnFileDrop) {
-        runtime.OnFileDrop(handler, useNativePath);
-        logger.trace('runtime-bridge', 'File drop handler registered');
-    } else {
-        logger.trace('runtime-bridge', 'File drop not available in this runtime mode');
-    }
-}
-
-/**
- * Safe wrapper for OnFileDropOff
- * Only unregisters handler in Wails mode
- */
-export async function safeOnFileDropOff() {
-    const runtime = await loadWailsRuntime();
-    if (runtime?.OnFileDropOff) {
-        runtime.OnFileDropOff();
-        logger.trace('runtime-bridge', 'File drop handler unregistered');
-    }
 }
 
 /**

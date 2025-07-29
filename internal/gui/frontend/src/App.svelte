@@ -15,7 +15,8 @@
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
     // Import runtime-safe wrappers
-    import { safeWindowIsMinimised, safeWindowIsMaximised, safeOnFileDrop, safeOnFileDropOff, isWailsMode } from './lib/runtime-bridge';
+    import { safeWindowIsMinimised, safeWindowIsMaximised } from './lib/runtime/bridge';
+    import { initializeDragDrop, cleanupDragDrop } from './lib/runtime/drag-drop-handler';
 
     import MediaInput from './components/MediaInput.svelte';
     import FeatureSelector from './components/FeatureSelector.svelte';
@@ -1211,7 +1212,7 @@
         };
         
         // Set up global drag and drop handling
-        safeOnFileDrop(handleGlobalFileDrop, true);
+        initializeDragDrop(handleGlobalFileDrop);
         logger.trace('app', 'Global drag and drop handler set up');
         document.addEventListener('transitionend', handleTransitionEnd);
         
@@ -1392,7 +1393,7 @@
         }
         
         // Clean up global drag and drop handler
-        safeOnFileDropOff();
+        cleanupDragDrop();
         logger.trace('app', 'Global drag and drop handler cleaned up');
         
         // Clean up user activity event listeners
