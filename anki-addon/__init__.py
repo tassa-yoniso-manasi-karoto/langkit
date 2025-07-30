@@ -13,6 +13,8 @@ from aqt import mw, gui_hooks
 from aqt.qt import *
 from aqt.utils import showInfo, showWarning, qconnect
 from aqt.utils import tr
+from aqt.profiles import VideoDriver
+from anki.utils import is_win
 import aqt.toolbar
 
 # Add addon directory to path for imports
@@ -134,13 +136,19 @@ class LangkitAddon:
                 # User cancelled download or download failed
                 return
                 
-            # Binary downloaded successfully, create process manager
+            # Binary downloaded successfully, check video driver
+            self._check_and_prompt_video_driver()
+            
+            # Create process manager
             self.process_manager = ProcessManager(binary_path, self.config)
             
             # Create webview tab
             self.webview_tab = LangkitTab(self.process_manager)
         else:
-            # Binary exists, ensure process manager and webview are created
+            # Binary exists, check video driver if not already checked
+            self._check_and_prompt_video_driver()
+            
+            # Ensure process manager and webview are created
             if not self.process_manager:
                 binary_path = self.binary_manager.get_binary_path_if_exists()
                 if binary_path:
@@ -205,6 +213,9 @@ class LangkitAddon:
             
         binary_path = self.binary_manager.download_with_confirmation()
         if binary_path:
+            # Check video driver after successful download
+            self._check_and_prompt_video_driver()
+            
             # Create process manager with new binary
             self.process_manager = ProcessManager(binary_path, self.config)
             showInfo("Langkit application downloaded successfully!")
@@ -315,6 +326,62 @@ class LangkitAddon:
     def _save_config(self):
         """Save configuration."""
         mw.addonManager.writeConfig(__name__, self.config)
+        
+    def _check_and_prompt_video_driver(self) -> bool:
+        """Check video driver on Windows and warn about high refresh rate issues with Direct3D.
+        Always returns True (no longer prevents opening)."""
+        # Only check on Windows
+        if not is_win:
+            return True
+            
+        current_driver = mw.pm.video_driver()
+        
+        # Only warn about Direct3D on high refresh rate displays
+        if current_driver != VideoDriver.Direct3D:
+            return True
+            
+        # Check warning count
+        warning_count = self.config.get("direct3d_refresh_warning_count", 0)
+        
+        # Don't show after 2 warnings
+        if warning_count >= 2:
+            return True
+            
+        # Show warning about high refresh rate displays
+        msg = QMessageBox(mw)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle("Display Configuration Notice")
+        msg.setText("<b>Using Direct3D with High Refresh Rate Display</b>")
+        
+        # Different message for second warning (reminder)
+        if warning_count == 1:
+            info_text = (
+                "Reminder: If you're experiencing visual glitches or flickering in Langkit, "
+                "it may be due to your high refresh rate display.\n\n"
+                "Try lowering your display refresh rate to 60Hz in Windows Display Settings "
+                "or switch to OpenGL in Anki's preferences (though performance may be reduced).\n\n"
+                "No further reminder will occur."
+            )
+        else:
+            # First time warning
+            info_text = (
+                "Langkit works best with Direct3D for performance, but some users with "
+                "high refresh rate displays (above 60Hz) may experience visual glitches.\n\n"
+                "If you notice any flickering or visual issues:\n"
+                "• Try lowering your display refresh rate to 60Hz in Windows Display Settings\n"
+                "• Or switch to OpenGL in Anki's preferences (though performance may be reduced)\n\n"
+                "Most users (with 60Hz displays) will not experience any issues."
+            )
+        
+        msg.setInformativeText(info_text)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
+        
+        # Increment warning count
+        self.config["direct3d_refresh_warning_count"] = warning_count + 1
+        self._save_config()
+        
+        return True
         
     def cleanup(self):
         """Clean up resources on shutdown."""
