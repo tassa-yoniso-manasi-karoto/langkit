@@ -14,7 +14,7 @@ from aqt.qt import *
 from aqt.utils import showInfo, showWarning, qconnect
 from aqt.utils import tr
 from aqt.profiles import VideoDriver
-from anki.utils import is_win
+from anki.utils import is_win, is_mac, is_lin
 import aqt.toolbar
 
 # Add addon directory to path for imports
@@ -136,8 +136,8 @@ class LangkitAddon:
                 # User cancelled download or download failed
                 return
                 
-            # Binary downloaded successfully, check video driver
-            self._check_and_prompt_video_driver()
+            # Binary downloaded successfully, check OS compatibility
+            self._check_and_prompt_os_compatibility()
             
             # Create process manager
             self.process_manager = ProcessManager(binary_path, self.config)
@@ -145,8 +145,8 @@ class LangkitAddon:
             # Create webview tab
             self.webview_tab = LangkitTab(self.process_manager)
         else:
-            # Binary exists, check video driver if not already checked
-            self._check_and_prompt_video_driver()
+            # Binary exists, check OS compatibility if not already checked
+            self._check_and_prompt_os_compatibility()
             
             # Ensure process manager and webview are created
             if not self.process_manager:
@@ -213,8 +213,8 @@ class LangkitAddon:
             
         binary_path = self.binary_manager.download_with_confirmation()
         if binary_path:
-            # Check video driver after successful download
-            self._check_and_prompt_video_driver()
+            # Check OS compatibility after successful download
+            self._check_and_prompt_os_compatibility()
             
             # Create process manager with new binary
             self.process_manager = ProcessManager(binary_path, self.config)
@@ -327,10 +327,40 @@ class LangkitAddon:
         """Save configuration."""
         mw.addonManager.writeConfig(__name__, self.config)
         
-    def _check_and_prompt_video_driver(self) -> bool:
-        """Check video driver on Windows and warn about high refresh rate issues with Direct3D.
-        Always returns True (no longer prevents opening)."""
-        # Only check on Windows
+    def _check_and_prompt_os_compatibility(self):
+        """Check OS compatibility and show appropriate warnings."""
+        # Check macOS compatibility warning
+        if is_mac:
+            warning_count = self.config.get("macos_untested_warning_count", 0)
+            
+            # Only show once
+            if warning_count >= 1:
+                return True
+                
+            # Show macOS compatibility notice
+            msg = QMessageBox(mw)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("macOS Compatibility Notice")
+            msg.setText("<b>Langkit on macOS - Experimental</b>")
+            
+            info_text = (
+                "Langkit has not been tested on macOS as the developer lacks access to Apple hardware.\n"
+                "While the software may work as intended, you are likely to encounter unexpected issues.\n\n"
+                "If you experience any problems, please report them on Github so that the developer can attempt to address them.\n\n"
+                "Thank you for your understanding."
+            )
+            
+            msg.setInformativeText(info_text)
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.exec()
+            
+            # Mark as shown
+            self.config["macos_untested_warning_count"] = 1
+            self._save_config()
+            
+            return True
+        
+        # Windows Direct3D check
         if not is_win:
             return True
             
