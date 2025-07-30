@@ -54,10 +54,6 @@ class LangkitAddon:
         # Add menu items
         self._setup_menu()
         
-        # Check for updates if enabled
-        if self.config.get("auto_update", True):
-            self._check_for_updates()
-            
         # Start on startup if configured (only if binary exists)
         if self.config.get("launch_on_startup", False) and self.binary_manager.check_binary_exists():
             QTimer.singleShot(1000, self._start_server)
@@ -145,7 +141,34 @@ class LangkitAddon:
             # Create webview tab
             self.webview_tab = LangkitTab(self.process_manager)
         else:
-            # Binary exists, check OS compatibility if not already checked
+            # Binary exists - check for updates first
+            if self.config.get("auto_update", True):
+                new_version = self.binary_manager.check_for_updates()
+                if new_version:
+                    # Show update notification
+                    current = self.config.get("last_known_version", "unknown")
+                    msg = f"A new version of Langkit is available!\n\n"
+                    msg += f"Current version: {current}\n"
+                    msg += f"New version: {new_version}\n\n"
+                    msg += "Would you like to update now?"
+                    
+                    ret = QMessageBox.question(
+                        mw,
+                        "Langkit Update Available",
+                        msg,
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    
+                    if ret == QMessageBox.StandardButton.Yes:
+                        # Perform update
+                        if self.binary_manager.update_binary():
+                            showInfo("Langkit updated successfully! Please click Langkit again to start.")
+                            return  # Exit without starting the old binary
+                        else:
+                            showWarning("Failed to update Langkit")
+                            # Continue with old version
+            
+            # Check OS compatibility if not already checked
             self._check_and_prompt_os_compatibility()
             
             # Ensure process manager and webview are created
@@ -219,27 +242,6 @@ class LangkitAddon:
             # Create process manager with new binary
             self.process_manager = ProcessManager(binary_path, self.config)
             showInfo("Langkit application downloaded successfully!")
-        
-    def _check_for_updates(self):
-        """Check for updates in background."""
-        def check():
-            if not self.binary_manager:
-                return
-                
-            # Only check for updates if we have a known version
-            current_version = self.config.get("last_known_version")
-            if not current_version or current_version == "unknown":
-                print("[Langkit] Skipping update check - no known version")
-                return
-                
-            new_version = self.binary_manager.check_for_updates()
-            if new_version:
-                # Show update notification on main thread
-                mw.taskman.run_on_main(
-                    lambda: self._show_update_notification(new_version)
-                )
-                
-        QTimer.singleShot(5000, check)  # Check after 5 seconds
         
     def _check_for_updates_manual(self):
         """Manual update check."""

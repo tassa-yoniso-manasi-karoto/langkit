@@ -15,6 +15,7 @@ CLAUDE.md
 .idea
 
 dist/
+anki-addon/meta.json
 anki-addon/__pycache__/**
 anki-addon/user_files/binaries/**
 
