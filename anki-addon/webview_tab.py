@@ -134,6 +134,20 @@ class LangkitTab:
         self.original_toolbar_height: Optional[int] = None
         self.original_bottom_height: Optional[int] = None
         
+        # Store original methods for restoration
+        self._original_toolbar_draw = None
+        self._original_toolbar_redraw = None
+        self._original_toolbar_adjustHeight = None
+        self._original_bottomWeb_adjustHeight = None
+        self._original_onRefreshTimer = None
+        self._original_toolbar_show = None
+        self._original_bottomWeb_show = None
+        self._original_web_show = None
+        self._original_web_setHtml = None
+        self._original_web_stdHtml = None
+        self._original_deckBrowser_refresh = None
+        self._original_deckBrowser_refresh_if_needed = None
+        
         # Don't create webview here - wait until show() is called
         
     def _create_webview(self):
@@ -252,6 +266,12 @@ class LangkitTab:
         print("[Langkit] Adding Langkit webview to main layout")
         mw.mainLayout.addWidget(self.web_view)
         
+        # Disable Anki's auto-refresh mechanisms while Langkit is visible
+        self._disable_anki_refresh()
+        
+        # Mark Langkit as visible on main window
+        mw._langkit_visible = True
+        
         self.is_visible = True
         print("[Langkit] UI creation complete")
         
@@ -267,7 +287,10 @@ class LangkitTab:
         mw.mainLayout.removeWidget(self.web_view)
         self.web_view.setParent(None)  # Detach from layout but keep alive
         
-        # Show and restore Anki's webviews
+        # FIRST: Restore Anki's auto-refresh mechanisms (including show() methods)
+        self._restore_anki_refresh()
+        
+        # THEN: Show and restore Anki's webviews with the restored methods
         print("[Langkit] Showing Anki's webviews")
         
         # Restore toolbar
@@ -282,6 +305,9 @@ class LangkitTab:
         mw.bottomWeb.show()
         if self.original_bottom_height:
             mw.bottomWeb.setFixedHeight(self.original_bottom_height)
+        
+        # Mark Langkit as not visible on main window
+        mw._langkit_visible = False
         
         # Redraw toolbar to ensure theme consistency
         if hasattr(mw, 'toolbar') and mw.toolbar:
@@ -328,7 +354,172 @@ class LangkitTab:
             # Make sure to restore Anki's webviews before cleanup
             self.hide()
             
+        # Ensure flag is cleared
+        mw = aqt.mw
+        if hasattr(mw, '_langkit_visible'):
+            mw._langkit_visible = False
+            
         if self.web_view:
             self.web_view.setUrl(QUrl("about:blank"))
             self.web_view.deleteLater()
             self.web_view = None
+            
+    def _disable_anki_refresh(self):
+        """Temporarily disable Anki's auto-refresh mechanisms to prevent UI conflicts."""
+        mw = aqt.mw
+        
+        # Store original methods
+        if hasattr(mw.toolbar, 'draw'):
+            self._original_toolbar_draw = mw.toolbar.draw
+            self._original_toolbar_redraw = mw.toolbar.redraw
+        
+        if hasattr(mw.toolbarWeb, 'adjustHeightToFit'):
+            self._original_toolbar_adjustHeight = mw.toolbarWeb.adjustHeightToFit
+            
+        if hasattr(mw.bottomWeb, 'adjustHeightToFit'):
+            self._original_bottomWeb_adjustHeight = mw.bottomWeb.adjustHeightToFit
+            
+        if hasattr(mw, 'onRefreshTimer'):
+            self._original_onRefreshTimer = mw.onRefreshTimer
+            
+        # Store show methods
+        if hasattr(mw.toolbarWeb, 'show'):
+            self._original_toolbar_show = mw.toolbarWeb.show
+            
+        if hasattr(mw.bottomWeb, 'show'):
+            self._original_bottomWeb_show = mw.bottomWeb.show
+            
+        if hasattr(mw.web, 'show'):
+            self._original_web_show = mw.web.show
+            
+        # Store setHtml and stdHtml methods
+        if hasattr(mw.web, 'setHtml'):
+            self._original_web_setHtml = mw.web.setHtml
+            
+        if hasattr(mw.web, 'stdHtml'):
+            self._original_web_stdHtml = mw.web.stdHtml
+            
+        # Store deck browser refresh methods
+        if hasattr(mw, 'deckBrowser'):
+            if hasattr(mw.deckBrowser, 'refresh'):
+                self._original_deckBrowser_refresh = mw.deckBrowser.refresh
+            if hasattr(mw.deckBrowser, 'refresh_if_needed'):
+                self._original_deckBrowser_refresh_if_needed = mw.deckBrowser.refresh_if_needed
+        
+        # Replace with no-op functions
+        def noop(*args, **kwargs):
+            print("[Langkit] Blocked Anki refresh attempt while Langkit is visible")
+            pass
+        
+        # Disable toolbar operations
+        if hasattr(mw.toolbar, 'draw'):
+            mw.toolbar.draw = noop
+            mw.toolbar.redraw = noop
+            
+        # Disable height adjustments
+        if hasattr(mw.toolbarWeb, 'adjustHeightToFit'):
+            mw.toolbarWeb.adjustHeightToFit = noop
+            
+        if hasattr(mw.bottomWeb, 'adjustHeightToFit'):
+            mw.bottomWeb.adjustHeightToFit = noop
+            
+        # Disable refresh timer
+        if hasattr(mw, 'onRefreshTimer'):
+            mw.onRefreshTimer = noop
+            
+        # Disable show methods
+        if hasattr(mw.toolbarWeb, 'show'):
+            mw.toolbarWeb.show = noop
+            
+        if hasattr(mw.bottomWeb, 'show'):
+            mw.bottomWeb.show = noop
+            
+        if hasattr(mw.web, 'show'):
+            mw.web.show = noop
+            
+        # Replace setHtml to prevent automatic show()
+        if hasattr(mw.web, 'setHtml'):
+            def setHtml_no_show(html, context=None):
+                print("[Langkit] Blocked setHtml which would trigger show()")
+                # Don't call the original setHtml as it calls show()
+                # The content update is blocked while Langkit is visible
+                pass
+            mw.web.setHtml = setHtml_no_show
+            
+        # Replace stdHtml to prevent setHtml call
+        if hasattr(mw.web, 'stdHtml'):
+            def stdHtml_no_show(*args, **kwargs):
+                print("[Langkit] Blocked stdHtml which would trigger setHtml/show()")
+                # Don't call the original stdHtml as it calls setHtml which calls show()
+                pass
+            mw.web.stdHtml = stdHtml_no_show
+            
+        # Disable deck browser refresh
+        if hasattr(mw, 'deckBrowser'):
+            if hasattr(mw.deckBrowser, 'refresh'):
+                mw.deckBrowser.refresh = noop
+            if hasattr(mw.deckBrowser, 'refresh_if_needed'):
+                mw.deckBrowser.refresh_if_needed = noop
+            
+        print("[Langkit] Disabled Anki refresh mechanisms")
+            
+    def _restore_anki_refresh(self):
+        """Restore Anki's original auto-refresh mechanisms."""
+        mw = aqt.mw
+        
+        # Restore toolbar methods
+        if self._original_toolbar_draw:
+            mw.toolbar.draw = self._original_toolbar_draw
+            self._original_toolbar_draw = None
+            
+        if self._original_toolbar_redraw:
+            mw.toolbar.redraw = self._original_toolbar_redraw
+            self._original_toolbar_redraw = None
+            
+        # Restore height adjustment methods
+        if self._original_toolbar_adjustHeight:
+            mw.toolbarWeb.adjustHeightToFit = self._original_toolbar_adjustHeight
+            self._original_toolbar_adjustHeight = None
+            
+        if self._original_bottomWeb_adjustHeight:
+            mw.bottomWeb.adjustHeightToFit = self._original_bottomWeb_adjustHeight
+            self._original_bottomWeb_adjustHeight = None
+            
+        # Restore refresh timer
+        if self._original_onRefreshTimer:
+            mw.onRefreshTimer = self._original_onRefreshTimer
+            self._original_onRefreshTimer = None
+            
+        # Restore show methods
+        if self._original_toolbar_show:
+            mw.toolbarWeb.show = self._original_toolbar_show
+            self._original_toolbar_show = None
+            
+        if self._original_bottomWeb_show:
+            mw.bottomWeb.show = self._original_bottomWeb_show
+            self._original_bottomWeb_show = None
+            
+        if self._original_web_show:
+            mw.web.show = self._original_web_show
+            self._original_web_show = None
+            
+        # Restore setHtml and stdHtml
+        if self._original_web_setHtml:
+            mw.web.setHtml = self._original_web_setHtml
+            self._original_web_setHtml = None
+            
+        if self._original_web_stdHtml:
+            mw.web.stdHtml = self._original_web_stdHtml
+            self._original_web_stdHtml = None
+            
+        # Restore deck browser refresh methods
+        if hasattr(mw, 'deckBrowser'):
+            if self._original_deckBrowser_refresh:
+                mw.deckBrowser.refresh = self._original_deckBrowser_refresh
+                self._original_deckBrowser_refresh = None
+                
+            if self._original_deckBrowser_refresh_if_needed:
+                mw.deckBrowser.refresh_if_needed = self._original_deckBrowser_refresh_if_needed
+                self._original_deckBrowser_refresh_if_needed = None
+            
+        print("[Langkit] Restored Anki refresh mechanisms")

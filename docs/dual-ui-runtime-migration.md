@@ -1,447 +1,138 @@
-# Dual UI Runtime Migration Plan
+# Dual UI Runtime Architecture
 
 ## Overview
 
-This document outlines the design and migration plan for supporting two UI runtimes in a single Langkit binary:
+Langkit supports three UI runtime modes from a single binary:
 
-1. **Wails mode** (default): Traditional GUI with WebView2/WebKit
-2. **Headless server mode**: HTTP server for Qt WebEngine (Anki integration)
+1. **Wails mode** (default): Standalone GUI with native WebView
+2. **Browser mode**: Web server accessed via browser (`--server`)
+3. **Anki mode**: Qt WebEngine integration (`--server /path/to/config.json`)
 
-## Understanding Wails Internals
+## Architecture
 
-Based on investigation of the Wails codebase:
+### Runtime Detection
 
-- **No traditional HTTP server**: Wails intercepts WebView requests at a low level using platform-specific APIs
-- **Asset embedding**: Uses standard `//go:embed all:frontend/dist` directive
-- **Runtime injection**: Wails injects runtime scripts (`/wails/runtime.js`, `/wails/ipc.js`) into served HTML
-- **API calls**: Not HTTP - uses IPC bridge with `window.go.App.Method()` calls
+The server detects runtime mode based on command-line arguments:
+- No args → Wails mode
+- `--server` → Browser mode  
+- `--server /path/to/config.json` → Anki mode
 
-Since Langkit has migrated to WebRPC for API calls, we can bypass Wails' complex asset serving and use standard Go HTTP serving in headless mode.
+### Single-Port Architecture
 
-## Architecture Design
+All services run on a single dynamically-assigned port:
+- Frontend assets (served via Echo/Chi)
+- WebRPC API endpoints
+- WebSocket connections
 
-### Single Binary, Two Modes (technically 3 with the CLI)
-
-```go
-//go:embed all:frontend/dist
-var assets embed.FS
-
-func main() {
-    if len(os.Args) > 1 && os.Args[1] == "--server" {
-        runHeadlessServer() // For Qt/Anki - no Wails imports executed
-    } else {
-        gui.Run() // Normal Wails GUI
-    }
+Configuration is injected into `index.html` via middleware:
+```javascript
+window.__LANGKIT_CONFIG__ = {
+    apiPort: 12345,
+    wsPort: 12345,
+    runtime: "anki"  // or "wails" or "browser"
 }
 ```
 
-### Headless Server Architecture
+### Frontend Runtime Handling
 
-The headless server completely bypasses Wails initialization:
+The frontend uses Svelte stores for reactive runtime detection:
+- `$isWailsMode`, `$isBrowserMode`, `$isAnkiMode`
+- Stores initialized at app startup
+- Components adapt UI based on runtime (e.g., drag-drop support, return button)
 
-- **Frontend assets**: Served directly from embedded FS via Chi router
-- **WebRPC API**: Existing API endpoints (already migrated from Wails)
-- **WebSocket**: Existing real-time communication
-- **Native dialogs**: Zenity for cross-platform file/progress dialogs
-- **No WebView2**: No platform-specific UI components loaded
+## Anki Add-on Integration
 
-```
-[Anki Python Add-on] 
-         |
-         v
-[Qt WebEngine Tab] <--HTTP--> [Langkit Headless Server]
-                                 - Static files (Chi)
-                                 - WebRPC API (existing)
-                                 - WebSocket (existing)
-                                 - Zenity dialogs (native)
-```
+### UI Integration
 
-## DOM Injection for Configuration
+The add-on uses a "push" approach:
+1. Hides Anki's webviews (toolbar, main, bottom)
+2. Adds Langkit webview to the main layout
+3. Provides ESC key and button to return to Anki
 
-Since the frontend needs to know API/WebSocket ports, we'll inject configuration into `index.html`:
-
-```go
-func serveIndex(w http.ResponseWriter, r *http.Request) {
-    indexHTML, _ := fs.ReadFile(assets, "frontend/dist/index.html")
-
-    config := fmt.Sprintf(`
-        <script>
-            window.__LANGKIT_CONFIG__ = {
-                apiPort: %d,
-                wsPort: %d,
-                mode: "qt",
-                runtime: "anki"
-            };
-        </script>
-    `, apiPort, wsPort)
-
-    html := strings.Replace(string(indexHTML), "</head>", config + "</head>", 1)
-    w.Write([]byte(html))
-}
-```
-
-Frontend will check for this config before falling back to Wails IPC methods.
-
-## Anki Add-on Architecture
+This avoids Qt widget lifecycle issues while providing full-screen experience.
 
 ### Core Components
 
-The Python add-on serves as a minimal wrapper with focused functionality:
+1. **Process Management**: Start/stop/restart server with pipe handling
+2. **Binary Management**: Auto-download with checksum verification
+3. **WebView Integration**: Custom Qt WebEngine view with drag-drop support
 
-1. **Process Management**
-   
-   - Start/stop/restart Langkit server
-   - Single instance enforcement
-   - Graceful shutdown on Anki exit
-   - Crash detection and restart
+### Drag-Drop Implementation
 
-2. **Binary Management**
-   
-   ```python
-   class BinaryManager:
-       def download_with_progress(self, progress_callback)
-       def verify_checksum(self, binary_path) -> bool
-       def get_installed_version() -> Optional[str]
-       def check_for_updates() -> Optional[NewVersion]
-   ```
+- **Wails**: Native drag-drop via Wails runtime
+- **Anki**: Qt drag events bridged to JavaScript  
+- **Browser**: File picker only (no drag-drop)
 
-3. **UI Integration**
-   
-   - Add Langkit tab to Anki's main interface
-   - Host Qt WebEngine view pointing to Langkit server
-   - Handle tab switching and lifecycle
+## Technical Details
 
-4. **First-Run Setup**
-   
-   - Download binary with progress bar
-   - Verify checksum
-   - Test server startup
-   - Configure settings
+### UI Runtime Abstraction
 
-### Dialog Architecture
+#### Backend (`ui` Package)
 
-The existing UI abstraction layer (`internal/ui`) allows runtime-specific dialogs:
-
-- **Wails mode**: Uses native Wails dialogs (integrated with app window)
-- **Qt/headless mode**: Uses Zenity dialogs (cross-platform native dialogs)
-
-No dialog bridge needed - the Go binary shows its own dialogs based on runtime:
-
+The `ui` package provides a unified interface for runtime-specific operations:
 ```go
-// Wails mode
-ui.Initialize(dialogs.NewWailsFileDialog(ctx))
-
-// Qt mode
-ui.Initialize(dialogs.NewZenityFileDialog())
+ui.Initialize(fileDialog, urlOpener)
 ```
 
-Benefits of this approach:
-
-- Simplified architecture - no IPC for dialogs
-- Native look and feel on all platforms
-- Already cross-platform (Windows, macOS, Linux)
-- Supports all needed dialog types (file, progress, notifications)
-- Less code to maintain
-
-## Anki UI Integration
-
-### First-Class Tab Integration
-
-Langkit appears as a main tab in Anki's interface:
-
-```
-[Decks] [Add] [Browse] [Stats] [Langkit] [Sync]
-```
-
-When clicked:
-
-- Complete window takeover (no side-by-side mode needed)
-- Full screen real estate for feature cards and log viewer
-- Maintains Anki's visual hierarchy
-
-### Exit Strategies
-
-1. **Toolbar Persistence**: Keep Anki's main toolbar visible, click other tabs to exit
-2. **Runtime-Specific UI**: Add subtle "← Back to Anki" in Qt mode only
-3. **Keyboard**: ESC key to return to main Anki view
-
-## Migration Requirements
-
-### 1. Remaining Wails Dependencies
-
-#### Startup/Shutdown Logic
-
-Since Wails takes over program execution with `wails.Run()`, we can't use interfaces. Instead, extract common startup/shutdown logic:
-
-```go
-// Shared initialization logic
-func commonStartup(ctx context.Context, apiServer *api.Server, wsServer *WebSocketServer) error {
-    // Initialize LLM system
-    // Start API server
-    // Load settings
-    // Initialize logging
-    return nil
-}
-
-// Wails mode - called by Wails
-func (a *App) startup(ctx context.Context) {
-    commonStartup(ctx, a.apiServer, a.wsServer)
-    // Additional Wails-specific initialization
-}
-
-// Headless mode - called directly
-func runHeadlessServer() {
-    apiServer := api.NewServer(...)
-    wsServer := NewWebSocketServer(...)
-
-    commonStartup(context.Background(), apiServer, wsServer)
-    // Start Chi HTTP server
-}
-```
-
-This respects how Wails actually works while maximizing code reuse.
-
-#### GetWebSocketPort() Wails Method
-
-Will be replaced by DOM injection - frontend reads from `window.__LANGKIT_CONFIG__`.
-
-### 2. File Server Implementation
-
-Using Wails' AssetHandler with Chi router:
-
-```go
-func runHeadlessServer() {
-    // Create Wails asset handler (reuses all SPA routing logic)
-    assetOptions := &assetserver.Options{
-        Assets: assets, // Your embedded frontend
-    }
-    assetHandler, err := assetserver.NewAssetHandler(assetOptions, logger)
-    if err != nil {
-        panic(err)
-    }
-
-    // Create Chi router
-    r := chi.NewRouter()
-    r.Use(middleware.Logger)
-    r.Use(middleware.Recoverer)
-
-    // Apply config injection middleware to index paths
-    r.Get("/", configInjectionMiddleware(assetHandler))
-    r.Get("/index.html", configInjectionMiddleware(assetHandler))
-
-    // All other assets served directly by AssetHandler
-    r.Handle("/*", assetHandler)
-
-    // Note: WebRPC and WebSocket run on their own ports (existing)
-
-    log.Println("Frontend: http://localhost:8080")
-    http.ListenAndServe(":8080", r)
-}
-```
-
-This approach reuses Wails' battle-tested asset serving logic while bypassing all GUI-specific code.
-
-## Implementation Tasks
-
-### Phase 1: Core Server Mode
-
-- [x] Create `runHeadlessServer()` function with Chi router
-- [x] Integrate Wails AssetHandler for asset serving
-- [x] Implement config injection middleware (ports) using httptest.ResponseRecorder
-- [x] Test embedded assets are accessible without Wails runtime
-
-### Phase 2: Frontend Compatibility
-
-- [x] Update frontend API client to check `window.__LANGKIT_CONFIG__`
-- [x] Update WebSocket client to use injected configuration
-- [ ] Add runtime-specific UI adjustments (exit button for Qt mode)
-
-### Phase 3: Anki Add-on Development
-
-- [x] Create minimal Python wrapper with process management
-- [x] Implement binary downloader with progress UI
-- [x] Add checksum verification
-- [x] Implement ZenityFileDialog for Qt/headless mode
-- [ ] Implement main tab integration in Anki UI
-
-### Phase 4: Integration & Polish
-
-- [ ] Test Windows binary with `--server` flag (no console output expected)
-- [x] Verify file dialogs work with Zenity
-- [ ] Test complete user flow from Anki
-
-### Phase 5: Distribution
-
-- [ ] Package add-on for AnkiWeb
-- [ ] Create installation guide
-- [ ] Document server mode for developers
-
-## Detailed Implementation: Reusing Wails AssetServer
-
-### Understanding Wails Asset Architecture
-
-Based on analysis of the Wails codebase, the asset serving is cleanly separated into layers all contained within package `asserserver` or `asserserver/webview`:
-
-1. **`assetHandler`** - Pure HTTP handler for serving from embed.FS
-2. **`AssetServer`** - Wrapper that adds Wails runtime injection
-3. **Platform interceptors** - WebView-specific request handling
-
-For headless mode, we only need the first layer.
-
-### Key Components to Use
-
-#### 1. AssetHandler (Core Logic)
-
-```go
-import "github.com/wailsapp/wails/v2/pkg/assetserver"
-import "github.com/wailsapp/wails/v2/pkg/options/assetserver"
-
-// Create handler that serves embedded assets
-assetOptions := &assetserver.Options{
-    Assets: assets,  // Your //go:embed all:frontend/dist
-}
-handler, err := assetserver.NewAssetHandler(assetOptions, logger)
-```
-
-This automatically provides:
-
-- **SPA routing**: Serves index.html for non-existent paths
-- **MIME types**: Correct Content-Type headers
-- **Path resolution**: Finds frontend/dist within embed.FS
-- **Error handling**: Proper 404 responses
-
-#### 2. Configuration Injection Middleware
-
-Since we're not using Wails' script injection, we need our own middleware:
-
-```go
-func configInjectionMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Use httptest.ResponseRecorder to capture response
-        recorder := httptest.NewRecorder()
-        next.ServeHTTP(recorder, r)
-
-        // Only process successful HTML responses
-        if recorder.Code != http.StatusOK || 
-           !strings.Contains(recorder.Header().Get("Content-Type"), "text/html") {
-            // Pass through unchanged
-            for k, v := range recorder.Header() {
-                w.Header()[k] = v
-            }
-            w.WriteHeader(recorder.Code)
-            recorder.Body.WriteTo(w)
-            return
-        }
-
-        // Inject configuration
-        body := recorder.Body.String()
-        config := fmt.Sprintf(`<script>
-            window.__LANGKIT_CONFIG__ = {
-                apiPort: %d,
-                wsPort: %d,
-                mode: "qt",
-                runtime: "anki"
-            };
-        </script>`, apiPort, wsPort)
-
-        // Insert before </head>
-        newBody := strings.Replace(body, "</head>", config + "</head>", 1)
-
-        // Write modified response
-        w.Header().Set("Content-Type", recorder.Header().Get("Content-Type"))
-        w.Header().Set("Content-Length", fmt.Sprint(len(newBody)))
-        w.WriteHeader(recorder.Code)
-        w.Write([]byte(newBody))
-    })
-}
-```
-
-### Implementation Steps
-
-1. **Import Required Packages**
-   
-   ```go
-   import (
-       "github.com/wailsapp/wails/v2/pkg/assetserver"
-       assetserveroptions "github.com/wailsapp/wails/v2/pkg/options/assetserver"
-   )
-   ```
-
-2. **Create Asset Handler**
-   
-   - Use `NewAssetHandler` not `NewAssetServer`
-   - Pass your embedded assets
-   - No Wails runtime injection occurs
-
-3. **Setup Chi Router**
-   
-   - Apply injection middleware to index routes
-   - Serve other assets directly
-   - Maintain clean separation of concerns
-
-4. **Handle Edge Cases**
-   
-   - SPA routes automatically work
-   - 404s handled correctly
-   - Binary files served without modification
-
-### Files to Reference in Wails
-
-For deeper understanding, these Wails files are most relevant:
-
-- `v2/pkg/assetserver/assethandler.go` - Core serving logic
-- `v2/pkg/assetserver/fs.go` - Path resolution in embed.FS
-- `v2/pkg/assetserver/mimecache.go` - MIME type handling
-- `v2/pkg/assetserver/body_recorder.go` - Response modification pattern
-
-### Benefits Over Custom Implementation
-
-1. **Production-tested**: Wails' asset serving is battle-tested across thousands of applications
-2. **SPA-aware**: Correctly handles client-side routing without configuration
-3. **Performance**: Optimized MIME type detection and caching
-4. **Maintainability**: Leverages existing, well-documented code
-5. **Compatibility**: Ensures frontend works identically in both modes
-
-## Technical Considerations
-
-### Windows Console Behavior
-
-- GUI binary compiled with `-H windowsgui` can receive args but not output to console
-- Server mode will write to log file for debugging
-- Status endpoint optional: `http://localhost:8080/status`
-
-### Port Management
-
-originally one port per service but now it is A SINGLE PORT (OS-assigned dynamic port) FOR EVERYTHING:
-
-- Frontend
-- WebRPC API
-- WebSocket
-
-
-
-- All ports:
-  - injected via DOM and
-  - injected inside config.json (backend is run like this: langkit --server /path/to/addon/config.json)
-
-### Binary Distribution
-
-- Host releases on GitHub
-- Add-on downloads appropriate binary for platform
-- Checksum verification for security
-- Version checking using existing version.go logic
+This abstraction allows:
+- **Wails mode**: Native file dialogs via Wails API
+- **Server modes**: Zenity dialogs for cross-platform compatibility
+- Seamless switching between implementations based on runtime
+
+#### Frontend Runtime Module
+
+The frontend's `lib/runtime` module provides:
+- **Runtime detection**: Reactive Svelte stores that components can subscribe to
+- **Safe wrappers**: Functions like `safeWindowIsMinimised()` that gracefully handle missing APIs
+- **Hybrid handlers**: Unified interfaces that adapt to the current runtime
+
+For example, the drag-drop handler:
+- Detects runtime mode via stores
+- Wails mode: Registers native drag-drop handlers
+- Anki mode: Sets up Qt bridge functions (`window.handleFileDrop`)
+- Browser mode: Gracefully disables drag-drop
+- All modes use the same API (`initializeDragDrop()`)
+
+This abstraction enables components to work seamlessly across all runtimes without conditional logic scattered throughout the codebase.
+
+### Dialog Handling
+
+Runtime-specific dialogs:
+- **Wails mode**: Native Wails dialogs
+- **Server modes**: Zenity for cross-platform file dialogs
 
 ### Process Architecture
 
 ```
 Anki Process
   └── Python Add-on
-       ├── Binary Manager (download/update)
-       ├── UI Manager (Qt WebEngine tab)
+       ├── Binary Manager
+       ├── WebView Tab (Qt WebEngine)
        └── Process Manager
-            └── Langkit Server (subprocess)
-                 ├── Chi HTTP Server (frontend)
-                 ├── WebRPC API Server
-                 ├── WebSocket Server
-                 └── Zenity Dialogs (native)
+            └── Langkit Server
+                 └── Single Port (Echo server)
+                      ├── Frontend assets
+                      ├── WebRPC API
+                      └── WebSocket
 ```
+
+### Asset Serving
+
+Server mode uses Wails' AssetHandler for SPA routing and MIME types, with custom middleware for config injection.
+
+## Implementation Status
+
+### Completed
+- [x] Single-port unified server
+- [x] Runtime detection and config injection
+- [x] UI runtime abstraction (backend and frontend)
+- [x] Svelte stores for runtime mode
+- [x] Anki addon with push integration
+- [x] Cross-platform drag-drop support
+- [x] Binary auto-download and verification
+- [x] Subprocess pipe handling fix
+
+### Pending
+- [ ] Windows console output handling
+- [ ] AnkiWeb distribution
+- [ ] Installation documentation
