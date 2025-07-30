@@ -75,10 +75,8 @@ class BinaryManager:
         if platform.system() == "Darwin":
             return "langkit.app"
         elif platform.system() == "Windows":
-            # Ensure Windows executables have .exe extension
-            if not local_name.endswith(".exe"):
-                return local_name + ".exe"
-            return local_name
+            # Windows always uses langkit-app.exe regardless of archive name
+            return "langkit-app.exe"
         else:
             # Linux keeps the name as-is
             return local_name
@@ -157,10 +155,8 @@ class BinaryManager:
             return None
             
         # Show user-friendly confirmation dialog
-        msg = "The Langkit addon needs to download the Langkit application "
-        msg += "(approximately 95MB) to run on your computer.\n\n"
-        msg += "This is a one-time setup that installs the language learning tools.\n\n"
-        msg += "Download and install now?"
+        msg = "The Langkit addon needs to download the Langkit application to run on your computer.\n\n"
+        msg += "This is a one-time setup. Download and install now?"
         
         ret = QMessageBox.question(
             aqt.mw,
@@ -316,7 +312,6 @@ class BinaryManager:
             self.config["last_known_version"] = release_info.get("tag_name", "").lstrip("v")
             
             progress.close()
-            showInfo(f"Langkit downloaded successfully to {final_path}")
             return final_path
             
         except Exception as e:

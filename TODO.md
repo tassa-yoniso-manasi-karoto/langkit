@@ -5,7 +5,6 @@
 - welcomepop displays forever, ignoring countAppStart
   - ideally create a reusable DependencyChecker component
 - autoscroll won't reenable when scrolling down.
-- zip release to reduce DL
 
 .
 
@@ -13,12 +12,9 @@
 - ⭐ PYTHAILNLP
 
 .
-
-- build.yml add "Give executable permission to run it (chmod +x)"
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - manual GUI tests
   - check settings panel from a non dev perspective
-- try offline to see if icon / fonts are missing
 
 .
 

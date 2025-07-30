@@ -396,11 +396,11 @@ class LangkitAddon:
             # First time warning
             info_text = (
                 "Langkit works best with Direct3D for performance, but some users with "
-                "high refresh rate displays (above 60Hz) may experience visual glitches.\n\n"
+                "high refresh rate displays (>60Hz) may experience visual glitches.\n\n"
                 "If you notice any flickering or visual issues:\n"
                 "• Try lowering your display refresh rate to 60Hz in Windows Display Settings\n"
-                "• Or switch to OpenGL in Anki's preferences (though performance may be reduced)\n\n"
-                "Most users (with 60Hz displays) will not experience any issues."
+                "• Or switch to Video Driver : OpenGL in Anki's preferences (though performance will suffer)\n\n"
+                "Most users will not experience any issues."
             )
         
         msg.setInformativeText(info_text)
