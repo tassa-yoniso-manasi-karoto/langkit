@@ -84,6 +84,10 @@ import { get } from 'svelte/store';
     let showApiKeys = false;
     let showLanguages = false;
     
+    // Pure CSS approach using clamp for responsive sizing
+    const containerMinHeight = 'clamp(450px, 60vh, 630px)';
+    const containerMaxHeight = 'min(calc(100vh - 140px), 800px)';
+    
     // Reactive variables from stores
     $: dockerStatus = $dockerStatusStore;
     $: internetStatus = $internetStatusStore;
@@ -443,7 +447,7 @@ import { get } from 'svelte/store';
             <!-- Content -->
             <div class="relative pt-8 md:pt-12 px-8 md:px-12 pb-6 md:pb-10">
                 <!-- Content container with 3D slide effect -->
-                <div class="min-h-[630px] max-h-[60vh] relative slide-container overflow-x-hidden overflow-y-auto mask-fade">
+                <div class="relative slide-container overflow-x-hidden overflow-y-auto mask-fade" style="min-height: {containerMinHeight}; max-height: {containerMaxHeight};">
                     <!-- Step 0: Welcome page -->
                     {#if showWelcome}
                         <div class="absolute top-0 left-0 right-0 flex flex-col items-center pb-5"

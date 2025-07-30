@@ -6,6 +6,7 @@
     import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore } from '../lib/stores';
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
+    import { browserEngine } from '../lib/whichBrowser';
     import WASMDashboard from './dev/WASMDashboard.svelte';
     import MemoryTestButton from './dev/MemoryTestButton.svelte';
     import DraggableContainer from './dev/DraggableContainer.svelte';
@@ -33,6 +34,10 @@
     let isExpanded = false;
     let position = { x: 18, y: 90 }; // Initial position
     let isDragging = false; // For DraggableContainer
+    
+    // Reactive drag handle size based on browser engine
+    $: dragHandleSize = $browserEngine === 'webkit' ? 64 : 50;
+    $: dragHandleRadius = dragHandleSize / 2;
     
     // Component references
     let iconBubble: HTMLDivElement;
@@ -574,7 +579,7 @@
                     aria-label="Open developer dashboard"
                 >
                     <!-- The button is now wrapped in a draggable container -->
-                    <div class="drag-handle">
+                    <div class="drag-handle" style="width: {dragHandleSize}px; height: {dragHandleSize}px; border-radius: {dragHandleRadius}px;">
                         <button
                             class="icon-button"
                             on:click|stopPropagation={toggleDashboard}
@@ -703,18 +708,20 @@
     }
 
     .drag-handle {
-        width: 64px;
-        height: 64px;
+        box-sizing: border-box;
+        width: 50px;
+        height: 50px;
         cursor: move;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 32px;
+        border-radius: 25px;
         background: hsla(215, 15%, 22%, 0.9); /* Match icon button background */
         border: 1px solid hsla(215, 20%, 30%, 0.5);
     }
 
     .icon-button {
+        box-sizing: border-box;
         width: 40px;
         height: 40px;
         border-radius: 20px;
