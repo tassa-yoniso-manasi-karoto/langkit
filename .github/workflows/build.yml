@@ -271,20 +271,35 @@ jobs:
           
           mkdir -p dist
           
-          # Copy and rename CLI binaries with "terminal-only" naming
+          # Copy and compress CLI binaries with "terminal-only" naming
           if ls langkit-cli* 1> /dev/null 2>&1; then
             if [[ "${{ runner.os }}" == "Windows" ]]; then
               cp langkit-cli.exe "dist/langkit-terminal-only.exe"
+              # Create zip archive for Windows terminal-only using PowerShell
+              powershell -Command "Compress-Archive -Path 'dist/langkit-terminal-only.exe' -DestinationPath 'dist/langkit-terminal-only-windows.zip' -Force"
+              rm dist/langkit-terminal-only.exe  # Remove uncompressed file
             elif [[ "${{ runner.os }}" == "macOS" ]]; then
               cp langkit-cli "dist/langkit-terminal-only-macos"
+              # Create zip archive for macOS terminal-only
+              cd dist
+              zip -j langkit-terminal-only-macos.zip langkit-terminal-only-macos
+              rm langkit-terminal-only-macos  # Remove uncompressed file
+              cd ..
             else
               cp langkit-cli "dist/langkit-terminal-only-linux"
+              # Ensure executable permissions
+              chmod +x "dist/langkit-terminal-only-linux"
+              # Create tar.xz archive using LZMA compression
+              cd dist
+              tar -cJf langkit-terminal-only-linux.tar.xz langkit-terminal-only-linux
+              rm langkit-terminal-only-linux  # Remove uncompressed file
+              cd ..
             fi
           else
             echo "Warning: CLI binary not found"
           fi
           
-          # Copy GUI based on platform
+          # Copy and compress GUI based on platform
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             # Check multiple possible locations for Windows executable
             if ls langkit.exe 1> /dev/null 2>&1; then
@@ -303,6 +318,9 @@ jobs:
               echo "Searched: ./langkit.exe, build/bin/langkit.exe, build/bin/langkit, build/windows/*.exe"
               exit 1
             fi
+            # Create zip archive for Windows using PowerShell
+            powershell -Command "Compress-Archive -Path 'dist/langkit-app.exe' -DestinationPath 'dist/langkit-app-windows.zip' -Force"
+            rm dist/langkit-app.exe  # Remove uncompressed file
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
             # Create a zip of the app bundle
             if ls build/bin/*.app 1> /dev/null 2>&1; then
@@ -317,6 +335,13 @@ jobs:
             # Linux - copy executable with simple platform suffix
             if ls build/bin/langkit 1> /dev/null 2>&1; then
               cp build/bin/langkit "dist/langkit-app-linux"
+              # Ensure executable permissions
+              chmod +x "dist/langkit-app-linux"
+              # Create tar.xz archive using LZMA compression
+              cd dist
+              tar -cJf langkit-app-linux.tar.xz langkit-app-linux
+              rm langkit-app-linux  # Remove uncompressed file
+              cd ..
             else
               echo "Error: Linux binaries not found"
               exit 1
@@ -379,15 +404,15 @@ jobs:
           # Copy only specific file patterns from artifacts
           for dir in langkit-*/; do
             if [ -d "$dir" ]; then
-              # GUI binaries
-              [ -f "$dir/langkit-app.exe" ] && cp "$dir/langkit-app.exe" release-files/
-              [ -f "$dir/langkit-app-linux" ] && cp "$dir/langkit-app-linux" release-files/
+              # GUI binaries (all compressed)
+              [ -f "$dir/langkit-app-windows.zip" ] && cp "$dir/langkit-app-windows.zip" release-files/
+              [ -f "$dir/langkit-app-linux.tar.xz" ] && cp "$dir/langkit-app-linux.tar.xz" release-files/
               [ -f "$dir/langkit-app-macos.zip" ] && cp "$dir/langkit-app-macos.zip" release-files/
               
-              # Terminal-only binaries
-              [ -f "$dir/langkit-terminal-only.exe" ] && cp "$dir/langkit-terminal-only.exe" release-files/
-              [ -f "$dir/langkit-terminal-only-linux" ] && cp "$dir/langkit-terminal-only-linux" release-files/
-              [ -f "$dir/langkit-terminal-only-macos" ] && cp "$dir/langkit-terminal-only-macos" release-files/
+              # Terminal-only binaries (all compressed)
+              [ -f "$dir/langkit-terminal-only-windows.zip" ] && cp "$dir/langkit-terminal-only-windows.zip" release-files/
+              [ -f "$dir/langkit-terminal-only-linux.tar.xz" ] && cp "$dir/langkit-terminal-only-linux.tar.xz" release-files/
+              [ -f "$dir/langkit-terminal-only-macos.zip" ] && cp "$dir/langkit-terminal-only-macos.zip" release-files/
             fi
           done
           
@@ -417,8 +442,8 @@ jobs:
             
             ## CLI version (advanced users only)
             
-            For automation and scripting in terminal:
-            - Windows: `langkit-terminal-only.exe`
-            - Mac: `langkit-terminal-only-macos`
-            - Linux: `langkit-terminal-only-linux`
+            For automation and scripting in terminal (extract the archive first):
+            - Windows: `langkit-terminal-only-windows.zip`
+            - Mac: `langkit-terminal-only-macos.zip`
+            - Linux: `langkit-terminal-only-linux.tar.xz`
             

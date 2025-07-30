@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import stat
+import tarfile
 import tempfile
 import urllib.request
 import urllib.error
@@ -27,10 +28,10 @@ class BinaryManager:
     
     GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
     PLATFORM_MAPPING = {
-        ("Windows", "AMD64"): "langkit-app.exe",
+        ("Windows", "AMD64"): "langkit-app-windows.zip",
         ("Darwin", "x86_64"): "langkit-app-macos.zip",
         ("Darwin", "arm64"): "langkit-app-macos.zip",  # Universal binary
-        ("Linux", "x86_64"): "langkit-app-linux",
+        ("Linux", "x86_64"): "langkit-app-linux.tar.xz",
     }
     
     def __init__(self, addon_path: Path, config: dict):
@@ -59,6 +60,29 @@ class BinaryManager:
         platform_key = self.get_platform_info()
         return self.PLATFORM_MAPPING.get(platform_key)
     
+    def get_local_binary_name(self, compressed_name: Optional[str] = None) -> Optional[str]:
+        """Get the local binary name after extraction from compressed file."""
+        if compressed_name is None:
+            compressed_name = self.get_binary_name()
+        
+        if not compressed_name:
+            return None
+            
+        # Remove compression extensions
+        local_name = compressed_name.replace(".zip", "").replace(".tar.xz", "")
+        
+        # Platform-specific naming
+        if platform.system() == "Darwin":
+            return "langkit.app"
+        elif platform.system() == "Windows":
+            # Ensure Windows executables have .exe extension
+            if not local_name.endswith(".exe"):
+                return local_name + ".exe"
+            return local_name
+        else:
+            # Linux keeps the name as-is
+            return local_name
+    
     def check_binary_exists(self) -> bool:
         """Check if the langkit binary exists without downloading."""
         # Check if binary path is configured
@@ -67,14 +91,9 @@ class BinaryManager:
             return path.exists()
                 
         # Check for existing binary
-        binary_name = self.get_binary_name()
-        if not binary_name:
+        local_name = self.get_local_binary_name()
+        if not local_name:
             return False
-            
-        # Remove .zip extension for local binary name
-        local_name = binary_name.replace(".zip", "")
-        if platform.system() == "Darwin":
-            local_name = "langkit.app"
             
         binary_path = self.binaries_dir / local_name
         return binary_path.exists()
@@ -92,14 +111,9 @@ class BinaryManager:
                 return path
                 
         # Check for existing binary
-        binary_name = self.get_binary_name()
-        if not binary_name:
+        local_name = self.get_local_binary_name()
+        if not local_name:
             return None
-            
-        # Remove .zip extension for local binary name
-        local_name = binary_name.replace(".zip", "")
-        if platform.system() == "Darwin":
-            local_name = "langkit.app"
             
         binary_path = self.binaries_dir / local_name
         
@@ -256,30 +270,47 @@ class BinaryManager:
                     )
                     return None
                     
-            # Extract if it's a zip file
+            # Extract compressed files
             final_path = None
+            local_name = self.get_local_binary_name(binary_name)
+            
             if binary_name.endswith(".zip"):
                 progress.setLabelText("Extracting...")
                 with zipfile.ZipFile(temp_path, 'r') as zip_ref:
                     zip_ref.extractall(self.binaries_dir)
                 temp_path.unlink()
                 
-                # Find the app bundle on macOS
+                # Find the extracted file
                 if platform.system() == "Darwin":
+                    # Find the app bundle on macOS
                     for item in self.binaries_dir.iterdir():
                         if item.name.endswith(".app"):
                             final_path = item
                             break
-            else:
-                # Move to final location
-                local_name = binary_name.replace(".exe", "") if binary_name.endswith(".exe") else binary_name
-                final_path = self.binaries_dir / local_name
-                shutil.move(str(temp_path), str(final_path))
+                elif platform.system() == "Windows":
+                    # Windows executable should be directly in the zip
+                    final_path = self.binaries_dir / local_name
+                    
+            elif binary_name.endswith(".tar.xz"):
+                progress.setLabelText("Extracting...")
+                with tarfile.open(temp_path, 'r:xz') as tar_ref:
+                    tar_ref.extractall(self.binaries_dir)
+                temp_path.unlink()
                 
-                # Make executable on Unix
-                if platform.system() != "Windows":
+                # Linux binary should be extracted with its original name
+                final_path = self.binaries_dir / local_name
+                
+                # Ensure executable permissions
+                if final_path.exists():
                     st = os.stat(final_path)
                     os.chmod(final_path, st.st_mode | stat.S_IEXEC)
+                    
+            else:
+                # This shouldn't happen with current platform mappings
+                # but handle it just in case
+                showCritical(f"Unknown file format: {binary_name}", title="Download failed")
+                temp_path.unlink()
+                return None
                     
             # Update config with version
             self.config["last_known_version"] = release_info.get("tag_name", "").lstrip("v")
@@ -317,12 +348,8 @@ class BinaryManager:
             return False
             
         # Backup current binary
-        binary_name = self.get_binary_name()
-        if binary_name:
-            local_name = binary_name.replace(".zip", "").replace(".exe", "")
-            if platform.system() == "Darwin":
-                local_name = "langkit.app"
-            
+        local_name = self.get_local_binary_name()
+        if local_name:
             current_path = self.binaries_dir / local_name
             if current_path.exists():
                 backup_path = self.binaries_dir / f"{local_name}.backup"
