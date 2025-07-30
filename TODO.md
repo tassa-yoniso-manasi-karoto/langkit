@@ -3,7 +3,7 @@
 .
 
 - welcomepop displays forever, ignoring countAppStart
-  - ideally create a reusable DependencyChecker component
+  - ideally create a reusable DependenciesChecklist component
 - autoscroll won't reenable when scrolling down.
 
 .
