@@ -1,9 +1,7 @@
 - fix chrome/qtWebEngine specific bug: isProcessing not set properly
 
 .
-
 - welcomepop displays forever, ignoring countAppStart
-  - ideally create a reusable DependenciesChecklist component
 - autoscroll won't reenable when scrolling down.
 
 .
