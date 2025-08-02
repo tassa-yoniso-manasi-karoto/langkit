@@ -1,8 +1,6 @@
 - autoscroll won't reenable when scrolling down.
 
 .
-
-- ERR FRONT: Error selecting directory component=MediaInput fe_error={"cause":"fetch(): Request timeout after 30000ms","code":-1,"message":"request failed","msg":"request failed","name":"WebrpcRequestFailed","status":0} origin=gui sessionId=mdtnbtjzigvohvd
 - ⭐ PYTHAILNLP
 
 .

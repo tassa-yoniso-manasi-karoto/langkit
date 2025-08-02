@@ -1,5 +1,5 @@
 import { MediaService } from '../generated/api.gen';
-import { getAPIBaseUrl, defaultFetch } from '../client';
+import { getAPIBaseUrl, interactiveFetch } from '../client';
 
 // Singleton instance
 let mediaServiceInstance: MediaService | null = null;
@@ -10,7 +10,7 @@ let mediaServiceInstance: MediaService | null = null;
 async function getMediaService(): Promise<MediaService> {
     if (!mediaServiceInstance) {
         const baseUrl = await getAPIBaseUrl();
-        mediaServiceInstance = new MediaService(baseUrl, defaultFetch);
+        mediaServiceInstance = new MediaService(baseUrl, interactiveFetch);
     }
     return mediaServiceInstance;
 }

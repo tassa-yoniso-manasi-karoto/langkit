@@ -56,11 +56,17 @@ export async function getAPIBaseUrl(): Promise<string> {
 
 /**
  * Create a fetch function with common options for WebRPC
+ * @param timeout - Timeout in milliseconds. Use 0 or negative value for no timeout.
  */
 export function createFetch(timeout: number = 30000): typeof fetch {
     return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        let timeoutId: NodeJS.Timeout | undefined;
+        
+        // Only set timeout if it's a positive number
+        if (timeout > 0) {
+            timeoutId = setTimeout(() => controller.abort(), timeout);
+        }
 
         try {
             const response = await fetch(input, {
@@ -73,11 +79,15 @@ export function createFetch(timeout: number = 30000): typeof fetch {
                 }
             });
             
-            clearTimeout(timeoutId);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
             return response;
         } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+            if (error.name === 'AbortError' && timeout > 0) {
                 throw new Error(`Request timeout after ${timeout}ms`);
             }
             throw error;
@@ -89,3 +99,8 @@ export function createFetch(timeout: number = 30000): typeof fetch {
  * Default fetch instance with 30 second timeout
  */
 export const defaultFetch = createFetch(30000);
+
+/**
+ * Fetch instance for interactive operations (file dialogs, etc) with no timeout
+ */
+export const interactiveFetch = createFetch(0);
