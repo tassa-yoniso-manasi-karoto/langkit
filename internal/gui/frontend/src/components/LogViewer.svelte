@@ -90,6 +90,10 @@
     	'warn': 2,
     	'error': 3,
     };
+    
+    // Scroll position tolerance for column-reverse layout (handles sub-pixel values)
+    // 5px tolerance accounts for browser rounding, high-DPI displays, and smooth scrolling
+    const SCROLL_BOTTOM_TOLERANCE = 5;
 
     // Match certain behaviors to text colors using the centralized colors
     const behaviorColors: Record<string, string> = {
@@ -405,7 +409,7 @@
         // Update the tracked length
         previousFilteredLogsLength = filteredLogs.length;
         // Check auto-scroll state and scroll position
-        const exactlyAtBottom = scrollContainer.scrollTop === 0;
+        const exactlyAtBottom = scrollContainer.scrollTop <= SCROLL_BOTTOM_TOLERANCE;
         
         // CRITICAL FIX: Always ensure we're at bottom if auto-scroll is enabled
         if (autoScroll && !isUserScrolling && !manualScrollLock) {
@@ -492,7 +496,7 @@
                 }
                 
                 // Verify state again after DOM update
-                const stillAtBottom = scrollContainer && scrollContainer.scrollTop === 0;
+                const stillAtBottom = scrollContainer && scrollContainer.scrollTop <= SCROLL_BOTTOM_TOLERANCE;
                 
                 // Restore scroll position using the appropriate strategy
                 if (autoScroll && !isUserScrolling && !manualScrollLock) {
@@ -559,7 +563,7 @@
         trackScrollTrigger(`setAutoScroll:${newValue ? 'ON' : 'OFF'}:${source}`);
         
         // IMPORTANT: If trying to enable auto-scroll but manual lock is active, refuse
-        if (newValue && manualScrollLock && source !== 'userPreference') {
+        if (newValue && manualScrollLock) {
             logger.warn('LogViewer', 'Auto-scroll enable blocked due to manual lock');
             return; // Early return - don't enable against user's wishes
         }
@@ -655,7 +659,7 @@
     }
     
     // Check if we're exactly at the bottom
-    function isScrolledToBottom(tolerance = 0): boolean {
+    function isScrolledToBottom(tolerance = SCROLL_BOTTOM_TOLERANCE): boolean {
         if (!scrollContainer) return true;
         
         // Check if scrolling is even possible
@@ -1026,8 +1030,8 @@
         }
         
         // In column-reverse layout, bottom is at scrollTop = 0
-        // Use a small tolerance (1px) to account for rounding errors
-        const notAtBottom = scrollContainer.scrollTop > 1;
+        // Use a small tolerance to account for rounding errors
+        const notAtBottom = scrollContainer.scrollTop > SCROLL_BOTTOM_TOLERANCE;
         
         showReturnToBottomButton = !autoScroll && notAtBottom;
         
@@ -1112,7 +1116,7 @@
             
             // IMPORTANT: If user has scrolled away from bottom and auto-scroll is on,
             // immediately disable auto-scroll before doing anything else
-            if (scrollTop > 1 && autoScroll) {
+            if (scrollTop > SCROLL_BOTTOM_TOLERANCE && autoScroll) {
                 if (debug) logger.warn('logViewer', `CRITICAL: Disabling auto-scroll due to scrollTop=${scrollTop}px`);
                 // Force auto-scroll off
                 setAutoScroll(false, 'userScrollAway');
@@ -1149,8 +1153,8 @@
                 // Get final scroll position
                 const finalScrollTop = scrollContainer?.scrollTop || 0;
                 
-                // Check if we're exactly at the bottom (scrollTop = 0 in column-reverse)
-                if (scrollContainer && finalScrollTop === 0) {
+                // Check if we're at the bottom (scrollTop <= tolerance in column-reverse)
+                if (scrollContainer && finalScrollTop <= SCROLL_BOTTOM_TOLERANCE) {
                     // if (debug) logger.trace('logViewer', "User at EXACT bottom position after scrolling");
                     
                     // ONLY re-enable auto-scroll if:
@@ -2180,27 +2184,6 @@
                 </select>
             </div>
 
-            <!-- Auto-scroll toggle -->
-            <div class="flex items-center gap-1 px-3 py-1 bg-[#333] h-7 rounded hover:bg-primary/10 hover:border-primary/55 hover:shadow-input transition-all duration-200">
-                <input
-                    id="auto-scroll-checkbox"
-                    type="checkbox"
-                    checked={autoScroll}
-                    on:change={(e) => {
-                        const target = e.target as HTMLInputElement;
-                        setAutoScroll(target.checked, 'userPreference');
-                    }}
-                    class="w-3.5 h-3.5 accent-primary m-0 cursor-pointer"
-                    aria-label="Toggle auto-scroll"
-                />
-                <label 
-                    for="auto-scroll-checkbox"
-                    class="cursor-pointer text-text text-[11px] uppercase tracking-wider whitespace-nowrap flex-shrink-0 hover:text-white transition-colors duration-200"
-                >
-                    Auto-scroll
-                </label>
-            </div>
-
             <!-- Clear button -->
             <button 
                 on:click={clearLogsPreserveAutoScroll}
@@ -2478,14 +2461,13 @@
                 <!-- Auto-scroll section -->
                 <div class="text-green-400 font-bold border-b border-gray-600 pb-1">AUTO-SCROLL STATE</div>
                 <div>Auto-Scroll: {autoScroll ? 'ON' : 'OFF'}</div>
-                <div>UI Checkbox: {document.getElementById('auto-scroll-checkbox')?.checked ? 'ON' : 'OFF'}</div>
                 
                 <!-- Scroll metrics -->
                 <div class="border-t border-gray-600 my-1 pt-1"></div>
                 <div>ScrollTop: {Math.abs(scrollContainer?.scrollTop || 0).toFixed(1)}px</div>
                 <div>ScrollHeight: {scrollContainer?.scrollHeight || 0}px</div>
                 <div>ClientHeight: {scrollContainer?.clientHeight || 0}px</div>
-                <div>At Bottom: {Math.abs(scrollContainer?.scrollTop || 0) <= 1 ? 'YES' : 'NO'}</div>
+                <div>At Bottom: {Math.abs(scrollContainer?.scrollTop || 0) <= SCROLL_BOTTOM_TOLERANCE ? 'YES' : 'NO'}</div>
                 <div>Direction: {scrollDirectionToBottom ? '⬇️ TO BOTTOM' : '⬆️ TO TOP'}</div>
                 <div>Velocity: {scrollVelocity.toFixed(2)}</div>
                 <div class="font-bold {isUserScrolling ? 'text-green-400' : 'text-red-400'}">User Scrolling: {isUserScrolling ? 'YES' : 'NO'}</div>

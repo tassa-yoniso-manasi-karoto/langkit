@@ -1,6 +1,3 @@
-- autoscroll won't reenable when scrolling down.
-
-.
 - ⭐ PYTHAILNLP
 
 .
