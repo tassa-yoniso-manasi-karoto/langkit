@@ -7,6 +7,7 @@
     import { logger } from '../lib/logger';
     import { slide, fade } from 'svelte/transition';
     import { backOut } from 'svelte/easing';
+    import { browserEngine } from '../lib/whichBrowser';
 
     // Listen for dev dashboard events
     function handleToggleVirtualization() {
@@ -2210,6 +2211,8 @@
         <div 
             class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 log-scroll-container terminal-mode"
             class:autoscroll-active={autoScroll}
+            class:webkit-browser={$browserEngine === 'webkit'}
+            class:user-scrolling={isUserScrolling}
             bind:this={scrollContainer}
             role="region"
             aria-label="Log entries"
@@ -2558,6 +2561,39 @@
     /* Hide horizontal scrollbar */
     .log-scroll-container::-webkit-scrollbar-horizontal {
         display: none;
+    }
+    
+    /* WebKit-specific scrollbar fixes for column-reverse rendering bug */
+    /* Hide scrollbar by default on WebKit to avoid misleading visual feedback */
+    .webkit-browser.log-scroll-container::-webkit-scrollbar {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    
+    .webkit-browser.log-scroll-container::-webkit-scrollbar-thumb {
+        background-color: hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.3);
+    }
+    
+    /* Show scrollbar on hover or when user is actively scrolling */
+    .webkit-browser.log-scroll-container:hover::-webkit-scrollbar,
+    .webkit-browser.log-scroll-container.user-scrolling::-webkit-scrollbar {
+        opacity: 1;
+    }
+    
+    /* When auto-scroll is active on WebKit, hide scrollbar more aggressively */
+    .webkit-browser.autoscroll-active.log-scroll-container::-webkit-scrollbar {
+        opacity: 0 !important;
+        transition: opacity 0.1s ease;
+    }
+    
+    /* Only show faintly on direct hover when auto-scroll is active */
+    .webkit-browser.autoscroll-active.log-scroll-container:hover::-webkit-scrollbar {
+        opacity: 0.3;
+    }
+    
+    /* Ensure scrollbar is visible during active user scrolling even with auto-scroll */
+    .webkit-browser.autoscroll-active.user-scrolling.log-scroll-container::-webkit-scrollbar {
+        opacity: 0.8 !important;
     }
 
     /* LogViewer border glow effect, right and bottom edges as specified */
