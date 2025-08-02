@@ -1,18 +1,17 @@
 - fix chrome/qtWebEngine specific bug: isProcessing not set properly
 
 .
-- welcomepop displays forever, ignoring countAppStart
 - autoscroll won't reenable when scrolling down.
 
 .
 
-- ⭐ ANKI ADDON
+09:42:06 ERR FRONT: Error selecting directory component=MediaInput fe_error={"cause":"fetch(): Request timeout after 30000ms","code":-1,"message":"request failed","msg":"request failed","name":"WebrpcRequestFailed","status":0} origin=gui sessionId=mdtnbtjzigvohvd
+
 - ⭐ PYTHAILNLP
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - manual GUI tests
-  - check settings panel from a non dev perspective
 
 .
 

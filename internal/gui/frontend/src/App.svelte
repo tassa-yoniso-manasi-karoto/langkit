@@ -636,8 +636,10 @@
                 severity: "critical",
                 dismissible: true
             });
-        } finally {
+            // Reset isProcessing only on error (when processing fails to start)
             isProcessing = false;
+        } finally {
+            // Don't reset isProcessing here - it should be managed by processing completion events
             progress = 0;
         }
     }
