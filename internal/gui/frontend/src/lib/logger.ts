@@ -890,6 +890,18 @@ export class Logger {
                 return value.map(item => sVal(item, depth + 1));
             }
             if (value instanceof Node) return value.nodeName || '[DOM_NODE]';
+            if (value instanceof Map) {
+                const mapObj: Record<string, any> = {};
+                value.forEach((val, key) => {
+                    if (typeof key !== 'symbol') {
+                        mapObj[String(key)] = sVal(val, depth + 1);
+                    }
+                });
+                return mapObj;
+            }
+            if (value instanceof Set) {
+                return Array.from(value).map(item => sVal(item, depth + 1));
+            }
             try {
                 const obj: Record<string, any> = {};
                 const entries = Object.entries(value).slice(0, 20);

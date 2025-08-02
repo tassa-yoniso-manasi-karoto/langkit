@@ -53,6 +53,44 @@ function createLogStore() {
     let batchProcessTimer: number | null = null; // Use number for browser setTimeout
 
     /**
+     * Sanitize log data to remove Map/Set objects that can't be serialized by WASM
+     */
+    function sanitizeLogData(data: any): any {
+        if (data === null || data === undefined) return data;
+        if (typeof data !== 'object') return data;
+        
+        // Handle Map objects
+        if (data instanceof Map) {
+            const obj: Record<string, any> = {};
+            data.forEach((value, key) => {
+                if (typeof key !== 'symbol') {
+                    obj[String(key)] = sanitizeLogData(value);
+                }
+            });
+            return obj;
+        }
+        
+        // Handle Set objects
+        if (data instanceof Set) {
+            return Array.from(data).map(item => sanitizeLogData(item));
+        }
+        
+        // Handle arrays
+        if (Array.isArray(data)) {
+            return data.map(item => sanitizeLogData(item));
+        }
+        
+        // Handle regular objects
+        const result: Record<string, any> = {};
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof key !== 'symbol' && typeof value !== 'function') {
+                result[key] = sanitizeLogData(value);
+            }
+        }
+        return result;
+    }
+
+    /**
      * Formats a log message with proper time format and additional metadata
      */
     function formatLog(rawLog: any): LogMessage | null {
@@ -87,9 +125,12 @@ function createLogStore() {
                 highestSequence = sequence;
             }
             
+            // Sanitize the log data to remove Maps/Sets before spreading
+            const sanitizedData = sanitizeLogData(logData);
+            
             // Return normalized log entry with metadata
             return {
-                ...logData,
+                ...sanitizedData,
                 time: displayTime,
                 _original_time: originalTime,
                 _unix_time: unixTime,

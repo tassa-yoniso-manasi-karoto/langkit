@@ -513,8 +513,48 @@ function extractChanges(prevState: WasmState, newState: WasmState): any {
   }
 
 
-  return changes;
+  // Sanitize the changes object to remove Maps/Sets that can't be logged
+  return sanitizeForLogging(changes);
 }
+
+/**
+ * Sanitize an object for logging by converting Maps/Sets to serializable forms
+ */
+function sanitizeForLogging(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+  
+  // Handle Map objects
+  if (obj instanceof Map) {
+    const result: Record<string, any> = {};
+    obj.forEach((value, key) => {
+      if (typeof key !== 'symbol') {
+        result[String(key)] = sanitizeForLogging(value);
+      }
+    });
+    return result;
+  }
+  
+  // Handle Set objects  
+  if (obj instanceof Set) {
+    return Array.from(obj).map(item => sanitizeForLogging(item));
+  }
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForLogging(item));
+  }
+  
+  // Handle regular objects
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof key !== 'symbol' && typeof value !== 'function') {
+      result[key] = sanitizeForLogging(value);
+    }
+  }
+  return result;
+}
+
 // --- End Phase 1.3: Immutable State Updates ---
 
 
