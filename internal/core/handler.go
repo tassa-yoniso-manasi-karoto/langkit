@@ -1243,16 +1243,15 @@ func (h *GUIHandler) SendProcessingRequest(ctx context.Context, request interfac
 		Msg("Starting processing")
 	
 	// Run the processing with our managed context
-	// Only explicit cancellation via CancelProcessing() will stop it
-	go func() {
-		defer func() {
-			h.cancelMu.Lock()
-			h.cancelFunc = nil
-			h.cancelMu.Unlock()
-		}()
-		
-		tsk.Routing(processCtx)
+	// This will block until processing completes
+	defer func() {
+		h.cancelMu.Lock()
+		h.cancelFunc = nil
+		h.cancelMu.Unlock()
 	}()
+	
+	// Call Routing directly (blocking) instead of in a goroutine
+	tsk.Routing(processCtx)
 	
 	return nil
 }

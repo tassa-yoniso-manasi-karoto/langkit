@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -23,13 +24,15 @@ type ProcessingService struct {
 	provider     interfaces.ProcessingProvider
 	logger       zerolog.Logger
 	handler      http.Handler
+	wsServer     interfaces.WebsocketService
 }
 
 // NewProcessingService creates a new processing service instance
-func NewProcessingService(logger zerolog.Logger, provider interfaces.ProcessingProvider) *ProcessingService {
+func NewProcessingService(logger zerolog.Logger, provider interfaces.ProcessingProvider, wsServer interfaces.WebsocketService) *ProcessingService {
 	svc := &ProcessingService{
 		logger:   logger,
 		provider: provider,
+		wsServer: wsServer,
 	}
 	
 	// Create the WebRPC handler
@@ -68,13 +71,39 @@ func (s *ProcessingService) SendProcessingRequest(ctx context.Context, request *
 	
 	s.isProcessing = true
 	
+	// Emit processing started event
+	if s.wsServer != nil {
+		s.wsServer.Emit("processing.started", map[string]interface{}{
+			"timestamp": time.Now().Unix(),
+		})
+	}
+	
 	// Start processing in background goroutine with its own context
 	go func() {
+		// Track error for completion event
+		var processingError error
+		
 		defer func() {
 			s.mu.Lock()
 			s.isProcessing = false
 			s.mu.Unlock()
 			s.logger.Debug().Msg("Processing completed")
+			
+			// Emit processing completed event
+			if s.wsServer != nil {
+				eventData := map[string]interface{}{
+					"timestamp": time.Now().Unix(),
+				}
+				
+				if processingError != nil {
+					eventData["status"] = "error"
+					eventData["error"] = processingError.Error()
+				} else {
+					eventData["status"] = "success"
+				}
+				
+				s.wsServer.Emit("processing.completed", eventData)
+			}
 		}()
 		
 		// Create a new context that isn't tied to the HTTP request
@@ -82,6 +111,7 @@ func (s *ProcessingService) SendProcessingRequest(ctx context.Context, request *
 		processCtx := context.Background()
 		err := s.provider.SendProcessingRequest(processCtx, request)
 		if err != nil {
+			processingError = err
 			if errors.Is(err, context.Canceled) {
 				s.logger.Info().Msg("Processing cancelled by user")
 			} else {

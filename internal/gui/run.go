@@ -150,7 +150,7 @@ func registerServices(
 	}
 	
 	// Register processing service (handler implements ProcessingProvider)
-	processingSvc := services.NewProcessingService(logger, handler)
+	processingSvc := services.NewProcessingService(logger, handler, wsServer)
 	if err := apiServer.RegisterService(processingSvc); err != nil {
 		return fmt.Errorf("failed to register processing service: %w", err)
 	}

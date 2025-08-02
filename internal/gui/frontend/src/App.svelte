@@ -39,7 +39,7 @@
     import ReturnToAnkiButton from './components/ReturnToAnkiButton.svelte';
     
     import { GetVersion, GetSystemInfo, CheckForUpdate } from './api/services/system';
-    import { SendProcessingRequest, CancelProcessing } from './api/services/processing';
+    import { SendProcessingRequest, CancelProcessing, GetProcessingStatus } from './api/services/processing';
     import {
         CheckDockerAvailability,
         CheckInternetConnectivity,
@@ -636,10 +636,10 @@
                 severity: "critical",
                 dismissible: true
             });
-            // Reset isProcessing only on error (when processing fails to start)
+            // Reset isProcessing on error since no WebSocket events will be emitted if request fails
             isProcessing = false;
         } finally {
-            // Don't reset isProcessing here - it should be managed by processing completion events
+            // Progress is always reset regardless of success/failure
             progress = 0;
         }
     }
@@ -1040,6 +1040,19 @@
         logger.info('app', 'Initializing WebSocket connection');
         
         // Set up WebSocket event handlers
+        wsClient.on('connected', async (data) => {
+            logger.info('app', 'WebSocket connected/reconnected', { timestamp: data.timestamp });
+            
+            // Sync processing state on reconnection
+            try {
+                const processingStatus = await GetProcessingStatus();
+                isProcessing = processingStatus.isProcessing;
+                logger.debug('app', 'Processing state resynced after reconnection', { isProcessing });
+            } catch (error) {
+                logger.error('app', 'Failed to resync processing status on reconnection', { error });
+            }
+        });
+        
         wsClient.on('llm.state.changed', (data) => {
             logger.debug('app', 'LLM state change received via WebSocket', { 
                 globalState: data.globalState 
@@ -1112,6 +1125,31 @@
                 // Process all updates normally when window is visible or batch is small
                 progressBatch.forEach(data => {
                     updateProgressBar(data);
+                });
+            }
+        });
+        
+        // Set up processing event handlers
+        wsClient.on('processing.started', (data) => {
+            logger.info('app', 'Processing started event received', { timestamp: data.timestamp });
+            isProcessing = true;
+        });
+        
+        wsClient.on('processing.completed', (data) => {
+            logger.info('app', 'Processing completed event received', { 
+                status: data.status, 
+                error: data.error,
+                timestamp: data.timestamp 
+            });
+            isProcessing = false;
+            
+            // If processing failed, add error to invalidation store
+            if (data.status === 'error' && data.error) {
+                invalidationErrorStore.addError({
+                    id: "processing-failed-backend",
+                    message: `Processing failed: ${data.error}`,
+                    severity: "critical",
+                    dismissible: true
                 });
             }
         });
@@ -1196,6 +1234,17 @@
             logger.debug('app', 'System info initialized', { os: systemInfo.os, arch: systemInfo.arch });
         } catch (error) {
             logger.error('app', 'Failed to get system info', { error });
+        }
+        
+        // Sync processing state on mount (handles HMR and initial load)
+        try {
+            const processingStatus = await GetProcessingStatus();
+            isProcessing = processingStatus.isProcessing;
+            logger.debug('app', 'Processing state synchronized', { isProcessing });
+        } catch (error) {
+            logger.error('app', 'Failed to get processing status', { error });
+            // Assume not processing if we can't get status
+            isProcessing = false;
         }
         
         // Initialize window state detection - check initially and set up interval
