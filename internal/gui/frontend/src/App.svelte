@@ -8,6 +8,7 @@
     import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore, llmStateStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { invalidationErrorStore } from './lib/invalidationErrorStore';
+    import { currentSchemeNeedsDockerStore } from './lib/featureGroupStore';
     import { logger } from './lib/logger';
     import { wsClient } from './ws/client';
     import { progressBars, updateProgressBar, removeProgressBar, resetAllProgressBars } from './lib/progressBarsStore';
@@ -54,7 +55,6 @@
         IncrementStatistic
     } from './api/services/settings';
     import { RefreshSTTModelsAfterSettingsUpdate } from './api/services/models';
-    import { GetLanguageRequirements } from './api/services/language';
     import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces
@@ -101,8 +101,6 @@
     let defaultTargetLanguage = "";
     let quickAccessLangTag = "";
     
-    // Track current language requirements
-    let currentLanguageRequirements: gui.LanguageRequirements | null = null;
     
     // Window state tracking
     let isWindowMinimized = false;
@@ -162,20 +160,6 @@
         }
     }
     
-    // Check language requirements when it changes
-    $: {
-        if (quickAccessLangTag) {
-            GetLanguageRequirements(quickAccessLangTag).then(requirements => {
-                currentLanguageRequirements = requirements;
-                logger.debug('app', 'Language requirements updated', requirements);
-            }).catch(error => {
-                logger.error('app', 'Failed to get language requirements', { error });
-                currentLanguageRequirements = null;
-            });
-        } else {
-            currentLanguageRequirements = null;
-        }
-    }
     
     // State for welcome popup
     let showWelcomePopup = false;
@@ -351,14 +335,11 @@
                                          selectedFeatures.selectiveTransliteration || 
                                          selectedFeatures.subtitleTokenization;
         
-        // Check if current language requires Docker (from backend requirements)
-        const languageRequiresDocker = currentLanguageRequirements?.requiresDocker || false;
+        // Check if current scheme requires Docker
+        const requiresDocker = linguisticFeaturesSelected && $currentSchemeNeedsDockerStore;
         
-        // Only create error if:
-        // 1. Docker is not available AND
-        // 2. Linguistic features are selected AND
-        // 3. The current language actually requires Docker
-        if (dockerChecked && !dockerAvailable && linguisticFeaturesSelected && languageRequiresDocker) {
+        // Only create error if Docker is not available AND the current scheme actually requires Docker
+        if (dockerChecked && !dockerAvailable && requiresDocker) {
             let message = "Without Docker, linguistic processing for Japanese & Indic languages will not be available.";
             if (window.navigator.platform.includes("Win")) {
                 message += " On Windows Home, Docker requires WSL. See the 'A Note on Specific Languages' page for more info.";
@@ -390,23 +371,17 @@
                                         selectedFeatures.voiceEnhancing ||
                                         (selectedFeatures.condensedAudio && currentFeatureOptions?.condensedAudio?.enableSummary);
         
-        // Check if current language requires Internet (from backend requirements)
-        const languageRequiresInternet = currentLanguageRequirements?.requiresInternet || false;
-        
-        // Need internet if:
-        // 1. AI-powered features are selected OR
-        // 2. Linguistic features are selected AND language requires internet
-        const needsInternet = aiPoweredFeaturesSelected || 
-                            (linguisticFeaturesSelected && languageRequiresInternet);
+        // Need internet if any processing features are selected (all require internet)
+        const needsInternet = aiPoweredFeaturesSelected || linguisticFeaturesSelected;
         
         if (internetChecked && !internetOnline && needsInternet) {
             let message = "An internet connection is required for ";
-            if (aiPoweredFeaturesSelected && linguisticFeaturesSelected && languageRequiresInternet) {
-                message += "AI-powered features and linguistic processing for Thai, Japanese & Indic languages.";
+            if (aiPoweredFeaturesSelected && linguisticFeaturesSelected) {
+                message += "AI-powered features and linguistic processing.";
             } else if (aiPoweredFeaturesSelected) {
                 message += "AI-powered features (dubtitles, voice enhancing).";
             } else {
-                message += "linguistic processing for Thai, Japanese & Indic languages.";
+                message += "linguistic processing.";
             }
             
             invalidationErrorStore.addError({
