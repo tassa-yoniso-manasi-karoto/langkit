@@ -40,10 +40,8 @@
     export let romanizationSchemes = [];
     export let tokenizationAllowed = false;
     export let isRomanizationAvailable = true;
-    export let needsDocker = false;
     export let dockerUnreachable = false;
     export let dockerEngine = 'Docker';
-    export let needsScraper = false;
     export let standardTag = '';
     
     export let providerGithubUrls = {};
@@ -817,22 +815,22 @@
         
         // Feature-specific messages
         if (feature.id === 'subtitleRomanization') {
-            if ((enabled && hasVisibleOptions() && needsDocker && !isDockerUnavailable) ||
-                    (needsDocker && isDockerUnavailable) ||
+            if ((enabled && hasVisibleOptions() && currentSchemeNeedsDocker && !isDockerUnavailable) ||
+                    (currentSchemeNeedsDocker && isDockerUnavailable) ||
                 (!standardTag) ||
                 (!isRomanizationAvailable)) {
                 return true;
             }
         } else if (feature.id === 'selectiveTransliteration') {
-            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
-                    (needsDocker && isDockerUnavailable) ||
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && currentSchemeNeedsDocker && !isDockerUnavailable) ||
+                    (currentSchemeNeedsDocker && isDockerUnavailable) ||
                 (!standardTag) ||
                 (standardTag !== 'jpn' && showNonJpnMessage)) {
                 return true;
             }
         } else if (feature.id === 'subtitleTokenization') {
-            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable) ||
-                    (needsDocker && isDockerUnavailable) ||
+            if ((enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && currentSchemeNeedsDocker && !isDockerUnavailable) ||
+                    (currentSchemeNeedsDocker && isDockerUnavailable) ||
                 showNotAvailableMessage) {
                 return true;
             }
@@ -929,7 +927,7 @@
                     <!-- Feature-specific messages -->
                     {#if feature.id === 'subtitleRomanization'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasVisibleOptions() && needsDocker && !isDockerUnavailable}
+                        {#if enabled && hasVisibleOptions() && currentSchemeNeedsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -938,7 +936,7 @@
                             </div>
                         {/if}
                         
-                        {#if needsDocker && isDockerUnavailable}
+                        {#if currentSchemeNeedsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
@@ -977,7 +975,7 @@
                     
                     {:else if feature.id === 'selectiveTransliteration'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && currentSchemeNeedsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -986,7 +984,7 @@
                             </div>
                         {/if}
                         
-                        {#if needsDocker && isDockerUnavailable}
+                        {#if currentSchemeNeedsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
@@ -1015,7 +1013,7 @@
                     
                     {:else if feature.id === 'subtitleTokenization'}
                         <!-- Docker status banners -->
-                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && needsDocker && !isDockerUnavailable}
+                        {#if enabled && hasVisibleOptions() && getVisibleOptions().includes('provider') && currentSchemeNeedsDocker && !isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
@@ -1024,7 +1022,7 @@
                             </div>
                         {/if}
                         
-                        {#if needsDocker && isDockerUnavailable}
+                        {#if currentSchemeNeedsDocker && isDockerUnavailable}
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
@@ -1154,8 +1152,8 @@
                                 {optionId}
                                 optionDef={optionDef}
                                 value={options[optionId]}
-                                needsDocker={groupId === 'subtitle' ? currentSchemeNeedsDocker : needsDocker}
-                                needsScraper={groupId === 'subtitle' ? currentSchemeNeedsScraper : needsScraper}
+                                needsDocker={currentSchemeNeedsDocker}
+                                needsScraper={currentSchemeNeedsScraper}
                                 {romanizationSchemes}
                                 on:groupOptionChange={event => {
                                     const { groupId, optionId, value } = event.detail;

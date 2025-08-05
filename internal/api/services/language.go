@@ -224,10 +224,13 @@ func (s *LanguageService) GetRomanizationStyles(ctx context.Context, languageCod
 	// Convert schemes to response format
 	resp.Schemes = make([]*generated.RomanizationScheme, len(schemes))
 	for i, scheme := range schemes {
+		if scheme.NeedsScraper {
+	    		scheme.Description = "🌐 " + scheme.Description
+	    	}
 		resp.Schemes[i] = &generated.RomanizationScheme{
 			Name:         scheme.Name,
 			Description:  scheme.Description,
-			Provider:     scheme.Provider,
+			Providers:    scheme.Providers,
 			NeedsDocker:  scheme.NeedsDocker,
 			NeedsScraper: scheme.NeedsScraper,
 		}

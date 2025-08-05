@@ -23,7 +23,7 @@ struct LanguageRequirements
 struct RomanizationScheme
   - name: string
   - description: string
-  - provider: string
+  - providers: []string
   - needsDocker: bool
   - needsScraper: bool
 

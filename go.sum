@@ -754,8 +754,8 @@ github.com/tassa-yoniso-manasi-karoto/go-openrouter v0.0.0-20250603092737-033150
 github.com/tassa-yoniso-manasi-karoto/go-openrouter v0.0.0-20250603092737-033150d1ff32/go.mod h1:jpG32jbyU7iLIGpwLSc68PHxvzapwCXDdINNdx1HhJc=
 github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20250804103846-41e15f3047cd h1:hHOa9QUBBLdVDtTKsqnX6IboUVsvW2qZ4+sCVR4cqic=
 github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20250804103846-41e15f3047cd/go.mod h1:lJ3oywu3rIbdTwpUwhRr6AH50q+NdIm/YaszJ21IIkY=
-github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250804113251-2288fc60e8f2 h1:8y1Mp302E5udVAjjkDcZ1CsqFcPRYnqQf7dkXGeAAG0=
-github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250804113251-2288fc60e8f2/go.mod h1:A8eH97dOL/iSbLcPdfuafbXm99rDegvqQZxQ6jvY7A8=
+github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250805182914-5179e5ab1933 h1:Y0SUY2VGUzvZWtjanZCKlnn1BApYg7T3xvMI2GBMbqs=
+github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250805182914-5179e5ab1933/go.mod h1:Go0/04zxLUQDYmqHC0/cdGGK6kcwA0xp5/2xE4t6Rj8=
 github.com/theupdateframework/notary v0.7.0 h1:QyagRZ7wlSpjT5N2qQAh/pN+DVqgekv4DzbAiAiEL3c=
 github.com/theupdateframework/notary v0.7.0/go.mod h1:c9DRxcmhHmVLDay4/2fUYdISnHqbFDGRSlXPO0AhYWw=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=

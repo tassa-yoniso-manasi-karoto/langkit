@@ -37,7 +37,7 @@ export interface FeatureDefinition {
 export interface RomanizationScheme {
     name: string;
     description: string;
-    provider: string;
+    providers: string[];
     needsDocker?: boolean;
     needsScraper?: boolean;
 }
@@ -50,9 +50,13 @@ export const providersRequiringTokens = {
 };
 
 export const providerGithubUrls = {
-    'ichiran': 'https://github.com/tshatrov/ichiran',
+    'ichiran':      'https://github.com/tshatrov/ichiran',
     'aksharamukha': 'https://github.com/virtualvinodh/aksharamukha',
-    'iuliia': 'https://github.com/mehanizm/iuliia-go',
+    'iuliia':       'https://github.com/mehanizm/iuliia-go',
+    'pythainlp':    'https://github.com/PyThaiNLP/pythainlp',
+    'paiboonizer':  'https://github.com/tassa-yoniso-manasi-karoto/paiboonizer',
+    'gojieba':      'https://github.com/yanyiwu/gojieba',
+    'gopinyin':     'https://github.com/mozillazg/go-pinyin',
 };
 
 // Define the features with their options

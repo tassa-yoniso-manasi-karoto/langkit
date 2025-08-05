@@ -340,7 +340,7 @@
         
         // Only create error if Docker is not available AND the current scheme actually requires Docker
         if (dockerChecked && !dockerAvailable && requiresDocker) {
-            let message = "Without Docker, linguistic processing for Japanese & Indic languages will not be available.";
+            let message = "The selected romanization provider requires Docker to function.";
             if (window.navigator.platform.includes("Win")) {
                 message += " On Windows Home, Docker requires WSL. See the 'A Note on Specific Languages' page for more info.";
             }

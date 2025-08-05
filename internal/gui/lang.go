@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
+	//"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/translitkit"
-	"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
+	//"github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 )
 
 // LanguageRequirements holds the requirements for a specific language
@@ -202,7 +202,7 @@ type RomanizationStylesResponse struct {
 	NeedsDocker       bool                 `json:"needsDocker"`
 	NeedsScraper      bool                 `json:"needsScraper"`
 }
-
+/*
 func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResponse, error) {
 	resp := RomanizationStylesResponse{DockerEngine: dockerutil.DockerBackendName()}
 
@@ -253,4 +253,4 @@ func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResp
 		}
 	}
 	return resp, nil
-}
+}*/

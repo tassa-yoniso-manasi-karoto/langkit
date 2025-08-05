@@ -373,7 +373,7 @@
         }
         
         const newStyle = romanizationSchemes[0].name;
-        const newProvider = romanizationSchemes[0].provider;
+        const newProvider = (romanizationSchemes[0].providers || []).join(' → ');
         
         logger.info('FeatureSelector', 'Setting default romanization style', { 
             style: newStyle, 
@@ -914,9 +914,10 @@
                 // Update the provider based on the selected style
                 const selectedScheme = romanizationSchemes.find(s => s.name === value);
                 if (selectedScheme) {
+                    const providerValue = (selectedScheme.providers || []).join(' → ');
                     logger.info('FeatureSelector', 'Romanization style changed', { 
                         style: value, 
-                        provider: selectedScheme.provider 
+                        provider: providerValue 
                     });
                     
                     // First set the style
@@ -926,7 +927,7 @@
                     // This prevents race conditions with reactive statements
                     tick().then(() => {
                         // Then set the provider after the style has been fully processed
-                        featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+                        featureGroupStore.setGroupOption(groupId, 'provider', providerValue);
                         
                         // Sync all values from the group store
                         currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
@@ -1210,7 +1211,7 @@
                         } else if (optionId === 'style' && romanizationSchemes.length > 0) {
                             currentFeatureOptions[feature.id][optionId] = romanizationSchemes[0].name;
                         } else if (optionId === 'provider' && romanizationSchemes.length > 0) {
-                            currentFeatureOptions[feature.id][optionId] = romanizationSchemes[0].provider;
+                            currentFeatureOptions[feature.id][optionId] = (romanizationSchemes[0].providers || []).join(' → ');
                         } else {
                             currentFeatureOptions[feature.id][optionId] = '';
                         }
@@ -1900,10 +1901,8 @@
                             {romanizationSchemes}
                             {isRomanizationAvailable}
                             {tokenizationAllowed}
-                            {needsDocker}
                             {dockerUnreachable}
                             {dockerEngine}
-                            {needsScraper}
                             {standardTag}
                             {providerGithubUrls}
                             {selectedFeatures}
