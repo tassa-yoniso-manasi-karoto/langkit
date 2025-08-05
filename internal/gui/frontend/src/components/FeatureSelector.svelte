@@ -26,7 +26,9 @@
     import { 
         featureGroupStore, 
         type FeatureGroup,
-        groupHasEnabledFeature
+        groupHasEnabledFeature,
+        romanizationSchemesStore,
+        languageRequirementsStore
     } from '../lib/featureGroupStore';
     import { 
         CheckMediaLanguageTags
@@ -296,6 +298,16 @@
             isSelectiveTransliterationAvailable = false;
             needsDocker = false;
             needsScraper = false;
+            
+            // Clear the stores
+            romanizationSchemesStore.set([]);
+            languageRequirementsStore.set({
+                needsScraper: false,
+                needsDocker: false,
+                dockerUnreachable: false,
+                dockerEngine: 'Docker'
+            });
+            
             return false;
         }
 
@@ -312,6 +324,15 @@
             needsDocker = response.needsDocker || false;
             dockerEngine = response.dockerEngine || 'Docker Desktop';
             
+            // Update the reactive stores
+            romanizationSchemesStore.set(romanizationSchemes);
+            languageRequirementsStore.set({
+                needsScraper: response.needsScraper || false,
+                needsDocker: response.needsDocker || false,
+                dockerUnreachable: response.dockerUnreachable || false,
+                dockerEngine: response.dockerEngine || 'Docker Desktop'
+            });
+            
             logger.debug('FeatureSelector', 'Romanization schemes loaded', { 
                 tag, 
                 schemeCount: romanizationSchemes.length, 
@@ -325,6 +346,16 @@
             romanizationSchemes = [];
             isRomanizationAvailable = false;
             isSelectiveTransliterationAvailable = false;
+            
+            // Clear the stores on error
+            romanizationSchemesStore.set([]);
+            languageRequirementsStore.set({
+                needsScraper: false,
+                needsDocker: false,
+                dockerUnreachable: false,
+                dockerEngine: 'Docker'
+            });
+            
             return false;
         } finally {
             isLoadingSchemes = false;
@@ -891,16 +922,21 @@
                     // First set the style
                     featureGroupStore.setGroupOption(groupId, optionId, value);
                     
-                    // Then set the provider
-                    featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+                    // Use tick() to ensure the style update is processed before updating provider
+                    // This prevents race conditions with reactive statements
+                    tick().then(() => {
+                        // Then set the provider after the style has been fully processed
+                        featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
+                        
+                        // Sync all values from the group store
+                        currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
+                            groupId, currentFeatureOptions
+                        );
+                        
+                        // Dispatch changes
+                        dispatch('optionsChange', currentFeatureOptions);
+                    });
                     
-                    // Sync all values from the group store
-                    currentFeatureOptions = featureGroupStore.syncOptionsToFeatures(
-                        groupId, currentFeatureOptions
-                    );
-                    
-                    // Dispatch changes
-                    dispatch('optionsChange', currentFeatureOptions);
                     return;
                 }
             }

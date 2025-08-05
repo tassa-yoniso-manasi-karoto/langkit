@@ -6,7 +6,7 @@
     import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
     import { invalidationErrorStore } from '../lib/invalidationErrorStore';
     import { showSettings, llmStateStore, settings, type LLMStateChange, dockerStatusStore } from '../lib/stores';
-    import { featureGroupStore } from '../lib/featureGroupStore';
+    import { featureGroupStore, needsScraperStore, needsDockerStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
     import { ValidateLanguageTag } from '../api';
     import { debounce } from 'lodash';
@@ -59,6 +59,12 @@
     // Store if this is the topmost feature for any of its groups
     let isTopmostFeatureForAnyGroup = false;
     let groupStoreUnsubscribe: () => void;
+    
+    // Subscribe to derived stores for reactive conditions
+    let needsScraperDerived = false;
+    let needsDockerDerived = false;
+    let needsScraperUnsubscribe: () => void;
+    let needsDockerUnsubscribe: () => void;
     
     // References to animated border elements
     let animatedBorderRight: HTMLElement;
@@ -260,6 +266,17 @@
             }
         });
         
+        // Subscribe to derived stores
+        needsScraperUnsubscribe = needsScraperStore.subscribe(value => {
+            needsScraperDerived = value;
+            visibleOptionsDirty = true;
+        });
+        
+        needsDockerUnsubscribe = needsDockerStore.subscribe(value => {
+            needsDockerDerived = value;
+            visibleOptionsDirty = true;
+        });
+        
         // Initial check
         checkNativeLanguageIsEnglish();
         
@@ -284,6 +301,12 @@
         }
         if (groupStoreUnsubscribe) {
             groupStoreUnsubscribe();
+        }
+        if (needsScraperUnsubscribe) {
+            needsScraperUnsubscribe();
+        }
+        if (needsDockerUnsubscribe) {
+            needsDockerUnsubscribe();
         }
         
         // Clean up any LLM errors we may have created
@@ -499,7 +522,7 @@
     function shouldShowOption(optionId: string, optionDef: any): boolean {
         if (!optionDef.showCondition) return true;
         
-        // Special handling for initialPrompt condition
+        // Special handling for initialPrompt condition (whisper STT)
         if (feature.id === 'dubtitles' && optionId === 'initialPrompt') {
             const sttModel = options.stt;
             const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
@@ -512,128 +535,68 @@
             for (const [groupId, options] of Object.entries(feature.groupSharedOptions)) {
                 if (options.includes(optionId)) {
                     optionGroup = groupId;
-                    
-                    // Register this option with the group store if not already registered
-                    // This ensures the store knows which option belongs to which group
                     featureGroupStore.registerOptionToGroup(groupId, optionId);
                     break;
                 }
             }
         }
         
-        // Use the feature group store's isTopmostForOption function for precise option-based checks
-        let isTopmostForThisOption = false;
-        if (enabled) {
-            isTopmostForThisOption = featureGroupStore.isTopmostForOption(feature.id, optionId);
-            logger.trace('featureCard', `Option ${optionId} isTopmostForOption check: ${isTopmostForThisOption}`);
+        // Check if this feature is topmost for the option
+        const isTopmostForThisOption = enabled && featureGroupStore.isTopmostForOption(feature.id, optionId);
+        
+        // Handle specific conditions based on known patterns
+        const condition = optionDef.showCondition;
+        
+        // Parse common conditions using pattern matching instead of eval
+        if (condition === 'context.isTopmostForOption') {
+            return isTopmostForThisOption;
         }
         
-        // For backwards compatibility, maintain generic isTopmostInGroup checks
-        let isTopmostInAnyGroup = false;
-        if (feature.featureGroups && feature.featureGroups.length > 0 && enabled) {
-            for (const groupId of feature.featureGroups) {
-                if (featureGroupStore.isTopmostInGroup(groupId, feature.id)) {
-                    isTopmostInAnyGroup = true;
-                    break;
+        if (condition === 'context.isTopmostForOption && context.needsScraper') {
+            return isTopmostForThisOption && needsScraperDerived;
+        }
+        
+        if (condition === 'context.isTopmostForOption && context.needsDocker') {
+            return isTopmostForThisOption && needsDockerDerived;
+        }
+        
+        if (condition === 'context.isTopmostForOption && context.romanizationSchemes.length > 0') {
+            return isTopmostForThisOption && romanizationSchemes.length > 0;
+        }
+        
+        if (condition.includes('feature.condensedAudio.enableSummary === true')) {
+            if (!options.enableSummary) return false;
+            
+            // Check additional conditions
+            if (condition.includes('context.isLLMReady === true')) {
+                if (!isLLMReady) return false;
+                
+                if (condition.includes('context.isNativeLanguageEnglish === true')) {
+                    return isNativeLanguageEnglish;
                 }
+                return true;
             }
         }
         
-        const contextValues = {
-            standardTag,
-            needsDocker,
-            needsScraper,
-            optionValues: JSON.stringify(options),
-            selectedFeatures: JSON.stringify(selectedFeatures),
-            featureId: feature.id,
-            isTopmostInGroup: isTopmostInAnyGroup,
-            isTopmostForOption: isTopmostForThisOption,
-            isLLMReady,
-            isLLMInitializing,
-            isLLMError,
-            isNativeLanguageEnglish
-        };
-        
-        const contextHash = JSON.stringify(contextValues);
-        const cacheKey = `${optionId}-${optionDef.showCondition}`;
-        
-        // If context changed, clear cache
-        if (lastContextHash !== contextHash) {
-            optionVisibilityCache.clear();
-            lastContextHash = contextHash;
+        if (condition.includes("feature.condensedAudio.audioFormat !== 'Opus'")) {
+            return options.audioFormat !== 'Opus';
         }
         
-        // Check cache first
-        if (optionVisibilityCache.has(cacheKey)) {
-            return optionVisibilityCache.get(cacheKey);
-        }
-        
-        // Context object for evaluating conditions
-        const context = {
-            standardTag,
-            needsDocker,
-            needsScraper,
-            romanizationSchemes,
-            selectedFeatures,
-            isTopmostInGroup: isTopmostInAnyGroup,
-            isTopmostForOption: isTopmostForThisOption,
-            featureGroupStore, // Add store to context
-            isLLMReady, // Add LLM state for condition evaluation
-            isLLMInitializing,
-            isLLMError,
-            isNativeLanguageEnglish
-        };
-        
-        // Feature options reference for conditions 
-        const featureData = {
-            [feature.id]: options,
-            id: feature.id // Include the feature id directly for easier checking
-        };
-        
-        // Simple expression evaluator
-        try {
-            // Replace context variables and group store references with their values
-            const prepared = optionDef.showCondition
-                .replace(/context\.([a-zA-Z0-9_]+)/g, (_, prop) => {
-                    // Handle featureGroupStore specifically if needed, otherwise stringify
-                    if (prop === 'featureGroupStore') {
-                        // This property won't be directly replaced here, handled below
-                        return 'featureGroupStore';
-                    }
-                    return JSON.stringify(context[prop]);
-                })
-                 // Handle featureGroupStore.getGroupOption calls
-                .replace(/featureGroupStore\.getGroupOption\(['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\)/g,
-                    (_, groupId, optId) => {
-                        // Directly call the store method and stringify the result
-                        return JSON.stringify(featureGroupStore.getGroupOption(groupId, optId));
-                    })
-                // Handle feature property access like feature.dubtitles.mergeOutputFiles
-                .replace(/feature\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)/g, (_, featureId, propId) => {
-                    // Access the value from the featureData object
-                    return JSON.stringify(featureData[featureId]?.[propId]);
-                })
-                 // Handle feature.id access
-                .replace(/feature\.id/g, () => {
-                    return JSON.stringify(feature.id);
-                });
-            
-            // Use Function constructor to evaluate the expression
-            const result = new Function('return ' + prepared)();
-            
-            // Debug logging for condensedAudio feature
-            if (feature.id === 'condensedAudio' && optionId !== 'enableSummary') {
-                logger.trace('featureCard', `Option ${optionId} condition: ${optionDef.showCondition}, result: ${result}, context.isLLMReady: ${context.isLLMReady}`);
+        if (condition.includes('featureGroupStore.getGroupOption')) {
+            // Handle merge options conditions
+            if (condition.includes('mergeOutputFiles')) {
+                const mergeEnabled = featureGroupStore.getGroupOption('merge', 'mergeOutputFiles');
+                return isTopmostForThisOption && mergeEnabled === true;
             }
-            
-            // Cache the result
-            optionVisibilityCache.set(cacheKey, result);
-            return result;
-        } catch (error) {
-            logger.error('featureCard', 'Error evaluating condition', { condition: optionDef.showCondition, error });
-            optionVisibilityCache.set(cacheKey, false);
-            return false;
         }
+        
+        if (condition === "context.standardTag === 'jpn'") {
+            return standardTag === 'jpn';
+        }
+        
+        // Fallback for any unhandled conditions - log warning and return false
+        logger.warn('featureCard', `Unhandled showCondition: ${condition}`);
+        return false;
     }
     
     function handleDropdownChange(optionId: string, value: string) {
@@ -1157,7 +1120,7 @@
                                 featureId={feature.id}
                                 {optionId}
                                 optionDef={optionDef}
-                                value={featureGroupStore.getGroupOption(groupId, optionId) ?? options[optionId]}
+                                value={options[optionId]}
                                 {needsDocker}
                                 {needsScraper}
                                 {romanizationSchemes}

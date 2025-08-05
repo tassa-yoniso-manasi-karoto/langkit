@@ -4,7 +4,6 @@
     import { debounce } from 'lodash';
     import { getSmallDebounce } from '../lib/debouncePresets';
     
-    import { featureGroupStore } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
     
     import Dropdown from './Dropdown.svelte';
@@ -55,9 +54,6 @@
         // Set initial local value
         localValue = value;
         
-        // Store initial value in group store
-        featureGroupStore.setGroupOption(groupId, optionId, value);
-        
         // Mark as initialized and track external update time
         isInitialized = true;
         lastExternalUpdateTime = Date.now();
@@ -94,25 +90,12 @@
         }
     }
     
-    // Update provider when style changes
-    $: if (groupId === 'subtitle' && optionId === 'style' && localValue && romanizationSchemes.length > 0) {
-        const selectedScheme = romanizationSchemes.find(s => s.name === localValue);
-        if (selectedScheme) {
-            // Update the provider in the group store
-            const currentProvider = featureGroupStore.getGroupOption(groupId, 'provider');
-            if (selectedScheme.provider !== currentProvider) {
-                logger.trace('groupOption', `Style changed to ${localValue}, updating provider to ${selectedScheme.provider}`);
-                featureGroupStore.setGroupOption(groupId, 'provider', selectedScheme.provider);
-            }
-        }
-    }
+    // Note: Provider update when style changes is now handled in FeatureSelector
+    // to prevent race conditions and duplicate updates
     
-    // Helper function to propagate user input to all necessary places
+    // Helper function to propagate user input to parent
     function propagateUserValue(newValue: any) {
-        // Store in group store
-        featureGroupStore.setGroupOption(groupId, optionId, newValue);
-        
-        // Notify parent component
+        // Notify parent component - parent will handle store updates
         dispatch('groupOptionChange', { 
             groupId, 
             optionId, 
@@ -142,7 +125,7 @@
         debouncedUserInput(newValue);
     }
 
-    // Handle romanization style changes with special provider update logic
+    // Handle romanization style changes
     function handleRomanizationChange(event: any) {
         const newValue = event.detail;
         logger.trace('groupOption', `Romanization style change: ${newValue}`);
@@ -151,34 +134,8 @@
         lastUserUpdateTime = Date.now() + 100;
         localValue = newValue;
         
-        // Update the style
-        featureGroupStore.setGroupOption(groupId, optionId, newValue);
-        
-        // Also update the provider if a matching scheme is found
-        const selectedScheme = romanizationSchemes.find(s => s.name === newValue);
-        if (selectedScheme) {
-            const newProvider = selectedScheme.provider;
-            logger.trace('groupOption', `Updating provider to ${newProvider} based on style ${newValue}`);
-            
-            // Update the provider in the group store
-            featureGroupStore.setGroupOption(groupId, 'provider', newProvider);
-            
-            // Notify about provider change too
-            dispatch('groupOptionChange', { 
-                groupId, 
-                optionId: 'provider', 
-                value: newProvider,
-                isUserInput: true
-            });
-        }
-        
-        // Notify about style change
-        dispatch('groupOptionChange', { 
-            groupId, 
-            optionId, 
-            value: newValue,
-            isUserInput: true
-        });
+        // Just propagate the style change - provider update is handled by FeatureSelector
+        propagateUserValue(newValue);
     }
 
     // Handle immediate changes like checkboxes and numeric inputs
@@ -294,10 +251,7 @@
                             // Set user input timestamp for authority
                             lastUserUpdateTime = Date.now() + 100;
                             
-                            // Update the group option value but don't validate
-                            featureGroupStore.setGroupOption(groupId, optionId, localValue);
-                            
-                            // Notify parent component
+                            // Notify parent component to handle the update
                             dispatch('groupOptionChange', {
                                 groupId,
                                 optionId,
@@ -335,49 +289,20 @@
         {:else if optionDef.type === 'provider'}
             <!-- Show provider with GitHub link if available -->
             <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
-                <!-- Force lookup of provider from style -->
-                {#if groupId === 'subtitle' && optionId === 'provider'}
-                    {@const styleValue = featureGroupStore.getGroupOption(groupId, 'style')}
-                    {@const selectedScheme = romanizationSchemes.find(s => s.name === styleValue)}
-                    {@const providerValue = selectedScheme ? selectedScheme.provider : (localValue || '')}
-                    
-                    <!-- Display the provider value -->
-                    {providerValue}
-                    
-                    <!-- Update if needed -->
-                    {#if providerValue !== localValue && providerValue}
-                        {localValue = providerValue}
-                        {featureGroupStore.setGroupOption(groupId, 'provider', providerValue)}
-                    {/if}
-                    
-                    <!-- GitHub link if available -->
-                    <!-- Ensure string even if providerValue is null/undefined -->
-                    {@const providerKey = String(providerValue || '')}
-                    {#if providerKey && providerGithubUrls[providerKey]}
-                        <ExternalLink
-                            href={providerGithubUrls[providerKey]}
-                            className="text-primary/70 hover:text-primary transition-colors duration-200"
-                            title="View provider repository">
-                            <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                            </svg>
-                        </ExternalLink>
-                    {/if}
-                {:else}
-                    <!-- Regular provider display for non-subtitle groups -->
-                    {localValue || ''}
-                    <!-- Ensure string -->
-                    {@const localProviderKey = String(localValue || '')}
-                    {#if localProviderKey && providerGithubUrls[localProviderKey]}
-                        <ExternalLink
-                            href={providerGithubUrls[localProviderKey]}
-                            className="text-primary/70 hover:text-primary transition-colors duration-200"
-                            title="View provider repository">
-                            <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
-                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                            </svg>
-                        </ExternalLink>
-                    {/if}
+                <!-- Display the current value (parent component ensures this is correct) -->
+                {localValue || ''}
+                
+                <!-- GitHub link if available -->
+                {#if localValue && providerGithubUrls[String(localValue || '')]}
+                    {@const providerKey = String(localValue || '')}
+                    <ExternalLink
+                        href={providerGithubUrls[providerKey]}
+                        className="text-primary/70 hover:text-primary transition-colors duration-200"
+                        title="View provider repository">
+                        <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
+                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                        </svg>
+                    </ExternalLink>
                 {/if}
             </div>
         {/if}

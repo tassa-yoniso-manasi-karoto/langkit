@@ -3,7 +3,7 @@
 
 import { writable, derived, get } from 'svelte/store';
 import { invalidationErrorStore } from './invalidationErrorStore';
-import type { FeatureDefinition } from './featureModel';
+import type { FeatureDefinition, RomanizationScheme } from './featureModel';
 import { logger } from './logger';
 
 // Types for the group system
@@ -566,11 +566,61 @@ function createFeatureGroupStore() {
     };
 }
 
-// Create the store
-export const featureGroupStore = createFeatureGroupStore();
+// Create stores for romanization data
+export const romanizationSchemesStore = writable<RomanizationScheme[]>([]);
+export const languageRequirementsStore = writable<{
+    needsScraper: boolean;
+    needsDocker: boolean;
+    dockerUnreachable: boolean;
+    dockerEngine: string;
+}>({ 
+    needsScraper: false, 
+    needsDocker: false,
+    dockerUnreachable: false,
+    dockerEngine: 'Docker'
+});
+
+// Create the main feature group store
+const baseFeatureGroupStore = createFeatureGroupStore();
+
+// Create derived stores for reactive state
+export const currentSchemeStore = derived(
+    [baseFeatureGroupStore, romanizationSchemesStore],
+    ([$store, $schemes]) => {
+        // Get the currently selected style from the subtitle group
+        const selectedStyle = $store.groupOptions['subtitle']?.['style'];
+        if (!selectedStyle || $schemes.length === 0) {
+            return null;
+        }
+        
+        // Find the matching scheme
+        return $schemes.find(s => s.name === selectedStyle) || null;
+    }
+);
+
+// Derived store for whether scraper is needed
+export const needsScraperStore = derived(
+    languageRequirementsStore,
+    ($requirements) => $requirements.needsScraper
+);
+
+// Derived store for whether docker is needed  
+export const needsDockerStore = derived(
+    languageRequirementsStore,
+    ($requirements) => $requirements.needsDocker
+);
+
+// Export the store with additional derived stores
+export const featureGroupStore = {
+    ...baseFeatureGroupStore,
+    // Add references to the derived stores
+    needsScraper: needsScraperStore,
+    needsDocker: needsDockerStore,
+    currentScheme: currentSchemeStore
+};
 
 // Derived store for checking if any feature in a group is enabled
 export const groupHasEnabledFeature = (groupId: string) => 
-    derived(featureGroupStore, ($store) => {
+    derived(baseFeatureGroupStore, ($store) => {
         return $store.enabledFeatures[groupId]?.length > 0 || false;
     });
