@@ -24,6 +24,8 @@ struct RomanizationScheme
   - name: string
   - description: string
   - provider: string
+  - needsDocker: bool
+  - needsScraper: bool
 
 struct RomanizationStylesResponse
   - schemes: []RomanizationScheme

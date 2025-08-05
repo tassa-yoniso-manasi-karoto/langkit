@@ -225,9 +225,11 @@ func (s *LanguageService) GetRomanizationStyles(ctx context.Context, languageCod
 	resp.Schemes = make([]*generated.RomanizationScheme, len(schemes))
 	for i, scheme := range schemes {
 		resp.Schemes[i] = &generated.RomanizationScheme{
-			Name:        scheme.Name,
-			Description: scheme.Description,
-			Provider:    scheme.Provider,
+			Name:         scheme.Name,
+			Description:  scheme.Description,
+			Provider:     scheme.Provider,
+			NeedsDocker:  scheme.NeedsDocker,
+			NeedsScraper: scheme.NeedsScraper,
 		}
 	}
 	

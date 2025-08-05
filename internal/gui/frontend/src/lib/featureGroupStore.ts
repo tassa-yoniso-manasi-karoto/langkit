@@ -598,16 +598,27 @@ export const currentSchemeStore = derived(
     }
 );
 
-// Derived store for whether scraper is needed
+// Derived store for whether scraper is needed (language-level, kept for backward compatibility)
 export const needsScraperStore = derived(
     languageRequirementsStore,
     ($requirements) => $requirements.needsScraper
 );
 
-// Derived store for whether docker is needed  
+// Derived store for whether docker is needed (language-level, kept for backward compatibility)
 export const needsDockerStore = derived(
     languageRequirementsStore,
     ($requirements) => $requirements.needsDocker
+);
+
+// Scheme-specific derived stores
+export const currentSchemeNeedsScraperStore = derived(
+    currentSchemeStore,
+    ($scheme) => $scheme?.needsScraper || false
+);
+
+export const currentSchemeNeedsDockerStore = derived(
+    currentSchemeStore,
+    ($scheme) => $scheme?.needsDocker || false
 );
 
 // Export the store with additional derived stores
@@ -616,7 +627,9 @@ export const featureGroupStore = {
     // Add references to the derived stores
     needsScraper: needsScraperStore,
     needsDocker: needsDockerStore,
-    currentScheme: currentSchemeStore
+    currentScheme: currentSchemeStore,
+    currentSchemeNeedsScraper: currentSchemeNeedsScraperStore,
+    currentSchemeNeedsDocker: currentSchemeNeedsDockerStore
 };
 
 // Derived store for checking if any feature in a group is enabled

@@ -6,7 +6,13 @@
     import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
     import { invalidationErrorStore } from '../lib/invalidationErrorStore';
     import { showSettings, llmStateStore, settings, type LLMStateChange, dockerStatusStore } from '../lib/stores';
-    import { featureGroupStore, needsScraperStore, needsDockerStore } from '../lib/featureGroupStore';
+    import { 
+        featureGroupStore, 
+        needsScraperStore, 
+        needsDockerStore,
+        currentSchemeNeedsScraperStore,
+        currentSchemeNeedsDockerStore
+    } from '../lib/featureGroupStore';
     import { logger } from '../lib/logger';
     import { ValidateLanguageTag } from '../api';
     import { debounce } from 'lodash';
@@ -65,6 +71,12 @@
     let needsDockerDerived = false;
     let needsScraperUnsubscribe: () => void;
     let needsDockerUnsubscribe: () => void;
+    
+    // Scheme-specific requirements
+    let currentSchemeNeedsScraper = false;
+    let currentSchemeNeedsDocker = false;
+    let currentSchemeNeedsScraperUnsubscribe: () => void;
+    let currentSchemeNeedsDockerUnsubscribe: () => void;
     
     // References to animated border elements
     let animatedBorderRight: HTMLElement;
@@ -277,6 +289,17 @@
             visibleOptionsDirty = true;
         });
         
+        // Subscribe to scheme-specific stores
+        currentSchemeNeedsScraperUnsubscribe = currentSchemeNeedsScraperStore.subscribe(value => {
+            currentSchemeNeedsScraper = value;
+            visibleOptionsDirty = true;
+        });
+        
+        currentSchemeNeedsDockerUnsubscribe = currentSchemeNeedsDockerStore.subscribe(value => {
+            currentSchemeNeedsDocker = value;
+            visibleOptionsDirty = true;
+        });
+        
         // Initial check
         checkNativeLanguageIsEnglish();
         
@@ -307,6 +330,12 @@
         }
         if (needsDockerUnsubscribe) {
             needsDockerUnsubscribe();
+        }
+        if (currentSchemeNeedsScraperUnsubscribe) {
+            currentSchemeNeedsScraperUnsubscribe();
+        }
+        if (currentSchemeNeedsDockerUnsubscribe) {
+            currentSchemeNeedsDockerUnsubscribe();
         }
         
         // Clean up any LLM errors we may have created
@@ -553,11 +582,15 @@
         }
         
         if (condition === 'context.isTopmostForOption && context.needsScraper') {
-            return isTopmostForThisOption && needsScraperDerived;
+            // Use scheme-specific requirement for subtitle-related features
+            const useSchemeSpecific = feature.featureGroups?.includes('subtitle');
+            return isTopmostForThisOption && (useSchemeSpecific ? currentSchemeNeedsScraper : needsScraperDerived);
         }
         
         if (condition === 'context.isTopmostForOption && context.needsDocker') {
-            return isTopmostForThisOption && needsDockerDerived;
+            // Use scheme-specific requirement for subtitle-related features
+            const useSchemeSpecific = feature.featureGroups?.includes('subtitle');
+            return isTopmostForThisOption && (useSchemeSpecific ? currentSchemeNeedsDocker : needsDockerDerived);
         }
         
         if (condition === 'context.isTopmostForOption && context.romanizationSchemes.length > 0') {
@@ -1121,8 +1154,8 @@
                                 {optionId}
                                 optionDef={optionDef}
                                 value={options[optionId]}
-                                {needsDocker}
-                                {needsScraper}
+                                needsDocker={groupId === 'subtitle' ? currentSchemeNeedsDocker : needsDocker}
+                                needsScraper={groupId === 'subtitle' ? currentSchemeNeedsScraper : needsScraper}
                                 {romanizationSchemes}
                                 on:groupOptionChange={event => {
                                     const { groupId, optionId, value } = event.detail;

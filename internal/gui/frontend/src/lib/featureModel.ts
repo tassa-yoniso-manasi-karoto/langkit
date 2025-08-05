@@ -38,6 +38,8 @@ export interface RomanizationScheme {
     name: string;
     description: string;
     provider: string;
+    needsDocker?: boolean;
+    needsScraper?: boolean;
 }
 
 export const providersRequiringTokens = {
