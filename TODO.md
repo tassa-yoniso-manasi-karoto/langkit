@@ -1,5 +1,5 @@
-- aksharamuha: have Claude Code do a codebase exploration & write a report about its architecture
 - create paiboonizer
+- aksharamuha: have Claude Code do a codebase exploration & write a report about its architecture
 
 .
 - BROWSE FIXMEs / TODOs IN CODEBASE

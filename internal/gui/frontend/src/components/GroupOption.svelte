@@ -5,6 +5,9 @@
     import { debounce } from 'lodash';
     import { getSmallDebounce } from '../lib/debouncePresets';
     
+    // Provider icon imports
+    import Thai2EnglishIcon from '../assets/providers/thai2english.com.svg';
+    
     import { logger } from '../lib/logger';
     
     import Dropdown from './Dropdown.svelte';
@@ -288,10 +291,21 @@
                 <!-- Display the current value (parent component ensures this is correct) -->
                 {localValue || ''}
                 
-                <!-- GitHub links for each provider if available -->
+                <!-- Provider icons and GitHub links -->
                 {#if localValue}
                     {@const providers = (localValue || '').split(' → ').map(p => p.trim())}
                     {#each providers as provider}
+                        <!-- Custom provider icons with links -->
+                        {#if provider === 'thai2english.com'}
+                            <ExternalLink
+                                href="https://www.thai2english.com"
+                                className="text-primary/70 hover:text-primary transition-colors duration-200"
+                                title="Visit thai2english.com">
+                                <img src={Thai2EnglishIcon} alt="thai2english.com" class="w-5 h-5" />
+                            </ExternalLink>
+                        {/if}
+                        
+                        <!-- GitHub links for providers that have repos -->
                         {#if providerGithubUrls[provider]}
                             <ExternalLink
                                 href={providerGithubUrls[provider]}
