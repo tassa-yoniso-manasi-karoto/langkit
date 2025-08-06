@@ -51,8 +51,8 @@ class LangkitAddon:
         # Setup toolbar button
         self._setup_toolbar()
         
-        # Add menu items
-        self._setup_menu()
+        # Add menu items – for devs only
+        # self._setup_menu()
         
         # Start on startup if configured (only if binary exists)
         if self.config.get("launch_on_startup", False) and self.binary_manager.check_binary_exists():
