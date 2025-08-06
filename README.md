@@ -18,7 +18,7 @@ It supports automatic subtitle detection, bulk/recursive directory processing, s
 - **Subs2cards**: Make Anki cards from subtitle timecodes like subs2srs
 - **Making dubtitles¹**: Make a subtitle file of dubs using Speech-To-Text
 - **Voice enhancing**: Make voices louder than Music&Effects 
-- **Condensed Audio**: generate an abridged audio file containing only the dialogue from media form passive immersion (see explanation video linked below)
+- **Condensed Audio**: generate an abridged audio file containing only the dialogue from media for passive immersion (see explanation video linked below)
 - **Subtitle romanization²**
 - **Subtitle tokenization**: Separate words with spaces for languages which don't use spaces
 - **Selective transliteration**: selective transliteration of subtitles based on [logogram](https://en.wikipedia.org/wiki/Logogram) frequency. Currently only japanese Kanjis are supported. Kanji with a frequency rank below the user-defined frequency threshold and regular readings are preserved, while others are converted to hiragana.
@@ -34,6 +34,12 @@ It supports automatic subtitle detection, bulk/recursive directory processing, s
 
 > [!WARNING]
 > ⚠️ **About Feature Combinations**: ⚠️<br> langkit provides numerous features, some of which may overlap or influence each other's behavior, creating a complex network of conditional interactions. Although relatively extensive testing has been conducted, the multitude of possible combinations mean that certain specific scenarios *will* still contain bugs / unexpected behavior, especially when utilizing less common or more intricate feature combinations. Users are encouraged to **report any issues encountered either with the Debug Report exported from the Settings panel or with the Crash Report.**
+
+# Langkit within Anki
+
+Langkit can run as a standalone but it can now also run directly inside Anki. This offers better performance so **it's the recommended way to use Langkit.**
+
+[Anki Addon available here](https://ankiweb.net/shared/info/1639192026)
 
 # tldr cli
 
