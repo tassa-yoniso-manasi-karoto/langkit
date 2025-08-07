@@ -23,6 +23,29 @@ from aqt.qt import *
 from aqt.utils import showInfo, showWarning, showCritical
 
 
+def parse_version(v_str: str) -> tuple:
+    """
+    Parse a version string like "v1.2.3" into a tuple of integers (1, 2, 3).
+    Handles 'v' prefix and non-numeric parts gracefully.
+    """
+    # Remove 'v' prefix if it exists
+    if v_str.startswith('v'):
+        v_str = v_str[1:]
+    
+    parts = v_str.split('.')
+    version_parts = []
+    for part in parts:
+        try:
+            # Keep only the numeric part (e.g., "10-hotfix" -> 10)
+            numeric_part = "".join(filter(str.isdigit, part))
+            if numeric_part:
+                version_parts.append(int(numeric_part))
+        except (ValueError, TypeError):
+            # If a part is not a valid number, skip it or default to 0
+            version_parts.append(0)
+            
+    return tuple(version_parts)
+
 class BinaryManager:
     """Manages langkit binary lifecycle: download, verification, and updates."""
     
@@ -40,7 +63,7 @@ class BinaryManager:
         self.binaries_dir = addon_path / "user_files" / "binaries"
         self.binaries_dir.mkdir(parents=True, exist_ok=True)
         self.github_repo = config.get("github_repo", "tassa-yoniso-manasi-karoto/langkit")
-        self.timeout = config.get("download_timeout", 300)
+        self.timeout = config.get("download_timeout", 600)
         
     def get_platform_info(self) -> Tuple[str, str]:
         """Get current platform information."""
@@ -179,14 +202,13 @@ class BinaryManager:
             if not release_info:
                 return None
                 
-            latest_version = (release_info.get("tag_name") or "").lstrip("v")
-            current_version = (self.config.get("last_known_version") or "").lstrip("v")
+            latest_version = release_info.get("tag_name", "0.0.0")
+            current_version = self.config.get("last_known_version")
             
             if not current_version:
                 return latest_version
                 
-            # Simple version comparison (could use semver for more robust comparison)
-            if latest_version > current_version:
+            if parse_version(latest_version) > parse_version(current_version):
                 return latest_version
                 
         except Exception as e:
@@ -203,7 +225,7 @@ class BinaryManager:
                 "User-Agent": "Langkit-Anki-Addon"
             })
             
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=5) as response:
                 return json.loads(response.read().decode())
                 
         except Exception as e:

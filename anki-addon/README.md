@@ -23,7 +23,9 @@ This addon integrates Langkit into Anki, providing language learning tools direc
    cd anki-addon
    zip -r langkit.ankiaddon * -x "meta.json" -x "__pycache__/*" -x "user_files/binaries/langkit*"
    ```
+
 2. Users can install by:
+   
    - Double-clicking the .ankiaddon file
    - Or via Tools → Add-ons → Install from file
 

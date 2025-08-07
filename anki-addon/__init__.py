@@ -36,6 +36,7 @@ class LangkitAddon:
         self.binary_manager: Optional[BinaryManager] = None
         self.process_manager: Optional[ProcessManager] = None
         self.webview_tab: Optional[LangkitTab] = None
+        self.update_checked_this_session = False
         
         # Save config on changes
         mw.addonManager.setConfigAction(__name__, self._on_config_changed)
@@ -144,7 +145,8 @@ class LangkitAddon:
             self.webview_tab = LangkitTab(self.process_manager)
         else:
             # Binary exists - check for updates first
-            if self.config.get("auto_update", True):
+            if self.config.get("auto_update", True) and not self.update_checked_this_session:
+                self.update_checked_this_session = True
                 new_version = self.binary_manager.check_for_updates()
                 if new_version:
                     # Show update notification
