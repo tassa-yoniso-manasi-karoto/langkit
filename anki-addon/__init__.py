@@ -131,7 +131,9 @@ class LangkitAddon:
             if not binary_path:
                 # User cancelled download or download failed
                 return
-                
+            
+            self._save_config()
+            
             # Binary downloaded successfully, check OS compatibility
             self._check_and_prompt_os_compatibility()
             
@@ -238,6 +240,8 @@ class LangkitAddon:
         if binary_path:
             # Check OS compatibility after successful download
             self._check_and_prompt_os_compatibility()
+            
+            self._save_config()
             
             # Create process manager with new binary
             self.process_manager = ProcessManager(binary_path, self.config)

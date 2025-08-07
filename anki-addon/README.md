@@ -12,15 +12,16 @@ This addon integrates Langkit into Anki, providing language learning tools direc
    - macOS: `~/Library/Application Support/Anki2/addons21/`
    - Linux: `~/.local/share/Anki2/addons21/`
 3. Create a symbolic link or copy this `anki-addon` directory to the addons folder
-4. Rename the folder to something like `langkit_addon` (no hyphens allowed)
+4. Rename the folder to something like `langkit` (no hyphens allowed)
 5. Restart Anki
 
 ### For Distribution
 
 1. Package the addon:
+   
    ```bash
    cd anki-addon
-   zip -r langkit.ankiaddon * -x "*.pyc" -x "__pycache__/*" -x ".git/*"
+   zip -r langkit.ankiaddon * -x "meta.json" -x "__pycache__/*" -x "user_files/binaries/langkit*"
    ```
 2. Users can install by:
    - Double-clicking the .ankiaddon file
@@ -29,50 +30,58 @@ This addon integrates Langkit into Anki, providing language learning tools direc
 ## Testing Checklist
 
 ### Initial Setup
-- [ ] Addon loads without errors on Anki startup
-- [ ] Langkit button appears in toolbar between Stats and Sync
-- [ ] Langkit menu appears in menu bar
+
+- [x] Addon loads without errors on Anki startup
+- [x] Langkit button appears in toolbar between Stats and Sync
+- [x] Langkit menu appears in menu bar
 
 ### Binary Management
-- [ ] First run triggers automatic binary download
-- [ ] Progress dialog shows during download
-- [ ] Checksum verification passes
-- [ ] Binary is saved to `user_files/binaries/`
-- [ ] Correct platform binary is selected
+
+- [x] First run triggers automatic binary download
+- [x] Progress dialog shows during download
+- [x] Checksum verification passes
+- [x] Binary is saved to `user_files/binaries/`
+- [x] Correct platform binary is selected
 
 ### Server Lifecycle
-- [ ] Server starts when clicking Langkit button
-- [ ] Temporary config.json is created
-- [ ] Server writes port information to config.json
-- [ ] Frontend loads at dynamic port
+
+- [x] Server starts when clicking Langkit button
+- [x] Temporary  `/tmp/langkit_addon_xxxxx.json` is created
+- [x] Server writes port information to `/tmp/langkit_addon_xxxxx.json`
+- [x] Frontend loads at dynamic port
 
 ### WebView Integration
-- [ ] WebView shows loading screen initially
-- [ ] Langkit frontend loads successfully
-- [ ] External links open in system browser
-- [ ] Back button returns to Anki
+
+- [x] WebView shows loading screen initially
+- [x] Langkit frontend loads successfully
+- [x] External links open in system browser
+- [x] Back button returns to Anki
 
 ### Process Management
+
 - [ ] Server stops when closing Anki
 - [ ] Manual stop/start/restart work correctly
 - [ ] Server recovers from crashes
 - [ ] No zombie processes left behind
 
 ### Updates
-- [ ] Update check detects new versions
-- [ ] Update prompt shows version comparison
-- [ ] Binary update completes successfully
+
+- [x] Update check detects new versions
+- [x] Update prompt shows version comparison
+- [x] Binary update completes successfully
 - [ ] Old binary is backed up during update
 
 ### Error Handling
+
 - [ ] Network errors show user-friendly messages
-- [ ] Missing binary prompts for download
-- [ ] Port conflicts are detected
-- [ ] Diagnostics show helpful information
+- [x] Missing binary prompts for download
+- [x] Port conflicts are detected
+- [x] Diagnostics show helpful information
 
 ## Debug Mode
 
 Enable Qt WebEngine developer tools:
+
 ```bash
 QTWEBENGINE_REMOTE_DEBUGGING=9222 anki
 ```
@@ -96,6 +105,7 @@ Then visit http://localhost:9222 in Chrome/Chromium to inspect the WebView.
 - All business logic remains in Go backend
 
 ## File Structure
+
 ```
 langkit_addon/
 ├── __init__.py           # Main addon entry point
