@@ -38,6 +38,7 @@ class LangkitAddon:
         self.webview_tab: Optional[LangkitTab] = None
         self.update_checked_this_session = False
         self._toolbar_hook_callback = None  # Store the toolbar hook callback
+        self._keyboard_shortcut = None  # Store the keyboard shortcut
 
         # Save config on changes
         mw.addonManager.setConfigAction(__name__, self._on_config_changed)
@@ -52,10 +53,13 @@ class LangkitAddon:
         
         # Setup toolbar button
         self._setup_toolbar()
-        
+
+        # Setup keyboard shortcut
+        self._setup_keyboard_shortcut()
+
         # Add menu items – for devs only
         # self._setup_menu()
-        
+
         # Start on startup if configured (only if binary exists)
         if self.config.get("launch_on_startup", False) and self.binary_manager.check_binary_exists():
             QTimer.singleShot(1000, self._start_server)
@@ -81,7 +85,7 @@ class LangkitAddon:
             cmd="langkit",
             label="Langkit",
             func=self._on_open_langkit,
-            tip="Open Langkit (K)",
+            tip=tr.actions_shortcut_key(val="L"),
             id="langkit"
         )
         # Insert before the last item (Sync) to place it between Stats and Sync
@@ -89,7 +93,14 @@ class LangkitAddon:
             links.insert(-1, langkit_link)
         else:
             links.append(langkit_link)
-            
+
+    def _setup_keyboard_shortcut(self):
+        """Setup keyboard shortcut for Langkit."""
+        # Create the keyboard shortcut directly (lowercase 'l' like other Anki shortcuts)
+        self._keyboard_shortcut = QShortcut(QKeySequence("l"), mw)
+        self._keyboard_shortcut.activated.connect(self._on_open_langkit)
+        self._keyboard_shortcut.setAutoRepeat(False)
+
     def _setup_menu(self):
         """Add Langkit menu items."""
         menu = QMenu("Langkit", mw)
@@ -435,6 +446,11 @@ class LangkitAddon:
         if self._toolbar_hook_callback:
             gui_hooks.top_toolbar_did_init_links.remove(self._toolbar_hook_callback)
             self._toolbar_hook_callback = None
+
+        # Clean up keyboard shortcut
+        if self._keyboard_shortcut:
+            self._keyboard_shortcut.deleteLater()
+            self._keyboard_shortcut = None
 
         if self.webview_tab:
             self.webview_tab.cleanup()
