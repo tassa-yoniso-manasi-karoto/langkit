@@ -13,6 +13,10 @@ Langkit is an all-in-one tool designed to **facilitate language learning from na
 
 It supports automatic subtitle detection, bulk/recursive directory processing, seamless resumption of previously interrupted processing runs and multiple native (reference) language fallback.
 
+<p align="center">
+    <img src="https://raw.githubusercontent.com/tassa-yoniso-manasi-karoto/langkit-assets/refs/heads/main/peek.avif" alt="Langkit Demo" width="600" />
+</p>
+
 ### Features
 
 - **Subs2cards**: Make Anki cards from subtitle timecodes like subs2srs
