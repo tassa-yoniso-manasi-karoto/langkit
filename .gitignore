@@ -1,23 +1,16 @@
-main
-mainbk
-build/bin
-langkit-cli
+.vscode/
+.DS_Store
+.idea
+
 CLAUDE.md
+**/.claude/settings.local.json
 
 **/node_modules
 **/frontend/node_modules
 **/frontend/dist
 **/frontend/wailsjs
 **package-lock.json
-
-.vscode/
-.DS_Store
-.idea
-
-dist/
-anki-addon/meta.json
-anki-addon/__pycache__/**
-anki-addon/user_files/binaries/**
+internal/gui/frontend/.npmrc
 
 scripts/*
 internal/gui/frontend/public/
@@ -32,9 +25,16 @@ internal/gui/frontend/src/wasm/pkg/*
 # WebRPC generated TypeScript files
 internal/gui/frontend/src/api/generated/*.gen.ts 
 
+dist/
+anki/
+anki-addon/meta.json
+anki-addon/__pycache__/**
+anki-addon/user_files/binaries/**
+
 archive/**
 archive
+main
+mainbk
+build/bin
+langkit-cli
 
-**/.claude/settings.local.json
-internal/gui/frontend/.npmrc
-anki/
