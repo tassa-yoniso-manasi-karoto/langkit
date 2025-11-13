@@ -145,16 +145,36 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("ffmpeg_path", "")
 	viper.SetDefault("mediainfo_path", "")
 
-	// Create config if it doesn't exist
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// Save default config
-			if err := viper.SafeWriteConfig(); err != nil {
-				return err
-			}
-		} else {
+	// Get the config path
+	configPath, err := getConfigPath()
+	if err != nil {
+		return err
+	}
+
+	// Create empty config file if it doesn't exist
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Ensure directory exists
+		configDir := filepath.Dir(configPath)
+		if err := os.MkdirAll(configDir, 0755); err != nil {
 			return err
 		}
+
+		// Create empty file (like touch command)
+		file, err := os.Create(configPath)
+		if err != nil {
+			return err
+		}
+		file.Close()
+
+		// Now write defaults to the newly created file
+		if err := viper.WriteConfig(); err != nil {
+			return err
+		}
+	}
+
+	// Read the config file
+	if err := viper.ReadInConfig(); err != nil {
+		return err
 	}
 
 	return nil
