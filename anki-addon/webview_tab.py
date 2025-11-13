@@ -58,7 +58,7 @@ class LangkitWebView(QWebEngineView):
         
         # Enable drag and drop
         self.setAcceptDrops(True)
-    
+
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         """Handle drag enter events."""
         if event.mimeData().hasUrls():
@@ -209,8 +209,8 @@ class LangkitTab:
         # Add ESC key shortcut to return to Anki
         escape_shortcut = QShortcut(QKeySequence("Escape"), self.web_view)
         escape_shortcut.activated.connect(self.hide)
-        
-        
+
+
     def show(self):
         """Show the Langkit interface."""
         print(f"[Langkit] show() called, is_visible={self.is_visible}")
@@ -271,7 +271,7 @@ class LangkitTab:
         
         # Mark Langkit as visible on main window
         mw._langkit_visible = True
-        
+
         self.is_visible = True
         print("[Langkit] UI creation complete")
         
@@ -314,9 +314,9 @@ class LangkitTab:
             mw.toolbar.redraw()
             
         self.is_visible = False
-        
+
         # The webview is kept alive but hidden (single instance pattern)
-        
+
     def _on_load_finished(self, ok: bool):
         """Handle page load completion."""
         if ok and self.is_visible and self.web_view:

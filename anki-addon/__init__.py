@@ -39,6 +39,7 @@ class LangkitAddon:
         self.update_checked_this_session = False
         self._toolbar_hook_callback = None  # Store the toolbar hook callback
         self._keyboard_shortcut = None  # Store the keyboard shortcut
+        self._original_moveToState = None  # Store original moveToState method
 
         # Save config on changes
         mw.addonManager.setConfigAction(__name__, self._on_config_changed)
@@ -56,6 +57,9 @@ class LangkitAddon:
 
         # Setup keyboard shortcut
         self._setup_keyboard_shortcut()
+
+        # Fix deck shortcut to work with Langkit
+        self._fix_deck_shortcut()
 
         # Add menu items – for devs only
         # self._setup_menu()
@@ -100,6 +104,22 @@ class LangkitAddon:
         self._keyboard_shortcut = QShortcut(QKeySequence("l"), mw)
         self._keyboard_shortcut.activated.connect(self._on_open_langkit)
         self._keyboard_shortcut.setAutoRepeat(False)
+
+    def _fix_deck_shortcut(self):
+        """Fix the deck shortcut to work when Langkit is open."""
+        # Store original moveToState method
+        self._original_moveToState = mw.moveToState
+
+        def moveToState_wrapper(state, *args):
+            # If trying to go to deck browser and Langkit is visible, close it first
+            if state == "deckBrowser" and hasattr(mw, '_langkit_visible') and mw._langkit_visible:
+                if self.webview_tab:
+                    self.webview_tab.hide()
+            # Then proceed with the original state change
+            return self._original_moveToState(state, *args)
+
+        # Replace moveToState with our wrapper
+        mw.moveToState = moveToState_wrapper
 
     def _setup_menu(self):
         """Add Langkit menu items."""
@@ -451,6 +471,11 @@ class LangkitAddon:
         if self._keyboard_shortcut:
             self._keyboard_shortcut.deleteLater()
             self._keyboard_shortcut = None
+
+        # Restore original moveToState method
+        if self._original_moveToState:
+            mw.moveToState = self._original_moveToState
+            self._original_moveToState = None
 
         if self.webview_tab:
             self.webview_tab.cleanup()
