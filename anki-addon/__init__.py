@@ -37,7 +37,8 @@ class LangkitAddon:
         self.process_manager: Optional[ProcessManager] = None
         self.webview_tab: Optional[LangkitTab] = None
         self.update_checked_this_session = False
-        
+        self._toolbar_hook_callback = None  # Store the toolbar hook callback
+
         # Save config on changes
         mw.addonManager.setConfigAction(__name__, self._on_config_changed)
         
@@ -61,14 +62,21 @@ class LangkitAddon:
             
     def _setup_toolbar(self):
         """Setup toolbar button using Anki's hook system."""
-        gui_hooks.top_toolbar_did_init_links.append(self._on_toolbar_init)
-        
+        # Store the callback so we can remove it later
+        self._toolbar_hook_callback = self._on_toolbar_init
+        gui_hooks.top_toolbar_did_init_links.append(self._toolbar_hook_callback)
+
         # Force toolbar redraw to show our button
         if hasattr(mw, 'toolbar') and mw.toolbar:
             mw.toolbar.draw()
         
     def _on_toolbar_init(self, links: list[str], toolbar: aqt.toolbar.Toolbar) -> None:
         """Add Langkit button to the main toolbar."""
+        # Check if Langkit button already exists to prevent duplicates
+        for link in links:
+            if 'id="langkit"' in link:
+                return  # Button already exists, don't add another
+
         langkit_link = toolbar.create_link(
             cmd="langkit",
             label="Langkit",
@@ -423,9 +431,14 @@ class LangkitAddon:
         
     def cleanup(self):
         """Clean up resources on shutdown."""
+        # Remove toolbar hook callback to prevent duplicates
+        if self._toolbar_hook_callback:
+            gui_hooks.top_toolbar_did_init_links.remove(self._toolbar_hook_callback)
+            self._toolbar_hook_callback = None
+
         if self.webview_tab:
             self.webview_tab.cleanup()
-            
+
         if self.process_manager:
             self.process_manager.stop()
 
