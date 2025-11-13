@@ -36,3 +36,5 @@ archive/**
 archive
 
 **/.claude/settings.local.json
+internal/gui/frontend/.npmrc
+anki/

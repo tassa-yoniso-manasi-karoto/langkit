@@ -50,7 +50,12 @@ class ProcessManager:
             fd, config_path = tempfile.mkstemp(suffix=".json", prefix="langkit_addon_")
             os.close(fd)  # Close the file descriptor
             self.config_file = Path(config_path)
-            
+
+            # Create temporary stderr file for startup error capture
+            stderr_fd, stderr_path = tempfile.mkstemp(suffix=".log", prefix="langkit_stderr_")
+            self.stderr_file = Path(stderr_path)
+            stderr_handle = os.fdopen(stderr_fd, 'w+')
+
             # Write initial config
             initial_config = {
                 "addon_instance": True,
@@ -74,26 +79,37 @@ class ProcessManager:
             if platform.system() == "Windows":
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                
+
             self.process = subprocess.Popen(
                 cmd,
-                stdout=None, # CRITICAL: Do NOT monitor with PIPE
-                stderr=None, # see https://github.com/ankitects/anki/issues/4230#issuecomment-3127202125
+                stdout=None, # CRITICAL: Do NOT monitor with PIPE, see https://github.com/ankitects/anki/issues/4230#issuecomment-3127202125
+                stderr=stderr_handle, # Capture to file to avoid deadlock
                 startupinfo=startupinfo,
                 text=True,
                 bufsize=1  # Line buffered
             )
-            
+
+            # Close our handle (process keeps its own)
+            stderr_handle.close()
+
             # Start monitor thread
             self.shutdown_event.clear()
             self.monitor_thread = threading.Thread(target=self._monitor_process, daemon=True)
             self.monitor_thread.start()
-            
+
             # Wait for server to write port information
             if not self._wait_for_ports():
                 self.stop()
                 return False
-                
+
+            # Clean up stderr file if startup was successful
+            if hasattr(self, 'stderr_file') and self.stderr_file.exists():
+                try:
+                    self.stderr_file.unlink()
+                    self.stderr_file = None
+                except:
+                    pass
+
             return True
             
         except Exception as e:
@@ -132,7 +148,14 @@ class ProcessManager:
                 self.config_file.unlink()
             except Exception:
                 pass
-                
+
+        # Clean up stderr file
+        if hasattr(self, 'stderr_file') and self.stderr_file and self.stderr_file.exists():
+            try:
+                self.stderr_file.unlink()
+            except Exception:
+                pass
+
         self.server_config = None
         
     def restart(self) -> bool:
@@ -172,44 +195,44 @@ class ProcessManager:
                 # Process died during startup
                 exit_code = self.process.returncode if self.process else None
                 
-                # First check if monitor thread already captured stderr
-                stderr = self.last_stderr
-                
-                # If not, try to get it ourselves
-                if not stderr and self.process:
-                    # For processes that die quickly, use communicate to get all output
-                    try:
-                        # communicate() will wait for process to finish and return all output
-                        stdout, stderr_output = self.process.communicate(timeout=1.0)
-                        stderr = stderr_output
-                    except subprocess.TimeoutExpired:
-                        # Process still running somehow, kill it
-                        self.process.kill()
-                        stdout, stderr_output = self.process.communicate()
-                        stderr = stderr_output
-                    except:
-                        # Fallback to reading what we can
-                        stderr = self._read_stderr()
-                
-                # Ensure we have exit code after communicate
+                # Wait a moment for stderr to be written to file
+                time.sleep(0.2)
+
+                # Read stderr from the file
+                stderr = self._read_stderr()
+
+                # If still empty, check if monitor thread captured anything
+                if not stderr:
+                    stderr = self.last_stderr
+
+                # Ensure we have exit code
                 if self.process:
                     exit_code = self.process.returncode
                 
                 # Check for dynamic linking errors
                 if exit_code == 127 or self._is_linking_error(stderr):
-                    error_msg = "Langkit cannot run in this environment due to missing system libraries.\n\n"
-                    error_msg += "This typically happens when:\n"
-                    error_msg += "• Running Anki from Flatpak or Snap\n"
-                    error_msg += "• Missing WebView libraries\n\n"
-                    error_msg += "Please install Anki from https://apps.ankiweb.net/ instead.\n\n"
-                    error_msg += f"Technical details:\n{stderr}"
-                    
-                    showCritical(error_msg, title="Incompatible Environment")
+                    error_msg = "Langkit cannot run due to missing system libraries.\n\n"
+                    error_msg += self._get_missing_library_message(stderr)
+
+                    # Add alternative solutions
+                    error_msg += "\n\nAlternative solutions:\n"
+                    error_msg += "• If using Flatpak/Snap Anki, install Anki from https://apps.ankiweb.net/ instead\n"
+                    error_msg += "• Try installing the missing libraries using your package manager\n"
+
+                    # Include technical details for debugging
+                    if stderr:
+                        error_msg += f"\n\nTechnical details:\n{stderr[:500]}"  # Limit stderr output
+
+                    showCritical(error_msg, title="Missing System Libraries")
                 else:
-                    showCritical(
-                        f"Process terminated unexpectedly.\n\n{stderr}",
-                        title="Langkit failed to start"
-                    )
+                    # For non-linking errors, show the stderr output
+                    error_msg = "Process terminated unexpectedly.\n\n"
+                    if stderr:
+                        error_msg += f"Error output:\n{stderr}"
+                    else:
+                        error_msg += "No error output available. The process may have crashed immediately."
+
+                    showCritical(error_msg, title="Langkit failed to start")
                 return False
                 
             try:
@@ -267,68 +290,34 @@ class ProcessManager:
             time.sleep(1)
             
     def _read_stderr(self) -> str:
-        """Read available stderr output from process."""
-        if not self.process or not self.process.stderr:
-            return ""
-            
-        try:
-            # Non-blocking read of available data
-            import select
-            stderr_lines = []
-            
-            if platform.system() != "Windows":
-                # Unix: use select for non-blocking read
-                while True:
-                    ready, _, _ = select.select([self.process.stderr], [], [], 0)
-                    if ready:
-                        line = self.process.stderr.readline()
-                        if line:
-                            stderr_lines.append(line.strip())
-                        else:
-                            break
-                    else:
-                        break
-            else:
-                # Windows: read with timeout (less elegant but works)
-                import queue
-                import threading
-                
-                q = queue.Queue()
-                
-                def reader():
-                    try:
-                        for line in self.process.stderr:
-                            q.put(line.strip())
-                    except:
-                        pass
-                        
-                reader_thread = threading.Thread(target=reader)
-                reader_thread.daemon = True
-                reader_thread.start()
-                
-                # Collect lines for up to 0.1 seconds
-                deadline = time.time() + 0.1
-                while time.time() < deadline:
-                    try:
-                        line = q.get(timeout=0.01)
-                        stderr_lines.append(line)
-                    except queue.Empty:
-                        break
-                        
-            return "\n".join(stderr_lines[-20:])  # Last 20 lines
-            
-        except Exception as e:
-            return f"Error reading stderr: {e}"
+        """Read stderr output from the temporary file."""
+        # First check if we have a stderr file
+        if hasattr(self, 'stderr_file') and self.stderr_file and self.stderr_file.exists():
+            try:
+                with open(self.stderr_file, 'r') as f:
+                    lines = f.readlines()
+                    # Return last 50 lines for context
+                    return ''.join(lines[-50:])
+            except Exception as e:
+                return f"Error reading stderr file: {e}"
+
+        # Fallback to cached stderr
+        return self.last_stderr or ""
             
     def _is_linking_error(self, stderr: str) -> bool:
         """Check if the error is related to missing dynamic libraries."""
         if not stderr:
             return False
-            
+
         linking_patterns = [
             # Linux
             "error while loading shared libraries",
             "cannot open shared object file",
+            "No such file or directory",
+            "libwebkit2gtk",  # Specific webkit library
+            "libgtk",  # GTK libraries
+            "libglib",  # GLib libraries
+            "libgobject",  # GObject libraries
             # Windows
             "The code execution cannot proceed because",
             "was not found",
@@ -338,9 +327,52 @@ class ProcessManager:
             "dyld: Symbol not found",
             "Reason: image not found",
         ]
-        
+
         stderr_lower = stderr.lower()
         return any(pattern.lower() in stderr_lower for pattern in linking_patterns)
+
+    def _get_missing_library_message(self, stderr: str) -> str:
+        """Generate specific error message based on the missing library."""
+        stderr_lower = stderr.lower()
+
+        # Check for specific libraries and provide targeted advice
+        if "libwebkit2gtk" in stderr_lower:
+            return (
+                "Missing WebKit2GTK library.\n\n"
+                "This library is required for the GUI to function.\n\n"
+                "Installation instructions:\n"
+                "• Ubuntu/Debian: sudo apt-get install libwebkit2gtk-4.0-37 or libwebkit2gtk-4.1-0\n"
+                "• Fedora/RHEL: sudo dnf install webkit2gtk3\n"
+                "• Arch Linux: sudo pacman -S webkit2gtk or webkit2gtk-4.1\n"
+                "• OpenSUSE: sudo zypper install libwebkit2gtk-4_0-37\n"
+            )
+        elif "libgtk" in stderr_lower:
+            return (
+                "Missing GTK library.\n\n"
+                "Installation instructions:\n"
+                "• Ubuntu/Debian: sudo apt-get install libgtk-3-0\n"
+                "• Fedora/RHEL: sudo dnf install gtk3\n"
+                "• Arch Linux: sudo pacman -S gtk3\n"
+                "• OpenSUSE: sudo zypper install libgtk-3-0\n"
+            )
+        elif "libglib" in stderr_lower or "libgobject" in stderr_lower:
+            return (
+                "Missing GLib/GObject libraries.\n\n"
+                "Installation instructions:\n"
+                "• Ubuntu/Debian: sudo apt-get install libglib2.0-0\n"
+                "• Fedora/RHEL: sudo dnf install glib2\n"
+                "• Arch Linux: sudo pacman -S glib2\n"
+                "• OpenSUSE: sudo zypper install libglib-2_0-0\n"
+            )
+        else:
+            # Generic message for other linking errors
+            return (
+                "Missing system libraries.\n\n"
+                "This typically happens when:\n"
+                "• Running Anki from Flatpak or Snap (sandboxed environments)\n"
+                "• Required GUI libraries are not installed\n"
+                "• Using a minimal Linux installation\n"
+            )
     
     def get_diagnostics(self) -> Dict:
         """Get diagnostic information about the process."""
