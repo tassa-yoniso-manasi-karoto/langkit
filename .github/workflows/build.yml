@@ -22,8 +22,8 @@ jobs:
         build:
           - name: langkit
             platform: linux/amd64
-            platform_sanitized: linux-amd64
-            os: ubuntu-22.04  # Pinned for stability with Wails v2.9.0
+            platform_sanitized: linux-amd64-webkit40
+            os: ubuntu-22.04  # Has webkit2gtk-4.0
           - name: langkit
             platform: windows/amd64
             platform_sanitized: windows-amd64
@@ -237,7 +237,7 @@ jobs:
           sign: false
           package: false
           app-working-directory: "."
-          
+
       # Debug: Check what was actually built
       - name: Debug - Check build output
         shell: bash
@@ -332,18 +332,12 @@ jobs:
               exit 1
             fi
           else
-            # Linux - copy executable with simple platform suffix
+            # Linux - copy single binary (we'll merge later)
             if ls build/bin/langkit 1> /dev/null 2>&1; then
-              cp build/bin/langkit "dist/langkit-app-linux"
-              # Ensure executable permissions
-              chmod +x "dist/langkit-app-linux"
-              # Create tar.xz archive using LZMA compression
-              cd dist
-              tar -cJf langkit-app-linux.tar.xz langkit-app-linux
-              rm langkit-app-linux  # Remove uncompressed file
-              cd ..
+              cp build/bin/langkit "dist/langkit"
+              chmod +x "dist/langkit"
             else
-              echo "Error: Linux binaries not found"
+              echo "Error: Linux binary not found"
               exit 1
             fi
           fi
@@ -384,9 +378,240 @@ jobs:
           name: langkit-${{ matrix.build.platform_sanitized }}-${{ github.sha }}
           path: dist/*
           
+  # Build webkit2gtk-4.1 variant on Ubuntu 24.04
+  build-linux-webkit41:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Setup build environment
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # Install system dependencies
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # Caching (similar to main build)
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-go-
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: internal/gui/frontend/src/wasm -> target
+
+      - name: Cache Node modules
+        uses: actions/cache@v4
+        with:
+          path: internal/gui/frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('internal/gui/frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Cache wasm-pack binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/.wasm-pack
+            ~/Library/Caches/.wasm-pack
+            ~/AppData/Local/wasm-pack/cache
+          key: ${{ runner.os }}-wasm-pack-bins
+          restore-keys: |
+            ${{ runner.os }}-wasm-pack-bins
+
+      # Install wasm-pack
+      - name: Install wasm-pack
+        run: |
+          echo "Installing wasm-pack (latest version)"
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      # Install WebRPC code generator
+      - name: Install webrpc-gen
+        run: go install github.com/webrpc/webrpc/cmd/webrpc-gen
+
+      # Generate WebRPC code
+      - name: Generate WebRPC code
+        working-directory: api
+        shell: bash
+        run: |
+          make generate-go
+
+      # Build WASM components
+      - name: Build WebAssembly components
+        working-directory: internal/gui/frontend
+        shell: bash
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build:wasm
+
+      # Prepare static assets
+      - name: Prepare static assets
+        working-directory: internal/gui/frontend
+        shell: bash
+        run: |
+          mkdir -p public
+          cp icon/waving-hand.json public/
+
+      # Prepare version information
+      - name: Prepare version info
+        id: version
+        shell: bash
+        run: |
+          # Get version from tag or use 'dev'
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="dev"
+          fi
+
+          COMMIT="${{ github.sha }}"
+          COMMIT="${COMMIT:0:7}"
+
+          if [[ "${{ github.ref_type }}" == "branch" ]]; then
+            BRANCH="${{ github.ref_name }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            if [[ -n "${{ github.base_ref }}" ]]; then
+              BRANCH="${{ github.base_ref }}"
+            else
+              BRANCH="${{ github.ref_name }}"
+            fi
+          else
+            BRANCH="unknown"
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "COMMIT=$COMMIT" >> $GITHUB_OUTPUT
+          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+
+      # Build GUI with webkit2gtk-4.1
+      - name: Build GUI with Wails (webkit2gtk-4.1)
+        uses: tassa-yoniso-manasi-karoto/wails-build-action@main
+        with:
+          build-name: langkit-webkit2_41
+          build-ldflags: "-s -w -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}"
+          build-platform: linux/amd64
+          build-tags: "webkit2_41"
+          wails-version: ${{ env.WAILS_VERSION }}
+          go-version: ${{ env.GO_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+          sign: false
+          package: false
+          app-working-directory: "."
+
+      # Package webkit2_41 binary
+      - name: Package webkit2_41 binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          if ls build/bin/langkit-webkit2_41 1> /dev/null 2>&1; then
+            cp build/bin/langkit-webkit2_41 "dist/langkit-webkit2_41"
+            chmod +x "dist/langkit-webkit2_41"
+          else
+            echo "Error: webkit2_41 binary not found"
+            exit 1
+          fi
+
+      # Upload artifact
+      - name: Upload webkit2_41 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: langkit-linux-amd64-webkit41-${{ github.sha }}
+          path: dist/*
+
+  # Merge Linux binaries into single archive
+  merge-linux:
+    needs: [build, build-linux-webkit41]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download webkit2gtk-4.0 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: langkit-linux-amd64-webkit40-${{ github.sha }}
+          path: webkit40
+
+      - name: Download webkit2gtk-4.1 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: langkit-linux-amd64-webkit41-${{ github.sha }}
+          path: webkit41
+
+      - name: Merge and create archive
+        run: |
+          mkdir -p dist
+
+          # Copy both binaries
+          cp webkit40/langkit dist/
+          cp webkit41/langkit-webkit2_41 dist/
+
+          # Ensure executable permissions
+          chmod +x dist/langkit
+          chmod +x dist/langkit-webkit2_41
+
+          # Create README
+          printf '%s\n' \
+            "LINUX WEBKIT COMPATIBILITY GUIDE" \
+            "=================================" \
+            "This archive contains two versions due to webkit2gtk library incompatibility:" \
+            "" \
+            "• langkit: For systems with webkit2gtk-4.0 (Ubuntu 22.04, Debian 12, RHEL/Rocky/AlmaLinux, older Fedora)" \
+            "• langkit-webkit2_41: For systems with webkit2gtk-4.1 only (Ubuntu 24.04+, Debian 13+, Arch starting from March 2026, Void Linux, Alpine 3.21+)" \
+            "" \
+            "To check which webkit version you have installed:" \
+            "$ ldconfig -p | grep webkit2gtk" \
+            "" \
+            "Try './langkit' first." \
+            "If you get \"libwebkit2gtk-4.0.so.37: cannot open shared object file\", use './langkit-webkit2_41' instead." \
+            "" \
+            "For more information, visit: https://github.com/tassa-yoniso-manasi-karoto/langkit" \
+            > dist/README.txt
+
+          # Create tar.xz archive
+          cd dist
+          tar -cJf langkit-app-linux.tar.xz langkit langkit-webkit2_41 README.txt
+          rm langkit langkit-webkit2_41 README.txt
+          cd ..
+
+      # Upload merged archive
+      - name: Upload merged Linux archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: langkit-linux-amd64-${{ github.sha }}
+          path: dist/*
+
   # Create release if this is a tag
   release:
-    needs: build
+    needs: [build, merge-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     
@@ -430,14 +655,21 @@ jobs:
           body: |
             - **Prior to use, please read the "FAQ", "Requirements", and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
             - All binaries for macOS are provided as-is and are entirely untested.
-            
+
+            ## Linux Webkit Compatibility
+            The Linux archive (`langkit-app-linux.tar.xz`) contains **two binaries** due to webkit2gtk library incompatibility:
+            - **`langkit`**: For systems with webkit2gtk-4.0 (Ubuntu 22.04, Debian 12, RHEL, older Fedora)
+            - **`langkit-webkit2_41`**: For systems with webkit2gtk-4.1 (Ubuntu 24.04+, Debian 13+, Void Linux, Arch starting from March 2026)
+
+            Most users should try `langkit` first. See the README.txt in the archive for details.
+
             ##  "Windows protected your PC" popup
             When running for the first time, Windows **may show a blue popup** that says "Windows protected your PC":
-            1. Click **"More info"** 
+            1. Click **"More info"**
             2. Click **"Run anyway"**
 
             This is **normal for unsigned software that isn't widely used** and should only happen once.
-            
+
             Langkit also requires **WebView2** but it comes pre-installed with all modern versions of Windows.
             
             ## CLI version (advanced users only)
