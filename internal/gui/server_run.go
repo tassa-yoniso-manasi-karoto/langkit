@@ -65,11 +65,11 @@ func RunServerMode() {
 	// Initialize UI manager based on runtime
 	if runtime == "anki" && dialogPort > 0 {
 		// Use Qt dialogs via IPC for Anki mode
-		ui.Initialize(dialogs.NewQtFileDialog(dialogPort), browser.NewZenityURLOpener())
+		ui.Initialize(dialogs.NewQtFileDialog(dialogPort), browser.NewSystemURLOpener())
 		logger.Info().Msg("UI manager initialized with Qt dialogs (via IPC) and URL opener")
 	} else {
 		// Use Zenity dialogs for browser/standalone mode
-		ui.Initialize(dialogs.NewZenityFileDialog(), browser.NewZenityURLOpener())
+		ui.Initialize(dialogs.NewZenityFileDialog(), browser.NewSystemURLOpener())
 		logger.Info().Msg("UI manager initialized with Zenity dialogs and URL opener")
 	}
 

@@ -5,19 +5,19 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 )
 
-// Compile-time check that ZenityURLOpener implements URLOpener
-var _ URLOpener = (*ZenityURLOpener)(nil)
+// Compile-time check that SystemURLOpener implements URLOpener
+var _ URLOpener = (*SystemURLOpener)(nil)
 
-// ZenityURLOpener implements URLOpener using system commands
-type ZenityURLOpener struct{}
+// SystemURLOpener implements URLOpener using system commands
+type SystemURLOpener struct{}
 
-// NewZenityURLOpener creates a new Zenity URL opener instance
-func NewZenityURLOpener() *ZenityURLOpener {
-	return &ZenityURLOpener{}
+// NewSystemURLOpener creates a new system URL opener instance
+func NewSystemURLOpener() *SystemURLOpener {
+	return &SystemURLOpener{}
 }
 
 // OpenURL opens a URL in the user's default browser using system commands
-func (z *ZenityURLOpener) OpenURL(url string) error {
+func (s *SystemURLOpener) OpenURL(url string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		return executils.NewCommand("open", url).Start()
