@@ -205,6 +205,8 @@ class LangkitAddon:
                     if ret == QMessageBox.StandardButton.Yes:
                         # Perform update
                         if self.binary_manager.update_binary():
+                            # Save the updated config (including new version)
+                            self._save_config()
                             showInfo("Langkit updated successfully! Please click Langkit again to start.")
                             return  # Exit without starting the old binary
                         else:
