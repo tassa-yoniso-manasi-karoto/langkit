@@ -17,6 +17,13 @@ from typing import Dict, Optional, Tuple
 
 from aqt.utils import showWarning, showCritical
 
+try:
+    # Try relative import first (for testing outside Anki)
+    from .dialog_handler import DialogHandler
+except ImportError:
+    # Fall back to absolute import (for Anki addon context)
+    from dialog_handler import DialogHandler
+
 
 class ProcessManager:
     """Manages the langkit server subprocess."""
@@ -33,7 +40,11 @@ class ProcessManager:
         self.poll_interval = config.get("config_poll_interval", 0.5)
         self.poll_timeout = config.get("config_poll_timeout", 10)
         self.last_stderr = ""  # Store stderr from monitor thread
-        
+
+        # Initialize dialog handler
+        self.dialog_handler = DialogHandler()
+        self.dialog_port: Optional[int] = None
+
         # Register cleanup on exit
         atexit.register(self.stop)
         
@@ -46,6 +57,12 @@ class ProcessManager:
         self.last_stderr = ""
             
         try:
+            # Start dialog handler server first
+            self.dialog_port = self.dialog_handler.start_server()
+            if not self.dialog_port:
+                showWarning("Failed to start dialog handler server")
+                # Continue anyway - dialogs won't work but the rest will
+
             # Create temporary config file
             fd, config_path = tempfile.mkstemp(suffix=".json", prefix="langkit_addon_")
             os.close(fd)  # Close the file descriptor
@@ -56,11 +73,13 @@ class ProcessManager:
             self.stderr_file = Path(stderr_path)
             stderr_handle = os.fdopen(stderr_fd, 'w+')
 
-            # Write initial config
+            # Write initial config with dialog port
             initial_config = {
                 "addon_instance": True,
                 "created_at": time.time()
             }
+            if self.dialog_port:
+                initial_config["dialog_port"] = self.dialog_port
             with open(self.config_file, 'w') as f:
                 json.dump(initial_config, f, indent=2)
                 
@@ -120,7 +139,14 @@ class ProcessManager:
     def stop(self):
         """Stop the langkit server process gracefully."""
         self.shutdown_event.set()
-        
+
+        # Stop dialog handler server
+        if self.dialog_handler:
+            try:
+                self.dialog_handler.stop_server()
+            except Exception as e:
+                print(f"Error stopping dialog handler: {e}")
+
         if self.process:
             try:
                 # Try graceful shutdown first
@@ -128,7 +154,7 @@ class ProcessManager:
                     self.process.terminate()
                 else:
                     self.process.send_signal(signal.SIGTERM)
-                    
+
                 # Wait up to 5 seconds for graceful shutdown
                 try:
                     self.process.wait(timeout=5)
@@ -136,12 +162,12 @@ class ProcessManager:
                     # Force kill if needed
                     self.process.kill()
                     self.process.wait()
-                    
+
             except Exception as e:
                 print(f"Error stopping process: {e}")
-                
+
             self.process = None
-            
+
         # Clean up config file
         if self.config_file and self.config_file.exists():
             try:
@@ -157,6 +183,7 @@ class ProcessManager:
                 pass
 
         self.server_config = None
+        self.dialog_port = None
         
     def restart(self) -> bool:
         """Restart the langkit server."""
@@ -382,5 +409,6 @@ class ProcessManager:
             "binary_path": str(self.binary_path),
             "config_file": str(self.config_file) if self.config_file else None,
             "server_config": self.server_config,
-            "frontend_url": self.get_frontend_url()
+            "frontend_url": self.get_frontend_url(),
+            "dialog_port": self.dialog_port
         }

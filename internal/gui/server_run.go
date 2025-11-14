@@ -44,18 +44,34 @@ func RunServerMode() {
 	// Check for optional Anki addon config path and determine runtime
 	var ankiConfigPath string
 	var runtime string
+	var dialogPort int
 	if len(os.Args) > 2 && os.Args[2] != "" {
 		ankiConfigPath = os.Args[2]
 		runtime = "anki"
 		logger.Info().Str("config_path", ankiConfigPath).Msg("Anki addon config path provided - running in Anki mode")
+
+		// Try to read dialog port from config file
+		if port, err := readDialogPortFromConfig(ankiConfigPath); err == nil && port > 0 {
+			dialogPort = port
+			logger.Info().Int("dialog_port", dialogPort).Msg("Dialog server port read from config")
+		} else {
+			logger.Warn().Err(err).Msg("Failed to read dialog port from config, Qt dialogs will be unavailable")
+		}
 	} else {
 		runtime = "browser"
 		logger.Info().Msg("No config path provided - running in browser mode")
 	}
 
-	// Initialize UI manager with Zenity dialogs for native file operations and URL opening
-	ui.Initialize(dialogs.NewZenityFileDialog(), browser.NewZenityURLOpener())
-	logger.Info().Msg("UI manager initialized with Zenity dialogs and URL opener")
+	// Initialize UI manager based on runtime
+	if runtime == "anki" && dialogPort > 0 {
+		// Use Qt dialogs via IPC for Anki mode
+		ui.Initialize(dialogs.NewQtFileDialog(dialogPort), browser.NewZenityURLOpener())
+		logger.Info().Msg("UI manager initialized with Qt dialogs (via IPC) and URL opener")
+	} else {
+		// Use Zenity dialogs for browser/standalone mode
+		ui.Initialize(dialogs.NewZenityFileDialog(), browser.NewZenityURLOpener())
+		logger.Info().Msg("UI manager initialized with Zenity dialogs and URL opener")
+	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -293,6 +309,44 @@ func updateAnkiConfig(configPath string, frontendPort, apiPort, wsPort int, logg
 
 
 // updateAnkiConfigSinglePort updates the Anki addon's config.json with single port information
+// readDialogPortFromConfig reads the dialog server port from the Anki config file
+func readDialogPortFromConfig(configPath string) (int, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return 0, fmt.Errorf("failed to parse config JSON: %w", err)
+	}
+
+	// Debug log the config content
+	fmt.Printf("[readDialogPortFromConfig] Config keys: %v\n", getMapKeys(config))
+
+	// Look for dialog_port in the config
+	if dialogPort, ok := config["dialog_port"].(float64); ok {
+		fmt.Printf("[readDialogPortFromConfig] Found dialog_port: %d\n", int(dialogPort))
+		return int(dialogPort), nil
+	}
+
+	// Debug log what we actually found
+	if dp, exists := config["dialog_port"]; exists {
+		fmt.Printf("[readDialogPortFromConfig] dialog_port exists but wrong type: %T\n", dp)
+	}
+
+	return 0, fmt.Errorf("dialog_port not found in config")
+}
+
+// Helper function to get map keys for debugging
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func updateAnkiConfigSinglePort(configPath string, port int, logger *zerolog.Logger) error {
 	// Read existing config
 	data, err := os.ReadFile(configPath)
@@ -306,6 +360,13 @@ func updateAnkiConfigSinglePort(configPath string, port int, logger *zerolog.Log
 		return fmt.Errorf("failed to parse config JSON: %w", err)
 	}
 
+	// IMPORTANT: Preserve the dialog_port if it exists
+	var dialogPort interface{}
+	if dp, exists := config["dialog_port"]; exists {
+		dialogPort = dp
+		logger.Debug().Interface("dialog_port", dialogPort).Msg("Preserving dialog_port in config")
+	}
+
 	// Add langkit server information with single port
 	config["langkit_server"] = map[string]interface{}{
 		"port":          port,
@@ -314,6 +375,11 @@ func updateAnkiConfigSinglePort(configPath string, port int, logger *zerolog.Log
 		"ws_port":       port, // Keep for backward compatibility
 		"single_port":   true, // Flag to indicate single-port mode
 		"updated_at":    time.Now().Unix(),
+	}
+
+	// Restore dialog_port if it existed
+	if dialogPort != nil {
+		config["dialog_port"] = dialogPort
 	}
 
 	// Marshal back to JSON with indentation
