@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import stat
+import subprocess
 import tarfile
 import tempfile
 import urllib.request
@@ -48,7 +49,7 @@ def parse_version(v_str: str) -> tuple:
 
 class BinaryManager:
     """Manages langkit binary lifecycle: download, verification, and updates."""
-    
+
     GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
     PLATFORM_MAPPING = {
         ("Windows", "AMD64"): "langkit-app-windows.zip",
@@ -56,7 +57,7 @@ class BinaryManager:
         ("Darwin", "arm64"): "langkit-app-macos.zip",  # Universal binary
         ("Linux", "x86_64"): "langkit-app-linux.tar.xz",
     }
-    
+
     def __init__(self, addon_path: Path, config: dict):
         self.addon_path = addon_path
         self.config = config
@@ -64,7 +65,39 @@ class BinaryManager:
         self.binaries_dir.mkdir(parents=True, exist_ok=True)
         self.github_repo = config.get("github_repo", "tassa-yoniso-manasi-karoto/langkit")
         self.timeout = config.get("download_timeout", 600)
-        
+        # Session-only cache for Linux webkit binary detection
+        self._working_binary_cache = None
+
+        # Handle migration from old binary names to new ones
+        self._migrate_old_binaries()
+
+    def _migrate_old_binaries(self):
+        """Migrate old binary names to new format for seamless updates."""
+        if platform.system() == "Linux":
+            # Migrate from langkit-app-linux to langkit
+            old_binary = self.binaries_dir / "langkit-app-linux"
+            new_binary = self.binaries_dir / "langkit"
+
+            if old_binary.exists() and not new_binary.exists():
+                try:
+                    print(f"[BinaryManager] Migrating old binary from 'langkit-app-linux' to 'langkit'")
+                    shutil.move(str(old_binary), str(new_binary))
+                    # Ensure executable permissions
+                    st = os.stat(new_binary)
+                    os.chmod(new_binary, st.st_mode | stat.S_IEXEC)
+                    print(f"[BinaryManager] Migration successful")
+                except Exception as e:
+                    print(f"[BinaryManager] Migration failed: {e}")
+
+        elif platform.system() == "Windows":
+            # For consistency, also handle potential Windows renames if needed in future
+            # Currently Windows binary naming hasn't changed (still langkit-app.exe)
+            pass
+
+        elif platform.system() == "Darwin":
+            # macOS naming also hasn't changed (still langkit.app)
+            pass
+
     def get_platform_info(self) -> Tuple[str, str]:
         """Get current platform information."""
         system = platform.system()
@@ -82,18 +115,48 @@ class BinaryManager:
         """Get the appropriate binary name for current platform."""
         platform_key = self.get_platform_info()
         return self.PLATFORM_MAPPING.get(platform_key)
+
+    def _detect_working_binary_linux(self) -> Optional[str]:
+        """Detect which webkit binary works on Linux. Cache valid only for this session."""
+        if platform.system() != "Linux":
+            return None
+
+        # Use cached result if available (session-only)
+        if self._working_binary_cache is not None:
+            return self._working_binary_cache
+
+        # Try binaries in order of preference (webkit2gtk-4.0 is more common)
+        for binary_name in ["langkit", "langkit-webkit2_41"]:
+            binary_path = self.binaries_dir / binary_name
+            if binary_path.exists():
+                try:
+                    # Quick test with timeout to see if binary runs
+                    result = subprocess.run(
+                        [str(binary_path), "--version"],
+                        capture_output=True,
+                        timeout=2,
+                        text=True
+                    )
+                    if result.returncode == 0:
+                        print(f"[BinaryManager] Detected working Linux binary: {binary_name}")
+                        self._working_binary_cache = binary_name
+                        return binary_name
+                except (subprocess.TimeoutExpired, OSError) as e:
+                    print(f"[BinaryManager] Binary {binary_name} failed to run: {e}")
+                    continue
+
+        # Neither binary worked
+        print("[BinaryManager] Warning: No working Linux binary found")
+        return None
     
     def get_local_binary_name(self, compressed_name: Optional[str] = None) -> Optional[str]:
         """Get the local binary name after extraction from compressed file."""
         if compressed_name is None:
             compressed_name = self.get_binary_name()
-        
+
         if not compressed_name:
             return None
-            
-        # Remove compression extensions
-        local_name = compressed_name.replace(".zip", "").replace(".tar.xz", "")
-        
+
         # Platform-specific naming
         if platform.system() == "Darwin":
             return "langkit.app"
@@ -101,8 +164,8 @@ class BinaryManager:
             # Windows always uses langkit-app.exe regardless of archive name
             return "langkit-app.exe"
         else:
-            # Linux keeps the name as-is
-            return local_name
+            # Linux - need to detect which webkit version works
+            return self._detect_working_binary_linux()
     
     def check_binary_exists(self) -> bool:
         """Check if the langkit binary exists without downloading."""
@@ -110,14 +173,21 @@ class BinaryManager:
         if self.config.get("binary_path"):
             path = Path(self.config["binary_path"])
             return path.exists()
-                
-        # Check for existing binary
-        local_name = self.get_local_binary_name()
-        if not local_name:
+
+        if platform.system() == "Linux":
+            # For Linux, check if at least one of the webkit variants exists
+            for binary_variant in ["langkit", "langkit-webkit2_41"]:
+                if (self.binaries_dir / binary_variant).exists():
+                    return True
             return False
-            
-        binary_path = self.binaries_dir / local_name
-        return binary_path.exists()
+        else:
+            # Check for existing binary on non-Linux platforms
+            local_name = self.get_local_binary_name()
+            if not local_name:
+                return False
+
+            binary_path = self.binaries_dir / local_name
+            return binary_path.exists()
     
     def get_binary_path_if_exists(self) -> Optional[Path]:
         """Get the path to the langkit binary only if it already exists."""
@@ -130,22 +200,34 @@ class BinaryManager:
                     st = os.stat(path)
                     os.chmod(path, st.st_mode | stat.S_IEXEC)
                 return path
-                
-        # Check for existing binary
-        local_name = self.get_local_binary_name()
-        if not local_name:
+
+        if platform.system() == "Linux":
+            # For Linux, detect which webkit variant works
+            working_binary = self._detect_working_binary_linux()
+            if working_binary:
+                binary_path = self.binaries_dir / working_binary
+                if binary_path.exists():
+                    # Ensure execute permissions
+                    st = os.stat(binary_path)
+                    os.chmod(binary_path, st.st_mode | stat.S_IEXEC)
+                    return binary_path
             return None
-            
-        binary_path = self.binaries_dir / local_name
-        
-        if binary_path.exists():
-            # Ensure execute permissions on Unix systems
-            if platform.system() != "Windows":
-                st = os.stat(binary_path)
-                os.chmod(binary_path, st.st_mode | stat.S_IEXEC)
-            return binary_path
-            
-        return None
+        else:
+            # Check for existing binary on non-Linux platforms
+            local_name = self.get_local_binary_name()
+            if not local_name:
+                return None
+
+            binary_path = self.binaries_dir / local_name
+
+            if binary_path.exists():
+                # Ensure execute permissions on Unix systems
+                if platform.system() != "Windows":
+                    st = os.stat(binary_path)
+                    os.chmod(binary_path, st.st_mode | stat.S_IEXEC)
+                return binary_path
+
+            return None
     
     def get_binary_path(self) -> Optional[Path]:
         """Get the path to the langkit binary, downloading if necessary."""
@@ -314,14 +396,26 @@ class BinaryManager:
                 with tarfile.open(temp_path, 'r:xz') as tar_ref:
                     tar_ref.extractall(self.binaries_dir)
                 temp_path.unlink()
-                
-                # Linux binary should be extracted with its original name
-                final_path = self.binaries_dir / local_name
-                
-                # Ensure executable permissions
-                if final_path.exists():
-                    st = os.stat(final_path)
-                    os.chmod(final_path, st.st_mode | stat.S_IEXEC)
+
+                # Linux - ensure executable permissions for all binaries
+                # The archive may contain multiple binaries (langkit and langkit-webkit2_41)
+                for binary_variant in ["langkit", "langkit-webkit2_41"]:
+                    variant_path = self.binaries_dir / binary_variant
+                    if variant_path.exists():
+                        st = os.stat(variant_path)
+                        os.chmod(variant_path, st.st_mode | stat.S_IEXEC)
+
+                # Try to detect which binary actually works
+                working_binary = self._detect_working_binary_linux()
+                if working_binary:
+                    final_path = self.binaries_dir / working_binary
+                else:
+                    # Fallback to first existing binary
+                    for binary_variant in ["langkit", "langkit-webkit2_41"]:
+                        variant_path = self.binaries_dir / binary_variant
+                        if variant_path.exists():
+                            final_path = variant_path
+                            break
                     
             else:
                 # This shouldn't happen with current platform mappings
@@ -363,45 +457,72 @@ class BinaryManager:
         if not new_version:
             showInfo("Langkit is already up to date.", title="No updates available")
             return False
-            
-        # Backup current binary
-        local_name = self.get_local_binary_name()
-        if local_name:
-            current_path = self.binaries_dir / local_name
-            if current_path.exists():
-                backup_path = self.binaries_dir / f"{local_name}.backup"
+
+        # Clear the webkit binary cache on Linux for the update
+        if platform.system() == "Linux":
+            self._working_binary_cache = None
+
+        # Backup current binaries
+        backed_up_files = []
+        if platform.system() == "Linux":
+            # On Linux, backup both webkit variants if they exist
+            for binary_variant in ["langkit", "langkit-webkit2_41"]:
+                current_path = self.binaries_dir / binary_variant
+                if current_path.exists():
+                    backup_path = self.binaries_dir / f"{binary_variant}.backup"
+                    if backup_path.exists():
+                        backup_path.unlink()
+                    shutil.copy2(current_path, backup_path)
+                    backed_up_files.append((current_path, backup_path))
+                    # Remove current binary
+                    current_path.unlink()
+        else:
+            # Non-Linux platforms
+            local_name = self.get_local_binary_name()
+            if local_name:
+                current_path = self.binaries_dir / local_name
+                if current_path.exists():
+                    backup_path = self.binaries_dir / f"{local_name}.backup"
+                    if backup_path.exists():
+                        if backup_path.is_dir():
+                            shutil.rmtree(backup_path)
+                        else:
+                            backup_path.unlink()
+
+                    if current_path.is_dir():
+                        shutil.copytree(current_path, backup_path)
+                    else:
+                        shutil.copy2(current_path, backup_path)
+                    backed_up_files.append((current_path, backup_path))
+
+                    # Remove current binary
+                    if current_path.is_dir():
+                        shutil.rmtree(current_path)
+                    else:
+                        current_path.unlink()
+                    
+        # Download new version
+        new_binary = self._download_binary()
+        if new_binary:
+            # Remove backups on success
+            for _, backup_path in backed_up_files:
                 if backup_path.exists():
                     if backup_path.is_dir():
                         shutil.rmtree(backup_path)
                     else:
                         backup_path.unlink()
-                        
-                if current_path.is_dir():
-                    shutil.copytree(current_path, backup_path)
-                else:
-                    shutil.copy2(current_path, backup_path)
-                    
-                # Remove current binary
-                if current_path.is_dir():
-                    shutil.rmtree(current_path)
-                else:
-                    current_path.unlink()
-                    
-        # Download new version
-        new_binary = self._download_binary()
-        if new_binary:
-            # Remove backup on success
-            if 'backup_path' in locals() and backup_path.exists():
-                if backup_path.is_dir():
-                    shutil.rmtree(backup_path)
-                else:
-                    backup_path.unlink()
             return True
         else:
-            # Restore backup on failure
-            if 'backup_path' in locals() and backup_path.exists():
-                if backup_path.is_dir():
-                    shutil.copytree(backup_path, current_path)
-                else:
-                    shutil.copy2(backup_path, current_path)
+            # Restore backups on failure
+            for original_path, backup_path in backed_up_files:
+                if backup_path.exists():
+                    if backup_path.is_dir():
+                        shutil.copytree(backup_path, original_path)
+                    else:
+                        shutil.copy2(backup_path, original_path)
+                    # Clean up backup after restoration
+                    if backup_path.is_dir():
+                        shutil.rmtree(backup_path)
+                    else:
+                        backup_path.unlink()
             return False
