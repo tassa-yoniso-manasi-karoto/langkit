@@ -275,7 +275,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 			for _, s := range request.StopSequences {
 				stopArray = append(stopArray, s)
 			}
-			chatReqParams.Stop.OfChatCompletionNewsStopArray = stopArray
+			chatReqParams.Stop.OfStringArray = stopArray
 		}
 	}
 	if request.User != "" {
@@ -299,7 +299,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 		for stream.Next() {
 			chunk := stream.Current()
 			lastChunk = chunk
-			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.JSON.Content.IsPresent() {
+			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
 				fullText.WriteString(chunk.Choices[0].Delta.Content)
 			}
 		}
@@ -318,7 +318,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 		finalResponse.Model = lastChunk.Model
 		finalResponse.Provider = p.GetName()
 
-		if lastChunk.JSON.Usage.IsPresent() {
+		if lastChunk.JSON.Usage.Valid() {
 			finalResponse.Usage = TokenUsage{
 				PromptTokens:     int(lastChunk.Usage.PromptTokens),
 				CompletionTokens: int(lastChunk.Usage.CompletionTokens),
@@ -344,7 +344,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 
 		choice := resp.Choices[0]
 		var usage TokenUsage
-		if resp.JSON.Usage.IsPresent() {
+		if resp.JSON.Usage.Valid() {
 			usage.PromptTokens = int(resp.Usage.PromptTokens)
 			usage.CompletionTokens = int(resp.Usage.CompletionTokens)
 			usage.TotalTokens = int(resp.Usage.TotalTokens)

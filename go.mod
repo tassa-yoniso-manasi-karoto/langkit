@@ -1,6 +1,6 @@
 module github.com/tassa-yoniso-manasi-karoto/langkit
 
-go 1.23.11
+go 1.24
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
@@ -20,7 +20,7 @@ require (
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/ncruces/zenity v0.10.14
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/openai/openai-go v0.1.0-beta.10
+	github.com/openai/openai-go v1.12.0
 	github.com/replicate/replicate-go v0.26.0
 	github.com/rs/zerolog v1.34.0
 	github.com/schollz/progressbar/v3 v3.18.0
@@ -36,7 +36,7 @@ require (
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1
-	google.golang.org/genai v1.5.0
+	google.golang.org/genai v1.35.0
 )
 
 require (
