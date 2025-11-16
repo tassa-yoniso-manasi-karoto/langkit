@@ -245,7 +245,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request CompletionRequest
 
 	// Only set parameters if they are meaningfully provided by llms.CompletionRequest
 	if request.MaxTokens > 0 { // MaxTokens for output generation
-		chatReqParams.MaxTokens = openai.Int(int64(request.MaxTokens))
+		chatReqParams.MaxCompletionTokens = openai.Int(int64(request.MaxTokens))
 	}
 	if request.Temperature >= 0 && request.Temperature <= 2 {
 		chatReqParams.Temperature = openai.Float(request.Temperature)
