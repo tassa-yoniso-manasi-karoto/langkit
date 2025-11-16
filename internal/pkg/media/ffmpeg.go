@@ -114,19 +114,32 @@ func RunFFmpegConcat(concatFile, outputWav string) error {
 	return FFmpeg([]string{"-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
 }
 
-// Converts the WAV file to specified audio format using FFmpeg
 func RunFFmpegConvert(inputWav, outputFile string) error {
-	// Determine codec and parameters based on file extension
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(outputFile)), ".")
 	
-	args := []string{"-loglevel", "error", "-i", inputWav, "-acodec"}
+	args := []string{"-loglevel", "error", "-i", inputWav}
 	switch ext {
 	case "m4a":
-		args = append(args, []string{"aac", "-b:a", "192k", outputFile}...)
+		args = append(args, []string{
+			"-c:a", "aac",
+			"-profile:a", "aac_he_v2", // HE-AACv2, specifically designed for speech at low bitrates
+			"-b:a", "48k",
+			outputFile}...)
 	case "opus", "ogg":
-		args = append(args, []string{"libopus", "-b:a", "112k", outputFile}...)
-	default:
-		args = append(args, []string{"libmp3lame", "-b:a", "192k", outputFile}...)
+		args = append(args, []string{
+			"-c:a", "libopus",
+			"-b:a", "48k",
+			"-application", "voip",	    // Optimize for speech
+			"-frame_duration", "20",    // 20ms frames for voice
+			"-compression_level", "10", // Max quality encoding
+			outputFile}...)
+	default:  // mp3
+		args = append(args, []string{
+			"-c:a", "libmp3lame",
+			"-b:a", "96k",
+			"-q:a", "2",		  // VBR quality level
+			"-joint_stereo", "0",	  // Force mono for speech
+			outputFile}...)
 	}
 
 	return FFmpeg(args...)
