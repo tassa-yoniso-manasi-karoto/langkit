@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/openai/openai-go/packages/ssestream"
-	"github.com/tassa-yoniso-manasi-karoto/go-openrouter"
+	"github.com/revrost/go-openrouter"
 	"github.com/rs/zerolog"
 )
 

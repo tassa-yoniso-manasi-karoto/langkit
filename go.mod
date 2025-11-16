@@ -22,6 +22,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openai/openai-go v1.12.0
 	github.com/replicate/replicate-go v0.26.0
+	github.com/revrost/go-openrouter v1.0.0
 	github.com/rs/zerolog v1.34.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/shirou/gopsutil/v3 v3.24.5
@@ -31,7 +32,6 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250803110715-1ae365840edf
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta
-	github.com/tassa-yoniso-manasi-karoto/go-openrouter v0.0.0-20250603092737-033150d1ff32
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250805182914-5179e5ab1933
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
