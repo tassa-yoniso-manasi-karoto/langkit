@@ -1,6 +1,6 @@
 module github.com/tassa-yoniso-manasi-karoto/langkit
 
-go 1.24
+go 1.23.11
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
@@ -36,7 +36,7 @@ require (
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1
-	google.golang.org/genai v1.35.0
+	google.golang.org/genai v1.26.0
 )
 
 require (
