@@ -213,8 +213,19 @@ func (tsk *Task) ConcatWAVsToAudio() error {
 	default:
 		return tsk.Handler.LogErr(fmt.Errorf("%w: \"%s\" isn't recognized", errFmt, tsk.CondensedAudioFmt), AbortAllTasks, "")
 	}
-	
-	out := filepath.Join(filepath.Dir(tsk.MediaSourceFile), fmt.Sprintf("%s.CONDENSED.%s", tsk.audioBase(), ext))
+
+	// Get language code from the audio track, similar to enhance.go
+	var langCode string
+	if len(tsk.Meta.MediaInfo.AudioTracks) > tsk.UseAudiotrack &&
+	   tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language != nil {
+		langCode = Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
+	} else {
+		// Fallback to target language if audio track language is not available
+		langCode = tsk.Targ.String()
+		tsk.Handler.ZeroLog().Warn().Msg("Audio track language not available, using target language for condensed audio filename")
+	}
+
+	out := filepath.Join(filepath.Dir(tsk.MediaSourceFile), fmt.Sprintf("%s.%s.CONDENSED.%s", tsk.audioBase(), langCode, ext))
 	tsk.Handler.ZeroLog().Debug().
 		Str("outFile", out).
 		Msg("Condensed audio initialized")
@@ -229,54 +240,62 @@ func (tsk *Task) ConcatWAVsToAudio() error {
 		return nil
 	}
 
-	wavPattern := tsk.MediaPrefix + "_*.wav"
-	wavFiles, err := filepath.Glob(wavPattern)
-	if err != nil {
-		err = fmt.Errorf("failed to find WAV files with pattern '%s': %w", wavPattern, err)
-		tsk.Handler.ZeroLog().Error().Err(err).
-			Str("pattern", wavPattern).
-			Msg("Error searching for .wav files for concatenation")
-		return err
-	}
-
-	if len(wavFiles) == 0 {
-		err = fmt.Errorf("no WAV files found with pattern '%s' to create condensed audio", wavPattern)
-		tsk.Handler.ZeroLog().Warn().
-			Str("pattern", wavPattern).
-			Msg("No .wav files found for creating condensed audio. Condensed audio will not be created.")
-		return err
-	}
-
-	tsk.Handler.ZeroLog().Info().
-		Int("fileCount", len(wavFiles)).
-		Str("outputFile", out).
-		Msg("Creating condensed audio file from WAV segments")
-
-	concatFile, err := media.CreateConcatFile(wavFiles)
-	if err != nil {
-		err = fmt.Errorf("failed to create concatenation file for FFmpeg: %w", err)
-		tsk.Handler.ZeroLog().Error().Err(err).
-			Msg("Error creating temporary concat file for FFmpeg")
-		return err
-	}
-	defer os.Remove(concatFile)
-
-	// Create a unique temp file name based on the media prefix
-	// This allows reuse across runs with different output formats
+	// Check if concatenated WAV already exists in temp before looking for individual files
 	tempBaseName := filepath.Base(tsk.MediaPrefix) + ".concatenated.wav"
 	tempWavFile := filepath.Join(os.TempDir(), tempBaseName)
+
+	var wavFiles []string
+	var needConcatenation bool
 
 	// Check if concatenated WAV already exists in temp
 	if _, err := os.Stat(tempWavFile); err == nil {
 		tsk.Handler.ZeroLog().Info().
 			Str("tempWavFile", tempWavFile).
-			Msg("Found existing concatenated WAV file in temp, reusing it")
+			Msg("Found existing concatenated WAV file in temp, will use it directly")
+		needConcatenation = false
 	} else {
-		// Need to concatenate the WAV files
+		// Need to look for individual WAV files
+		wavPattern := tsk.MediaPrefix + "_*.wav"
+		wavFiles, err = filepath.Glob(wavPattern)
+		if err != nil {
+			err = fmt.Errorf("failed to find WAV files with pattern '%s': %w", wavPattern, err)
+			tsk.Handler.ZeroLog().Error().Err(err).
+				Str("pattern", wavPattern).
+				Msg("Error searching for .wav files for concatenation")
+			return err
+		}
+
+		if len(wavFiles) == 0 {
+			err = fmt.Errorf("no WAV files found with pattern '%s' to create condensed audio", wavPattern)
+			tsk.Handler.ZeroLog().Warn().
+				Str("pattern", wavPattern).
+				Msg("No .wav files found for creating condensed audio. Condensed audio will not be created.")
+			return err
+		}
+
+		tsk.Handler.ZeroLog().Info().
+			Int("fileCount", len(wavFiles)).
+			Str("outputFile", out).
+			Msg("Creating condensed audio file from WAV segments")
+
+		needConcatenation = true
+	}
+
+	// Only concatenate if needed
+	if needConcatenation {
+		concatFile, err := media.CreateConcatFile(wavFiles)
+		if err != nil {
+			err = fmt.Errorf("failed to create concatenation file for FFmpeg: %w", err)
+			tsk.Handler.ZeroLog().Error().Err(err).
+				Msg("Error creating temporary concat file for FFmpeg")
+			return err
+		}
+		defer os.Remove(concatFile)
+
 		tsk.Handler.ZeroLog().Debug().
 			Str("tempWavFile", tempWavFile).
 			Msg("Creating concatenated WAV file in temp directory")
-			
+
 		if err := media.RunFFmpegConcat(concatFile, tempWavFile); err != nil {
 			tsk.Handler.ZeroLog().Error().Err(err).
 				Str("concatFile", concatFile).
@@ -299,13 +318,16 @@ func (tsk *Task) ConcatWAVsToAudio() error {
 		return err
 	}
 
-	tsk.Handler.ZeroLog().Trace().Msg("Removing WAV segment files after creating condensed audio...")
-	for _, f := range wavFiles {
-		if err := os.Remove(f); err != nil {
-			tsk.Handler.ZeroLog().Warn().
-				Str("file", f).
-				Err(err).
-				Msg("Failed to remove WAV segment file")
+	// Only remove WAV files if we actually have them
+	if len(wavFiles) > 0 {
+		tsk.Handler.ZeroLog().Trace().Msg("Removing WAV segment files after creating condensed audio...")
+		for _, f := range wavFiles {
+			if err := os.Remove(f); err != nil {
+				tsk.Handler.ZeroLog().Warn().
+					Str("file", f).
+					Err(err).
+					Msg("Failed to remove WAV segment file")
+			}
 		}
 	}
 
