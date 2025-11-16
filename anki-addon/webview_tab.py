@@ -133,6 +133,7 @@ class LangkitTab:
         self.is_visible = False
         self.original_toolbar_height: Optional[int] = None
         self.original_bottom_height: Optional[int] = None
+        self.original_langkit_height: Optional[int] = None  # Track Langkit webview height for minimize/restore
         
         # Store original methods for restoration
         self._original_toolbar_draw = None
@@ -240,31 +241,37 @@ class LangkitTab:
         if not self.web_view:
             print("[Langkit] Creating webview for the first time")
             self._create_webview()
-        
-        # Load the URL into webview
-        self.web_view.setUrl(QUrl(url))
-        
+            # Add Langkit webview to the main layout (ONLY on first creation)
+            print("[Langkit] Adding Langkit webview to main layout")
+            mw.mainLayout.addWidget(self.web_view)
+            # Load the URL into webview (ONLY on first creation)
+            self.web_view.setUrl(QUrl(url))
+        else:
+            # Subsequent shows: restore from minimized state
+            print("[Langkit] Restoring Langkit webview from minimized state")
+            if self.original_langkit_height:
+                self.web_view.setFixedHeight(self.original_langkit_height)
+                self.web_view.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
+            self.web_view.show()
+            # Don't reload URL - keep the existing page state
+
         # Store original heights and hide Anki's webviews (push approach)
         print("[Langkit] Hiding Anki's webviews")
-        
+
         # Store and collapse toolbar height
         self.original_toolbar_height = mw.toolbarWeb.height()
         print(f"[Langkit] Storing toolbar height: {self.original_toolbar_height}")
         mw.toolbarWeb.setFixedHeight(0)
         mw.toolbarWeb.hide()
-        
+
         # Hide main webview (no height adjustment needed)
         mw.web.hide()
-        
+
         # Store and collapse bottom bar height
         self.original_bottom_height = mw.bottomWeb.height()
         print(f"[Langkit] Storing bottom bar height: {self.original_bottom_height}")
         mw.bottomWeb.setFixedHeight(0)
         mw.bottomWeb.hide()
-        
-        # Add Langkit webview to the main layout
-        print("[Langkit] Adding Langkit webview to main layout")
-        mw.mainLayout.addWidget(self.web_view)
         
         # Disable Anki's auto-refresh mechanisms while Langkit is visible
         self._disable_anki_refresh()
@@ -282,10 +289,12 @@ class LangkitTab:
             
         mw = aqt.mw
         
-        # Remove Langkit webview from the layout
-        print("[Langkit] Removing Langkit webview from layout")
-        mw.mainLayout.removeWidget(self.web_view)
-        self.web_view.setParent(None)  # Detach from layout but keep alive
+        # Minimize Langkit webview (keep it in layout for background processing)
+        print("[Langkit] Minimizing Langkit webview (keeping in layout)")
+        self.original_langkit_height = self.web_view.height()
+        print(f"[Langkit] Storing Langkit height: {self.original_langkit_height}")
+        self.web_view.setFixedHeight(0)
+        self.web_view.hide()
         
         # FIRST: Restore Anki's auto-refresh mechanisms (including show() methods)
         self._restore_anki_refresh()
@@ -353,16 +362,20 @@ class LangkitTab:
         if self.is_visible:
             # Make sure to restore Anki's webviews before cleanup
             self.hide()
-            
+
+        # Remove webview from layout during actual cleanup but keep it alive
+        if self.web_view:
+            print("[Langkit] Cleanup: Removing webview from layout but keeping instance")
+            mw = aqt.mw
+            mw.mainLayout.removeWidget(self.web_view)
+            self.web_view.setParent(None)
+            # Keep the webview instance alive for true single-instance pattern
+            # Don't delete or clear the webview - it will be reused next time
+
         # Ensure flag is cleared
         mw = aqt.mw
         if hasattr(mw, '_langkit_visible'):
             mw._langkit_visible = False
-            
-        if self.web_view:
-            self.web_view.setUrl(QUrl("about:blank"))
-            self.web_view.deleteLater()
-            self.web_view = None
             
     def _disable_anki_refresh(self):
         """Temporarily disable Anki's auto-refresh mechanisms to prevent UI conflicts."""
