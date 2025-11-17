@@ -207,10 +207,23 @@ jobs:
             go build -ldflags="$LDFLAGS" -o langkit-cli${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/cli
           fi
           
-      # Build GUI with Wails using the action
-      - name: Build GUI with Wails (Windows)
+      # Build GUI with Wails - Windows Development (with console)
+      - name: Install Wails CLI
+        if: runner.os == 'Windows' && github.ref_type != 'tag'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Build GUI with Console (Windows Dev)
+        if: runner.os == 'Windows' && github.ref_type != 'tag'
+        env:
+          CGO_ENABLED: 1
+          CGO_LDFLAGS: "-static"
+        run: |
+          wails build -windowsconsole -ldflags "-s -w -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Version=${{ steps.version.outputs.VERSION }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Commit=${{ steps.version.outputs.COMMIT }} -X github.com/tassa-yoniso-manasi-karoto/langkit/internal/version.Branch=${{ steps.version.outputs.BRANCH }}" -o langkit.exe
+
+      # Build GUI with Wails - Windows Release (no console)
+      - name: Build GUI with Wails (Windows Release)
         uses: tassa-yoniso-manasi-karoto/wails-build-action@main
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && github.ref_type == 'tag'
         env:
           CGO_ENABLED: 1
           CGO_LDFLAGS: "-static"
