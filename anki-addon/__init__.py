@@ -40,6 +40,7 @@ class LangkitAddon:
         self._toolbar_hook_callback = None  # Store the toolbar hook callback
         self._keyboard_shortcut = None  # Store the keyboard shortcut
         self._original_moveToState = None  # Store original moveToState method
+        self._original_unloadProfileAndExit = None  # Store original close method
 
         # Save config on changes
         mw.addonManager.setConfigAction(__name__, self._on_config_changed)
@@ -60,6 +61,9 @@ class LangkitAddon:
 
         # Fix deck shortcut to work with Langkit
         self._fix_deck_shortcut()
+
+        # Wrap close method to warn when closing Anki while processing
+        self._wrap_close_method()
 
         # Add menu items – for devs only
         # self._setup_menu()
@@ -120,6 +124,31 @@ class LangkitAddon:
 
         # Replace moveToState with our wrapper
         mw.moveToState = moveToState_wrapper
+
+    def _wrap_close_method(self):
+        """Wrap Anki's close method to warn when Langkit is processing."""
+        # Store original unloadProfileAndExit method
+        self._original_unloadProfileAndExit = mw.unloadProfileAndExit
+
+        def unloadProfileAndExit_wrapper():
+            # Check if Langkit is processing
+            if self.webview_tab and self.webview_tab.is_processing():
+                ret = QMessageBox.warning(
+                    mw,
+                    "Langkit Processing",
+                    "Langkit is currently processing files.\n"
+                    "Closing Anki will cancel the processing.\n\n"
+                    "Close anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                if ret == QMessageBox.StandardButton.No:
+                    return  # Don't close
+            # Proceed with original close
+            self._original_unloadProfileAndExit()
+
+        # Replace with our wrapper
+        mw.unloadProfileAndExit = unloadProfileAndExit_wrapper
 
     def _setup_menu(self):
         """Add Langkit menu items."""
@@ -478,6 +507,11 @@ class LangkitAddon:
         if self._original_moveToState:
             mw.moveToState = self._original_moveToState
             self._original_moveToState = None
+
+        # Restore original unloadProfileAndExit method
+        if self._original_unloadProfileAndExit:
+            mw.unloadProfileAndExit = self._original_unloadProfileAndExit
+            self._original_unloadProfileAndExit = None
 
         if self.webview_tab:
             self.webview_tab.cleanup()

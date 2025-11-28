@@ -343,11 +343,15 @@ class LangkitTab:
             # Set up global function for returning to Anki (without visual hint)
             js_code = """
             window.returnToAnki = function() {
-                document.title = '__LANGKIT_RETURN_TO_ANKI__';
+                document.title = '__LANGKIT_CMD:return';
             };
             """
             self.web_view.page().runJavaScript(js_code)
-            # Connect to title change signal
+            # Connect to title change signal (only once)
+            try:
+                self.web_view.titleChanged.disconnect(self._on_title_changed)
+            except:
+                pass  # Not connected yet
             self.web_view.titleChanged.connect(self._on_title_changed)
         elif not ok and self.is_visible and self.web_view:
             # Check if server is still running
@@ -363,10 +367,38 @@ class LangkitTab:
                     showWarning("Failed to restart Langkit server")
                     
     def _on_title_changed(self, title: str):
-        """Handle title changes as a communication channel."""
-        if title == "__LANGKIT_RETURN_TO_ANKI__":
+        """Handle title changes as a communication channel.
+
+        Protocol:
+        - __LANGKIT_CMD:return - Request to return to Anki (one-shot command)
+        - __LANGKIT_STATE:processing - Currently processing files
+        - __LANGKIT_STATE:idle - Not processing
+        - __LANGKIT_RETURN_TO_ANKI__ - Legacy return command (for compatibility)
+        """
+        # Handle commands (one-shot, reset after processing)
+        if title == "__LANGKIT_CMD:return" or title == "__LANGKIT_RETURN_TO_ANKI__":
             print("[Langkit] Return to Anki requested via title change")
             self.hide()
+            # Reset title to appropriate state (triggers frontend to re-evaluate)
+            if self.web_view:
+                # Call the global function to update title based on current processing state
+                self.web_view.page().runJavaScript("""
+                    if (window.__langkitUpdateTitle) {
+                        window.__langkitUpdateTitle();
+                    } else {
+                        document.title = '__LANGKIT_STATE:idle';
+                    }
+                """)
+
+    def is_processing(self) -> bool:
+        """Check if Langkit is currently processing files.
+
+        Returns True if the webview title indicates processing state.
+        """
+        if not self.web_view:
+            return False
+        title = self.web_view.title()
+        return "__LANGKIT_STATE:processing" in title
                     
     def cleanup(self):
         """Clean up resources."""

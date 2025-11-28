@@ -43,13 +43,13 @@
         e.preventDefault();
         e.stopPropagation();
         logger.info('ReturnToAnkiButton', 'Returning to Anki');
-        
+
         // Call the global function injected by Python
         if ((window as any).returnToAnki) {
             (window as any).returnToAnki();
         } else {
-            // Fallback: change title directly
-            document.title = '__LANGKIT_RETURN_TO_ANKI__';
+            // Fallback: change title directly (using new command protocol)
+            document.title = '__LANGKIT_CMD:return';
         }
     }
 </script>

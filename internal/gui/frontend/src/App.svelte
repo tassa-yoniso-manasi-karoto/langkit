@@ -16,12 +16,13 @@
     import { reportWasmState, syncWasmStateForReport, getWasmState } from './lib/wasm-state';
 
     // Import runtime utilities
-    import { 
-        safeWindowIsMinimised, 
+    import {
+        safeWindowIsMinimised,
         safeWindowIsMaximised,
-        initializeDragDrop, 
+        initializeDragDrop,
         cleanupDragDrop,
-        initializeRuntimeStores 
+        initializeRuntimeStores,
+        isAnkiMode
     } from './lib/runtime/stores';
 
     import MediaInput from './components/MediaInput.svelte';
@@ -290,6 +291,19 @@
                 }
             }, 200); // Reduced delay
         }
+    }
+
+    // Communicate processing state to Anki addon via document title
+    // This allows the addon to warn users when closing Anki during processing
+    $: if ($isAnkiMode) {
+        document.title = isProcessing ? '__LANGKIT_STATE:processing' : '__LANGKIT_STATE:idle';
+    }
+
+    // Expose global function for backend to trigger title update after command processing
+    $: if ($isAnkiMode) {
+        (window as any).__langkitUpdateTitle = () => {
+            document.title = isProcessing ? '__LANGKIT_STATE:processing' : '__LANGKIT_STATE:idle';
+        };
     }
     
     $: {
