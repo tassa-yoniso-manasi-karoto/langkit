@@ -92,32 +92,36 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 	if len(arr) == 0 {
 		return langs, fmt.Errorf("empty slice passed to ParseLanguageTags")
 	}
-	
+
 	for _, tmp := range arr {
 		var lang Lang
-		arr := strings.Split(tmp, "-")
+		parts := strings.Split(tmp, "-")
 		// Convert to lowercase for case-insensitive matching
-		langCode := strings.ToLower(arr[0])
+		langCode := strings.ToLower(parts[0])
 		lang.Language = iso.FromAnyCode(langCode)
 		if lang.Language == nil {
-			// Try to match by language name as fallback
-			lang.Language = iso.FromName(arr[0])
-			if lang.Language == nil {
-				// Try with title case for each word (handles "english" -> "English", "ancient greek" -> "Ancient Greek")
-				titleCased := strings.Title(strings.ToLower(arr[0]))
-				lang.Language = iso.FromName(titleCased)
+			// Only try name matching for strings longer than 3 chars (ISO codes are 2-3 chars)
+			// This prevents false positives like "e" matching the "E" language
+			if len(parts[0]) > 3 {
+				// Try to match by language name as fallback
+				lang.Language = iso.FromName(parts[0])
 				if lang.Language == nil {
-					// because everybody confuses the domain name .jp with the ISO language code
-					if langCode == "jp" {
-						return nil, fmt.Errorf("'%s' is not a valid ISO-639 code," +
-						"for Japanese the code to use is either 'ja' or 'jpn'", arr[0])
-					}
-					return nil, fmt.Errorf("An invalid language code or name was passed: '%s'", arr[0])
+					// Try with title case for each word (handles "english" -> "English", "ancient greek" -> "Ancient Greek")
+					titleCased := strings.Title(strings.ToLower(parts[0]))
+					lang.Language = iso.FromName(titleCased)
 				}
 			}
+			if lang.Language == nil {
+				// because everybody confuses the domain name .jp with the ISO language code
+				if langCode == "jp" {
+					return nil, fmt.Errorf("'%s' is not a valid ISO-639 code, "+
+						"for Japanese the code to use is either 'ja' or 'jpn'", parts[0])
+				}
+				return nil, fmt.Errorf("an invalid language code or name was passed: '%s'", parts[0])
+			}
 		}
-		if len(arr) > 1 {
-			lang.Subtag = strings.ToLower(arr[1])
+		if len(parts) > 1 {
+			lang.Subtag = strings.ToLower(parts[1])
 		}
 		langs = append(langs, lang)
 	}
