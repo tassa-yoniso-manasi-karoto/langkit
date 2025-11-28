@@ -95,6 +95,10 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 
 	for _, tmp := range arr {
 		var lang Lang
+		tmp = strings.TrimSpace(tmp)
+		if tmp == "" {
+			continue
+		}
 		parts := strings.Split(tmp, "-")
 		// Convert to lowercase for case-insensitive matching
 		langCode := strings.ToLower(parts[0])

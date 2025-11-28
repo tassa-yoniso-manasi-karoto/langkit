@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gookit/color"
@@ -389,6 +390,10 @@ func (tsk *Task) applyCLIFlags(cmd *cobra.Command) {
 	// Special case for "langs" which is a string slice
 	if cmd.Flags().Changed("langs") {
 		if val, err := cmd.Flags().GetStringSlice("langs"); err == nil {
+			// Trim spaces from each language tag
+			for i := range val {
+				val[i] = strings.TrimSpace(val[i])
+			}
 			tsk.Langs = val
 		}
 	}
