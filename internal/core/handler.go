@@ -72,33 +72,69 @@ type MessageHandler interface {
 // #############################################################################
 
 
+// LevelFilterWriter wraps a writer and only writes logs at or above a minimum level.
+// It implements zerolog.LevelWriter for use with zerolog.MultiLevelWriter.
+type LevelFilterWriter struct {
+	writer   io.Writer
+	minLevel zerolog.Level
+}
+
+func (w *LevelFilterWriter) Write(p []byte) (n int, err error) {
+	// Called when level info is not available; write everything
+	return w.writer.Write(p)
+}
+
+func (w *LevelFilterWriter) WriteLevel(level zerolog.Level, p []byte) (n int, err error) {
+	if level >= w.minLevel {
+		return w.writer.Write(p)
+	}
+	// Pretend we wrote it to avoid errors
+	return len(p), nil
+}
+
 // CLI implementation
 type CLIHandler struct {
-	ctx	context.Context
+	ctx    context.Context
 	logger *zerolog.Logger
 	buffer bytes.Buffer
 
-	progressBars map[string]*progressbar.ProgressBar
+	progressBars   map[string]*progressbar.ProgressBar
 	progressValues map[string]int // Track absolute progress values
 	etaCalculators map[string]eta.Provider
 }
 
 func NewCLIHandler(ctx context.Context) *CLIHandler {
+	return NewCLIHandlerWithLevel(ctx, zerolog.TraceLevel)
+}
+
+func NewCLIHandlerWithLevel(ctx context.Context, consoleLevel zerolog.Level) *CLIHandler {
 	h := &CLIHandler{
-		ctx: ctx,
-		progressBars: make(map[string]*progressbar.ProgressBar),
+		ctx:            ctx,
+		progressBars:   make(map[string]*progressbar.ProgressBar),
 		progressValues: make(map[string]int),
 		etaCalculators: make(map[string]eta.Provider),
 	}
 	crash.InitReporter(ctx)
-	
-	multiOut := io.MultiWriter(os.Stderr, &h.buffer)
-	
-	writer := zerolog.ConsoleWriter{
-		Out: multiOut,
+
+	// Buffer writer captures ALL logs for crash reports (no level filtering)
+	bufferWriter := zerolog.ConsoleWriter{
+		Out:        &h.buffer,
 		TimeFormat: time.TimeOnly,
 	}
-	logger := zerolog.New(writer).With().Timestamp().Logger()
+
+	// Console writer with level filtering
+	consoleWriter := &LevelFilterWriter{
+		writer: zerolog.ConsoleWriter{
+			Out:        os.Stderr,
+			TimeFormat: time.TimeOnly,
+		},
+		minLevel: consoleLevel,
+	}
+
+	// MultiLevelWriter routes to both, but console is filtered by level
+	multiWriter := zerolog.MultiLevelWriter(bufferWriter, consoleWriter)
+
+	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
 	h.logger = &logger
 	common.Log = logger.With().Timestamp().Str("module", "translitkit").Logger()
 	return h

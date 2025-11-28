@@ -2,19 +2,20 @@
 package commands
 
 import (
-	"fmt"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net"
 	"os"
 	"strings"
-	
+
+	"github.com/gookit/color"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/gookit/color"
-	
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
@@ -52,7 +53,14 @@ type RunFunc func(tsk *core.Task, ctx context.Context, cmd *cobra.Command, args 
 func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		handler := core.NewCLIHandler(ctx)
+
+		// Parse log level from flag
+		consoleLevel := zerolog.TraceLevel
+		if levelStr, _ := cmd.Flags().GetString("log-level"); levelStr != "" {
+			consoleLevel = parseLogLevel(levelStr)
+		}
+
+		handler := core.NewCLIHandlerWithLevel(ctx, consoleLevel)
 		tsk := core.NewTask(handler)
 		core.InitLLM(handler, ctx, nil) // CLI doesn't need WebSocket notifications
 		defer func() {
@@ -63,6 +71,23 @@ func RunWithExit(fn RunFunc) func(*cobra.Command, []string) {
 		if err := fn(tsk, ctx, cmd, args); err != nil {
 			exitOnError(tsk, err)
 		}
+	}
+}
+
+func parseLogLevel(level string) zerolog.Level {
+	switch strings.ToLower(level) {
+	case "trace":
+		return zerolog.TraceLevel
+	case "debug":
+		return zerolog.DebugLevel
+	case "info":
+		return zerolog.InfoLevel
+	case "warn", "warning":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	default:
+		return zerolog.TraceLevel
 	}
 }
 
@@ -181,6 +206,11 @@ func initCommandsWithSettings() {
 		"recompress (save space), or delete (maximum space savings)")
 	RootCmd.PersistentFlags().Bool("delete-resumption-files", false,
 		"Also delete TSV/CSV files used for session resumption")
+
+	RootCmd.PersistentFlags().String("log-level", "trace",
+		"Minimum log level for console output.\n"+
+			"Options: trace, debug, info, warn, error\n"+
+			"(crash reports always capture all logs)")
 	
 	subs2cardsCmd.PersistentFlags().Int("w", 1000, "maximum width of screenshot")
 	subs2cardsCmd.PersistentFlags().Int("h", 562, "maximum height of screenshot")
