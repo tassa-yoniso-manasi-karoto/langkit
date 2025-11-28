@@ -249,10 +249,21 @@ class LangkitTab:
         else:
             # Subsequent shows: restore from minimized state
             print("[Langkit] Restoring Langkit webview from minimized state")
-            if self.original_langkit_height:
-                self.web_view.setFixedHeight(self.original_langkit_height)
-                self.web_view.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
+
+            # Reset height constraints properly (setFixedHeight sets both min and max)
+            self.web_view.setMinimumHeight(0)
+            self.web_view.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
+
             self.web_view.show()
+
+            # Force the browser engine to recalculate its layout
+            # The web content may have cached viewport size as 0 during minimize
+            self.web_view.updateGeometry()
+            QApplication.processEvents()
+
+            # Trigger JavaScript resize event to ensure CSS layout recalculates
+            self.web_view.page().runJavaScript("window.dispatchEvent(new Event('resize'));")
+
             # Don't reload URL - keep the existing page state
 
         # Store original heights and hide Anki's webviews (push approach)
