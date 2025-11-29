@@ -32,7 +32,7 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20250803110715-1ae365840edf
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20250805182914-5179e5ab1933
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251129075345-2ab7bc4cfb60
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1
@@ -233,7 +233,8 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250321133057-249cfd96068f // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20250804103846-41e15f3047cd // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20250805205043-7595f20e9979 // indirect
+	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251129070943-98cdf8dbf54d // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -289,18 +290,18 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.37.0 // indirect
+	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20250215185904-eff6e970281f // indirect
 	golang.org/x/image v0.24.0 // indirect
-	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
+	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.26.0 // indirect
-	golang.org/x/sync v0.13.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/term v0.31.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
-	golang.org/x/tools v0.30.0 // indirect
+	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250212204824-5a70512c5d8b // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b // indirect
 	google.golang.org/grpc v1.70.0 // indirect
