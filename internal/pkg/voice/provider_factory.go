@@ -138,7 +138,14 @@ func (f *ProviderFactory) GetAudioSeparationProvider(name string) (AudioSeparati
 	}
 	
 	// Return real provider based on name
-	switch strings.ToLower(name) {
+	normalizedName := strings.ToLower(name)
+
+	// Handle replicate- prefix (strip it for Replicate-based providers)
+	if strings.HasPrefix(normalizedName, "replicate-") {
+		normalizedName = strings.TrimPrefix(normalizedName, "replicate-")
+	}
+
+	switch normalizedName {
 	case "elevenlabs":
 		return &ElevenLabsProvider{}, nil
 	case "spleeter":

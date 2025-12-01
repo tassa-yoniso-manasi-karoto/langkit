@@ -22,10 +22,15 @@ import (
 
 
 var extPerProvider = map[string]string{
-	"demucs":     "flac",
-	"demucs_ft":  "flac",
-	"spleeter":   "wav",
-	"elevenlabs": "mp3",
+	// Docker-based (local)
+	"docker-demucs":       "flac",
+	"docker-demucs_ft":    "flac",
+	// Replicate API-based (cloud)
+	"replicate-demucs":    "flac",
+	"replicate-demucs_ft": "flac",
+	"replicate-spleeter":  "wav",
+	// Other
+	"elevenlabs":          "mp3",
 }
 
 // CAVEAT: All popular lossy encoder I have tried messed up the timings (except Opus),

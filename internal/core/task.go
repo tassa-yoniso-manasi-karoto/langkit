@@ -325,12 +325,18 @@ func (tsk *Task) ApplyCLIFlags(cmd *cobra.Command) *ProcessingError {
 	
 	// Handle audio separation library aliases
 	switch tsk.SeparationLib {
-	case "de":
-		tsk.SeparationLib = "demucs"
-	case "ft":
-		tsk.SeparationLib = "demucs_ft"
-	case "sp":
-		tsk.SeparationLib = "spleeter"
+	// Docker-based (local) - recommended
+	case "dd", "docker-demucs":
+		tsk.SeparationLib = "docker-demucs"
+	case "ddf", "docker-demucs_ft":
+		tsk.SeparationLib = "docker-demucs_ft"
+	// Replicate API-based (cloud)
+	case "de", "demucs", "replicate-demucs":
+		tsk.SeparationLib = "replicate-demucs"
+	case "ft", "demucs_ft", "replicate-demucs_ft":
+		tsk.SeparationLib = "replicate-demucs_ft"
+	case "sp", "spleeter", "replicate-spleeter":
+		tsk.SeparationLib = "replicate-spleeter"
 	case "11", "el":
 		tsk.SeparationLib = "elevenlabs"
 	}

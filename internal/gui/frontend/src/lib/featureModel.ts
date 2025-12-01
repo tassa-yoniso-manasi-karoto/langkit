@@ -45,8 +45,9 @@ export interface RomanizationScheme {
 export const providersRequiringTokens = {
     'whisper': 'replicate',
     'insanely-fast-whisper': 'replicate',
-    'demucs': 'replicate',
-    'spleeter': 'replicate'
+    'replicate-demucs': 'replicate',
+    'replicate-demucs_ft': 'replicate',
+    'replicate-spleeter': 'replicate'
 };
 
 export const providerGithubUrls = {
@@ -222,8 +223,8 @@ const featuresArray: FeatureDefinition[] = [
             sepLib: {
                 type: 'dropdown',
                 label: 'Voice separation library',
-                default: 'demucs',
-                choices: ['demucs', 'demucs_ft', 'spleeter']
+                default: 'docker-demucs',
+                choices: ['docker-demucs', 'docker-demucs_ft', 'replicate-demucs', 'replicate-demucs_ft', 'replicate-spleeter']
             },
             voiceBoost: {
                 type: 'number',
@@ -260,7 +261,7 @@ const featuresArray: FeatureDefinition[] = [
                 showCondition: "context.isTopmostForOption && featureGroupStore.getGroupOption('merge', 'mergeOutputFiles') === true"
             }
         },
-        requiresToken: ['demucs', 'spleeter'],
+        requiresToken: ['replicate-demucs', 'replicate-demucs_ft', 'replicate-spleeter'],
         outputMergeGroup: 'merge',
         showMergeBanner: true,
         featureGroups: ['merge'],
