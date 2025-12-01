@@ -56,6 +56,8 @@ type MessageHandler interface {
 	// CRITICAL: IncrementProgress needs the ACTUAL INCREMENT, not absolute value because it follows the API of github.com/schollz/progressbar used for Langkit-cli which relies on increments: progressbar.Add(x)
 	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string) // Defaults to Simple ETA
 	IncrementProgressAdvanced(taskID string, increment, total, priority int, operation, descr, size string) // Uses Advanced ETA
+	// IncrementDownloadProgress is for file/image downloads - displays humanized bytes instead of item counts
+	IncrementDownloadProgress(taskID string, increment, total, priority int, operation, descr, heightClass, humanizedSize string)
 	ResetProgress()
 	RemoveProgressBar(taskID string)
 
@@ -373,6 +375,12 @@ func (h *CLIHandler) IncrementProgressAdvanced(taskID string, increment, total, 
 	h.incrementProgressInternal(taskID, increment, total, priority, operation, desc, size, eta.AlgorithmAdvanced)
 }
 
+// IncrementDownloadProgress updates progress for downloads (same as regular progress in CLI)
+func (h *CLIHandler) IncrementDownloadProgress(taskID string, increment, total, priority int, operation, desc, heightClass, humanizedSize string) {
+	// CLI uses humanizedSize for display since it doesn't have separate height handling
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, desc, humanizedSize, eta.AlgorithmSimple)
+}
+
 // SetHighLoadMode is a no-op for CLI mode since there's no throttling
 func (h *CLIHandler) SetHighLoadMode(durations ...time.Duration) {
 	// No-op for CLI mode
@@ -603,8 +611,10 @@ func (h *GUIHandler) RemoveProgressBar(taskID string) {
 func (h *GUIHandler) incrementProgressInternal(
 	taskID string,
 	increment, total, priority int,
-	operation, descr, size string,
+	operation, descr, heightClass string,
 	algoType eta.AlgorithmType,
+	progressType string, // "download" for download progress, "" for regular task progress
+	humanizedSize string, // Only used when progressType == "download"
 ) {
 	// Make sure we have the ETA calculator map initialized
 	if h.etaCalculators == nil {
@@ -691,17 +701,19 @@ func (h *GUIHandler) incrementProgressInternal(
 
 	// Create payload for event
 	payload := map[string]interface{}{
-		"id":          taskID,
-		"progress":    percent,
-		"current":     current,
-		"total":       total,
-		"operation":   operation,
-		"description": descr,
-		"color":       "",
-		"size":        size,
-		"striped":     true,
-		"animated":    true,
-		"priority":    priority,
+		"id":            taskID,
+		"progress":      percent,
+		"current":       current,
+		"total":         total,
+		"operation":     operation,
+		"description":   descr,
+		"color":         "",
+		"size":          heightClass,
+		"humanizedSize": humanizedSize, // Only for download type
+		"striped":       true,
+		"animated":      true,
+		"priority":      priority,
+		"type":          progressType, // "download" for downloads, "" for regular tasks
 	}
 
 	// Send through throttler if available
@@ -723,12 +735,17 @@ func (h *GUIHandler) incrementProgressInternal(
 
 // IncrementProgress updates progress with simple ETA calculation
 func (h *GUIHandler) IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string) {
-	h.incrementProgressInternal(taskID, increment, total, priority, operation, descr, size, eta.AlgorithmSimple)
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, descr, size, eta.AlgorithmSimple, "", "")
 }
 
 // IncrementProgressAdvanced updates progress with advanced ETA calculation
 func (h *GUIHandler) IncrementProgressAdvanced(taskID string, increment, total, priority int, operation, descr, size string) {
-	h.incrementProgressInternal(taskID, increment, total, priority, operation, descr, size, eta.AlgorithmAdvanced)
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, descr, size, eta.AlgorithmAdvanced, "", "")
+}
+
+// IncrementDownloadProgress updates progress for downloads - displays humanized bytes
+func (h *GUIHandler) IncrementDownloadProgress(taskID string, increment, total, priority int, operation, descr, heightClass, humanizedSize string) {
+	h.incrementProgressInternal(taskID, increment, total, priority, operation, descr, heightClass, eta.AlgorithmSimple, "download", humanizedSize)
 }
 
 // BulkUpdateProgress handles multiple progress updates efficiently

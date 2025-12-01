@@ -521,6 +521,10 @@ func (h *silentMessageHandler) IncrementProgressAdvanced(id string, inc, total, 
 	// Do nothing - silent handler
 }
 
+func (h *silentMessageHandler) IncrementDownloadProgress(id string, inc, total, weight int, title, subtitle, heightClass, humanizedSize string) {
+	// Do nothing - silent handler
+}
+
 func (h *silentMessageHandler) ResetProgress() {
 	// Do nothing - silent handler
 }

@@ -111,20 +111,23 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	}
 	
 	if errors.Is(errVoice, os.ErrNotExist) {
-		tsk.Handler.ZeroLog().Info().Msg("Separating vocals from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
-		
 		// Get the appropriate provider for audio separation
 		provider, err := voice.GetAudioSeparationProvider(tsk.SeparationLib)
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortAllTasks, "Failed to get audio separation provider. Check for typo in provider name.")
 		}
-		
+
 		// Check if provider is available
 		if !provider.IsAvailable() {
 			return tsk.Handler.LogErr(nil, AbortTask, fmt.Sprintf("Provider %s is not available. Check API key configuration.", provider.GetName()))
 		}
-		
-		// Process the audio using the provider
+
+		// Log appropriate message based on provider type
+		if strings.HasPrefix(provider.GetName(), "docker-") {
+			tsk.Handler.ZeroLog().Info().Msg("Separating vocals from the rest of the audiotrack using local Docker processing...")
+		} else {
+			tsk.Handler.ZeroLog().Info().Msg("Separating vocals from the rest of the audiotrack: sending request to remote API for processing. Please wait...")
+		}
 		tsk.Handler.ZeroLog().Debug().Str("provider", provider.GetName()).Msg("Using vocals separation provider")
 
 		// Create a new context with TimeoutDL value for download operations

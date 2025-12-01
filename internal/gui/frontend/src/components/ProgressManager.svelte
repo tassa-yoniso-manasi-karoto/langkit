@@ -515,7 +515,13 @@
                                 {bar.operation}{#if bar.description} - {bar.description}{/if}
                             </span>
                             <span class="text-primary/80 text-xs whitespace-nowrap">
-                                {#if bar.total}({bar.current}/{bar.total}) {/if}{Math.round(bar.progress)}%
+                                {#if bar.type === 'download' && bar.humanizedSize}
+                                    {bar.humanizedSize} ({Math.round(bar.progress)}%)
+                                {:else if bar.total}
+                                    ({bar.current}/{bar.total}) {Math.round(bar.progress)}%
+                                {:else}
+                                    {Math.round(bar.progress)}%
+                                {/if}
                             </span>
                         </div>
                         <div class="relative w-full bg-black/20 rounded-full overflow-hidden {bar.size || 'h-2.5'}">

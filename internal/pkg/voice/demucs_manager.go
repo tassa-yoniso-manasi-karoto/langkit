@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	demucsRemote        = "https://github.com/tassa-yoniso-manasi-karoto/docker-facebook-demucs.git"
-	demucsProjectName   = "langkit-demucs"
-	demucsContainerName = "langkit-demucs-demucs-1"
-	demucsImageName     = "xserrat/facebook-demucs:latest"
+	demucsRemote         = "https://github.com/tassa-yoniso-manasi-karoto/docker-facebook-demucs.git"
+	demucsProjectName    = "langkit-demucs"
+	demucsContainerName  = "langkit-demucs-demucs-1"
+	demucsImageName      = "xserrat/facebook-demucs:latest"
+	demucsImageSizeBytes = 2_500_000_000 // ~2.5 GB known compressed size
 )
 
 // ProgressHandlerKey is the context key for passing progress handler
@@ -36,7 +37,7 @@ const ProgressHandlerKey progressHandlerKeyType = "voice.progressHandler"
 // ProgressHandler is called to report progress updates
 // increment: bytes since last update, total: total bytes, status: current operation
 type ProgressHandler interface {
-	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
+	IncrementDownloadProgress(taskID string, increment, total, priority int, operation, descr, heightClass, humanizedSize string)
 	RemoveProgressBar(taskID string)
 	ZeroLog() *zerolog.Logger
 }
@@ -429,29 +430,32 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 			layers[msg.ID].total = msg.Progress.Total
 		}
 
-		// Calculate total progress across all layers
-		var totalBytes, currentBytes int64
+		// Calculate current downloaded bytes across all layers
+		var currentBytes int64
 		for _, lp := range layers {
-			totalBytes += lp.total
 			currentBytes += lp.current
 		}
 
-		// Report progress if handler available and we have meaningful data
-		if handler != nil && totalBytes > 0 {
+		// Report progress using fixed known total size (avoids backwards progress)
+		if handler != nil && currentBytes > 0 {
 			increment := currentBytes - lastReportedBytes
 			if increment > 0 {
-				status := msg.Status
-				if msg.ID != "" {
-					status = msg.ID + ": " + status
+				// Show user-friendly status without cryptic layer IDs
+				description := "Downloading..."
+				if msg.Status == "Extracting" {
+					description = "Extracting..."
+				} else if msg.Status == "Pull complete" || msg.Status == "Already exists" {
+					description = "Finalizing..."
 				}
-				handler.IncrementProgress(
+				handler.IncrementDownloadProgress(
 					taskID,
 					int(increment),
-					int(totalBytes),
-					20, // priority (lower than main tasks)
-					"Docker Pull",
-					status,
-					humanize.Bytes(uint64(currentBytes)) + " / " + humanize.Bytes(uint64(totalBytes)),
+					demucsImageSizeBytes, // Use fixed known size
+					20,                   // priority (lower than main tasks)
+					"Demucs Setup (docker pull)",
+					description,
+					"h-3", // height class for download progress bar
+					humanize.Bytes(uint64(currentBytes))+" / "+humanize.Bytes(demucsImageSizeBytes),
 				)
 				lastReportedBytes = currentBytes
 			}
@@ -461,7 +465,7 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 			Str("status", msg.Status).
 			Str("id", msg.ID).
 			Int64("current", currentBytes).
-			Int64("total", totalBytes).
+			Int64("total", demucsImageSizeBytes).
 			Msg("Pull progress")
 	}
 
