@@ -3,6 +3,7 @@ package voice
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,10 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/jsonmessage"
+	"github.com/dustin/go-humanize"
 	"github.com/rs/zerolog"
 
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
@@ -22,7 +26,20 @@ const (
 	demucsRemote        = "https://github.com/tassa-yoniso-manasi-karoto/docker-facebook-demucs.git"
 	demucsProjectName   = "langkit-demucs"
 	demucsContainerName = "langkit-demucs-demucs-1"
+	demucsImageName     = "xserrat/facebook-demucs:latest"
 )
+
+// ProgressHandlerKey is the context key for passing progress handler
+type progressHandlerKeyType string
+const ProgressHandlerKey progressHandlerKeyType = "voice.progressHandler"
+
+// ProgressHandler is called to report progress updates
+// increment: bytes since last update, total: total bytes, status: current operation
+type ProgressHandler interface {
+	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
+	RemoveProgressBar(taskID string)
+	ZeroLog() *zerolog.Logger
+}
 
 var (
 	// Singleton instance management
@@ -355,12 +372,128 @@ func copyFile(src, dst string) error {
 	return err
 }
 
+// pullImageWithProgress pulls the demucs Docker image with progress reporting
+func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("failed to create Docker client: %w", err)
+	}
+	defer cli.Close()
+
+	// Check if image already exists
+	_, _, err = cli.ImageInspectWithRaw(ctx, demucsImageName)
+	if err == nil {
+		DemucsLogger.Debug().Str("image", demucsImageName).Msg("Docker image already exists, skipping pull")
+		return nil
+	}
+
+	if handler != nil {
+		handler.ZeroLog().Info().
+			Str("image", demucsImageName).
+			Msg("Pulling Docker image for local voice separation (first-time setup, ~2.5GB download)...")
+	}
+	DemucsLogger.Info().Str("image", demucsImageName).Msg("Pulling Docker image")
+
+	// Pull the image
+	reader, err := cli.ImagePull(ctx, demucsImageName, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to pull image: %w", err)
+	}
+	defer reader.Close()
+
+	// Track progress per layer
+	type layerProgress struct {
+		current int64
+		total   int64
+	}
+	layers := make(map[string]*layerProgress)
+	var lastReportedBytes int64
+	taskID := "docker-pull"
+
+	decoder := json.NewDecoder(reader)
+	for {
+		var msg jsonmessage.JSONMessage
+		if err := decoder.Decode(&msg); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("failed to decode pull progress: %w", err)
+		}
+
+		// Track layer progress
+		if msg.ID != "" && msg.Progress != nil {
+			if layers[msg.ID] == nil {
+				layers[msg.ID] = &layerProgress{}
+			}
+			layers[msg.ID].current = msg.Progress.Current
+			layers[msg.ID].total = msg.Progress.Total
+		}
+
+		// Calculate total progress across all layers
+		var totalBytes, currentBytes int64
+		for _, lp := range layers {
+			totalBytes += lp.total
+			currentBytes += lp.current
+		}
+
+		// Report progress if handler available and we have meaningful data
+		if handler != nil && totalBytes > 0 {
+			increment := currentBytes - lastReportedBytes
+			if increment > 0 {
+				status := msg.Status
+				if msg.ID != "" {
+					status = msg.ID + ": " + status
+				}
+				handler.IncrementProgress(
+					taskID,
+					int(increment),
+					int(totalBytes),
+					20, // priority (lower than main tasks)
+					"Docker Pull",
+					status,
+					humanize.Bytes(uint64(currentBytes)) + " / " + humanize.Bytes(uint64(totalBytes)),
+				)
+				lastReportedBytes = currentBytes
+			}
+		}
+
+		DemucsLogger.Trace().
+			Str("status", msg.Status).
+			Str("id", msg.ID).
+			Int64("current", currentBytes).
+			Int64("total", totalBytes).
+			Msg("Pull progress")
+	}
+
+	// Clean up progress bar
+	if handler != nil {
+		handler.RemoveProgressBar(taskID)
+		handler.ZeroLog().Info().Msg("Docker image pull complete")
+	}
+	DemucsLogger.Info().Str("image", demucsImageName).Msg("Docker image pull complete")
+
+	return nil
+}
+
 // GetDemucsManager returns or creates the singleton manager
 func GetDemucsManager(ctx context.Context) (*DemucsManager, error) {
 	demucsMu.Lock()
 	defer demucsMu.Unlock()
 
 	if demucsInstance == nil {
+		// Extract progress handler from context if available
+		var handler ProgressHandler
+		if h := ctx.Value(ProgressHandlerKey); h != nil {
+			if ph, ok := h.(ProgressHandler); ok {
+				handler = ph
+			}
+		}
+
+		// Pull the Docker image first (with progress if handler available)
+		if err := pullImageWithProgress(ctx, handler); err != nil {
+			return nil, fmt.Errorf("failed to pull Docker image: %w", err)
+		}
+
 		mgr, err := NewDemucsManager(ctx)
 		if err != nil {
 			return nil, err

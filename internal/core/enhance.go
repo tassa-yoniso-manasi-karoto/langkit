@@ -126,11 +126,13 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		
 		// Process the audio using the provider
 		tsk.Handler.ZeroLog().Debug().Str("provider", provider.GetName()).Msg("Using vocals separation provider")
-		
+
 		// Create a new context with TimeoutDL value for download operations
+		// and pass the handler for progress reporting (used by Docker-based providers)
 		ctxWithTimeoutDL := context.WithValue(ctx, "TimeoutDL", tsk.TimeoutDL)
-		
-		audio, err := provider.SeparateVoice(ctxWithTimeoutDL, OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.MaxAPIRetries, tsk.TimeoutSep)
+		ctxWithHandler := context.WithValue(ctxWithTimeoutDL, voice.ProgressHandlerKey, tsk.Handler)
+
+		audio, err := provider.SeparateVoice(ctxWithHandler, OriginalAudio, extPerProvider[tsk.SeparationLib], tsk.MaxAPIRetries, tsk.TimeoutSep)
 		
 		if err != nil {
 			reporter.SaveSnapshot("Voice separation failed", tsk.DebugVals()) // necessity: high
