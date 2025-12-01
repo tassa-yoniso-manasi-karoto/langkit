@@ -22,15 +22,18 @@ import (
 
 
 var extPerProvider = map[string]string{
-	// Docker-based (local)
-	"docker-demucs":       "flac",
-	"docker-demucs_ft":    "flac",
+	// Docker-based (local CPU)
+	"docker-demucs":              "flac",
+	"docker-demucs_ft":           "flac",
+	// Docker-based (local GPU/NVIDIA)
+	"docker-nvidia-demucs":       "flac",
+	"docker-nvidia-demucs_ft":    "flac",
 	// Replicate API-based (cloud)
-	"replicate-demucs":    "flac",
-	"replicate-demucs_ft": "flac",
-	"replicate-spleeter":  "wav",
+	"replicate-demucs":           "flac",
+	"replicate-demucs_ft":        "flac",
+	"replicate-spleeter":         "wav",
 	// Other
-	"elevenlabs":          "mp3",
+	"elevenlabs":                 "mp3",
 }
 
 // CAVEAT: All popular lossy encoder I have tried messed up the timings (except Opus),

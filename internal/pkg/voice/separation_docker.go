@@ -12,23 +12,29 @@ import (
 // DockerDemucsProvider implements AudioSeparationProvider using Docker-based Demucs
 type DockerDemucsProvider struct {
 	useFinetuned bool
+	useGPU       bool
 	mu           sync.Mutex
 	initialized  bool
 }
 
 // NewDockerDemucsProvider creates a new DockerDemucsProvider
-func NewDockerDemucsProvider(useFinetuned bool) *DockerDemucsProvider {
+func NewDockerDemucsProvider(useFinetuned, useGPU bool) *DockerDemucsProvider {
 	return &DockerDemucsProvider{
 		useFinetuned: useFinetuned,
+		useGPU:       useGPU,
 	}
 }
 
 // GetName returns the provider name
 func (p *DockerDemucsProvider) GetName() string {
-	if p.useFinetuned {
-		return "docker-demucs_ft"
+	base := "docker"
+	if p.useGPU {
+		base = "docker-nvidia"
 	}
-	return "docker-demucs"
+	if p.useFinetuned {
+		return base + "-demucs_ft"
+	}
+	return base + "-demucs"
 }
 
 // IsAvailable checks if Docker is available for running demucs
@@ -38,8 +44,14 @@ func (p *DockerDemucsProvider) IsAvailable() bool {
 
 // SeparateVoice extracts voice from audio using Docker-based Demucs
 func (p *DockerDemucsProvider) SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error) {
+	// Determine mode
+	mode := DemucsModeCPU
+	if p.useGPU {
+		mode = DemucsModeGPU
+	}
+
 	// Get or create the demucs manager
-	manager, err := GetDemucsManager(ctx)
+	manager, err := GetDemucsManager(ctx, mode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get demucs manager: %w", err)
 	}
@@ -73,11 +85,23 @@ func (p *DockerDemucsProvider) SeparateVoice(ctx context.Context, audioFile, out
 }
 
 // Default provider instances for standard use
-var defaultDockerDemucsProvider = NewDockerDemucsProvider(false)
-var defaultDockerDemucsFinetunedProvider = NewDockerDemucsProvider(true)
+var (
+	// CPU providers
+	defaultDockerDemucsProvider         = NewDockerDemucsProvider(false, false)
+	defaultDockerDemucsFinetunedProvider = NewDockerDemucsProvider(true, false)
+	// GPU providers
+	defaultDockerNvidiaDemucsProvider         = NewDockerDemucsProvider(false, true)
+	defaultDockerNvidiaDemucsFinetunedProvider = NewDockerDemucsProvider(true, true)
+)
 
 // DockerDemucs provides direct access to the Docker-based Demucs voice separation
-func DockerDemucs(ctx context.Context, filepath, ext string, maxTry, timeout int, wantFinetuned bool) ([]byte, error) {
+func DockerDemucs(ctx context.Context, filepath, ext string, maxTry, timeout int, wantFinetuned, wantGPU bool) ([]byte, error) {
+	if wantGPU {
+		if wantFinetuned {
+			return defaultDockerNvidiaDemucsFinetunedProvider.SeparateVoice(ctx, filepath, ext, maxTry, timeout)
+		}
+		return defaultDockerNvidiaDemucsProvider.SeparateVoice(ctx, filepath, ext, maxTry, timeout)
+	}
 	if wantFinetuned {
 		return defaultDockerDemucsFinetunedProvider.SeparateVoice(ctx, filepath, ext, maxTry, timeout)
 	}

@@ -224,7 +224,15 @@ const featuresArray: FeatureDefinition[] = [
                 type: 'dropdown',
                 label: 'Voice separation library',
                 default: 'docker-demucs',
-                choices: ['docker-demucs', 'docker-demucs_ft', 'replicate-demucs', 'replicate-demucs_ft', 'replicate-spleeter']
+                choices: [
+                    'docker-demucs',
+                    'docker-demucs_ft',
+                    'docker-nvidia-demucs',
+                    'docker-nvidia-demucs_ft',
+                    'replicate-demucs',
+                    'replicate-demucs_ft',
+                    'replicate-spleeter'
+                ]
             },
             voiceBoost: {
                 type: 'number',

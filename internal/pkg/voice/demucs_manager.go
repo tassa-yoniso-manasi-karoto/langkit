@@ -24,11 +24,39 @@ import (
 
 const (
 	demucsRemote         = "https://github.com/tassa-yoniso-manasi-karoto/docker-facebook-demucs.git"
-	demucsProjectName    = "langkit-demucs"
-	demucsContainerName  = "langkit-demucs"
-	demucsImageName      = "langkit-demucs:latest" // Local image (TODO: change to Docker Hub after push)
+	demucsProjectName    = "langkit-demucs" // Base project name for config dir
+	demucsImageName      = "langkit-demucs:latest" // Local image (TODO: change to GHCR after push)
 	demucsImageSizeBytes = 5_000_000_000 // ~5 GB for CUDA 12 + PyTorch + demucs models
 )
+
+// DemucsMode specifies CPU or GPU execution
+type DemucsMode int
+
+const (
+	DemucsModeCPU DemucsMode = iota
+	DemucsModeGPU
+)
+
+func (m DemucsMode) projectName() string {
+	if m == DemucsModeGPU {
+		return "langkit-demucs-gpu"
+	}
+	return "langkit-demucs"
+}
+
+func (m DemucsMode) containerName() string {
+	if m == DemucsModeGPU {
+		return "langkit-demucs-gpu"
+	}
+	return "langkit-demucs"
+}
+
+func (m DemucsMode) composeFile() string {
+	if m == DemucsModeGPU {
+		return "docker-compose-gpu.yml"
+	}
+	return "docker-compose.yml"
+}
 
 // ProgressHandlerKey is the context key for passing progress handler
 type progressHandlerKeyType string
@@ -45,8 +73,9 @@ type ProgressHandler interface {
 }
 
 var (
-	// Singleton instance management
-	demucsInstance    *DemucsManager
+	// Singleton instance management - separate instances for CPU and GPU
+	demucsCPUInstance *DemucsManager
+	demucsGPUInstance *DemucsManager
 	demucsMu          sync.Mutex
 	demucsLastUsed    time.Time
 	demucsIdleTimeout = 30 * time.Minute
@@ -80,16 +109,18 @@ func DefaultDemucsOptions() DemucsOptions {
 type DemucsManager struct {
 	docker        *dockerutil.DockerManager
 	logger        *dockerutil.ContainerLogConsumer
+	mode          DemucsMode
 	projectName   string
 	containerName string
 	configDir     string
 }
 
-// NewDemucsManager creates a new Demucs manager instance
-func NewDemucsManager(ctx context.Context) (*DemucsManager, error) {
+// NewDemucsManager creates a new Demucs manager instance with specified mode
+func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, error) {
 	manager := &DemucsManager{
-		projectName:   demucsProjectName,
-		containerName: demucsContainerName,
+		mode:          mode,
+		projectName:   mode.projectName(),
+		containerName: mode.containerName(),
 	}
 
 	logConfig := dockerutil.LogConfig{
@@ -97,14 +128,14 @@ func NewDemucsManager(ctx context.Context) (*DemucsManager, error) {
 		ShowService: true,
 		ShowType:    true,
 		LogLevel:    zerolog.DebugLevel,
-		InitMessage: "langkit-demucs",
+		InitMessage: manager.projectName,
 	}
 
 	logger := dockerutil.NewContainerLogConsumer(logConfig)
 
 	cfg := dockerutil.Config{
 		ProjectName:      manager.projectName,
-		ComposeFile:      "docker-compose.yml",
+		ComposeFile:      mode.composeFile(),
 		RemoteRepo:       demucsRemote,
 		RequiredServices: []string{"demucs"},
 		LogConsumer:      logger,
@@ -568,12 +599,20 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 	return nil
 }
 
-// GetDemucsManager returns or creates the singleton manager
-func GetDemucsManager(ctx context.Context) (*DemucsManager, error) {
+// GetDemucsManager returns or creates the singleton manager for the specified mode
+func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, error) {
 	demucsMu.Lock()
 	defer demucsMu.Unlock()
 
-	if demucsInstance == nil {
+	// Select the appropriate instance based on mode
+	var instance **DemucsManager
+	if mode == DemucsModeGPU {
+		instance = &demucsGPUInstance
+	} else {
+		instance = &demucsCPUInstance
+	}
+
+	if *instance == nil {
 		// Extract progress handler from context if available
 		var handler ProgressHandler
 		if h := ctx.Value(ProgressHandlerKey); h != nil {
@@ -587,7 +626,7 @@ func GetDemucsManager(ctx context.Context) (*DemucsManager, error) {
 			return nil, fmt.Errorf("failed to pull Docker image: %w", err)
 		}
 
-		mgr, err := NewDemucsManager(ctx)
+		mgr, err := NewDemucsManager(ctx, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -599,7 +638,7 @@ func GetDemucsManager(ctx context.Context) (*DemucsManager, error) {
 		// (race condition: container "running" but not yet accepting exec)
 		time.Sleep(500 * time.Millisecond)
 
-		demucsInstance = mgr
+		*instance = mgr
 
 		// Start idle watcher only once
 		demucsWatcherOnce.Do(func() {
@@ -608,36 +647,51 @@ func GetDemucsManager(ctx context.Context) (*DemucsManager, error) {
 	}
 
 	demucsLastUsed = time.Now()
-	return demucsInstance, nil
+	return *instance, nil
 }
 
-// startDemucsIdleWatcher stops container after idle timeout
+// startDemucsIdleWatcher stops containers after idle timeout
 func startDemucsIdleWatcher() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		demucsMu.Lock()
-		if demucsInstance != nil && time.Since(demucsLastUsed) > demucsIdleTimeout {
-			DemucsLogger.Info().Msg("Stopping idle demucs container")
-			demucsInstance.Stop(context.Background())
-			demucsInstance = nil
+		if time.Since(demucsLastUsed) > demucsIdleTimeout {
+			if demucsCPUInstance != nil {
+				DemucsLogger.Info().Msg("Stopping idle demucs CPU container")
+				demucsCPUInstance.Stop(context.Background())
+				demucsCPUInstance = nil
+			}
+			if demucsGPUInstance != nil {
+				DemucsLogger.Info().Msg("Stopping idle demucs GPU container")
+				demucsGPUInstance.Stop(context.Background())
+				demucsGPUInstance = nil
+			}
 		}
 		demucsMu.Unlock()
 	}
 }
 
-// StopDemucsManager stops the singleton manager if running
+// StopDemucsManager stops all singleton managers if running
 func StopDemucsManager() error {
 	demucsMu.Lock()
 	defer demucsMu.Unlock()
 
-	if demucsInstance != nil {
-		err := demucsInstance.Stop(context.Background())
-		demucsInstance = nil
-		return err
+	var lastErr error
+	if demucsCPUInstance != nil {
+		if err := demucsCPUInstance.Stop(context.Background()); err != nil {
+			lastErr = err
+		}
+		demucsCPUInstance = nil
 	}
-	return nil
+	if demucsGPUInstance != nil {
+		if err := demucsGPUInstance.Stop(context.Background()); err != nil {
+			lastErr = err
+		}
+		demucsGPUInstance = nil
+	}
+	return lastErr
 }
 
 // IsDemucsAvailable checks if Docker is available for running demucs

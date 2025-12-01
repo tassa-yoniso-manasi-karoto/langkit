@@ -157,9 +157,13 @@ func (f *ProviderFactory) GetAudioSeparationProvider(name string) (AudioSeparati
 	case "custom":
 		return NewCustomSeparationProvider(), nil
 	case "docker-demucs":
-		return NewDockerDemucsProvider(false), nil
+		return NewDockerDemucsProvider(false, false), nil
 	case "docker-demucs_ft":
-		return NewDockerDemucsProvider(true), nil
+		return NewDockerDemucsProvider(true, false), nil
+	case "docker-nvidia-demucs":
+		return NewDockerDemucsProvider(false, true), nil
+	case "docker-nvidia-demucs_ft":
+		return NewDockerDemucsProvider(true, true), nil
 	default:
 		return nil, fmt.Errorf("unknown audio separation provider: %s", name)
 	}

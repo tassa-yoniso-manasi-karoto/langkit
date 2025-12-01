@@ -101,9 +101,12 @@ This feature works by merging the original audiotrack with negative gain togethe
 
 | Name (to be passed with --sep) | Quality | Price | Type | Note |
 |--------------------------------|---------|-------|------|------|
-| **LOCAL (DOCKER)** | ——— | ————— | ———— | —————————————————— |
+| **LOCAL CPU (DOCKER)** | ——— | ————— | ———— | —————————————————— |
 | docker-demucs, dd              | good    | FREE (local) | MIT license | **Recommended** - Requires Docker |
 | docker-demucs_ft, ddf          | good    | FREE (local) | MIT license | Fine-tuned version. Requires Docker |
+| **LOCAL GPU (DOCKER + NVIDIA)** | ——— | ————— | ———— | —————————————————— |
+| docker-nvidia-demucs, dn       | good    | FREE (local) | MIT license | Much faster with NVIDIA GPU. Requires Docker + NVIDIA Container Toolkit |
+| docker-nvidia-demucs_ft, dnf   | good    | FREE (local) | MIT license | Fine-tuned GPU version. Requires Docker + NVIDIA Container Toolkit |
 | **CLOUD (REPLICATE)** | ——— | ————— | ———— | —————————————————— |
 | replicate-demucs, de           | good    | very cheap 0.063$/run | MIT license | Requires Replicate API token |
 | replicate-demucs_ft, ft        | good    | cheap 0.252$/run | MIT license | <sub>Fine-tuned version: "takes 4 times longer but might be a bit better".</sub> |
