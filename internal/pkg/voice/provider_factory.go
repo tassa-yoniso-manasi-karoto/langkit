@@ -95,6 +95,8 @@ func (f *ProviderFactory) GetSpeechToTextProvider(name string) (SpeechToTextProv
 			provider = NewOpenAIProvider("gpt-4o-mini-transcribe")
 		case "scribe":
 			provider = NewElevenLabsSTTProvider()
+		case "custom":
+			provider = NewCustomSTTProvider()
 		default:
 			return nil, fmt.Errorf("unknown speech-to-text provider: %s", name)
 		}
@@ -145,6 +147,8 @@ func (f *ProviderFactory) GetAudioSeparationProvider(name string) (AudioSeparati
 		return NewDemucsProvider(false), nil
 	case "demucs_ft":
 		return NewDemucsProvider(true), nil
+	case "custom":
+		return NewCustomSeparationProvider(), nil
 	default:
 		return nil, fmt.Errorf("unknown audio separation provider: %s", name)
 	}

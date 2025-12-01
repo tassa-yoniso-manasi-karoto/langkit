@@ -66,6 +66,14 @@ func GetAllSTTModels() []STTModelInfo {
             IsDepreciated:      true,
             TakesInitialPrompt: false,
         },
+        {
+            Name:               "custom",
+            DisplayName:        "Custom Endpoint",
+            Description:        "User-configured local STT endpoint (OpenAI-compatible API)",
+            ProviderName:       "custom",
+            IsRecommended:      false,
+            TakesInitialPrompt: true,
+        },
     }
     
     // Check API key availability for each model

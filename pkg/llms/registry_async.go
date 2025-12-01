@@ -235,9 +235,23 @@ func (r *Registry) performFullInitialization(settings config.Settings) {
 	}
 	r.logger.Debug().Int("ready_providers_count", readyProvidersCount).Strs("registered_to_client", actualRegisteredProviders).Msg("Client populated with ready providers.")
 
+	// Register custom LLM provider if enabled
+	if settings.CustomEndpoints.LLM.Enabled && settings.CustomEndpoints.LLM.Endpoint != "" {
+		customProvider := NewCustomLLMProvider(settings.CustomEndpoints.LLM.Endpoint, settings.CustomEndpoints.LLM.Model)
+		if customProvider != nil {
+			r.client.RegisterProvider(customProvider)
+			actualRegisteredProviders = append(actualRegisteredProviders, customProvider.GetName())
+			readyProvidersCount++
+			r.logger.Debug().
+				Str("endpoint", settings.CustomEndpoints.LLM.Endpoint).
+				Str("model", settings.CustomEndpoints.LLM.Model).
+				Msg("performFullInit: Registered custom LLM provider.")
+		}
+	}
+
 	if readyProvidersCount > 0 {
 		defaultSet := false
-		preferredOrder := []string{"openrouter-free", "openai", "openrouter", "google"}
+		preferredOrder := []string{"openrouter-free", "openai", "openrouter", "google", "custom"}
 		for _, name := range preferredOrder {
 			if _, ok := r.client.GetProvider(name); ok {
 				r.client.SetDefaultProvider(name)

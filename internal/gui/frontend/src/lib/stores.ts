@@ -33,13 +33,31 @@ type Settings = {
 
     eventThrottling: { enabled: boolean; minInterval: number; maxInterval: number; }; // Expect object
     convertValues: boolean;   // Make required
-    
+
     // Internal settings (not exposed in UI)
     hasSeenLogViewerTooltip?: boolean;
-    
+
     // File handling settings
     intermediaryFileMode?: IntermediaryFileMode;
     deleteResumptionFiles?: boolean;
+
+    // Custom endpoints for local inference
+    customEndpoints?: {
+        stt: {
+            enabled: boolean;
+            endpoint: string;
+            model: string;
+        };
+        voiceIsolation: {
+            enabled: boolean;
+            endpoint: string;
+        };
+        llm: {
+            enabled: boolean;
+            endpoint: string;
+            model: string;
+        };
+    };
 };
 
 /* these values are irrelevant, only the default values of the backend matter */
@@ -77,7 +95,24 @@ const initSettings: Settings = {
     convertValues: false,    // Assuming default
     // Default file handling settings
     intermediaryFileMode: 'keep',
-    deleteResumptionFiles: false
+    deleteResumptionFiles: false,
+    // Default custom endpoints settings
+    customEndpoints: {
+        stt: {
+            enabled: false,
+            endpoint: 'http://localhost:8080/v1/audio/transcriptions',
+            model: ''
+        },
+        voiceIsolation: {
+            enabled: false,
+            endpoint: 'http://localhost:8081/separate'
+        },
+        llm: {
+            enabled: false,
+            endpoint: 'http://localhost:11434/v1/chat/completions',
+            model: ''
+        }
+    }
 };
 
 type showSettings = boolean;

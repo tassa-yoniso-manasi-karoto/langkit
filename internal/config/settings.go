@@ -67,6 +67,24 @@ type Settings struct {
 	// Paths for binaries
 	FFmpegPath    string `json:"ffmpegPath" mapstructure:"ffmpeg_path"`
 	MediaInfoPath string `json:"mediainfoPath" mapstructure:"mediainfo_path"`
+
+	// Custom endpoints for local inference
+	CustomEndpoints struct {
+		STT struct {
+			Enabled  bool   `json:"enabled" mapstructure:"enabled"`
+			Endpoint string `json:"endpoint" mapstructure:"endpoint"`
+			Model    string `json:"model" mapstructure:"model"`
+		} `json:"stt" mapstructure:"stt"`
+		VoiceIsolation struct {
+			Enabled  bool   `json:"enabled" mapstructure:"enabled"`
+			Endpoint string `json:"endpoint" mapstructure:"endpoint"`
+		} `json:"voiceIsolation" mapstructure:"voice_isolation"`
+		LLM struct {
+			Enabled  bool   `json:"enabled" mapstructure:"enabled"`
+			Endpoint string `json:"endpoint" mapstructure:"endpoint"`
+			Model    string `json:"model" mapstructure:"model"`
+		} `json:"llm" mapstructure:"llm"`
+	} `json:"customEndpoints" mapstructure:"custom_endpoints"`
 }
 
 func GetConfigDir() (string, error) {
@@ -144,6 +162,16 @@ func InitConfig(customPath string) error {
 
 	viper.SetDefault("ffmpeg_path", "")
 	viper.SetDefault("mediainfo_path", "")
+
+	// Custom endpoints defaults
+	viper.SetDefault("custom_endpoints.stt.enabled", false)
+	viper.SetDefault("custom_endpoints.stt.endpoint", "http://localhost:8080/v1/audio/transcriptions")
+	viper.SetDefault("custom_endpoints.stt.model", "")
+	viper.SetDefault("custom_endpoints.voice_isolation.enabled", false)
+	viper.SetDefault("custom_endpoints.voice_isolation.endpoint", "http://localhost:8081/separate")
+	viper.SetDefault("custom_endpoints.llm.enabled", false)
+	viper.SetDefault("custom_endpoints.llm.endpoint", "http://localhost:11434/v1/chat/completions")
+	viper.SetDefault("custom_endpoints.llm.model", "")
 
 	// Get the config path
 	configPath, err := getConfigPath()
@@ -242,6 +270,16 @@ func SaveSettings(settings Settings) error {
 	viper.Set("ffmpeg_path", filepath.ToSlash(settings.FFmpegPath))
 	viper.Set("mediainfo_path", filepath.ToSlash(settings.MediaInfoPath))
 
+	// Save custom endpoint settings
+	viper.Set("custom_endpoints.stt.enabled", settings.CustomEndpoints.STT.Enabled)
+	viper.Set("custom_endpoints.stt.endpoint", settings.CustomEndpoints.STT.Endpoint)
+	viper.Set("custom_endpoints.stt.model", settings.CustomEndpoints.STT.Model)
+	viper.Set("custom_endpoints.voice_isolation.enabled", settings.CustomEndpoints.VoiceIsolation.Enabled)
+	viper.Set("custom_endpoints.voice_isolation.endpoint", settings.CustomEndpoints.VoiceIsolation.Endpoint)
+	viper.Set("custom_endpoints.llm.enabled", settings.CustomEndpoints.LLM.Enabled)
+	viper.Set("custom_endpoints.llm.endpoint", settings.CustomEndpoints.LLM.Endpoint)
+	viper.Set("custom_endpoints.llm.model", settings.CustomEndpoints.LLM.Model)
+
 	// Ensure config path exists
 	configPath, err := getConfigPath()
 	if err != nil {
@@ -310,4 +348,11 @@ func (settings Settings) LoadKeys() {
 		}
 		voice.APIKeys.Store(name, key)
 	}
+
+	// Store custom endpoint settings for the voice package
+	voice.CustomEndpoints.Store("stt_enabled", settings.CustomEndpoints.STT.Enabled)
+	voice.CustomEndpoints.Store("stt_endpoint", settings.CustomEndpoints.STT.Endpoint)
+	voice.CustomEndpoints.Store("stt_model", settings.CustomEndpoints.STT.Model)
+	voice.CustomEndpoints.Store("voice_isolation_enabled", settings.CustomEndpoints.VoiceIsolation.Enabled)
+	voice.CustomEndpoints.Store("voice_isolation_endpoint", settings.CustomEndpoints.VoiceIsolation.Endpoint)
 }

@@ -100,6 +100,23 @@ import { isDeveloperMode } from '../lib/developerMode';
             enabled: true,
             minInterval: 0,
             maxInterval: 250
+        },
+        // Custom endpoints for local inference
+        customEndpoints: {
+            stt: {
+                enabled: false,
+                endpoint: 'http://localhost:8080/v1/audio/transcriptions',
+                model: ''
+            },
+            voiceIsolation: {
+                enabled: false,
+                endpoint: 'http://localhost:8081/separate'
+            },
+            llm: {
+                enabled: false,
+                endpoint: 'http://localhost:11434/v1/chat/completions',
+                model: ''
+            }
         }
     };
 
@@ -671,6 +688,134 @@ import { isDeveloperMode } from '../lib/developerMode';
                                      </span>
                                  </div>
                             </div>
+                        </section>
+
+                        <!-- Custom Endpoints Settings (Local Inference) -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">cloud_off</span>
+                                Custom Endpoints (Local Inference)
+                            </h3>
+
+                            <!-- Custom STT Endpoint -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Custom STT Endpoint</span>
+                                    <span class="setting-description">OpenAI-compatible transcription endpoint</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.customEndpoints.stt.enabled}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            {#if currentSettings.customEndpoints.stt.enabled}
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>STT Endpoint URL</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.stt.endpoint}
+                                            placeholder="http://localhost:8080/v1/audio/transcriptions"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>STT Model (optional)</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.stt.model}
+                                            placeholder="whisper-1"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                            {/if}
+
+                            <!-- Custom Voice Isolation Endpoint -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Custom Voice Isolation Endpoint</span>
+                                    <span class="setting-description">Audio separation endpoint (Demucs-like)</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.customEndpoints.voiceIsolation.enabled}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            {#if currentSettings.customEndpoints.voiceIsolation.enabled}
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>Voice Isolation Endpoint URL</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.voiceIsolation.endpoint}
+                                            placeholder="http://localhost:8081/separate"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                            {/if}
+
+                            <!-- Custom LLM Endpoint -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Custom LLM Endpoint</span>
+                                    <span class="setting-description">OpenAI-compatible chat completions (Ollama, llama.cpp)</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.customEndpoints.llm.enabled}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            {#if currentSettings.customEndpoints.llm.enabled}
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>LLM Endpoint URL</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.llm.endpoint}
+                                            placeholder="http://localhost:11434/v1/chat/completions"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>LLM Model (optional)</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.llm.model}
+                                            placeholder="llama3"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                            {/if}
                         </section>
 
                         <!-- Intermediary File Handling Settings -->
