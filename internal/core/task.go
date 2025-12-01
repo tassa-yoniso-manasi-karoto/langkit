@@ -167,8 +167,13 @@ type Task struct {
 	KanjiThreshold             int
 	TokenizeSelectiveTranslit  bool
 	BrowserAccessURL           string
+	// DockerRecreate controls recreation of Docker containers for transliteration/tokenization
+	// (ichiran, pythainlp, etc. - used by subtitle processing features)
 	DockerRecreate             bool
-	
+	// DemucsDockerRecreate controls recreation of the Demucs Docker container for voice separation
+	// (used by voiceEnhancing feature with docker-demucs providers)
+	DemucsDockerRecreate       bool
+
 	// Output merging options
 	MergeOutputFiles     bool                // Whether to merge all output files
 	OutputFiles          []MediaOutputFile   // Files to be included in merged output

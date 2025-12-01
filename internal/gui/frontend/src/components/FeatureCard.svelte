@@ -184,6 +184,11 @@
     $: isDockerStatusForced = dockerStatus?.error === 'Debug: Forced state';
     $: isDockerUnavailable = dockerStatus?.checked ? !dockerStatus?.available : dockerUnreachable;
     
+    // Reactive computation for voiceEnhancing Docker requirement
+    $: voiceEnhancingNeedsDocker = feature.id === 'voiceEnhancing' &&
+        options.sepLib &&
+        options.sepLib.startsWith('docker-');
+
     // Reactive computation for missing LLM providers
     $: missingProviders = (() => {
         if (feature.id !== 'condensedAudio' || !isLLMReady) return [];
@@ -624,7 +629,12 @@
         if (condition === "context.standardTag === 'jpn'") {
             return standardTag === 'jpn';
         }
-        
+
+        // Handle voiceEnhancing Docker condition
+        if (condition === 'context.voiceEnhancingNeedsDocker') {
+            return voiceEnhancingNeedsDocker;
+        }
+
         // Fallback for any unhandled conditions - log warning and return false
         logger.warn('featureCard', `Unhandled showCondition: ${condition}`);
         return false;
@@ -664,7 +674,7 @@
     
     // Mark cache as dirty when dependencies change
     $: {
-        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError || isNativeLanguageEnglish || enabled || needsDocker || isDockerUnavailable) {
+        if (feature || options || standardTag || selectedFeatures || isLLMReady || isLLMInitializing || isLLMError || isNativeLanguageEnglish || enabled || needsDocker || isDockerUnavailable || voiceEnhancingNeedsDocker) {
             visibleOptionsDirty = true;
         }
     }
@@ -840,8 +850,13 @@
                 // Show message if no providers at all OR some providers are missing
                 return feature.options.summaryProvider.choices.length === 0 || missingProviders.length > 0;
             }
+        } else if (feature.id === 'voiceEnhancing') {
+            // Show Docker status message when a docker-based provider is selected
+            if (enabled && voiceEnhancingNeedsDocker) {
+                return true;
+            }
         }
-        
+
         // Dependency messages
         if (feature.dependentFeature && selectedFeatures[feature.dependentFeature] && enabled) {
             return true;
@@ -1076,6 +1091,26 @@
                                     </div>
                                 </div>
                             {/if}
+                        {/if}
+
+                    {:else if feature.id === 'voiceEnhancing'}
+                        <!-- Docker status banners for voice enhancing -->
+                        {#if enabled && voiceEnhancingNeedsDocker && !isDockerUnavailable}
+                            <div class={messageItemClass}>
+                                <DockerIcon size="1.5em" className="text-blue-400" />
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>{dockerEngine} is running and reachable.</span>
+                                </div>
+                            </div>
+                        {/if}
+
+                        {#if voiceEnhancingNeedsDocker && isDockerUnavailable}
+                            <div class={messageItemClass}>
+                                <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
+                                <div class="flex-1 text-xs text-[#ff0000] font-bold">
+                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                </div>
+                            </div>
                         {/if}
                     {/if}
 

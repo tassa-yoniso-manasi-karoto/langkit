@@ -186,8 +186,15 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 			}
 		}
 
+		if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
+			if recreate, ok := dockerRecreate.(bool); ok {
+				tsk.DemucsDockerRecreate = recreate
+			}
+		}
+
 		tsk.Handler.ZeroLog().Debug().
 			Interface("voice_enhancing_options", featureOpts).
+			Bool("demucs_docker_recreate", tsk.DemucsDockerRecreate).
 			Msg("Configured Voice Enhancing")
 	}
 

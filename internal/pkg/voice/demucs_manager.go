@@ -62,6 +62,10 @@ func (m DemucsMode) composeFile() string {
 type progressHandlerKeyType string
 const ProgressHandlerKey progressHandlerKeyType = "voice.progressHandler"
 
+// DockerRecreateKey is the context key for passing docker recreate flag
+type dockerRecreateKeyType string
+const DockerRecreateKey dockerRecreateKeyType = "voice.dockerRecreate"
+
 // ProgressHandler is called to report progress updates
 type ProgressHandler interface {
 	// IncrementDownloadProgress is for file/image downloads - displays humanized bytes
@@ -172,6 +176,11 @@ func (dm *DemucsManager) Init(ctx context.Context) error {
 // InitQuiet initializes the docker service with reduced logging
 func (dm *DemucsManager) InitQuiet(ctx context.Context) error {
 	return dm.docker.InitQuiet()
+}
+
+// InitRecreate forces recreation of the docker container
+func (dm *DemucsManager) InitRecreate(ctx context.Context) error {
+	return dm.docker.InitRecreate()
 }
 
 // Stop stops the docker service
@@ -604,12 +613,31 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 	demucsMu.Lock()
 	defer demucsMu.Unlock()
 
+	// Check if recreate is requested via context
+	wantRecreate := false
+	if val, ok := ctx.Value(DockerRecreateKey).(bool); ok {
+		wantRecreate = val
+	}
+
 	// Select the appropriate instance based on mode
 	var instance **DemucsManager
 	if mode == DemucsModeGPU {
 		instance = &demucsGPUInstance
 	} else {
 		instance = &demucsCPUInstance
+	}
+
+	// If recreate is requested and instance exists, stop and clear it
+	if wantRecreate && *instance != nil {
+		modeStr := "CPU"
+		if mode == DemucsModeGPU {
+			modeStr = "GPU"
+		}
+		DemucsLogger.Info().
+			Str("mode", modeStr).
+			Msg("Docker recreate requested, stopping existing container")
+		(*instance).Stop(ctx)
+		*instance = nil
 	}
 
 	if *instance == nil {
@@ -630,8 +658,17 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		if err != nil {
 			return nil, err
 		}
-		if err := mgr.Init(ctx); err != nil {
-			return nil, err
+
+		// Use InitRecreate if recreate was requested, otherwise normal Init
+		if wantRecreate {
+			DemucsLogger.Info().Msg("Recreating Docker container")
+			if err := mgr.InitRecreate(ctx); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := mgr.Init(ctx); err != nil {
+				return nil, err
+			}
 		}
 
 		// Brief pause to ensure container is fully ready for exec

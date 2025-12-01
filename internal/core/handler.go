@@ -1413,8 +1413,15 @@ func (h *GUIHandler) translateReq2Tsk(req generated.ProcessRequest, tsk *Task) {
 			}
 		}
 
+		if dockerRecreate, ok := featureOpts["dockerRecreate"]; ok {
+			if recreate, ok := dockerRecreate.(bool); ok {
+				tsk.DemucsDockerRecreate = recreate
+			}
+		}
+
 		h.logger.Debug().
 			Interface("voice_enhancing_options", featureOpts).
+			Bool("demucs_docker_recreate", tsk.DemucsDockerRecreate).
 			Msg("Configured Voice Enhancing")
 	}
 

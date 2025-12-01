@@ -234,6 +234,13 @@ const featuresArray: FeatureDefinition[] = [
                     'replicate-spleeter'
                 ]
             },
+            dockerRecreate: {
+                type: 'boolean',
+                label: 'Recreate Docker containers',
+                default: false,
+                hovertip: "Use this if the previous run failed or if you're experiencing issues with the Docker-based voice separation.",
+                showCondition: "context.voiceEnhancingNeedsDocker"
+            },
             voiceBoost: {
                 type: 'number',
                 label: 'Voice Boost (dB)',
