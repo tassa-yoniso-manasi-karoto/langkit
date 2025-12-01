@@ -25,9 +25,9 @@ import (
 const (
 	demucsRemote         = "https://github.com/tassa-yoniso-manasi-karoto/docker-facebook-demucs.git"
 	demucsProjectName    = "langkit-demucs"
-	demucsContainerName  = "langkit-demucs-demucs-1"
-	demucsImageName      = "xserrat/facebook-demucs:latest"
-	demucsImageSizeBytes = 2_500_000_000 // ~2.5 GB known compressed size
+	demucsContainerName  = "langkit-demucs"
+	demucsImageName      = "langkit-demucs:latest" // Local image (TODO: change to Docker Hub after push)
+	demucsImageSizeBytes = 5_000_000_000 // ~5 GB for CUDA 12 + PyTorch + demucs models
 )
 
 // ProgressHandlerKey is the context key for passing progress handler
@@ -35,9 +35,11 @@ type progressHandlerKeyType string
 const ProgressHandlerKey progressHandlerKeyType = "voice.progressHandler"
 
 // ProgressHandler is called to report progress updates
-// increment: bytes since last update, total: total bytes, status: current operation
 type ProgressHandler interface {
+	// IncrementDownloadProgress is for file/image downloads - displays humanized bytes
 	IncrementDownloadProgress(taskID string, increment, total, priority int, operation, descr, heightClass, humanizedSize string)
+	// IncrementProgress is for processing tasks - displays percentage
+	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
 	RemoveProgressBar(taskID string)
 	ZeroLog() *zerolog.Logger
 }
@@ -67,7 +69,7 @@ type DemucsOptions struct {
 func DefaultDemucsOptions() DemucsOptions {
 	return DemucsOptions{
 		Model:        "htdemucs",
-		OutputFormat: "wav",
+		OutputFormat: "flac", // flac/opus keep timing sync, mp3/wav can cause A/V desync
 		Stems:        "vocals",
 		Shifts:       1,
 		Overlap:      0.25,
@@ -202,17 +204,14 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 		stems = "vocals"
 	}
 
-	// Build command arguments
+	// Build command arguments for demucs-inference CLI
+	// Output template: /data/output/{model}/{track}/{stem}.{ext}
 	cmdArgs := []string{
-		"python3", "-m", "demucs",
-		"-n", model,
-		"--out", "/data/output",
-		"--two-stems", stems,
-	}
-
-	// Add output format for mp3
-	if outputFormat == "mp3" {
-		cmdArgs = append(cmdArgs, "--mp3")
+		"demucs", "separate",
+		"-m", model,
+		"-o", "/data/output/{model}/{track}/{stem}.{ext}",
+		"-f", outputFormat,
+		"--isolate-stem", stems,
 	}
 
 	// Add shifts if not default
@@ -222,7 +221,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 
 	// Add overlap if not default
 	if opts.Overlap != 0.25 && opts.Overlap > 0 {
-		cmdArgs = append(cmdArgs, "--overlap", fmt.Sprintf("%.2f", opts.Overlap))
+		cmdArgs = append(cmdArgs, "--split-overlap", fmt.Sprintf("%.2f", opts.Overlap))
 	}
 
 	// Add the input file path (inside container)
@@ -234,7 +233,45 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 		Str("container", dm.containerName).
 		Msg("Executing demucs command")
 
-	output, err := dm.execInContainer(ctx, cmdArgs)
+	// Extract progress handler from context if available
+	var progressCb ProgressCallback
+	if h := ctx.Value(ProgressHandlerKey); h != nil {
+		if handler, ok := h.(ProgressHandler); ok {
+			downloadTaskID := "demucs-model-download"
+			processTaskID := "demucs-process"
+			var lastDownloadPercent, lastProcessPercent int
+			var currentPhase DemucsPhase
+
+			progressCb = func(update ProgressUpdate) {
+				// Handle phase transitions
+				if update.Phase != PhaseUnknown && update.Phase != currentPhase {
+					// Phase changed
+					if currentPhase == PhaseModelDownload && update.Phase == PhaseProcessing {
+						// Finished download, remove download progress bar
+						handler.RemoveProgressBar(downloadTaskID)
+					}
+					currentPhase = update.Phase
+				}
+
+				switch currentPhase {
+				case PhaseModelDownload:
+					increment := update.Percent - lastDownloadPercent
+					if increment > 0 {
+						handler.IncrementProgress(downloadTaskID, increment, 100, 25, "Demucs Setup", "Downloading model weights...", "h-2")
+						lastDownloadPercent = update.Percent
+					}
+				case PhaseProcessing:
+					increment := update.Percent - lastProcessPercent
+					if increment > 0 {
+						handler.IncrementProgress(processTaskID, increment, 100, 30, "Voice Separation", "Processing audio...", "h-2")
+						lastProcessPercent = update.Percent
+					}
+				}
+			}
+		}
+	}
+
+	output, err := dm.execInContainerWithProgress(ctx, cmdArgs, progressCb)
 	if err != nil {
 		return nil, fmt.Errorf("demucs execution failed: %w\nOutput: %s", err, output)
 	}
@@ -242,27 +279,18 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 	DemucsLogger.Debug().Str("output", output).Msg("Demucs command completed")
 
 	// Find the output file
-	// Demucs outputs to: /data/output/<model>/<track_name>/<stems>.wav
+	// demucs-inference outputs to: /data/output/<model>/<track_name>/<stem>.<ext>
 	trackName := inputFilename[:len(inputFilename)-len(filepath.Ext(inputFilename))]
-	ext := outputFormat
-	if ext == "" {
-		ext = "wav"
-	}
 
 	// The vocals file will be at: output/<model>/<trackname>/vocals.<ext>
-	vocalsPath := filepath.Join(outputDir, model, trackName, stems+"."+ext)
+	vocalsPath := filepath.Join(outputDir, model, trackName, stems+"."+outputFormat)
 
 	DemucsLogger.Debug().Str("vocals_path", vocalsPath).Msg("Looking for output file")
 
 	// Read the output file
 	audioData, err := os.ReadFile(vocalsPath)
 	if err != nil {
-		// Try alternative path structure
-		altPath := filepath.Join(outputDir, model, trackName, "vocals."+ext)
-		audioData, err = os.ReadFile(altPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read output file: %w (tried %s and %s)", err, vocalsPath, altPath)
-		}
+		return nil, fmt.Errorf("failed to read output file %s: %w", vocalsPath, err)
 	}
 
 	// Clean up output directory for this track
@@ -272,19 +300,44 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 	return audioData, nil
 }
 
+// DemucsPhase represents the current phase of demucs execution
+type DemucsPhase int
+
+const (
+	PhaseUnknown DemucsPhase = iota
+	PhaseModelDownload
+	PhaseProcessing
+)
+
+// ProgressUpdate contains progress info with phase context
+type ProgressUpdate struct {
+	Phase   DemucsPhase
+	Percent int
+}
+
+// ProgressCallback is called with progress updates including phase
+type ProgressCallback func(update ProgressUpdate)
+
 // execInContainer executes a command in the demucs container
 func (dm *DemucsManager) execInContainer(ctx context.Context, cmd []string) (string, error) {
+	return dm.execInContainerWithProgress(ctx, cmd, nil)
+}
+
+// execInContainerWithProgress executes a command with optional progress callback
+// Uses TTY mode to get real-time Rich progress bar output
+func (dm *DemucsManager) execInContainerWithProgress(ctx context.Context, cmd []string, progressCb ProgressCallback) (string, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return "", fmt.Errorf("failed to create Docker client: %w", err)
 	}
 	defer cli.Close()
 
-	// Create exec configuration
+	// Create exec configuration - use TTY for Rich progress output
 	execConfig := container.ExecOptions{
 		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
+		Tty:          true,
 	}
 
 	// Create the exec instance
@@ -294,65 +347,101 @@ func (dm *DemucsManager) execInContainer(ctx context.Context, cmd []string) (str
 	}
 
 	// Attach to the exec instance
-	resp, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
+	resp, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{Tty: true})
 	if err != nil {
 		return "", fmt.Errorf("failed to attach to exec: %w", err)
 	}
 	defer resp.Close()
 
-	// Read output
-	var stdout, stderr bytes.Buffer
-	_, err = stdCopy(&stdout, &stderr, resp.Reader)
-	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("failed to read exec output: %w", err)
+	// Read output - with TTY, stdout/stderr are combined
+	var output bytes.Buffer
+	buf := make([]byte, 4096)
+	var lastPercent int = -1
+	var currentPhase DemucsPhase = PhaseUnknown
+
+	for {
+		n, readErr := resp.Reader.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+			output.Write(chunk)
+
+			// Parse progress from Rich TTY output
+			if progressCb != nil {
+				phase, pct := parseDemucsProgress(chunk, currentPhase)
+				if phase != PhaseUnknown {
+					currentPhase = phase
+				}
+				// Report progress when percentage changes or phase changes
+				if pct >= 0 && (pct != lastPercent || phase != PhaseUnknown) {
+					progressCb(ProgressUpdate{Phase: currentPhase, Percent: pct})
+					lastPercent = pct
+				}
+			}
+		}
+		if readErr != nil {
+			break
+		}
 	}
 
 	// Check exec exit code
 	inspectResp, err := cli.ContainerExecInspect(ctx, execID.ID)
 	if err != nil {
-		return stdout.String() + stderr.String(), fmt.Errorf("failed to inspect exec: %w", err)
+		return output.String(), fmt.Errorf("failed to inspect exec: %w", err)
 	}
 
 	if inspectResp.ExitCode != 0 {
-		return stdout.String() + stderr.String(), fmt.Errorf("command exited with code %d: %s", inspectResp.ExitCode, stderr.String())
+		return output.String(), fmt.Errorf("command exited with code %d: %s", inspectResp.ExitCode, output.String())
 	}
 
-	return stdout.String() + stderr.String(), nil
+	return output.String(), nil
 }
 
-// stdCopy is a helper to demultiplex docker output streams
-func stdCopy(stdout, stderr io.Writer, src io.Reader) (int64, error) {
-	// Docker multiplexes stdout/stderr with 8-byte headers
-	// Header format: [STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4]
-	// STREAM_TYPE: 0=stdin, 1=stdout, 2=stderr
-	var total int64
-	header := make([]byte, 8)
+// parseDemucsProgress extracts phase and percentage from Rich TTY output
+// Returns detected phase (or PhaseUnknown if no phase indicator) and percentage (-1 if none)
+func parseDemucsProgress(data []byte, currentPhase DemucsPhase) (DemucsPhase, int) {
+	str := string(data)
+	detectedPhase := PhaseUnknown
 
-	for {
-		_, err := io.ReadFull(src, header)
-		if err != nil {
-			return total, err
-		}
-
-		// Get payload size from header bytes 4-7 (big endian)
-		size := int64(header[4])<<24 | int64(header[5])<<16 | int64(header[6])<<8 | int64(header[7])
-
-		var dst io.Writer
-		switch header[0] {
-		case 1: // stdout
-			dst = stdout
-		case 2: // stderr
-			dst = stderr
-		default:
-			dst = stdout
-		}
-
-		n, err := io.CopyN(dst, src, size)
-		total += n
-		if err != nil {
-			return total, err
+	// Detect phase from content
+	// "Downloading htdemucs" indicates model download phase
+	if bytes.Contains(data, []byte("Downloading")) {
+		detectedPhase = PhaseModelDownload
+	}
+	// "Separated track" or audio file extensions indicate processing phase
+	if bytes.Contains(data, []byte("Separated track")) ||
+		bytes.Contains(data, []byte(".opus")) ||
+		bytes.Contains(data, []byte(".mp3")) ||
+		bytes.Contains(data, []byte(".flac")) ||
+		bytes.Contains(data, []byte(".wav")) {
+		// Only switch to processing if we see these AND we're past download
+		// (the filename appears in both phases, so check for "Separated" or after download)
+		if bytes.Contains(data, []byte("Separated track")) || currentPhase == PhaseModelDownload {
+			detectedPhase = PhaseProcessing
 		}
 	}
+
+	// Find percentage - look for pattern \d+%
+	lastPercent := -1
+	for i := 0; i < len(str)-1; i++ {
+		if str[i] >= '0' && str[i] <= '9' {
+			j := i
+			for j < len(str) && str[j] >= '0' && str[j] <= '9' {
+				j++
+			}
+			if j < len(str) && str[j] == '%' {
+				numStr := str[i:j]
+				var pct int
+				if _, err := fmt.Sscanf(numStr, "%d", &pct); err == nil {
+					if pct >= 0 && pct <= 100 {
+						lastPercent = pct
+					}
+				}
+				i = j
+			}
+		}
+	}
+
+	return detectedPhase, lastPercent
 }
 
 // copyFile copies a file from src to dst
@@ -505,6 +594,11 @@ func GetDemucsManager(ctx context.Context) (*DemucsManager, error) {
 		if err := mgr.Init(ctx); err != nil {
 			return nil, err
 		}
+
+		// Brief pause to ensure container is fully ready for exec
+		// (race condition: container "running" but not yet accepting exec)
+		time.Sleep(500 * time.Millisecond)
+
 		demucsInstance = mgr
 
 		// Start idle watcher only once
