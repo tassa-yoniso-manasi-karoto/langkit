@@ -170,7 +170,7 @@
                 if (isLargeBar && userActivityState === 'active') {
                     // Only remove completed large bars if user is active
                     // and wait a bit longer to ensure user sees completion
-                    setTimeout(() => removeProgressBar(bar.id), 3000);
+                    setTimeout(() => removeProgressBar(bar.id), 120000); // 2 minutes
                 }
             }
         });
@@ -201,7 +201,7 @@
                     
                     if (isSmallBar && !bar.errorState) {
                         // Remove small bars after a delay whether user is active or not
-                        setTimeout(() => removeProgressBar(bar.id), 3000);
+                        setTimeout(() => removeProgressBar(bar.id), 120000); // 2 minutes
                     }
                     // Larger bars will remain until user activity is detected (handled in checkForCompletedLargeBars)
                     // Bars with errors remain visible until manually cleared
