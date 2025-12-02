@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte'; // Added onDestroy
     import { slide, fade } from 'svelte/transition';
-    import { settings, showSettings } from '../lib/stores';
+    import { settings, showSettings, mergeSettingsWithDefaults } from '../lib/stores';
 import { isDeveloperMode } from '../lib/developerMode';
     import { OpenExecutableDialog } from '../api/services/media';
     import { ValidateLanguageTag } from '../api';
@@ -101,6 +101,9 @@ import { isDeveloperMode } from '../lib/developerMode';
             minInterval: 0,
             maxInterval: 250
         },
+        // File handling settings
+        intermediaryFileMode: 'keep',
+        deleteResumptionFiles: false,
         // Custom endpoints for local inference
         customEndpoints: {
             stt: {
@@ -335,32 +338,14 @@ import { isDeveloperMode } from '../lib/developerMode';
     onMount(async () => {
         logger.info('Settings', 'Component mounting, loading settings');
         try {
-            // Load settings from backend
+            // Load settings from backend with proper defaults merging
             const loadedSettings = await LoadSettings();
-            settings.set(loadedSettings); // Update store with backend data
-            logger.debug('Settings', 'Settings loaded from backend', { 
-                hasApiKeys: !!loadedSettings.apiKeys,
-                targetLanguage: loadedSettings.targetLanguage,
-                useWasm: loadedSettings.useWasm 
+            currentSettings = settings.load(loadedSettings);
+            logger.debug('Settings', 'Settings loaded from backend', {
+                hasApiKeys: !!currentSettings.apiKeys,
+                targetLanguage: currentSettings.targetLanguage,
+                useWasm: currentSettings.useWasm
             });
-            
-            // Merge loaded settings with defaults to ensure all fields exist
-            currentSettings = {
-                ...currentSettings, // Keep defaults as fallback
-                ...loadedSettings,
-                targetLanguage: loadedSettings.targetLanguage || '',
-                nativeLanguages: loadedSettings.nativeLanguages || '',
-                // Ensure WASM fields exist
-                useWasm: loadedSettings.useWasm !== undefined ? loadedSettings.useWasm : true,
-                wasmSizeThreshold: loadedSettings.wasmSizeThreshold || 500,
-                forceWasmMode: (loadedSettings.forceWasmMode || 'auto') as "auto" | "enabled" | "disabled", // Add type assertion
-                // Ensure event throttling exists
-                eventThrottling: loadedSettings.eventThrottling || {
-                    enabled: true,
-                    minInterval: 0,
-                    maxInterval: 250
-                }
-            };
             
             // Initialize previous values to current settings
             previousTargetLanguage = currentSettings.targetLanguage;
@@ -406,16 +391,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         if (currentShowSettings && !prevShowSettingsState) {
             logger.debug('Settings', 'Panel opened, reloading settings from backend');
             LoadSettings().then(loadedSettings => {
-                currentSettings = {
-                    ...currentSettings, // Keep defaults as fallback
-                    ...loadedSettings,
-                    targetLanguage: loadedSettings.targetLanguage || '',
-                    nativeLanguages: loadedSettings.nativeLanguages || '',
-                    forceWasmMode: (loadedSettings.forceWasmMode || 'auto') as "auto" | "enabled" | "disabled",
-                    eventThrottling: typeof loadedSettings.eventThrottling === 'object' && loadedSettings.eventThrottling !== null
-                                        ? loadedSettings.eventThrottling
-                                        : currentSettings.eventThrottling
-                };
+                currentSettings = settings.load(loadedSettings);
                 previousTargetLanguage = currentSettings.targetLanguage;
                 previousNativeLanguages = currentSettings.nativeLanguages;
 
@@ -443,17 +419,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         if (value && Object.keys(value).length > 0) {
             // Don't overwrite local changes during editing
             if (!$showSettings) {
-                currentSettings = {
-                    ...currentSettings, // Keep defaults as fallback
-                    ...value,
-                    targetLanguage: value.targetLanguage || '',
-                    nativeLanguages: value.nativeLanguages || '',
-                    forceWasmMode: (value.forceWasmMode || 'auto') as "auto" | "enabled" | "disabled", // Add type assertion
-                    // Add type check for eventThrottling
-                    eventThrottling: typeof value.eventThrottling === 'object' && value.eventThrottling !== null
-                                        ? value.eventThrottling
-                                        : currentSettings.eventThrottling
-                };
+                currentSettings = mergeSettingsWithDefaults(value);
                 validateLanguages();
             }
         }

@@ -109,10 +109,43 @@ const initSettings: Settings = {
 
 type showSettings = boolean;
 
+// Merge loaded settings with defaults, ensuring nested structures are always complete
+export function mergeSettingsWithDefaults(loaded: Partial<Settings>): Settings {
+    return {
+        ...initSettings,
+        ...loaded,
+        // Ensure nested objects are properly merged (not overwritten with null/undefined)
+        apiKeys: {
+            ...initSettings.apiKeys,
+            ...loaded.apiKeys
+        },
+        eventThrottling: {
+            ...initSettings.eventThrottling,
+            ...loaded.eventThrottling
+        },
+        customEndpoints: {
+            stt: {
+                enabled: loaded.customEndpoints?.stt?.enabled ?? initSettings.customEndpoints!.stt.enabled,
+                endpoint: loaded.customEndpoints?.stt?.endpoint || initSettings.customEndpoints!.stt.endpoint,
+                model: loaded.customEndpoints?.stt?.model ?? initSettings.customEndpoints!.stt.model
+            },
+            llm: {
+                enabled: loaded.customEndpoints?.llm?.enabled ?? initSettings.customEndpoints!.llm.enabled,
+                endpoint: loaded.customEndpoints?.llm?.endpoint || initSettings.customEndpoints!.llm.endpoint,
+                model: loaded.customEndpoints?.llm?.model ?? initSettings.customEndpoints!.llm.model
+            }
+        },
+        // Ensure scalar fields have proper defaults
+        intermediaryFileMode: loaded.intermediaryFileMode || initSettings.intermediaryFileMode,
+        deleteResumptionFiles: loaded.deleteResumptionFiles ?? initSettings.deleteResumptionFiles,
+        forceWasmMode: (loaded.forceWasmMode || initSettings.forceWasmMode) as 'auto' | 'enabled' | 'disabled'
+    };
+}
+
 // Create custom settings store with logging
 function createSettingsStore() {
     const { subscribe, set, update } = writable<Settings>(initSettings);
-    
+
     return {
         subscribe,
         set: (value: Settings) => {
@@ -124,6 +157,17 @@ function createSettingsStore() {
                 wasmSizeThreshold: value.wasmSizeThreshold
             });
             set(value);
+        },
+        // Load settings from backend, merging with defaults
+        load: (loaded: Partial<Settings>) => {
+            const merged = mergeSettingsWithDefaults(loaded);
+            logger.trace('store/settings', 'Settings loaded and merged with defaults', {
+                hasApiKeys: !!merged.apiKeys,
+                targetLanguage: merged.targetLanguage,
+                hasCustomEndpoints: !!merged.customEndpoints
+            });
+            set(merged);
+            return merged;
         },
         update: (updater: (value: Settings) => Settings) => {
             update((current) => {

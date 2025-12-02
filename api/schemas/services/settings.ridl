@@ -16,6 +16,15 @@ struct EventThrottling
   - minInterval: int32  # milliseconds
   - maxInterval: int32  # milliseconds
 
+struct CustomEndpointConfig
+  - enabled: bool
+  - endpoint: string
+  - model: string
+
+struct CustomEndpoints
+  - stt: CustomEndpointConfig
+  - llm: CustomEndpointConfig
+
 struct Settings
   - apiKeys: APIKeys
   - targetLanguage: string
@@ -30,9 +39,14 @@ struct Settings
   - timeoutDL: int32   # seconds
   - logViewerVirtualizationThreshold: int32
   - eventThrottling: EventThrottling
+  - intermediaryFileMode: string  # keep, recompress, delete
+  - deleteResumptionFiles: bool
   - useWasm: bool
   - wasmSizeThreshold: int32
   - forceWasmMode: string
+  - ffmpegPath: string
+  - mediainfoPath: string
+  - customEndpoints: CustomEndpoints
 
 struct StatisticsUpdate
   - updates: map<string,any>

@@ -87,11 +87,27 @@ func (s *SettingsService) LoadSettings(ctx context.Context) (*generated.Settings
 			MinInterval: int32(settings.EventThrottling.MinInterval),
 			MaxInterval: int32(settings.EventThrottling.MaxInterval),
 		},
-		UseWasm:           settings.UseWasm,
-		WasmSizeThreshold: int32(settings.WasmSizeThreshold),
-		ForceWasmMode:     settings.ForceWasmMode,
+		IntermediaryFileMode:  string(settings.IntermediaryFileMode),
+		DeleteResumptionFiles: settings.DeleteResumptionFiles,
+		UseWasm:               settings.UseWasm,
+		WasmSizeThreshold:     int32(settings.WasmSizeThreshold),
+		ForceWasmMode:         settings.ForceWasmMode,
+		FfmpegPath:            settings.FFmpegPath,
+		MediainfoPath:         settings.MediaInfoPath,
+		CustomEndpoints: &generated.CustomEndpoints{
+			Stt: &generated.CustomEndpointConfig{
+				Enabled:  settings.CustomEndpoints.STT.Enabled,
+				Endpoint: settings.CustomEndpoints.STT.Endpoint,
+				Model:    settings.CustomEndpoints.STT.Model,
+			},
+			Llm: &generated.CustomEndpointConfig{
+				Enabled:  settings.CustomEndpoints.LLM.Enabled,
+				Endpoint: settings.CustomEndpoints.LLM.Endpoint,
+				Model:    settings.CustomEndpoints.LLM.Model,
+			},
+		},
 	}
-	
+
 	return genSettings, nil
 }
 
@@ -112,11 +128,15 @@ func (s *SettingsService) SaveSettings(ctx context.Context, genSettings *generat
 		TimeoutSTT:                       int(genSettings.TimeoutSTT),
 		TimeoutDL:                        int(genSettings.TimeoutDL),
 		LogViewerVirtualizationThreshold: int(genSettings.LogViewerVirtualizationThreshold),
+		IntermediaryFileMode:             config.IntermediaryFileMode(genSettings.IntermediaryFileMode),
+		DeleteResumptionFiles:            genSettings.DeleteResumptionFiles,
 		UseWasm:                          genSettings.UseWasm,
 		WasmSizeThreshold:                int(genSettings.WasmSizeThreshold),
 		ForceWasmMode:                    genSettings.ForceWasmMode,
+		FFmpegPath:                       genSettings.FfmpegPath,
+		MediaInfoPath:                    genSettings.MediainfoPath,
 	}
-	
+
 	// Handle API keys if provided
 	if genSettings.ApiKeys != nil {
 		if genSettings.ApiKeys.Replicate != nil {
@@ -135,12 +155,26 @@ func (s *SettingsService) SaveSettings(ctx context.Context, genSettings *generat
 			settings.APIKeys.Google = *genSettings.ApiKeys.Google
 		}
 	}
-	
+
 	// Handle event throttling
 	if genSettings.EventThrottling != nil {
 		settings.EventThrottling.Enabled = genSettings.EventThrottling.Enabled
 		settings.EventThrottling.MinInterval = int(genSettings.EventThrottling.MinInterval)
 		settings.EventThrottling.MaxInterval = int(genSettings.EventThrottling.MaxInterval)
+	}
+
+	// Handle custom endpoints
+	if genSettings.CustomEndpoints != nil {
+		if genSettings.CustomEndpoints.Stt != nil {
+			settings.CustomEndpoints.STT.Enabled = genSettings.CustomEndpoints.Stt.Enabled
+			settings.CustomEndpoints.STT.Endpoint = genSettings.CustomEndpoints.Stt.Endpoint
+			settings.CustomEndpoints.STT.Model = genSettings.CustomEndpoints.Stt.Model
+		}
+		if genSettings.CustomEndpoints.Llm != nil {
+			settings.CustomEndpoints.LLM.Enabled = genSettings.CustomEndpoints.Llm.Enabled
+			settings.CustomEndpoints.LLM.Endpoint = genSettings.CustomEndpoints.Llm.Endpoint
+			settings.CustomEndpoints.LLM.Model = genSettings.CustomEndpoints.Llm.Model
+		}
 	}
 	
 	// Save the settings to disk
