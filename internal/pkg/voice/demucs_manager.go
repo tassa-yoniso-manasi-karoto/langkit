@@ -159,8 +159,8 @@ func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		return nil, fmt.Errorf("failed to create Docker manager: %w", err)
 	}
 
-	// Get the config directory for volume paths
-	configDir, err := dockerutil.GetConfigDir(demucsProjectName)
+	// Get the config directory for volume paths (use mode-specific project name)
+	configDir, err := dockerutil.GetConfigDir(manager.projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config directory: %w", err)
 	}
