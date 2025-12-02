@@ -223,10 +223,10 @@ func (dm *DemucsManager) removeStaleContainer(ctx context.Context) error {
 	// Brief pause to ensure container is fully stopped
 	time.Sleep(100 * time.Millisecond)
 
-	// Remove the container with force and volumes
+	// Remove the container with force but preserve volumes (model weights)
 	err = cli.ContainerRemove(ctx, dm.containerName, container.RemoveOptions{
 		Force:         true,
-		RemoveVolumes: true,
+		RemoveVolumes: false,
 	})
 	if err != nil {
 		// Only ignore "not found" errors
@@ -254,7 +254,7 @@ func removeContainerByName(ctx context.Context, name string) {
 
 	stopTimeout := 3
 	_ = cli.ContainerStop(ctx, name, container.StopOptions{Timeout: &stopTimeout})
-	_ = cli.ContainerRemove(ctx, name, container.RemoveOptions{Force: true, RemoveVolumes: true})
+	_ = cli.ContainerRemove(ctx, name, container.RemoveOptions{Force: true, RemoveVolumes: false})
 }
 
 // Stop stops the docker service
@@ -733,22 +733,28 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 			return nil, err
 		}
 
-		// Remove any stale containers before starting (both CPU and GPU names)
-		// This handles cases where user switches between modes
-		mgr.removeStaleContainer(ctx)
-		removeContainerByName(ctx, "langkit-demucs")
-		removeContainerByName(ctx, "langkit-demucs-gpu")
-
-		// Use InitRecreate if recreate was requested, otherwise normal Init
+		// Initialize container - use InitRecreate if explicitly requested
+		var initErr error
 		if wantRecreate {
 			DemucsLogger.Info().Msg("Recreating Docker container")
-			if err := mgr.InitRecreate(ctx); err != nil {
-				return nil, err
-			}
+			initErr = mgr.InitRecreate(ctx)
 		} else {
-			if err := mgr.Init(ctx); err != nil {
-				return nil, err
+			initErr = mgr.Init(ctx)
+		}
+
+		// Handle name conflict errors reactively (instead of preemptive cleanup)
+		if initErr != nil && strings.Contains(initErr.Error(), "already in use") {
+			DemucsLogger.Warn().Msg("Container name conflict detected, cleaning up stale container and retrying")
+			mgr.removeStaleContainer(ctx)
+			// Retry initialization
+			if wantRecreate {
+				initErr = mgr.InitRecreate(ctx)
+			} else {
+				initErr = mgr.Init(ctx)
 			}
+		}
+		if initErr != nil {
+			return nil, initErr
 		}
 
 		// Verify container is ready for exec commands
