@@ -50,7 +50,8 @@ export const providersRequiringTokens = {
     'replicate-spleeter': 'replicate'
 };
 
-export const providerGithubUrls = {
+export const providerGithubUrls: Record<string, string> = {
+    // Romanization/tokenization providers
     'ichiran':      'https://github.com/tshatrov/ichiran',
     'aksharamukha': 'https://github.com/virtualvinodh/aksharamukha',
     'iuliia':       'https://github.com/mehanizm/iuliia-go',
@@ -58,6 +59,31 @@ export const providerGithubUrls = {
     'paiboonizer':  'https://github.com/tassa-yoniso-manasi-karoto/paiboonizer',
     'gojieba':      'https://github.com/yanyiwu/gojieba',
     'gopinyin':     'https://github.com/mozillazg/go-pinyin',
+    // Voice separation providers
+    'demucs':       'https://github.com/Ryan5453/demucs',
+    'spleeter':     'https://github.com/deezer/spleeter',
+};
+
+// Map voice separation library names to their GitHub links (array for multiple links)
+export const sepLibGithubUrls: Record<string, string[]> = {
+    'docker-demucs':          ['https://github.com/Ryan5453/demucs', 'https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs'],
+    'docker-demucs_ft':       ['https://github.com/Ryan5453/demucs', 'https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs'],
+    'docker-nvidia-demucs':   ['https://github.com/Ryan5453/demucs', 'https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs'],
+    'docker-nvidia-demucs_ft': ['https://github.com/Ryan5453/demucs', 'https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs'],
+    'replicate-demucs':       ['https://github.com/Ryan5453/demucs'],
+    'replicate-demucs_ft':    ['https://github.com/Ryan5453/demucs'],
+    'replicate-spleeter':     ['https://github.com/deezer/spleeter'],
+};
+
+// Display names for voice separation libraries
+export const sepLibDisplayNames: Record<string, string> = {
+    'docker-demucs':          'Demucs',
+    'docker-demucs_ft':       'Demucs Fine-tuned',
+    'docker-nvidia-demucs':   'Demucs',
+    'docker-nvidia-demucs_ft': 'Demucs Fine-tuned',
+    'replicate-demucs':       'Demucs',
+    'replicate-demucs_ft':    'Demucs Fine-tuned',
+    'replicate-spleeter':     'Spleeter',
 };
 
 // Define the features with their options

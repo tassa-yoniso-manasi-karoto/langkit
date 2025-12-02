@@ -3,7 +3,7 @@
     import { createEventDispatcher, onMount, onDestroy, tick, afterUpdate } from 'svelte';
     import { fade } from 'svelte/transition';
     
-    import { formatDisplayText, sttModelsStore, type FeatureDefinition } from '../lib/featureModel';
+    import { formatDisplayText, sttModelsStore, sepLibGithubUrls, sepLibDisplayNames, type FeatureDefinition } from '../lib/featureModel';
     import { invalidationErrorStore } from '../lib/invalidationErrorStore';
     import { showSettings, llmStateStore, settings, type LLMStateChange, dockerStatusStore } from '../lib/stores';
     import { 
@@ -1305,6 +1305,16 @@
                                             disabled={!isLLMReady}
                                         />
                                         {/key}
+                                    {:else if optionDef.type === 'dropdown' && optionId === 'sepLib' && feature.id === 'voiceEnhancing'}
+                                        <!-- Voice separation library dropdown -->
+                                        {#key optionDef.choices}
+                                        <Dropdown
+                                            options={optionDef.choices || []}
+                                            value={options[optionId]}
+                                            on:change={(e) => handleDropdownChange(optionId, e.detail)}
+                                            label={optionDef.label}
+                                        />
+                                        {/key}
                                     {:else if optionDef.type === 'dropdown'}
                                         <!-- Standard dropdown for other options -->
                                         {#key optionDef.choices}
@@ -1398,10 +1408,36 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Voice separation provider display row (immediately after sepLib dropdown) -->
+                        {#if optionId === 'sepLib' && feature.id === 'voiceEnhancing' && options.sepLib && sepLibGithubUrls[options.sepLib]}
+                            <div class="option-row">
+                                <div class="option-label">
+                                    <span class="text-gray-200 text-[15px] text-left">Provider</span>
+                                </div>
+                                <div class="option-input">
+                                    <div class="input-wrapper flex items-center justify-center">
+                                        <div class="w-full px-3 py-1 text-sm inline-flex font-bold text-white/90 items-center justify-center gap-2">
+                                            {sepLibDisplayNames[options.sepLib] || options.sepLib}
+                                            {#each sepLibGithubUrls[options.sepLib] as url}
+                                                <ExternalLink
+                                                    href={url}
+                                                    className="text-primary/70 hover:text-primary transition-colors duration-200"
+                                                    title={url.split('/').slice(-2).join('/')}
+                                                >
+                                                    <svg viewBox="0 0 16 16" class="w-5 h-5 fill-primary">
+                                                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                                                    </svg>
+                                                </ExternalLink>
+                                            {/each}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {/if}
                     {/if}
                 {/each}
                 {/key}
-                
+
                 <!-- LLM Loading indicator card for condensedAudio feature -->
                 {#if feature.id === 'condensedAudio' && options.enableSummary && (isLLMInitializing || isLLMError)}
                     <div class="mt-3 w-full" transition:fade={{ duration: 300 }}>
