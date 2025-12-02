@@ -48,10 +48,6 @@ type Settings = {
             endpoint: string;
             model: string;
         };
-        voiceIsolation: {
-            enabled: boolean;
-            endpoint: string;
-        };
         llm: {
             enabled: boolean;
             endpoint: string;
@@ -102,10 +98,6 @@ const initSettings: Settings = {
             enabled: false,
             endpoint: 'http://localhost:8080/v1/audio/transcriptions',
             model: ''
-        },
-        voiceIsolation: {
-            enabled: false,
-            endpoint: 'http://localhost:8081/separate'
         },
         llm: {
             enabled: false,

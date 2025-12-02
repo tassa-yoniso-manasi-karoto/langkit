@@ -75,10 +75,6 @@ type Settings struct {
 			Endpoint string `json:"endpoint" mapstructure:"endpoint"`
 			Model    string `json:"model" mapstructure:"model"`
 		} `json:"stt" mapstructure:"stt"`
-		VoiceIsolation struct {
-			Enabled  bool   `json:"enabled" mapstructure:"enabled"`
-			Endpoint string `json:"endpoint" mapstructure:"endpoint"`
-		} `json:"voiceIsolation" mapstructure:"voice_isolation"`
 		LLM struct {
 			Enabled  bool   `json:"enabled" mapstructure:"enabled"`
 			Endpoint string `json:"endpoint" mapstructure:"endpoint"`
@@ -167,8 +163,6 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("custom_endpoints.stt.enabled", false)
 	viper.SetDefault("custom_endpoints.stt.endpoint", "http://localhost:8080/v1/audio/transcriptions")
 	viper.SetDefault("custom_endpoints.stt.model", "")
-	viper.SetDefault("custom_endpoints.voice_isolation.enabled", false)
-	viper.SetDefault("custom_endpoints.voice_isolation.endpoint", "http://localhost:8081/separate")
 	viper.SetDefault("custom_endpoints.llm.enabled", false)
 	viper.SetDefault("custom_endpoints.llm.endpoint", "http://localhost:11434/v1/chat/completions")
 	viper.SetDefault("custom_endpoints.llm.model", "")
@@ -274,8 +268,6 @@ func SaveSettings(settings Settings) error {
 	viper.Set("custom_endpoints.stt.enabled", settings.CustomEndpoints.STT.Enabled)
 	viper.Set("custom_endpoints.stt.endpoint", settings.CustomEndpoints.STT.Endpoint)
 	viper.Set("custom_endpoints.stt.model", settings.CustomEndpoints.STT.Model)
-	viper.Set("custom_endpoints.voice_isolation.enabled", settings.CustomEndpoints.VoiceIsolation.Enabled)
-	viper.Set("custom_endpoints.voice_isolation.endpoint", settings.CustomEndpoints.VoiceIsolation.Endpoint)
 	viper.Set("custom_endpoints.llm.enabled", settings.CustomEndpoints.LLM.Enabled)
 	viper.Set("custom_endpoints.llm.endpoint", settings.CustomEndpoints.LLM.Endpoint)
 	viper.Set("custom_endpoints.llm.model", settings.CustomEndpoints.LLM.Model)
@@ -353,6 +345,4 @@ func (settings Settings) LoadKeys() {
 	voice.CustomEndpoints.Store("stt_enabled", settings.CustomEndpoints.STT.Enabled)
 	voice.CustomEndpoints.Store("stt_endpoint", settings.CustomEndpoints.STT.Endpoint)
 	voice.CustomEndpoints.Store("stt_model", settings.CustomEndpoints.STT.Model)
-	voice.CustomEndpoints.Store("voice_isolation_enabled", settings.CustomEndpoints.VoiceIsolation.Enabled)
-	voice.CustomEndpoints.Store("voice_isolation_endpoint", settings.CustomEndpoints.VoiceIsolation.Endpoint)
 }

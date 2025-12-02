@@ -42,8 +42,6 @@ func init() {
 	CustomEndpoints.Store("stt_enabled", false)
 	CustomEndpoints.Store("stt_endpoint", "")
 	CustomEndpoints.Store("stt_model", "")
-	CustomEndpoints.Store("voice_isolation_enabled", false)
-	CustomEndpoints.Store("voice_isolation_endpoint", "")
 }
 
 // ElevenLabsSTTProvider implements SpeechToTextProvider using ElevenLabs Scribe API

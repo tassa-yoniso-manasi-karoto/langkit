@@ -108,10 +108,6 @@ import { isDeveloperMode } from '../lib/developerMode';
                 endpoint: 'http://localhost:8080/v1/audio/transcriptions',
                 model: ''
             },
-            voiceIsolation: {
-                enabled: false,
-                endpoint: 'http://localhost:8081/separate'
-            },
             llm: {
                 enabled: false,
                 endpoint: 'http://localhost:11434/v1/chat/completions',
@@ -697,10 +693,10 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 Custom Endpoints (Local Inference)
                             </h3>
 
-                            <!-- Custom STT Endpoint -->
+                            <!-- Custom STT/ASR Endpoint -->
                             <div class="setting-row">
                                 <div class="setting-label">
-                                    <span>Custom STT Endpoint</span>
+                                    <span>Custom STT/ASR Endpoint</span>
                                     <span class="setting-description">OpenAI-compatible transcription endpoint</span>
                                 </div>
                                 <div class="setting-control">
@@ -735,38 +731,6 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         <TextInput
                                             bind:value={currentSettings.customEndpoints.stt.model}
                                             placeholder="whisper-1"
-                                            className="w-full"
-                                        />
-                                    </div>
-                                </div>
-                            {/if}
-
-                            <!-- Custom Voice Isolation Endpoint -->
-                            <div class="setting-row">
-                                <div class="setting-label">
-                                    <span>Custom Voice Isolation Endpoint</span>
-                                    <span class="setting-description">Audio separation endpoint (Demucs-like)</span>
-                                </div>
-                                <div class="setting-control">
-                                    <label class="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            bind:checked={currentSettings.customEndpoints.voiceIsolation.enabled}
-                                            on:change={updateSettings}
-                                        />
-                                        <span class="slider round"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            {#if currentSettings.customEndpoints.voiceIsolation.enabled}
-                                <div class="setting-row">
-                                    <div class="setting-label">
-                                        <span>Voice Isolation Endpoint URL</span>
-                                    </div>
-                                    <div class="setting-control">
-                                        <TextInput
-                                            bind:value={currentSettings.customEndpoints.voiceIsolation.endpoint}
-                                            placeholder="http://localhost:8081/separate"
                                             className="w-full"
                                         />
                                     </div>

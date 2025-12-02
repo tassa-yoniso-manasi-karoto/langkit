@@ -154,8 +154,6 @@ func (f *ProviderFactory) GetAudioSeparationProvider(name string) (AudioSeparati
 		return NewDemucsProvider(false), nil
 	case "demucs_ft":
 		return NewDemucsProvider(true), nil
-	case "custom":
-		return NewCustomSeparationProvider(), nil
 	case "docker-demucs":
 		return NewDockerDemucsProvider(false, false), nil
 	case "docker-demucs_ft":
