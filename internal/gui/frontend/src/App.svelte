@@ -339,19 +339,19 @@
         }
     }
     
-    // Check Docker requirements for selected features
+    // Check Docker requirements for romanization/transliteration features
     $: {
         const dockerChecked = $dockerStatusStore.checked;
         const dockerAvailable = $dockerStatusStore.available;
-        
+
         // Check if subtitle linguistic processing features are selected
-        const linguisticFeaturesSelected = selectedFeatures.subtitleRomanization || 
-                                         selectedFeatures.selectiveTransliteration || 
+        const linguisticFeaturesSelected = selectedFeatures.subtitleRomanization ||
+                                         selectedFeatures.selectiveTransliteration ||
                                          selectedFeatures.subtitleTokenization;
-        
+
         // Check if current scheme requires Docker
         const requiresDocker = linguisticFeaturesSelected && $currentSchemeNeedsDockerStore;
-        
+
         // Only create error if Docker is not available AND the current scheme actually requires Docker
         if (dockerChecked && !dockerAvailable && requiresDocker) {
             let message = "The selected romanization provider requires Docker to function.";
@@ -367,6 +367,34 @@
             });
         } else {
             invalidationErrorStore.removeError("docker-required");
+        }
+    }
+
+    // Check Docker requirements for voice enhancing (docker-based demucs providers)
+    $: {
+        const dockerChecked = $dockerStatusStore.checked;
+        const dockerAvailable = $dockerStatusStore.available;
+
+        // Check if voice enhancing is selected with a docker-based provider
+        const sepLib = currentFeatureOptions?.voiceEnhancing?.sepLib as string | undefined;
+        const voiceEnhancingNeedsDocker = selectedFeatures.voiceEnhancing &&
+                                          sepLib &&
+                                          sepLib.startsWith('docker-');
+
+        if (dockerChecked && !dockerAvailable && voiceEnhancingNeedsDocker) {
+            let message = "The selected voice separation provider requires Docker to function.";
+            if (window.navigator.platform.includes("Win")) {
+                message += " On Windows Home, Docker requires WSL.";
+            }
+            invalidationErrorStore.addError({
+                id: "docker-required-voice",
+                message: message,
+                severity: "critical",
+                dismissible: false,
+                docsUrl: "https://docs.docker.com/get-docker/"
+            });
+        } else {
+            invalidationErrorStore.removeError("docker-required-voice");
         }
     }
     
