@@ -164,7 +164,7 @@
     
     // State for welcome popup
     let showWelcomePopup = false;
-    
+
     // Sync welcome popup state with store
     $: welcomePopupVisible.set(showWelcomePopup);
     

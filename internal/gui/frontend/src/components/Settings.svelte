@@ -397,12 +397,52 @@ import { isDeveloperMode } from '../lib/developerMode';
         }
     }
 
+    // Track previous showSettings state to detect panel opening
+    let prevShowSettingsState = false;
+
+    // Reload settings from backend when panel opens (discards unsaved changes)
+    $: {
+        const currentShowSettings = $showSettings;
+        if (currentShowSettings && !prevShowSettingsState) {
+            logger.debug('Settings', 'Panel opened, reloading settings from backend');
+            LoadSettings().then(loadedSettings => {
+                currentSettings = {
+                    ...currentSettings, // Keep defaults as fallback
+                    ...loadedSettings,
+                    targetLanguage: loadedSettings.targetLanguage || '',
+                    nativeLanguages: loadedSettings.nativeLanguages || '',
+                    forceWasmMode: (loadedSettings.forceWasmMode || 'auto') as "auto" | "enabled" | "disabled",
+                    eventThrottling: typeof loadedSettings.eventThrottling === 'object' && loadedSettings.eventThrottling !== null
+                                        ? loadedSettings.eventThrottling
+                                        : currentSettings.eventThrottling
+                };
+                previousTargetLanguage = currentSettings.targetLanguage;
+                previousNativeLanguages = currentSettings.nativeLanguages;
+
+                // Reset validation state and assume valid for non-empty saved values
+                // (they were validated when originally saved)
+                isValidatingTarget = false;
+                isValidatingNative = false;
+                targetLangValid = currentSettings.targetLanguage ? true : false;
+                nativeLangValid = true; // Native languages are optional
+                targetLangError = '';
+                nativeLangError = '';
+                isValid = targetLangValid && nativeLangValid;
+
+                logger.trace('Settings', 'Settings reloaded from backend on panel open');
+            }).catch(error => {
+                logger.error('Settings', 'Failed to reload settings on panel open', { error });
+            });
+        }
+        prevShowSettingsState = currentShowSettings;
+    }
+
     // Keep currentSettings synced with the store if it changes elsewhere
     // This is useful if other components update settings
     settings.subscribe(value => {
         if (value && Object.keys(value).length > 0) {
             // Don't overwrite local changes during editing
-            if (!showSettings) {
+            if (!$showSettings) {
                 currentSettings = {
                     ...currentSettings, // Keep defaults as fallback
                     ...value,
