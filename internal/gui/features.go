@@ -136,9 +136,6 @@ func (a *App) translateReq2Tsk(req ProcessRequest, tsk *core.Task) {
 		}
 	}
 	
-	// FIXME AI SLOP TO CLEAN UP: THIS WILL BE COMPLETELY REVISED MANUALLY BY THE USER AT A LATER STAGE,
-	// AFTER GUI COMPONENT FOR CONDENSED AUDIO ARE READY
-	
 	// Initialize subtitle processing options using waterfall approach:
 	// Configure based on selected features starting from the most specific,
 	// restricted processing mode to the most general, multipurpose in order to

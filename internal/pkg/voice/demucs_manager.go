@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -121,6 +122,9 @@ type DemucsManager struct {
 
 // NewDemucsManager creates a new Demucs manager instance with specified mode
 func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, error) {
+	// Enable docker log output for debugging
+	// dockerutil.SetLogOutput(dockerutil.LogToStdout)
+
 	manager := &DemucsManager{
 		mode:          mode,
 		projectName:   mode.projectName(),
@@ -132,7 +136,7 @@ func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		ShowService: true,
 		ShowType:    true,
 		LogLevel:    zerolog.DebugLevel,
-		InitMessage: manager.projectName,
+		InitMessage: "langkit-demucs", // Fixed string matching Dockerfile echo
 	}
 
 	logger := dockerutil.NewContainerLogConsumer(logConfig)
@@ -181,6 +185,76 @@ func (dm *DemucsManager) InitQuiet(ctx context.Context) error {
 // InitRecreate forces recreation of the docker container
 func (dm *DemucsManager) InitRecreate(ctx context.Context) error {
 	return dm.docker.InitRecreate()
+}
+
+// waitForExecReady waits for the container to be ready to accept exec commands
+func (dm *DemucsManager) waitForExecReady(ctx context.Context) error {
+	// GPU mode needs more time for CUDA initialization
+	maxRetries := 10
+	retryDelay := 200 * time.Millisecond
+	if dm.mode == DemucsModeGPU {
+		maxRetries = 30
+		retryDelay = 500 * time.Millisecond
+	}
+
+	for i := 0; i < maxRetries; i++ {
+		// Try a simple exec command to verify container is ready
+		_, err := dm.execInContainer(ctx, []string{"true"})
+		if err == nil {
+			return nil
+		}
+		time.Sleep(retryDelay)
+	}
+	return fmt.Errorf("container not ready after %d attempts", maxRetries)
+}
+
+// removeStaleContainer removes any existing container with the same name
+func (dm *DemucsManager) removeStaleContainer(ctx context.Context) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil // Ignore errors, this is best-effort cleanup
+	}
+	defer cli.Close()
+
+	// First try to stop the container (might be running)
+	stopTimeout := 5
+	_ = cli.ContainerStop(ctx, dm.containerName, container.StopOptions{Timeout: &stopTimeout})
+
+	// Brief pause to ensure container is fully stopped
+	time.Sleep(100 * time.Millisecond)
+
+	// Remove the container with force and volumes
+	err = cli.ContainerRemove(ctx, dm.containerName, container.RemoveOptions{
+		Force:         true,
+		RemoveVolumes: true,
+	})
+	if err != nil {
+		// Only ignore "not found" errors
+		if !strings.Contains(err.Error(), "No such container") &&
+			!strings.Contains(err.Error(), "not found") {
+			DemucsLogger.Warn().Err(err).Str("container", dm.containerName).Msg("Failed to remove stale container")
+		}
+		return nil
+	}
+
+	// Brief pause to ensure Docker has processed the removal
+	time.Sleep(200 * time.Millisecond)
+
+	DemucsLogger.Debug().Str("container", dm.containerName).Msg("Removed stale container")
+	return nil
+}
+
+// removeContainerByName is a helper to remove a container by name (best-effort)
+func removeContainerByName(ctx context.Context, name string) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return
+	}
+	defer cli.Close()
+
+	stopTimeout := 3
+	_ = cli.ContainerStop(ctx, name, container.StopOptions{Timeout: &stopTimeout})
+	_ = cli.ContainerRemove(ctx, name, container.RemoveOptions{Force: true, RemoveVolumes: true})
 }
 
 // Stop stops the docker service
@@ -659,6 +733,12 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 			return nil, err
 		}
 
+		// Remove any stale containers before starting (both CPU and GPU names)
+		// This handles cases where user switches between modes
+		mgr.removeStaleContainer(ctx)
+		removeContainerByName(ctx, "langkit-demucs")
+		removeContainerByName(ctx, "langkit-demucs-gpu")
+
 		// Use InitRecreate if recreate was requested, otherwise normal Init
 		if wantRecreate {
 			DemucsLogger.Info().Msg("Recreating Docker container")
@@ -671,9 +751,11 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 			}
 		}
 
-		// Brief pause to ensure container is fully ready for exec
+		// Verify container is ready for exec commands
 		// (race condition: container "running" but not yet accepting exec)
-		time.Sleep(500 * time.Millisecond)
+		if err := mgr.waitForExecReady(ctx); err != nil {
+			return nil, fmt.Errorf("container not ready for exec: %w", err)
+		}
 
 		*instance = mgr
 
