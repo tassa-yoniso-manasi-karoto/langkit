@@ -1,10 +1,10 @@
 - BROWSE FIXMEs / TODOs IN CODEBASE
-- manual GUI tests
+- more manual GUI tests
+- could do CLI test run of docker imgs in a Github workflow assuming all the CLI logic works (it doesn't)
 
 .
 
 - fix newlines in builtin documentation
-- Browse / check FIXMEs in codebase
 
 .
 
@@ -42,7 +42,6 @@ backoff requests using https://github.com/cenkalti/backoff
 
 *might:*
 
-- with [libvips binding](https://github.com/h2non/bimg) or imagor: fuzz trim to remove black padding if ratio is different => REQUIRE LIBS TO BE INSTALLED
+- with [libvips binding](https://github.com/h2non/bimg) or imagor: fuzz trim to remove black padding if ratio is different => REQUIRE NON GOLANG LIBS TO BE INSTALLED
 - use Enhanced voice audiotrack as basis for audio clips
-- use lower bitrate opus with DRED & LBRR that are not yet standardized [ietf draft](https://datatracker.ietf.org/doc/draft-ietf-mlcodec-opus-extension/),expires October 31 2025, check again later
 - lossless AVIF extraction from AV1 (HQ but worse than JPEG in size)
