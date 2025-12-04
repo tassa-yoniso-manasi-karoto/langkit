@@ -397,7 +397,27 @@
             invalidationErrorStore.removeError("docker-required-voice");
         }
     }
-    
+
+    // TEMPORARY: Block docker-based demucs providers until image is pushed to GHCR
+    // TODO: Remove this block once the Docker image is available
+    $: {
+        const sepLib = currentFeatureOptions?.voiceEnhancing?.sepLib as string | undefined;
+        const dockerDemucsSelected = selectedFeatures.voiceEnhancing &&
+                                     sepLib &&
+                                     sepLib.startsWith('docker-');
+
+        if (dockerDemucsSelected) {
+            invalidationErrorStore.addError({
+                id: "docker-demucs-not-available",
+                message: "Local Docker-based voice separation is coming in the next release! For now, please use a cloud provider (Replicate).",
+                severity: "critical",
+                dismissible: false
+            });
+        } else {
+            invalidationErrorStore.removeError("docker-demucs-not-available");
+        }
+    }
+
     // Check Internet requirements for selected features
     $: {
         const internetChecked = $internetStatusStore.checked;
