@@ -5,6 +5,7 @@
     import lottie from 'lottie-web';
     import { statisticsStore, systemInfoStore } from '../lib/stores';
     import { logger } from '../lib/logger';
+    import { isDeveloperMode } from '../lib/developerMode';
     import DependenciesChecklist from './DependenciesChecklist.svelte';
     import { OpenURL as BrowserOpenURL } from '../api/services/system';
     
@@ -71,6 +72,10 @@
     export let onClose: () => void = () => {};
     export let recheckFFmpeg: () => Promise<void>;
     export let recheckMediaInfo: () => Promise<void>;
+    export let version: string = "";
+
+    // Allow dismissing by clicking outside only in dev mode
+    $: canDismissByClickingOutside = version === 'dev' || version.includes('dev') || $isDeveloperMode;
     
     // State variables
     let showWelcome = true;
@@ -309,7 +314,7 @@
      out:fade={{ duration: 200 }}>
     
     <!-- Background overlay -->
-    <div class="absolute inset-0" style="background-color: rgba(0, 0, 0, var(--style-welcome-overlay-opacity, 0.4))" on:click={onClose}></div>
+    <div class="absolute inset-0" style="background-color: rgba(0, 0, 0, var(--style-welcome-overlay-opacity, 0.4))" on:click={() => canDismissByClickingOutside && onClose()}></div>
     
     <!-- Popup container with fixed size -->
     <div class="relative max-w-2xl w-full"

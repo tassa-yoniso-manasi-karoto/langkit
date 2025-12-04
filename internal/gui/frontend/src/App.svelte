@@ -1733,6 +1733,7 @@
 <!-- Welcome popup for first-time users -->
 {#if showWelcomePopup}
     <WelcomePopup
+        {version}
         onClose={() => {
             logger.info('app', 'Welcome popup closed');
             showWelcomePopup = false;
