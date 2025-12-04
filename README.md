@@ -19,13 +19,26 @@ It supports automatic subtitle detection, bulk/recursive directory processing, s
 
 ### Features
 
-- **Subs2cards**: Make Anki cards from subtitle timecodes like subs2srs
-- **Making dubtitles¹**: Make a subtitle file of dubs using Speech-To-Text
-- **Voice enhancing**: Make voices louder than Music&Effects 
-- **Condensed Audio**: generate an abridged audio file containing only the dialogue from media for passive immersion (see explanation video linked below)
-- **Subtitle romanization²**
-- **Subtitle tokenization**: Separate words with spaces for languages which don't use spaces
-- **Selective transliteration**: selective transliteration of subtitles based on [logogram](https://en.wikipedia.org/wiki/Logogram) frequency. Currently only japanese Kanjis are supported. Kanji with a frequency rank below the user-defined frequency threshold and regular readings are preserved, while others are converted to hiragana.
+- **Subs2cards**: Make Anki cards from subtitle timecodes like subs2srs<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ Build a vocabulary deck from your favorite shows through sentence mining
+
+- **Making dubtitles¹**: Make a subtitle file of dubs using Speech-To-Text<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ Useful when you want subtitles that match exactly what's being said in the dubbed audio
+
+- **Voice enhancing**: Make voices louder than Music&Effects<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ Helpful when dialogue is hard to hear, common in series recorded on location rather than in a studio
+
+- **Condensed Audio**: Generate an abridged audio file containing only the dialogue from media for passive immersion<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ Great for listening practice during commutes or chores (see explanation video linked below)
+
+- **Subtitle romanization²**: Convert subtitles to phonetic text<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ For learners who can understand spoken language but can't or don't want to read the script
+
+- **Subtitle tokenization**: Separate words with spaces for languages which don't use them<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ Makes it easier to spot individual words when you're still learning to read
+
+- **Selective transliteration**: Selective transliteration of subtitles based on [logogram](https://en.wikipedia.org/wiki/Logogram) frequency. Currently only Japanese Kanjis are supported. Kanji with a frequency rank below the user-defined frequency threshold and regular readings are preserved, while others are converted to hiragana.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ Learn kanji progressively by only showing the ones at your level
 
 <sub> ¹ 'dubtitles' is a *subtitle file that matches the dubbing lines exactly*. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sup>
 
