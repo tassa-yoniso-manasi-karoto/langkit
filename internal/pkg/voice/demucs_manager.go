@@ -26,8 +26,8 @@ import (
 const (
 	demucsRemote         = "https://github.com/tassa-yoniso-manasi-karoto/docker-facebook-demucs.git"
 	demucsProjectName    = "langkit-demucs" // Base project name for config dir
-	demucsImageName      = "langkit-demucs:latest" // Local image (TODO: change to GHCR after push)
-	demucsImageSizeBytes = 5_000_000_000 // ~5 GB for CUDA 12 + PyTorch + demucs models
+	demucsImageName      = "ghcr.io/tassa-yoniso-manasi-karoto/langkit-demucs:latest"
+	demucsImageSizeBytes = 7_000_000_000 // ~7 GB compressed (13GB uncompressed)
 )
 
 // DemucsMode specifies CPU or GPU execution
