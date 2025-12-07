@@ -1,11 +1,14 @@
 import { DependencyService } from '../generated/api.gen';
-import { getAPIBaseUrl, defaultFetch } from '../client';
+import { getAPIBaseUrl, defaultFetch, interactiveFetch } from '../client';
 
-// Singleton instance
+// Singleton instance for quick checks (with 30s timeout)
 let dependencyServiceInstance: DependencyService | null = null;
 
+// Singleton instance for downloads (no timeout)
+let downloadServiceInstance: DependencyService | null = null;
+
 /**
- * Get or create the dependency service instance
+ * Get or create the dependency service instance for quick checks
  */
 async function getDependencyService(): Promise<DependencyService> {
     if (!dependencyServiceInstance) {
@@ -13,6 +16,17 @@ async function getDependencyService(): Promise<DependencyService> {
         dependencyServiceInstance = new DependencyService(baseUrl, defaultFetch);
     }
     return dependencyServiceInstance;
+}
+
+/**
+ * Get or create the dependency service instance for downloads (no timeout)
+ */
+async function getDownloadService(): Promise<DependencyService> {
+    if (!downloadServiceInstance) {
+        const baseUrl = await getAPIBaseUrl();
+        downloadServiceInstance = new DependencyService(baseUrl, interactiveFetch);
+    }
+    return downloadServiceInstance;
 }
 
 /**
@@ -130,7 +144,7 @@ export async function CheckMediaInfoAvailability(): Promise<Record<string, any>>
  * Maintains exact same signature as the Wails version
  */
 export async function DownloadFFmpeg(): Promise<string> {
-    const service = await getDependencyService();
+    const service = await getDownloadService();
     
     try {
         const response = await service.downloadFFmpeg({});
@@ -152,7 +166,7 @@ export async function DownloadFFmpeg(): Promise<string> {
  * Maintains exact same signature as the Wails version
  */
 export async function DownloadMediaInfo(): Promise<string> {
-    const service = await getDependencyService();
+    const service = await getDownloadService();
     
     try {
         const response = await service.downloadMediaInfo({});
