@@ -10,18 +10,18 @@
     import { invalidationErrorStore } from '../lib/invalidationErrorStore';
     import { logStore } from '../lib/logStore';
     import { logger } from '../lib/logger';
-    import { 
-        features, 
+    import {
+        features,
         featuresStore,
-        createDefaultOptions, 
-        providerGithubUrls, 
+        createDefaultOptions,
+        providerGithubUrls,
         providersRequiringTokens,
         updateSummaryProviders,
         updateSummaryModels,
         updateFeatureChoices,
         summaryProvidersStore,
         summaryModelsStore,
-        type RomanizationScheme 
+        type RomanizationScheme
     } from '../lib/featureModel';
     import { 
         featureGroupStore, 
@@ -766,7 +766,7 @@
         if (selectedFeatures.voiceEnhancing && currentFeatureOptions.voiceEnhancing) {
             const sepLib = currentFeatureOptions.voiceEnhancing.sepLib;
             const { isValid, tokenType } = checkProviderApiToken(sepLib);
-            
+
             if (!isValid) {
                 invalidationErrorStore.addError({
                     id: 'provider-voiceEnhancing',
@@ -886,18 +886,38 @@
                 logger.trace('FeatureSelector', 'Ignoring recursive STT model change event', { model: value });
                 return;
             }
-            
+
             // Set flag to prevent processing duplicates
             isProcessingSTTChange = true;
-            
+
             try {
                 logger.info('FeatureSelector', 'Handling STT model change', { newModel: value });
-                
+
                 // Force provider warnings check immediately
                 debouncedUpdateProviderWarnings();
             } finally {
                 // Always reset flag
                 isProcessingSTTChange = false;
+            }
+        }
+
+        // Special handling for voice separation library changes
+        if (featureId === 'voiceEnhancing' && optionId === 'sepLib') {
+            logger.info('FeatureSelector', 'Handling sepLib change', { newSepLib: value });
+
+            // Use the new value directly (not from currentFeatureOptions which may not be updated yet)
+            if (selectedFeatures.voiceEnhancing) {
+                const { isValid, tokenType } = checkProviderApiToken(value);
+
+                if (!isValid) {
+                    invalidationErrorStore.addError({
+                        id: 'provider-voiceEnhancing',
+                        message: `${tokenType || value} API token is required for ${value}`,
+                        severity: 'critical'
+                    });
+                } else {
+                    invalidationErrorStore.removeError('provider-voiceEnhancing');
+                }
             }
         }
         
@@ -1825,12 +1845,12 @@
     // update provider warnings when STT model changes
     $: if (currentFeatureOptions?.dubtitles?.stt) {
         // This ensures we update warnings whenever the STT model changes
-        logger.debug('FeatureSelector', 'STT model changed reactively', { 
-            model: currentFeatureOptions.dubtitles.stt 
+        logger.debug('FeatureSelector', 'STT model changed reactively', {
+            model: currentFeatureOptions.dubtitles.stt
         });
         debouncedUpdateProviderWarnings();
     }
-    
+
     $: if (currentSTTModels && currentSTTModels.models && currentSTTModels.models.length > 0) {
         logger.debug('FeatureSelector', 'STT models updated, checking default model selection');
         
