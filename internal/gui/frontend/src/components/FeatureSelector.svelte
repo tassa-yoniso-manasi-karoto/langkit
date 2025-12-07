@@ -112,6 +112,7 @@
     let llmState: LLMStateChange | null = null;
     let llmStateUnsubscribe: () => void;
     let isLLMInitializing = true;
+    let previousLLMState: string | null = null;  // Track state transitions for settings updates
     
     // WebSocket event handlers for proper cleanup
     let llmStateChangedHandler: (data: any) => void;
@@ -1439,13 +1440,22 @@
         llmStateUnsubscribe = llmStateStore.subscribe(state => {
             logger.trace('featureSelector', 'LLM state updated:', state?.globalState);
             llmState = state;
-            
+
             // Update initialization flag (include 'updating' state)
             isLLMInitializing = !state || state.globalState === 'initializing' || state.globalState === 'uninitialized' || state.globalState === 'updating';
-            
+
+            // Detect when to fetch providers:
+            // 1. Initial ready state (no providers yet), OR
+            // 2. Transition from 'updating' to 'ready' (settings changed, e.g., custom endpoint enabled)
+            const isInitialReady = state?.globalState === 'ready' && !currentSummaryProviders.available;
+            const isSettingsUpdateComplete = state?.globalState === 'ready' && previousLLMState === 'updating';
+
+            // Track state for next comparison
+            previousLLMState = state?.globalState || null;
+
             // When LLM system becomes ready, fetch providers and prefetch all models
-            if (state?.globalState === 'ready' && !currentSummaryProviders.available) {
-                logger.debug('featureSelector', 'LLM system ready, fetching providers');
+            if (isInitialReady || isSettingsUpdateComplete) {
+                logger.debug('featureSelector', 'LLM system ready, fetching providers', { isInitialReady, isSettingsUpdateComplete });
                 fetchSummaryProviders().then(async (providers) => {
                     logger.debug('featureSelector', `Providers fetched: ${providers.names.length} available`);
                     
