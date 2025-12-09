@@ -1,3 +1,6 @@
+- WEBKIT4.1 changes how CSS is rendered = transparent Setting panel
+- cleanup abandoned Wails methods
+
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - more manual GUI tests
 - could do CLI test run of docker imgs in a Github workflow assuming all the CLI logic works (it doesn't)
@@ -8,7 +11,6 @@
 
 .
 
-- cleanup abandoned wails methods
 - LINT
 - REFACTOR CORE
 

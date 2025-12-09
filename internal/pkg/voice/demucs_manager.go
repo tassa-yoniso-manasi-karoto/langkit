@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	demucsRemote         = "https://github.com/tassa-yoniso-manasi-karoto/docker-facebook-demucs.git"
+	demucsRemote         = "https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs.git"
 	demucsProjectName    = "langkit-demucs" // Base project name for config dir
 	demucsImageName      = "ghcr.io/tassa-yoniso-manasi-karoto/langkit-demucs:latest"
 	demucsImageSizeBytes = 7_000_000_000 // ~7 GB compressed (13GB uncompressed)
@@ -594,7 +594,7 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 	if handler != nil {
 		handler.ZeroLog().Info().
 			Str("image", demucsImageName).
-			Msg("Pulling Docker image for local voice separation (first-time setup, ~2.5GB download)...")
+			Msg("Pulling Docker image for local voice separation (first-time setup, ~7GB download)...")
 	}
 	DemucsLogger.Info().Str("image", demucsImageName).Msg("Pulling Docker image")
 

@@ -152,12 +152,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		        } else if errors.Is(err, context.DeadlineExceeded) {
 				return tsk.Handler.LogErr(err, AbortTask, "enhance: Operation timed out.")
 			}
-			return tsk.Handler.LogErr(err, AbortTask, "Voice SeparationLib processing error.\n\n" +
-				"LANGKIT DEVELOPER NOTE: These voice separation libraries are originally meant" +
-				"for vocals of songs (ie. tracks a few minutes long) and the GPUs allocated by" +
-				" Replicate to these models are not the best. You may face out of memory (OOM) " +
-				"GPU errors when trying to process audio tracks of movies.\n" +
-				"As far as my testing goes, trying a few hours later solves the problem.\n")
+			return tsk.Handler.LogErr(err, AbortTask, "Voice separation processing error.")
 		}
 		
 		// Must write to disk so that it can be reused if ft error
