@@ -54,7 +54,7 @@ It supports automatic subtitle detection, bulk/recursive directory processing, s
 
 # Langkit within Anki
 
-Langkit can run as a standalone but it can now also run directly inside Anki. This should offer better performance so **it's the recommended way to use Langkit.**
+Langkit can run as a standalone but it can now also run directly inside Anki. This should offer better reliability and somewhat better performance so **it's the recommended way to use Langkit.**
 
 [Anki Addon available here](https://ankiweb.net/shared/info/1639192026)
 
