@@ -29,7 +29,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251202051023-64c6e6f6b75d
+	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251209033221-cccf7916368b
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251201105013-67ae5a08f576

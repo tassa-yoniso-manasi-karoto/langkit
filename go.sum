@@ -744,8 +744,8 @@ github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635 h1:kdXcSzyDtseVEc4yCz2qF8ZrQvIDBJLl4S1c3GCXmoI=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
-github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251202051023-64c6e6f6b75d h1:PrvCIpe+AJJQ3eRfMUTSDxlnPLh1h5ocZSPzFqciQ18=
-github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251202051023-64c6e6f6b75d/go.mod h1:qjMnm77Gh699//h7GfTwYT8w366ECathFfjBCZ3txVE=
+github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251209033221-cccf7916368b h1:dXI0EdngAVjcVSI6PsAknHzoP14/oAbJRX6+LJyUGno=
+github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251209033221-cccf7916368b/go.mod h1:qjMnm77Gh699//h7GfTwYT8w366ECathFfjBCZ3txVE=
 github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac h1:irZTZH6g2gTPmZ0zzK/XT2fF9FDThfK4c6CDgsfhXg4=
 github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac/go.mod h1:uJZaFWGBJJ+/iezVfF182nM97i3u5kU3UUOcdD0bkJM=
 github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20250321133057-249cfd96068f h1:vKnbSIS/1uSHPf5mTwh7KP7THLIQzAvgRt3dPCNqneM=
