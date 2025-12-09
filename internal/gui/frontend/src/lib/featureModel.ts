@@ -634,12 +634,41 @@ export function updateFeatureChoices(featureId: string, optionId: string, choice
 
 // Function to update feature model with available STT models
 export function updateSTTModels(sttModels: STTModelsResponse): void {
-  // Always update the store with all models
+  // Always update the store with all models (for lookups)
   sttModelsStore.set(sttModels);
-  
-  // Always update choices for the STT dropdown with all models
-  updateFeatureChoices('dubtitles', 'stt', sttModels.names, sttModels.suggested);
-  
+
+  // Filter to only available models and put custom first if present
+  let availableNames = sttModels.models
+    .filter(m => m.isAvailable)
+    .map(m => m.name);
+
+  // Move "custom" to the front if present
+  const customIndex = availableNames.indexOf('custom');
+  if (customIndex > 0) {
+    availableNames = ['custom', ...availableNames.filter(n => n !== 'custom')];
+  }
+
+  // Determine suggested model: custom takes priority when enabled, otherwise gpt-4o-transcribe
+  const suggestedModel = (() => {
+    // If custom endpoint is enabled, use it as default
+    if (availableNames.includes('custom')) {
+      return 'custom';
+    }
+    // Otherwise prefer gpt-4o-transcribe
+    if (availableNames.includes('gpt-4o-transcribe')) {
+      return 'gpt-4o-transcribe';
+    }
+    // Fall back to backend suggested if available
+    if (availableNames.includes(sttModels.suggested)) {
+      return sttModels.suggested;
+    }
+    // Last resort: first available
+    return availableNames[0] || '';
+  })();
+
+  // Update choices for the STT dropdown with only available models
+  updateFeatureChoices('dubtitles', 'stt', availableNames, suggestedModel);
+
   // Update the store with default value and conditions
   featuresStore.update(features => {
     const updatedFeatures = [...features];
@@ -647,10 +676,10 @@ export function updateSTTModels(sttModels: STTModelsResponse): void {
     if (dubtitlesFeature) {
       // Create new object references for reactivity
       dubtitlesFeature.options = { ...dubtitlesFeature.options };
-      
-      if (dubtitlesFeature.options.stt && sttModels.names.length > 0) {
+
+      if (dubtitlesFeature.options.stt && availableNames.length > 0) {
         dubtitlesFeature.options.stt = { ...dubtitlesFeature.options.stt };
-        dubtitlesFeature.options.stt.default = sttModels.names[0];
+        dubtitlesFeature.options.stt.default = suggestedModel;
       }
       
       if (dubtitlesFeature.options.initialPrompt) {
@@ -669,8 +698,8 @@ export function updateSTTModels(sttModels: STTModelsResponse): void {
   
   // Also update the original array for backward compatibility
   const dubtitlesFeature = features.find(f => f.id === 'dubtitles');
-  if (dubtitlesFeature && dubtitlesFeature.options.stt && sttModels.names.length > 0) {
-    dubtitlesFeature.options.stt.default = sttModels.names[0];
+  if (dubtitlesFeature && dubtitlesFeature.options.stt && availableNames.length > 0) {
+    dubtitlesFeature.options.stt.default = suggestedModel;
   }
   
   if (dubtitlesFeature && dubtitlesFeature.options.initialPrompt) {

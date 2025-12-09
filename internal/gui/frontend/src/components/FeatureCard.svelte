@@ -1266,7 +1266,15 @@
                                                 // Find the model in the models list
                                                 const model = currentSTTModels.models.find(m => m.name === option);
                                                 if (model) {
-                                                    let label = `${model.displayName} @${formatProviderName(model.providerName)}`;
+                                                    let label = model.displayName;
+                                                    // For custom endpoint, show configured model name if available
+                                                    if (model.name === 'custom') {
+                                                        const customModel = $settings?.customEndpoints?.stt?.model;
+                                                        if (customModel) {
+                                                            label = customModel;
+                                                        }
+                                                    }
+                                                    label += ' @' + formatProviderName(model.providerName);
                                                     if (model.isDepreciated) label += ' (DEPRECATED)';
                                                     return label;
                                                 }

@@ -8,6 +8,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     import { ExportDebugReport } from '../api/services/logging';
     import { LoadSettings, SaveSettings } from '../api/services/settings';
     import { RefreshSTTModelsAfterSettingsUpdate } from '../api/services/models';
+    import { updateSTTModels } from '../lib/featureModel';
     import { logger } from '../lib/logger';
     import { debounce } from 'lodash';
     import { getMediumDebounce } from '../lib/debouncePresets';
@@ -271,8 +272,9 @@ import { isDeveloperMode } from '../lib/developerMode';
             // Trigger STT model refresh after API key changes
             logger.debug('Settings', 'Refreshing STT models after settings update');
             try {
-                await RefreshSTTModelsAfterSettingsUpdate();
-                logger.debug('Settings', 'STT models refreshed successfully');
+                const refreshedModels = await RefreshSTTModelsAfterSettingsUpdate();
+                updateSTTModels(refreshedModels);
+                logger.debug('Settings', 'STT models refreshed and store updated');
             } catch (error) {
                 logger.error('Settings', 'Failed to refresh STT models', { error });
             }

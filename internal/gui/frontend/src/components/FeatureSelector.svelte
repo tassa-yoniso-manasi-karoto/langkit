@@ -113,6 +113,9 @@
     let llmStateUnsubscribe: () => void;
     let isLLMInitializing = true;
     let previousLLMState: string | null = null;  // Track state transitions for settings updates
+
+    // Track custom STT availability for auto-selection
+    let previousCustomSTTAvailable = false;
     
     // WebSocket event handlers for proper cleanup
     let llmStateChangedHandler: (data: any) => void;
@@ -1419,7 +1422,29 @@
         
         // Subscribe to STT models store
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
+            const prevCustomAvailable = previousCustomSTTAvailable;
             currentSTTModels = value;
+
+            // Check if custom is now available
+            const customNowAvailable = value.models?.some(m => m.name === 'custom' && m.isAvailable) || false;
+            previousCustomSTTAvailable = customNowAvailable;
+
+            // If custom availability changed, update the selection
+            if (customNowAvailable !== prevCustomAvailable && currentFeatureOptions?.dubtitles) {
+                if (customNowAvailable) {
+                    // Custom became available - switch to it
+                    logger.info('FeatureSelector', 'Custom STT endpoint became available, switching to it');
+                    currentFeatureOptions.dubtitles.stt = 'custom';
+                } else {
+                    // Custom became unavailable - switch to gpt-4o-transcribe or first available
+                    logger.info('FeatureSelector', 'Custom STT endpoint became unavailable, switching to fallback');
+                    const availableModels = value.models?.filter(m => m.isAvailable && m.name !== 'custom') || [];
+                    const fallback = availableModels.find(m => m.name === 'gpt-4o-transcribe')?.name
+                        || availableModels[0]?.name
+                        || '';
+                    currentFeatureOptions.dubtitles.stt = fallback;
+                }
+            }
         });
         
         // Subscribe to summary providers and models stores
