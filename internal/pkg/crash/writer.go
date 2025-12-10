@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gookit/color"
@@ -210,7 +211,7 @@ func writeReportContent(
 		fmt.Fprintf(bufWriter, "FFmpeg Version: %s\n", globalScope.FFmpegVersion)
 		fmt.Fprintf(bufWriter, "MediaInfo Version: %s\n", globalScope.MediaInfoVer)
 		if len(globalScope.GPU) > 0 {
-			fmt.Fprintf(bufWriter, "GPU: %v\n", globalScope.GPU)
+			fmt.Fprintf(bufWriter, "GPU: %s\n", strings.Join(globalScope.GPU, ", "))
 		}
 		fmt.Fprintln(bufWriter, "")
 

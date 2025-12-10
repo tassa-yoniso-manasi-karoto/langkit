@@ -12,27 +12,47 @@ import (
 )
 
 // DetectGPUs returns a list of detected GPU names on Windows.
-// Tries PowerShell first (modern), falls back to wmic (legacy).
+// Returns all installed GPUs with active GPU first, marked with "(active)".
 func DetectGPUs() []string {
-	// Try PowerShell first (more reliable on modern Windows)
-	if gpus := detectGPUsPowerShell(); len(gpus) > 0 {
-		return gpus
+	var activeGPUs []string
+	var inactiveGPUs []string
+
+	// Get ALL installed display adapters (regardless of MUX switch)
+	allGPUs := getAllDisplayAdapters()
+
+	// Get the currently active GPU
+	activeGPU := getActiveGPU()
+
+	// Separate active and inactive GPUs
+	for _, gpu := range allGPUs {
+		// Skip Microsoft Basic Display Adapter (virtual)
+		if strings.Contains(strings.ToLower(gpu), "microsoft basic") {
+			continue
+		}
+
+		if activeGPU != "" && strings.EqualFold(gpu, activeGPU) {
+			activeGPUs = append(activeGPUs, gpu+" (ACTIVE)")
+		} else {
+			inactiveGPUs = append(inactiveGPUs, gpu)
+		}
 	}
 
-	// Fall back to wmic for older systems
-	if gpus := detectGPUsWmic(); len(gpus) > 0 {
-		return gpus
-	}
+	// Active GPUs first, then inactive
+	result := append(activeGPUs, inactiveGPUs...)
 
-	return []string{"unknown"}
+	if len(result) == 0 {
+		return []string{"unknown"}
+	}
+	return result
 }
 
-func detectGPUsPowerShell() []string {
+// getAllDisplayAdapters uses Get-PnpDevice to get ALL display adapters
+// This works regardless of MUX switch state
+func getAllDisplayAdapters() []string {
 	var gpus []string
 
-	// PowerShell command to get GPU names
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
-		"Get-CimInstance -ClassName Win32_VideoController | Select-Object -ExpandProperty Name")
+		"Get-PnpDevice -Class Display -Status OK | Select-Object -ExpandProperty FriendlyName")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	output, err := runWithTimeout(cmd, 5*time.Second)
@@ -50,6 +70,29 @@ func detectGPUsPowerShell() []string {
 	return gpus
 }
 
+// getActiveGPU returns the currently active/rendering GPU
+func getActiveGPU() string {
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+		"Get-CimInstance -ClassName Win32_VideoController | Select-Object -ExpandProperty Name")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
+	output, err := runWithTimeout(cmd, 5*time.Second)
+	if err != nil {
+		return ""
+	}
+
+	// Return first non-empty line (primary GPU)
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			return line
+		}
+	}
+
+	return ""
+}
+
+// detectGPUsWmic is a fallback using wmic for older Windows versions
 func detectGPUsWmic() []string {
 	var gpus []string
 

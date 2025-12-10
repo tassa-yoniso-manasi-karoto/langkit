@@ -29,7 +29,8 @@ func DetectGPUs() []string {
 }
 
 func detectGPUsLinux() []string {
-	var gpus []string
+	var activeGPUs []string
+	var inactiveGPUs []string
 
 	// Try lspci
 	cmd := exec.Command("lspci", "-nn")
@@ -37,26 +38,45 @@ func detectGPUsLinux() []string {
 
 	output, err := runWithTimeout(cmd, 5*time.Second)
 	if err != nil {
-		return gpus
+		return nil
 	}
 
-	// Match VGA, 3D controller, Display controller
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	deviceRegex := regexp.MustCompile(`:\s*(.+)$`)
+	// lspci -nn format: "01:00.0 VGA compatible controller [0300]: NVIDIA Corporation..."
+	// Extract device name after "]: " (after the class code in brackets)
+	deviceRegex := regexp.MustCompile(`\]:\s*(.+)$`)
 
+	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
-		line := strings.ToLower(scanner.Text())
-		if strings.Contains(line, "vga") ||
-			strings.Contains(line, "3d controller") ||
-			strings.Contains(line, "display controller") {
-			// Extract device name after the last colon
-			if match := deviceRegex.FindStringSubmatch(scanner.Text()); len(match) > 1 {
-				gpus = append(gpus, strings.TrimSpace(match[1]))
+		line := scanner.Text()
+		lineLower := strings.ToLower(line)
+
+		// Check if it's a GPU-related device
+		isVGA := strings.Contains(lineLower, "vga compatible controller")
+		is3D := strings.Contains(lineLower, "3d controller")
+		isDisplay := strings.Contains(lineLower, "display controller")
+		// MUX-switched inactive GPU shows as this on some systems
+		isInactiveGPU := strings.Contains(lineLower, "non-vga unclassified") &&
+			(strings.Contains(lineLower, "intel") || strings.Contains(lineLower, "nvidia") || strings.Contains(lineLower, "amd"))
+
+		if isVGA || is3D || isDisplay || isInactiveGPU {
+			if match := deviceRegex.FindStringSubmatch(line); len(match) > 1 {
+				name := strings.TrimSpace(match[1])
+
+				// VGA controller = active GPU (with MUX switch)
+				if isVGA {
+					activeGPUs = append(activeGPUs, name+" (ACTIVE)")
+				} else if isInactiveGPU {
+					inactiveGPUs = append(inactiveGPUs, name)
+				} else {
+					// 3D controller or display controller (could be active too)
+					activeGPUs = append(activeGPUs, name)
+				}
 			}
 		}
 	}
 
-	return gpus
+	// Active GPUs first
+	return append(activeGPUs, inactiveGPUs...)
 }
 
 func detectGPUsMacOS() []string {
