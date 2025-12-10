@@ -20,6 +20,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/schollz/progressbar/v3"
 
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/interfaces"
@@ -117,6 +118,9 @@ func NewCLIHandlerWithLevel(ctx context.Context, consoleLevel zerolog.Level) *CL
 		etaCalculators: make(map[string]eta.Provider),
 	}
 	crash.InitReporter(ctx)
+	crash.Reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		gs.GPU = executils.DetectGPUs()
+	})
 
 	// Buffer writer captures ALL logs for crash reports (no level filtering)
 	bufferWriter := zerolog.ConsoleWriter{
@@ -479,6 +483,9 @@ func NewGUIHandler(ctx context.Context, throttler *batch.AdaptiveEventThrottler,
 		wsNotifier:     wsNotifier,
 	}
 	crash.InitReporter(ctx)
+	crash.Reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
+		gs.GPU = executils.DetectGPUs()
+	})
 
 	// 1. Writer for the GUI Log Viewer (sends raw JSON to the throttler)
 	guiLogWriter := &LogWriter{

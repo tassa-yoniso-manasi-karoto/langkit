@@ -19,10 +19,10 @@ from aqt.utils import showWarning, showCritical
 
 try:
     # Try relative import first (for testing outside Anki)
-    from .dialog_handler import DialogHandler
+    from .ipc_server import DialogHandler
 except ImportError:
     # Fall back to absolute import (for Anki addon context)
-    from dialog_handler import DialogHandler
+    from ipc_server import DialogHandler
 
 
 class ProcessManager:

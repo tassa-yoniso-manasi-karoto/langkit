@@ -18,6 +18,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/batch"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/browser"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
@@ -65,8 +66,37 @@ func RunServerMode() {
 	// Initialize UI manager based on runtime
 	if runtime == "anki" && dialogPort > 0 {
 		// Use Qt dialogs via IPC for Anki mode
-		ui.Initialize(dialogs.NewQtFileDialog(dialogPort), browser.NewSystemURLOpener())
+		qtDialog := dialogs.NewQtFileDialog(dialogPort)
+		ui.Initialize(qtDialog, browser.NewSystemURLOpener())
 		logger.Info().Msg("UI manager initialized with Qt dialogs (via IPC) and URL opener")
+
+		// Populate crash reporter with Anki system info
+		go func() {
+			// Small delay to let the IPC server be fully ready
+			time.Sleep(500 * time.Millisecond)
+			if ankiInfo, err := qtDialog.GetAnkiSystemInfo(); err == nil {
+				if crash.Reporter != nil {
+					crash.Reporter.Record(func(g *crash.GlobalScope, e *crash.ExecutionScope) {
+						g.AnkiInfo = &crash.AnkiInfo{
+							AnkiVersion:         ankiInfo.AnkiVersion,
+							VideoDriver:         ankiInfo.VideoDriver,
+							QtVersion:           ankiInfo.QtVersion,
+							PyQtVersion:         ankiInfo.PyQtVersion,
+							PythonVersion:       ankiInfo.PythonVersion,
+							Platform:            ankiInfo.Platform,
+							LangkitAddonVersion: ankiInfo.LangkitAddonVersion,
+							ScreenResolution:    ankiInfo.Screen.Resolution,
+							ScreenRefreshRate:   ankiInfo.Screen.RefreshRate,
+							ActiveAddons:        ankiInfo.Addons.Active,
+							InactiveAddons:      ankiInfo.Addons.Inactive,
+						}
+					})
+					logger.Info().Msg("Anki system info captured for crash reports")
+				}
+			} else {
+				logger.Warn().Err(err).Msg("Failed to get Anki system info for crash reports")
+			}
+		}()
 	} else {
 		// Use Zenity dialogs for browser/standalone mode
 		ui.Initialize(dialogs.NewZenityFileDialog(), browser.NewSystemURLOpener())

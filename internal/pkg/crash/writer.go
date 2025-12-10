@@ -208,7 +208,11 @@ func writeReportContent(
 		fmt.Fprintf(bufWriter, "Program Start Time: %s\n", globalScope.StartTime.Format(time.RFC3339))
 		fmt.Fprintf(bufWriter, "FFmpeg Path: %s\n", globalScope.FFmpegPath)
 		fmt.Fprintf(bufWriter, "FFmpeg Version: %s\n", globalScope.FFmpegVersion)
-		fmt.Fprintf(bufWriter, "MediaInfo Version: %s\n\n", globalScope.MediaInfoVer)
+		fmt.Fprintf(bufWriter, "MediaInfo Version: %s\n", globalScope.MediaInfoVer)
+		if len(globalScope.GPU) > 0 {
+			fmt.Fprintf(bufWriter, "GPU: %v\n", globalScope.GPU)
+		}
+		fmt.Fprintln(bufWriter, "")
 
 		if execScope.MediaInfoDump != "" {
 			fmt.Fprintln(bufWriter, "CURRENT MEDIA INFORMATION")
@@ -260,6 +264,31 @@ func writeReportContent(
 	runWithTimeout(10*time.Second, "RuntimeInfo", bufWriter, func() {
 		fmt.Fprintln(bufWriter, NewRuntimeInfo().String())
 	})
+
+	// 7.5 Anki environment (only if running in Anki mode)
+	if Reporter != nil {
+		globalScope, _ := Reporter.GetScopes()
+		if globalScope.AnkiInfo != nil {
+			fmt.Fprintln(bufWriter, "ANKI ENVIRONMENT")
+			fmt.Fprintln(bufWriter, "================")
+			ai := globalScope.AnkiInfo
+			fmt.Fprintf(bufWriter, "Anki Version: %s\n", ai.AnkiVersion)
+			fmt.Fprintf(bufWriter, "Langkit Addon Version: %s\n", ai.LangkitAddonVersion)
+			fmt.Fprintf(bufWriter, "Video Driver: %s\n", ai.VideoDriver)
+			fmt.Fprintf(bufWriter, "Qt Version: %s\n", ai.QtVersion)
+			fmt.Fprintf(bufWriter, "PyQt Version: %s\n", ai.PyQtVersion)
+			fmt.Fprintf(bufWriter, "Python Version: %s\n", ai.PythonVersion)
+			fmt.Fprintf(bufWriter, "Platform: %s\n", ai.Platform)
+			fmt.Fprintf(bufWriter, "Screen: %s @ %.1f Hz\n", ai.ScreenResolution, ai.ScreenRefreshRate)
+			if len(ai.ActiveAddons) > 0 {
+				fmt.Fprintf(bufWriter, "Active Addons: %v\n", ai.ActiveAddons)
+			}
+			if len(ai.InactiveAddons) > 0 {
+				fmt.Fprintf(bufWriter, "Inactive Addons: %v\n", ai.InactiveAddons)
+			}
+			fmt.Fprintln(bufWriter, "")
+		}
+	}
 
 	// 8. Environment
 	fmt.Fprintln(bufWriter, "ENVIRONMENT")

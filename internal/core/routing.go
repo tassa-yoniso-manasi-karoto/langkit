@@ -13,7 +13,7 @@ import (
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/schollz/progressbar/v3"
-	
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"

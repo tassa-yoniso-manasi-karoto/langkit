@@ -1,19 +1,23 @@
 """
-Qt Dialog Handler for Langkit Anki Addon.
-Provides HTTP endpoints for file dialogs that the Go backend can call.
+IPC Server for Langkit Anki Addon.
+Provides HTTP endpoints for file dialogs and system information queries
+that the Go backend can call.
 """
 
 import json
 import os
+import platform
 import socket
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
 from typing import Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 from aqt.qt import *
 from aqt import mw
+from aqt.utils import version_with_build
 
 
 class DialogRequestHandler(BaseHTTPRequestHandler):
@@ -56,12 +60,22 @@ class DialogRequestHandler(BaseHTTPRequestHandler):
             self.send_error(500, str(e))
 
     def do_GET(self):
-        """Handle GET requests - used for health check."""
+        """Handle GET requests for health check and system info."""
         if self.path == '/health':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+        elif self.path == '/system-info':
+            try:
+                info = get_anki_system_info()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(info).encode('utf-8'))
+            except Exception as e:
+                print(f"[Langkit IPC] Error getting system info: {e}")
+                self.send_error(500, str(e))
         else:
             self.send_error(404, "Not found")
 
@@ -264,3 +278,90 @@ class DialogHandler:
                 return {'path': '', 'error': 'Dialog timeout'}
         except Exception as e:
             return {'path': '', 'error': str(e)}
+
+
+def get_anki_system_info() -> Dict:
+    """Gather Anki system information for debug reports."""
+    info = {
+        "anki_version": "",
+        "video_driver": "",
+        "qt_version": "",
+        "pyqt_version": "",
+        "python_version": "",
+        "platform": "",
+        "langkit_addon_version": "",
+        "screen": {
+            "resolution": "",
+            "refresh_rate": 0.0
+        },
+        "addons": {
+            "active": [],
+            "inactive": []
+        }
+    }
+
+    try:
+        # Anki version
+        info["anki_version"] = version_with_build()
+    except Exception as e:
+        info["anki_version"] = f"error: {e}"
+
+    try:
+        # Video driver
+        if mw and mw.pm:
+            driver = mw.pm.video_driver()
+            info["video_driver"] = driver.name if hasattr(driver, 'name') else str(driver)
+    except Exception as e:
+        info["video_driver"] = f"error: {e}"
+
+    try:
+        # Qt and PyQt versions
+        info["qt_version"] = qVersion()
+        info["pyqt_version"] = PYQT_VERSION_STR
+    except Exception as e:
+        info["qt_version"] = f"error: {e}"
+
+    try:
+        # Python version and platform
+        info["python_version"] = platform.python_version()
+        info["platform"] = platform.platform()
+    except Exception as e:
+        info["platform"] = f"error: {e}"
+
+
+    try:
+        # Langkit addon version from manifest.json
+        addon_dir = Path(__file__).parent
+        manifest_path = addon_dir / "manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, 'r', encoding='utf-8') as f:
+                manifest = json.load(f)
+                info["langkit_addon_version"] = manifest.get("human_version", "unknown")
+        else:
+            info["langkit_addon_version"] = "manifest not found"
+    except Exception as e:
+        info["langkit_addon_version"] = f"error: {e}"
+
+    try:
+        # Screen resolution and refresh rate
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            geom = screen.geometry()
+            info["screen"]["resolution"] = f"{geom.width()}x{geom.height()}"
+            info["screen"]["refresh_rate"] = screen.refreshRate()
+    except Exception as e:
+        info["screen"]["resolution"] = f"error: {e}"
+
+    try:
+        # Addon list
+        if mw and mw.addonManager:
+            for addon in mw.addonManager.all_addon_meta():
+                addon_id = addon.dir_name
+                if addon.enabled:
+                    info["addons"]["active"].append(addon_id)
+                else:
+                    info["addons"]["inactive"].append(addon_id)
+    except Exception as e:
+        info["addons"]["active"] = [f"error: {e}"]
+
+    return info

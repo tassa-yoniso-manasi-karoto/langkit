@@ -30,9 +30,28 @@ type GlobalScope struct {
     FFmpegPath    string
     FFmpegVersion string
     MediaInfoVer  string
-    
+
     DockerStatus  string          // Docker availability status
     CommandLine   []string        // Command line arguments
+    GPU           []string        // Detected GPU(s)
+
+    // Anki-specific information (only populated when running in Anki mode)
+    AnkiInfo      *AnkiInfo       // nil if not in Anki mode
+}
+
+// AnkiInfo holds Anki environment information for debug reports
+type AnkiInfo struct {
+    AnkiVersion         string
+    VideoDriver         string
+    QtVersion           string
+    PyQtVersion         string
+    PythonVersion       string
+    Platform            string
+    LangkitAddonVersion string
+    ScreenResolution    string
+    ScreenRefreshRate   float64
+    ActiveAddons        []string
+    InactiveAddons      []string
 }
 
 // ExecutionScope holds information specific to current processing
