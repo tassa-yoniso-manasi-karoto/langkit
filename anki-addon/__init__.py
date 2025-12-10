@@ -447,7 +447,15 @@ class LangkitAddon:
         # Only warn about Direct3D on high refresh rate displays
         if current_driver != VideoDriver.Direct3D:
             return True
-            
+
+        # Check actual refresh rate - only warn if >60Hz
+        try:
+            screen = QGuiApplication.primaryScreen()
+            if screen and screen.refreshRate() <= 60:
+                return True  # 60Hz or lower, no warning needed
+        except Exception:
+            pass  # If we can't detect, show warning to be safe
+
         # Check warning count
         warning_count = self.config.get("direct3d_refresh_warning_count", 0)
         
