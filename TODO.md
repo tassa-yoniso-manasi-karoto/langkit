@@ -1,4 +1,3 @@
-- WEBKIT4.1 changes how CSS is rendered = transparent Setting panel
 - cleanup abandoned Wails methods
 
 - BROWSE FIXMEs / TODOs IN CODEBASE
@@ -20,9 +19,6 @@
 
 - 🚧🚧 add tlit in TSV/CSV
 - 🚧🚧 draft word frequency list feature
-
-.
-backoff requests using https://github.com/cenkalti/backoff
 
 .
 
