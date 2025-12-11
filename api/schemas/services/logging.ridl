@@ -32,7 +32,7 @@ service LoggingService
   - RequestWasmState() => ()
   
   # Debug report export
-  - ExportDebugReport() => ()
+  - ExportDebugReport(graphicsInfo?: string) => ()
   
   # Event throttling management
   - SetEventThrottling(enabled: bool) => ()

@@ -1,4 +1,6 @@
 - cleanup abandoned Wails methods
+- support embedded subtitles
+- ensure support .ass subtitles
 
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - more manual GUI tests

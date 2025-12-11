@@ -291,6 +291,17 @@ func writeReportContent(
 		}
 	}
 
+	// 7.6 WebView graphics info (if available from frontend)
+	if Reporter != nil {
+		graphicsSnapshot := Reporter.GetSnapshot("webview_graphics")
+		if graphicsSnapshot != "" {
+			fmt.Fprintln(bufWriter, "WEBVIEW GRAPHICS")
+			fmt.Fprintln(bufWriter, "================")
+			fmt.Fprintln(bufWriter, graphicsSnapshot)
+			fmt.Fprintln(bufWriter, "")
+		}
+	}
+
 	// 8. Environment
 	fmt.Fprintln(bufWriter, "ENVIRONMENT")
 	fmt.Fprintln(bufWriter, "===========")

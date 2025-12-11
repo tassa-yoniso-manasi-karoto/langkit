@@ -108,13 +108,13 @@ export async function RequestWasmState(): Promise<void> {
 
 /**
  * ExportDebugReport - Drop-in replacement for Wails method
- * Maintains exact same signature as the Wails version
+ * Accepts optional graphics info string to include WebView GPU details in the report
  */
-export async function ExportDebugReport(): Promise<void> {
+export async function ExportDebugReport(graphicsInfo?: string): Promise<void> {
     const service = await getLoggingService();
-    
+
     try {
-        await service.exportDebugReport();
+        await service.exportDebugReport({ graphicsInfo });
     } catch (error) {
         console.error('ExportDebugReport error:', error);
         throw error;

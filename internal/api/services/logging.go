@@ -235,8 +235,14 @@ func (s *LoggingService) RequestWasmState(ctx context.Context) error {
 }
 
 // ExportDebugReport compiles and prompts the user to save a debug report
-func (s *LoggingService) ExportDebugReport(ctx context.Context) error {
+func (s *LoggingService) ExportDebugReport(ctx context.Context, graphicsInfo *string) error {
 	s.logger.Info().Msg("Exporting debug report")
+
+	// Store WebView graphics info in crash reporter if provided
+	if graphicsInfo != nil && *graphicsInfo != "" && crash.Reporter != nil {
+		crash.Reporter.SaveSnapshot("webview_graphics", *graphicsInfo)
+		s.logger.Debug().Msg("WebView graphics info recorded for debug report")
+	}
 
 	// Flush any pending events before generating report
 	if s.throttler != nil {

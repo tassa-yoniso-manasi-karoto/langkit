@@ -6,6 +6,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     import { OpenExecutableDialog } from '../api/services/media';
     import { ValidateLanguageTag } from '../api';
     import { ExportDebugReport } from '../api/services/logging';
+    import { getGraphicsInfoString } from '../lib/graphicsInfo';
     import { LoadSettings, SaveSettings } from '../api/services/settings';
     import { RefreshSTTModelsAfterSettingsUpdate } from '../api/services/models';
     import { updateSTTModels } from '../lib/featureModel';
@@ -326,7 +327,9 @@ import { isDeveloperMode } from '../lib/developerMode';
         exportSuccess = false;
         exportError = '';
         try {
-            await ExportDebugReport();
+            // Get WebView graphics info for the debug report
+            const graphicsInfo = await getGraphicsInfoString();
+            await ExportDebugReport(graphicsInfo);
             exportSuccess = true;
             logger.info('Settings', 'Debug report exported successfully');
         } catch (err: any) { // Type the error
