@@ -57,29 +57,39 @@ class DialogRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(result).encode('utf-8'))
 
+        except BrokenPipeError:
+            # Client closed connection before response was sent - this is normal
+            pass
         except Exception as e:
             print(f"[Langkit Dialog] Error handling request: {e}")
-            self.send_error(500, str(e))
+            try:
+                self.send_error(500, str(e))
+            except BrokenPipeError:
+                pass
 
     def do_GET(self):
         """Handle GET requests for health check and system info."""
-        if self.path == '/health':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
-        elif self.path == '/system-info':
-            try:
-                info = get_anki_system_info()
+        try:
+            if self.path == '/health':
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
-                self.wfile.write(json.dumps(info).encode('utf-8'))
-            except Exception as e:
-                print(f"[Langkit IPC] Error getting system info: {e}")
-                self.send_error(500, str(e))
-        else:
-            self.send_error(404, "Not found")
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            elif self.path == '/system-info':
+                try:
+                    info = get_anki_system_info()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(info).encode('utf-8'))
+                except Exception as e:
+                    print(f"[Langkit IPC] Error getting system info: {e}")
+                    self.send_error(500, str(e))
+            else:
+                self.send_error(404, "Not found")
+        except BrokenPipeError:
+            # Client closed connection before response was sent - this is normal
+            pass
 
 
 class DialogSignalHandler(QObject):

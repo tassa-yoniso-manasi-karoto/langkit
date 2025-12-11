@@ -1267,12 +1267,34 @@
                 const softwareRenderer = graphicsInfo.softwareRenderer || 'software renderer';
                 logger.warn('app', 'Hardware acceleration not available', { softwareRenderer });
 
-                // Show warning dialog
-                const warningMessage = 'Hardware graphics acceleration is not available in this WebView. ' +
-                    'The application is using "' + softwareRenderer + '" which will result in significantly degraded performance.\n\n' +
-                    'For optimal performance, please ensure your graphics drivers are up to date ' +
-                    'and hardware acceleration is enabled in your system settings.\n\n' +
-                    'Alternatively, you can use the command-line interface (CLI) which does not require graphics acceleration.';
+                // Build warning message based on runtime mode
+                let warningMessage = 'Hardware graphics acceleration is not available in this WebView. ' +
+                    'The application is using "' + softwareRenderer + '" which will result in significantly degraded performance.\n\n';
+
+                if (get(isAnkiMode)) {
+                    // Anki-specific instructions with OS-appropriate video driver recommendation
+                    const sysInfo = get(systemInfoStore);
+                    let recommendedDriver = 'OpenGL';
+                    if (sysInfo && sysInfo.os === 'windows') {
+                        recommendedDriver = 'Direct3D';
+                    } else if (sysInfo && sysInfo.os === 'darwin') {
+                        recommendedDriver = 'OpenGL'; // Metal is default and should work, OpenGL as fallback
+                    }
+                    // Linux: OpenGL is the standard choice
+
+                    warningMessage += 'To fix this in Anki, go to:\n' +
+                        'Tools > Preferences > Appearance > General section\n' +
+                        'and ensure "Video driver" is set to "' + recommendedDriver + '" (not "Software").\n\n' +
+                        'Note: You will need to restart Anki for the change to take effect.';
+                } else {
+                    // Generic instructions for standalone/browser mode
+                    warningMessage += 'For optimal performance, please ensure your graphics drivers are up to date ' +
+                        'and hardware acceleration is enabled in your system settings.';
+                }
+
+                // CLI alternative applies to all modes
+                warningMessage += '\n\nAlternatively, you can use Langkit\'s command-line interface (langkit-cli) ' +
+                    'which does not require graphics acceleration.';
 
                 ShowWarning('Hardware Acceleration Unavailable', warningMessage).catch(err => {
                     logger.error('app', 'Failed to show hardware acceleration warning', { error: err });
