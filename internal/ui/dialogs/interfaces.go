@@ -7,6 +7,24 @@ type FileDialog interface {
 	OpenDirectory(options OpenDirectoryOptions) (string, error)
 }
 
+// MessageType represents the type of message dialog
+type MessageType int
+
+const (
+	MessageInfo MessageType = iota
+	MessageWarning
+	MessageError
+	MessageQuestion
+)
+
+// MessageDialog provides an interface for displaying message dialogs
+type MessageDialog interface {
+	// ShowMessage displays a message dialog with the given title, message, and type.
+	// For MessageQuestion, returns true if user clicked OK/Yes, false otherwise.
+	// For other types, the bool return value is not meaningful.
+	ShowMessage(title, message string, msgType MessageType) (bool, error)
+}
+
 // FileFilter represents file type filters for dialogs
 type FileFilter struct {
 	DisplayName string // Filter information EG: "Image Files (*.jpg, *.png)"

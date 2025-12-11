@@ -10,6 +10,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
 )
 
@@ -73,4 +74,15 @@ func (s *SystemService) CheckForUpdate(ctx context.Context) (bool, error) {
 // OpenURL opens a URL in the user's default browser
 func (s *SystemService) OpenURL(ctx context.Context, url string) error {
 	return ui.GetURLOpener().OpenURL(url)
+}
+
+// ShowWarning displays a warning dialog to the user
+func (s *SystemService) ShowWarning(ctx context.Context, title string, message string) (bool, error) {
+	s.logger.Debug().Str("title", title).Msg("Showing warning dialog")
+	acknowledged, err := ui.GetMessageDialog().ShowMessage(title, message, dialogs.MessageWarning)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to show warning dialog")
+		return false, err
+	}
+	return acknowledged, nil
 }

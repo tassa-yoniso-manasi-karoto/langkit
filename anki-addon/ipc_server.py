@@ -45,6 +45,8 @@ class DialogRequestHandler(BaseHTTPRequestHandler):
                 result = dialog_handler.show_open_dialog(request_data)
             elif self.path == '/dialog/directory':
                 result = dialog_handler.show_directory_dialog(request_data)
+            elif self.path == '/dialog/message':
+                result = dialog_handler.show_message_dialog(request_data)
             else:
                 self.send_error(404, "Dialog endpoint not found")
                 return
@@ -87,6 +89,7 @@ class DialogSignalHandler(QObject):
     show_save_signal = pyqtSignal(dict)
     show_open_signal = pyqtSignal(dict)
     show_directory_signal = pyqtSignal(dict)
+    show_message_signal = pyqtSignal(dict)
 
     def __init__(self, parent_window=None):
         super().__init__()
@@ -98,6 +101,7 @@ class DialogSignalHandler(QObject):
         self.show_save_signal.connect(self._show_save_dialog)
         self.show_open_signal.connect(self._show_open_dialog)
         self.show_directory_signal.connect(self._show_directory_dialog)
+        self.show_message_signal.connect(self._show_message_dialog)
 
     def _show_save_dialog(self, options: Dict):
         """Show save dialog (runs in main thread)."""
@@ -173,6 +177,48 @@ class DialogSignalHandler(QObject):
             self.result = {'path': path or '', 'error': None}
         except Exception as e:
             self.result = {'path': '', 'error': str(e)}
+        finally:
+            self.result_event.set()
+
+    def _show_message_dialog(self, options: Dict):
+        """Show message dialog (runs in main thread)."""
+        try:
+            title = options.get('title', 'Message')
+            message = options.get('message', '')
+            msg_type = options.get('type', 'info')
+
+            # Map type to QMessageBox icon and buttons
+            if msg_type == 'warning':
+                icon = QMessageBox.Icon.Warning
+                buttons = QMessageBox.StandardButton.Ok
+            elif msg_type == 'error':
+                icon = QMessageBox.Icon.Critical
+                buttons = QMessageBox.StandardButton.Ok
+            elif msg_type == 'question':
+                icon = QMessageBox.Icon.Question
+                buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            else:  # info
+                icon = QMessageBox.Icon.Information
+                buttons = QMessageBox.StandardButton.Ok
+
+            # Show dialog
+            msg_box = QMessageBox(self.parent_window)
+            msg_box.setWindowTitle(title)
+            msg_box.setText(message)
+            msg_box.setIcon(icon)
+            msg_box.setStandardButtons(buttons)
+
+            result = msg_box.exec()
+
+            # Determine if accepted (OK or Yes clicked)
+            accepted = result in (
+                QMessageBox.StandardButton.Ok,
+                QMessageBox.StandardButton.Yes
+            )
+
+            self.result = {'accepted': accepted, 'error': None}
+        except Exception as e:
+            self.result = {'accepted': False, 'error': str(e)}
         finally:
             self.result_event.set()
 
@@ -278,6 +324,24 @@ class DialogHandler:
                 return {'path': '', 'error': 'Dialog timeout'}
         except Exception as e:
             return {'path': '', 'error': str(e)}
+
+    def show_message_dialog(self, options: Dict) -> Dict:
+        """Show a message dialog and return whether it was accepted."""
+        try:
+            # Reset result event
+            self.signal_handler.result_event.clear()
+            self.signal_handler.result = None
+
+            # Emit signal to show dialog in main thread
+            self.signal_handler.show_message_signal.emit(options)
+
+            # Wait for dialog to complete
+            if self.signal_handler.result_event.wait(timeout=120):
+                return self.signal_handler.result
+            else:
+                return {'accepted': False, 'error': 'Dialog timeout'}
+        except Exception as e:
+            return {'accepted': False, 'error': str(e)}
 
 
 def get_anki_system_info() -> Dict:

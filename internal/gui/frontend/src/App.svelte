@@ -40,7 +40,8 @@
     import WelcomePopup from './components/WelcomePopup.svelte';
     import ReturnToAnkiButton from './components/ReturnToAnkiButton.svelte';
     
-    import { GetVersion, GetSystemInfo, CheckForUpdate } from './api/services/system';
+    import { GetVersion, GetSystemInfo, CheckForUpdate, ShowWarning } from './api/services/system';
+    import { getGraphicsInfo } from './lib/graphicsInfo';
     import { SendProcessingRequest, CancelProcessing, GetProcessingStatus } from './api/services/processing';
     import {
         CheckDockerAvailability,
@@ -1252,7 +1253,43 @@
         } catch (error) {
             logger.error('app', 'Failed to get system info', { error });
         }
-        
+
+        // Check hardware acceleration and warn if not available
+        try {
+            const graphicsInfo = await getGraphicsInfo();
+            logger.debug('app', 'Graphics info detected', {
+                renderer: graphicsInfo.renderer,
+                hardwareAccelerated: graphicsInfo.hardwareAccelerated,
+                webgpuAvailable: graphicsInfo.webgpuAvailable
+            });
+
+            if (!graphicsInfo.hardwareAccelerated) {
+                const softwareRenderer = graphicsInfo.softwareRenderer || 'software renderer';
+                logger.warn('app', 'Hardware acceleration not available', { softwareRenderer });
+
+                // Show warning dialog
+                const warningMessage = 'Hardware graphics acceleration is not available in this WebView. ' +
+                    'The application is using "' + softwareRenderer + '" which will result in significantly degraded performance.\n\n' +
+                    'For optimal performance, please ensure your graphics drivers are up to date ' +
+                    'and hardware acceleration is enabled in your system settings.\n\n' +
+                    'Alternatively, you can use the command-line interface (CLI) which does not require graphics acceleration.';
+
+                ShowWarning('Hardware Acceleration Unavailable', warningMessage).catch(err => {
+                    logger.error('app', 'Failed to show hardware acceleration warning', { error: err });
+                });
+
+                // Also add to invalidation store for persistent UI indicator
+                invalidationErrorStore.addError({
+                    id: 'no-hardware-acceleration',
+                    message: 'Hardware acceleration unavailable. Performance may be degraded.',
+                    severity: 'warning',
+                    dismissible: true
+                });
+            }
+        } catch (error) {
+            logger.error('app', 'Failed to check hardware acceleration', { error });
+        }
+
         // Sync processing state on mount (handles HMR and initial load)
         try {
             const processingStatus = await GetProcessingStatus();

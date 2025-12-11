@@ -77,11 +77,27 @@ export async function CheckForUpdate(): Promise<{ updateAvailable: boolean }> {
  */
 export async function OpenURL(url: string): Promise<void> {
     const service = await getSystemService();
-    
+
     try {
         await service.openURL({ url });
     } catch (error) {
         console.error('OpenURL error:', error);
+        throw error;
+    }
+}
+
+/**
+ * ShowWarning - Display a warning dialog to the user
+ * Returns true if the user acknowledged the warning
+ */
+export async function ShowWarning(title: string, message: string): Promise<boolean> {
+    const service = await getSystemService();
+
+    try {
+        const response = await service.showWarning({ title, message });
+        return response.acknowledged;
+    } catch (error) {
+        console.error('ShowWarning error:', error);
         throw error;
     }
 }

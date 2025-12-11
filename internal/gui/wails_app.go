@@ -96,6 +96,7 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize UI manager with Wails implementation
 	ui.Initialize(
 		dialogs.NewWailsFileDialog(ctx),
+		dialogs.NewWailsMessageDialog(ctx),
 		browser.NewWailsURLOpener(ctx),
 	)
 

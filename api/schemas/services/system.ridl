@@ -14,12 +14,15 @@ struct VersionInfo
 service SystemService
   # Get system information (OS and architecture)
   - GetSystemInfo() => (info: SystemInfo)
-  
+
   # Get application version information
   - GetVersion() => (info: VersionInfo)
-  
+
   # Check if a newer version is available
   - CheckForUpdate() => (updateAvailable: bool)
-  
+
   # Opens a URL in the user's default browser
   - OpenURL(url: string) => ()
+
+  # Show a warning dialog to the user (returns true if acknowledged)
+  - ShowWarning(title: string, message: string) => (acknowledged: bool)
