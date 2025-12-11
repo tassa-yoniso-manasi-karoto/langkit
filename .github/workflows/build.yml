@@ -667,16 +667,9 @@ jobs:
           generate_release_notes: true
           body: |
             - **Prior to use, please read the "FAQ", "Requirements", and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
-            - All binaries for macOS are provided as-is and are entirely untested.
+            - All binaries for <picture> <source media="(prefers-color-scheme: dark)" srcset="https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/dev/internal/macos-dark.svg"> <img src="https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/dev/internal/macos-light.svg" height="16">  </picture> are provided as-is and are entirely untested.
 
-            ## Linux Webkit Compatibility
-            The Linux archive (`langkit-app-linux.tar.xz`) contains **two binaries** due to webkit2gtk library incompatibility:
-            - **`langkit`**: For systems with webkit2gtk-4.0 (Ubuntu 22.04, Debian 12, RHEL, older Fedora)
-            - **`langkit-webkit2_41`**: For systems with webkit2gtk-4.1 (Ubuntu 24.04+, Debian 13+, Void Linux, Arch starting from March 2026)
-
-            Most users should try `langkit` first. See the README.txt in the archive for details.
-
-            ##  "Windows protected your PC" popup
+            ##  <img src="https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/dev/internal/windows.svg" height="16"> "Windows protected your PC" popup
             When running for the first time, Windows **may show a blue popup** that says "Windows protected your PC":
             1. Click **"More info"**
             2. Click **"Run anyway"**
@@ -685,6 +678,13 @@ jobs:
 
             Langkit also requires **WebView2** but it comes pre-installed with all modern versions of Windows.
             
+            ## <img src="https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/dev/internal/linux.svg" height="20"> Linux Webkit Compatibility
+            The Linux archive (`langkit-app-linux.tar.xz`) contains **two binaries** due to webkit2gtk library incompatibility:
+            - **`langkit`**: For systems with webkit2gtk-4.0 (Ubuntu 22.04, Debian 12, RHEL, older Fedora)
+            - **`langkit-webkit2_41`**: For systems with webkit2gtk-4.1 (Ubuntu 24.04+, Debian 13+, Void Linux, Arch starting from March 2026)
+
+            Most users should try `langkit` first. See the README.txt in the archive for details.
+
             ## CLI version (advanced users only)
             
             For automation and scripting in terminal (extract the archive first):
