@@ -32,7 +32,7 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251209033221-cccf7916368b
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212015205-66bb69bfbc23
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212022803-82e52e187335
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1
@@ -233,7 +233,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251212015019-9898cc75278a // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251130000229-7c43b6a9aeef // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251212022627-a242d5c91381 // indirect
 	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251201104743-8b387e6c7b7d // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect

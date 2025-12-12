@@ -752,12 +752,12 @@ github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251212015019-9898
 github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251212015019-9898cc75278a/go.mod h1:tjPRNssMYDh0yH5st9TO2rc8JIqB/naGLrmD/QVspYg=
 github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta h1:townBv43vl/WK7ivpToYHzGVRCuTHzrFrW51pYE9rRo=
 github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta/go.mod h1:g+6MCVOHCJiTTjhTxD6u8CeMwRtG+piZORRE2vzwTuE=
-github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251130000229-7c43b6a9aeef h1:qfThJOtN1Nhq+YuyA6JOSgnuczqATiDFBt3/sJ4GVEU=
-github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251130000229-7c43b6a9aeef/go.mod h1:2C7JFYRE39RX3Ro4YiE5EIzx2w2FcIng7S6fewpvI5I=
+github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251212022627-a242d5c91381 h1:ifHnaaoTUFdqEwQc83nWU3yaogUui4CCgf3gSf+BQtc=
+github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251212022627-a242d5c91381/go.mod h1:2C7JFYRE39RX3Ro4YiE5EIzx2w2FcIng7S6fewpvI5I=
 github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251201104743-8b387e6c7b7d h1:oHY4es+WJg7WFA5g7HUxnA9aBlDYFji7v2rXbw8BAAQ=
 github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251201104743-8b387e6c7b7d/go.mod h1:6bE2kJg1HSATbTgJt3BSHvu/XfIKuJvTg0m1NkbpOqs=
-github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212015205-66bb69bfbc23 h1:tikAHefhjX9TeV+O8XwfD8XoSM7Vilcnm6cy/f6Zog4=
-github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212015205-66bb69bfbc23/go.mod h1:cIWW3aitu6nY5YGfBixGv+oHqRRTV4hDCmKMDaz64bw=
+github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212022803-82e52e187335 h1:gvrSfXqoIf42JUnIzEmLqqnWHkd5sIbEpOk7UzBUthI=
+github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212022803-82e52e187335/go.mod h1:8QbMXies6tnwh48b7N7qQAFvgmcGxm4WTiNsigAgPIQ=
 github.com/theupdateframework/notary v0.7.0 h1:QyagRZ7wlSpjT5N2qQAh/pN+DVqgekv4DzbAiAiEL3c=
 github.com/theupdateframework/notary v0.7.0/go.mod h1:c9DRxcmhHmVLDay4/2fUYdISnHqbFDGRSlXPO0AhYWw=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
