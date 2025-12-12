@@ -12,15 +12,16 @@ import (
 	"math"
 	"unicode/utf8"
 	"slices"
-	
+
+	"github.com/dustin/go-humanize"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
-	
+
 	_ "github.com/tassa-yoniso-manasi-karoto/translitkit"
 	common "github.com/tassa-yoniso-manasi-karoto/translitkit/common"
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
-	
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 )
@@ -401,6 +402,35 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 		recreate = val
 	}
 
+	// Add download progress callback for Docker image pulls
+	if handler != nil {
+		taskID := fmt.Sprintf("download-%s-%d", p.module.Lang, time.Now().UnixNano())
+		var lastBytes int64
+
+		p.module.WithDownloadProgressCallback(func(current, total int64, status string) {
+			increment := current - lastBytes
+			if increment > 0 {
+				var humanizedSize string
+				if total > 0 {
+					humanizedSize = humanize.Bytes(uint64(current)) + " / " + humanize.Bytes(uint64(total))
+				} else {
+					humanizedSize = humanize.Bytes(uint64(current))
+				}
+				handler.IncrementDownloadProgress(
+					taskID,
+					int(increment),
+					int(total),
+					20,
+					"Downloading "+p.module.Lang+" provider",
+					status,
+					"h-3",
+					humanizedSize,
+				)
+				lastBytes = current
+			}
+		})
+	}
+
 	if !recreate {
 		return p.module.InitWithContext(ctx)
 	}
@@ -543,6 +573,31 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 	// Create ichiran manager with progress handler
 	options := []ichiran.ManagerOption{}
 	if handler != nil {
+		// Add download progress callback for Docker image pulls
+		downloadTaskID := fmt.Sprintf("ichiran-download-%d", time.Now().UnixNano())
+		var lastBytes int64
+		options = append(options, ichiran.WithDownloadProgressCallback(func(current, total int64, status string) {
+			increment := current - lastBytes
+			if increment > 0 {
+				var humanizedSize string
+				if total > 0 {
+					humanizedSize = humanize.Bytes(uint64(current)) + " / " + humanize.Bytes(uint64(total))
+				} else {
+					humanizedSize = humanize.Bytes(uint64(current))
+				}
+				handler.IncrementDownloadProgress(
+					downloadTaskID,
+					int(increment),
+					int(total),
+					20,
+					"Downloading Ichiran",
+					status,
+					"h-3",
+					humanizedSize,
+				)
+				lastBytes = current
+			}
+		}))
 		// Flag to track if this is the first progress callback
 		isFirstCallback := true
 		// Track last progress to calculate increments
