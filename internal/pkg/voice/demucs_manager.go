@@ -587,7 +587,11 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 	// Progress callback for UI
 	if handler != nil {
 		var lastBytes int64
+
 		opts.OnProgress = func(current, total int64, status string) {
+			// PullImage reports cumulative progress including baseline from cached layers.
+			// On retry, 'current' may initially be lower than 'lastBytes' if some
+			// in-progress bytes weren't persisted. Clamp to prevent backward progress.
 			increment := current - lastBytes
 			if increment > 0 {
 				description := "Downloading..."
@@ -611,7 +615,9 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 		}
 		opts.OnRetry = func(err error, nextRetryIn time.Duration) {
 			handler.RemoveProgressBar(taskID)
-			lastBytes = 0 // Reset for next attempt so progress bar recreates properly
+			// Don't reset lastBytes - PullImage tracks cumulative progress internally.
+			// The next OnProgress call may have a lower 'current' initially, but the
+			// increment clamp above handles this gracefully.
 			handler.ZeroLog().Warn().
 				Err(err).
 				Dur("retry_in", nextRetryIn).
