@@ -1,12 +1,9 @@
-- download progress bar for all docker image
-
 - intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
 
-- go get -u as along as go1.23 remains
+- progress bar not cleared on Golang translit providers
 
 - ZHO:
   -  zho-Hans.subtitle not recognized as zho
-  - JIEBA CRASHED "panic: Dictionary file does not exist: C:/Users/runneradmin/go/pkg/mod/github.com/yanyiwu/gojieba@v1.4.5/deps/cppjieba/dict/jieba.dict.utf8"
 
 - redownload docker demucs and measure GB of compressed layers
 

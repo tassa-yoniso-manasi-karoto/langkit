@@ -32,7 +32,7 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251212113125-91d844d045a4
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta.0.20251212114111-54a2c697b8b0
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212114417-b3a8e338cda9
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212130828-4c2a6177cad0
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1
@@ -197,7 +197,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
-	github.com/mozillazg/go-pinyin v0.20.0 // indirect
+	github.com/mozillazg/go-pinyin v0.21.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/onsi/ginkgo/v2 v2.22.1 // indirect
@@ -239,9 +239,9 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251212113807-e0ff4f83dd53 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251212121558-e221cc38ac75 // indirect
 	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251212114257-655697b929b7 // indirect
-	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251201104743-8b387e6c7b7d // indirect
+	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251212123418-32fa6762ed68 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -271,7 +271,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	github.com/yanyiwu/gojieba v1.4.5 // indirect
+	github.com/yanyiwu/gojieba v1.4.6 // indirect
 	github.com/ysmood/fetchup v0.2.4 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
 	github.com/ysmood/got v0.40.0 // indirect
