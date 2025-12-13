@@ -49,7 +49,7 @@ cd langkit
 
 # Generate API code
 cd api
-make generate-go
+make generate all
 cd ..
 
 # Fetch dependancies

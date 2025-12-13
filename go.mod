@@ -33,7 +33,7 @@ require (
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251213085829-dbc92c54d932
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta.0.20251213092104-d10db009ac89
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251213093104-01e739ef4805
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251213153014-332924d76a35
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1

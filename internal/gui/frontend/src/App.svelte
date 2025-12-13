@@ -1600,7 +1600,8 @@
      style="--wails-drop-target: drop;"
      on:dragenter={(e) => { e.preventDefault(); globalDragOver = true; }}
      on:dragleave={(e) => { e.preventDefault(); if (e.currentTarget === e.target) globalDragOver = false; }}
-     on:dragover={(e) => { e.preventDefault(); }}>
+     on:dragover={(e) => { e.preventDefault(); }}
+     on:drop={(e) => { e.preventDefault(); }}>
     <BackgroundGradient />
     {#if showGlow && !isWindowMinimized && userActivityState !== UserActivityState.AFK}
         <GlowEffect {isProcessing} />

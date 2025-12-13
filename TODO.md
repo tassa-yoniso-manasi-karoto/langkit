@@ -1,10 +1,16 @@
 
-- progress bar not cleared on Golang translit providers
+- init pb:
+  - go-aksharamukha FAIL API (never init because front and font missing?)
+  - ichiran database init complete but never completes
+  - pythainlp is up but never start processing
 
 - intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
 
 - ZHO:
   -  zho-Hans.subtitle not recognized as zho
+
+- anki changelog
+
 
 <hr>
 
