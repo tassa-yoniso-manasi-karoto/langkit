@@ -105,7 +105,7 @@ func ProcessWithManagedProvider(
 			if handler != nil && handler.ZeroLog() != nil {
 				handler.ZeroLog().Warn().
 					Str("provider_key", pooledProvider.Key.String()).
-					Str("provider_name", pooledProvider.Provider.ProviderName()).
+					Str("module_id", pooledProvider.Provider.ModuleID()).
 					Err(err).
 					Msg("Transliteration provider marked as unhealthy due to processing error")
 			}
@@ -114,7 +114,7 @@ func ProcessWithManagedProvider(
 			if manager != nil {
 				manager.logger.Warn().
 					Str("provider_key", pooledProvider.Key.String()).
-					Str("provider_name", pooledProvider.Provider.ProviderName()).
+					Str("module_id", pooledProvider.Provider.ModuleID()).
 					Err(err).
 					Msg("Transliteration provider marked as unhealthy due to processing error")
 			}

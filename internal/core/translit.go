@@ -87,7 +87,8 @@ type TranslitProvider interface {
 	Initialize(ctx context.Context, handler MessageHandler) error
 	ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error)
 	Close(ctx context.Context, langCode, RomanizationStyle string) error
-	ProviderName() string
+	// ModuleID returns an identifier for the module, e.g. "tha-pythainlp→paiboonizer"
+	ModuleID() string
 }
 
 
@@ -245,7 +246,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	tmpProvider, err := GetTranslitProvider(langCode, tsk.RomanizationStyle)
 	if err == nil {
 		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
-			es.CurrentTranslitProvider = tmpProvider.ProviderName()
+			es.CurrentTranslitProvider = tmpProvider.ModuleID()
 		}) // necessity: high
 	}
 	
@@ -407,7 +408,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 		taskID := fmt.Sprintf("download-%s-%d", p.module.Lang, time.Now().UnixNano())
 		var lastBytes int64
 
-		p.module.WithDownloadProgressCallback(func(current, total int64, status string) {
+		p.module.WithDownloadProgressCallback(func(providerName string, current, total int64, status string) {
 			increment := current - lastBytes
 			if increment > 0 {
 				var humanizedSize string
@@ -421,7 +422,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 					int(increment),
 					int(total),
 					20,
-					"Downloading "+p.module.Lang+" provider",
+					"Installing "+providerName+" ",
 					status,
 					"h-3",
 					humanizedSize,
@@ -467,7 +468,7 @@ func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler 
 			Int("runeCount", runeCount).
 			Int("maxChunkSize", maxChunkSize).
 			Int("numChunks", numChunks).
-			Msgf("using %s with custom chunkifier", p.ProviderName())
+			Msgf("using %s with custom chunkifier", p.ModuleID())
 
 		m.WithCustomChunkifier(common.NewChunkifier(maxChunkSize))
 	}
@@ -501,7 +502,7 @@ func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler 
 	}, nil
 }
 
-func (p *GenericProvider) ProviderName() string {
+func (p *GenericProvider) ModuleID() string {
 	return fmt.Sprintf("%s-%s", p.module.Lang, p.module.ProviderNames())
 }
 
@@ -791,7 +792,7 @@ func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler
 	}, nil
 }
 
-func (p *JapaneseProvider) ProviderName() string {
+func (p *JapaneseProvider) ModuleID() string {
 	return "jpn-ichiran"
 }
 

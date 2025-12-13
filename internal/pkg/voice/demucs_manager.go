@@ -22,9 +22,8 @@ import (
 )
 
 const (
-	demucsProjectName    = "langkit-demucs" // Base project name for config dir
-	demucsImageName      = "ghcr.io/tassa-yoniso-manasi-karoto/langkit-demucs:latest"
-	demucsImageSizeBytes = 7_000_000_000 // ~7 GB compressed (13GB uncompressed)
+	demucsProjectName = "langkit-demucs" // Base project name for config dir
+	demucsImageName   = "ghcr.io/tassa-yoniso-manasi-karoto/langkit-demucs:latest"
 )
 
 // DemucsMode specifies CPU or GPU execution
@@ -646,21 +645,15 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 			// in-progress bytes weren't persisted. Clamp to prevent backward progress.
 			increment := current - lastBytes
 			if increment > 0 {
-				description := "Downloading..."
-				if status == "Extracting" {
-					description = "Extracting..."
-				} else if status == "Pull complete" || status == "Already exists" {
-					description = "Finalizing..."
-				}
 				handler.IncrementDownloadProgress(
 					taskID,
 					int(increment),
-					demucsImageSizeBytes,
+					int(total),
 					20,
-					"Demucs Setup (docker pull)",
-					description,
+					"Demucs Setup",
+					status,
 					"h-3",
-					humanize.Bytes(uint64(current))+" / "+humanize.Bytes(demucsImageSizeBytes),
+					humanize.Bytes(uint64(current))+" / "+humanize.Bytes(uint64(total)),
 				)
 				lastBytes = current
 			}

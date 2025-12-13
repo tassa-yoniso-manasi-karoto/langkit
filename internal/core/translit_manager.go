@@ -70,7 +70,7 @@ func (p *ProviderPool) AcquireProvider(ctx context.Context, handler MessageHandl
 				p.logger.Warn().
 					Str("provider_id", fmt.Sprintf("%p", provider.Provider)).
 					Str("provider_key", provider.Key.String()).
-					Str("provider_name", provider.Provider.ProviderName()).
+					Str("module_id", provider.Provider.ModuleID()).
 					Err(provider.LastError).
 					Msg("Skipping unhealthy provider in pool")
 				continue
