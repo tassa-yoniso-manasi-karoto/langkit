@@ -76,7 +76,9 @@ export async function initializeDragDrop(onFileDrop: WailsDropCallback) {
         logger.info('drag-drop', 'Initializing Wails drag-drop handlers');
         const wailsRuntime = await loadWailsRuntime();
         if (wailsRuntime?.OnFileDrop) {
-            wailsRuntime.OnFileDrop(onFileDrop, true);
+            // Use useDropTarget=false to accept drops anywhere in the window
+            // WebKit has issues calculating the CSS drop target area correctly
+            wailsRuntime.OnFileDrop(onFileDrop, false);
             logger.trace('drag-drop', 'Wails file drop handler registered');
         } else {
             logger.error('drag-drop', 'Wails runtime OnFileDrop not available');
