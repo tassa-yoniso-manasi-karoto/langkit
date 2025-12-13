@@ -241,7 +241,7 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	}
 	
 	// Record the provider name for crash reporting
-	// Use a temporary provider to get the name without initializing
+	// Get provider but do NOT initiale it, translit_manager handles that
 	tmpProvider, err := GetTranslitProvider(langCode, tsk.RomanizationStyle)
 	if err == nil {
 		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	composetypes "github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/dustin/go-humanize"
@@ -21,7 +22,6 @@ import (
 )
 
 const (
-	demucsRemote         = "https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs.git"
 	demucsProjectName    = "langkit-demucs" // Base project name for config dir
 	demucsImageName      = "ghcr.io/tassa-yoniso-manasi-karoto/langkit-demucs:latest"
 	demucsImageSizeBytes = 7_000_000_000 // ~7 GB compressed (13GB uncompressed)
@@ -49,11 +49,54 @@ func (m DemucsMode) containerName() string {
 	return "langkit-demucs"
 }
 
-func (m DemucsMode) composeFile() string {
-	if m == DemucsModeGPU {
-		return "docker-compose-gpu.yml"
+// buildComposeProject creates the compose project definition for demucs
+func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project {
+	service := composetypes.ServiceConfig{
+		Name:       "demucs",
+		Image:      demucsImageName,
+		StdinOpen:  true,
+		Tty:        true,
+		WorkingDir: "/workspace",
+		Volumes: []composetypes.ServiceVolumeConfig{
+			{
+				Type:   composetypes.VolumeTypeBind,
+				Source: filepath.Join(configDir, "input"),
+				Target: "/workspace/input",
+			},
+			{
+				Type:   composetypes.VolumeTypeBind,
+				Source: filepath.Join(configDir, "output"),
+				Target: "/workspace/output",
+			},
+			{
+				Type:   composetypes.VolumeTypeBind,
+				Source: filepath.Join(configDir, "models"),
+				Target: "/root/.cache/torch/hub/checkpoints",
+			},
+		},
 	}
-	return "docker-compose.yml"
+
+	// Add GPU device reservation for GPU mode
+	if m == DemucsModeGPU {
+		service.Deploy = &composetypes.DeployConfig{
+			Resources: composetypes.Resources{
+				Reservations: &composetypes.Resource{
+					Devices: []composetypes.DeviceRequest{{
+						Capabilities: []string{"gpu"},
+						Driver:       "nvidia",
+						Count:        -1, // all GPUs
+					}},
+				},
+			},
+		}
+	}
+
+	return &composetypes.Project{
+		Name: m.projectName(),
+		Services: composetypes.Services{
+			"demucs": service,
+		},
+	}
 }
 
 // ProgressHandlerKey is the context key for passing progress handler
@@ -128,6 +171,22 @@ func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		containerName: mode.containerName(),
 	}
 
+	// Get the config directory for volume paths (use mode-specific project name)
+	configDir, err := dockerutil.GetConfigDir(manager.projectName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config directory: %w", err)
+	}
+
+	// Ensure volume directories exist
+	for _, subdir := range []string{"input", "output", "models"} {
+		if err := os.MkdirAll(filepath.Join(configDir, subdir), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create %s directory: %w", subdir, err)
+		}
+	}
+
+	// Build compose project
+	project := mode.buildComposeProject(configDir)
+
 	logConfig := dockerutil.LogConfig{
 		Prefix:      manager.projectName,
 		ShowService: true,
@@ -140,26 +199,19 @@ func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 
 	cfg := dockerutil.Config{
 		ProjectName:      manager.projectName,
-		ComposeFile:      mode.composeFile(),
-		RemoteRepo:       demucsRemote,
+		Project:          project,
 		RequiredServices: []string{"demucs"},
 		LogConsumer:      logger,
 		Timeout: dockerutil.Timeout{
-			Create:   300 * time.Second,  // 5 min for initial image pull
-			Recreate: 10 * time.Minute,   // 10 min for recreate with model download
-			Start:    60 * time.Second,   // 1 min to reach running state
+			Create:   5 * time.Minute,  // container creation (image pull is separate with no timeout)
+			Recreate: 5 * time.Minute,  // container recreation
+			Start:    2 * time.Minute,  // reach running state
 		},
 	}
 
 	dockerManager, err := dockerutil.NewDockerManager(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Docker manager: %w", err)
-	}
-
-	// Get the config directory for volume paths (use mode-specific project name)
-	configDir, err := dockerutil.GetConfigDir(manager.projectName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config directory: %w", err)
 	}
 
 	manager.docker = dockerManager

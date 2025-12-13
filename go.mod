@@ -8,6 +8,7 @@ require (
 	github.com/asticode/go-astisub v0.32.0
 	github.com/barbashov/iso639-3 v1.0.0
 	github.com/bogem/id3v2 v1.2.0
+	github.com/compose-spec/compose-go/v2 v2.8.2
 	github.com/docker/docker v28.4.0+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/failsafe-go/failsafe-go v0.6.9
@@ -29,10 +30,10 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.0
-	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251212113125-91d844d045a4
+	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251213064812-099d2ccb9e9b
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta.0.20251212114111-54a2c697b8b0
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251212130828-4c2a6177cad0
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta.0.20251213065116-faf1d7a1b653
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251213070341-686631c87bd6
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1
@@ -76,7 +77,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
-	github.com/compose-spec/compose-go/v2 v2.8.2 // indirect
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/containerd/containerd/api v1.9.0 // indirect
 	github.com/containerd/containerd/v2 v2.1.4 // indirect
@@ -239,9 +239,9 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251212121558-e221cc38ac75 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251212114257-655697b929b7 // indirect
-	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251212123418-32fa6762ed68 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251213065422-6fd51edda0e9 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251213065723-39e54415de6b // indirect
+	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251213065919-662193c926ad // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

@@ -1,8 +1,10 @@
-- discard git
-
-- intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
+- dl progress bars:
+  - explicitly rm them when dl completed
+  - clarify alternating "Download", "Download complete" progress bar description due to layers dl
 
 - progress bar not cleared on Golang translit providers
+
+- intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
 
 - ZHO:
   -  zho-Hans.subtitle not recognized as zho
