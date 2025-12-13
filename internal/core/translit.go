@@ -403,9 +403,12 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 		recreate = val
 	}
 
+	// Track download progress taskID for cleanup
+	var downloadTaskID string
+
 	// Add download progress callback for Docker image pulls
 	if handler != nil {
-		taskID := fmt.Sprintf("download-%s-%d", p.module.Lang, time.Now().UnixNano())
+		downloadTaskID = fmt.Sprintf("download-%s-%d", p.module.Lang, time.Now().UnixNano())
 		var lastBytes int64
 
 		p.module.WithDownloadProgressCallback(func(providerName string, current, total int64, status string) {
@@ -418,7 +421,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 					humanizedSize = humanize.Bytes(uint64(current))
 				}
 				handler.IncrementDownloadProgress(
-					taskID,
+					downloadTaskID,
 					int(increment),
 					int(total),
 					20,
@@ -432,10 +435,19 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 		})
 	}
 
+	var initErr error
 	if !recreate {
-		return p.module.InitWithContext(ctx)
+		initErr = p.module.InitWithContext(ctx)
+	} else {
+		initErr = p.module.InitRecreateWithContext(ctx, true)
 	}
-	return p.module.InitRecreateWithContext(ctx, true)
+
+	// Clean up download progress bar whether we succeeded or failed
+	if handler != nil && downloadTaskID != "" {
+		handler.RemoveProgressBar(downloadTaskID)
+	}
+
+	return initErr
 }
 
 func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {
@@ -573,11 +585,17 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 
 	// Create ichiran manager with progress handler
 	options := []ichiran.ManagerOption{}
+	// Track download progress taskID for cleanup
+	var downloadTaskID string
 	if handler != nil {
 		// Add download progress callback for Docker image pulls
-		downloadTaskID := fmt.Sprintf("ichiran-download-%d", time.Now().UnixNano())
+		downloadTaskID = fmt.Sprintf("ichiran-download-%d", time.Now().UnixNano())
 		var lastBytes int64
 		options = append(options, ichiran.WithDownloadProgressCallback(func(current, total int64, status string) {
+			if current >= total {
+				handler.RemoveProgressBar(downloadTaskID)
+				return
+			}
 			increment := current - lastBytes
 			if increment > 0 {
 				var humanizedSize string
@@ -690,7 +708,6 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 		initErr = mgr.InitRecreate(ctx, true)
 	}
 	
-	// Clean up progress bar whether we succeeded or failed
 	if handler != nil {
 		handler.RemoveProgressBar("ichiran-init")
 	}

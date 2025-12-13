@@ -1,6 +1,3 @@
-- dl progress bars:
-  - explicitly rm them when dl completed
-  - clarify alternating "Download", "Download complete" progress bar description due to layers dl
 
 - progress bar not cleared on Golang translit providers
 
