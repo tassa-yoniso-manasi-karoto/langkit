@@ -672,7 +672,7 @@
                 severity: "info",
                 dismissible: true
             });
-            
+
             // Mark all current progress bars as cancelled
             progressBars.update(bars => {
                 return bars.map(bar => ({
@@ -682,10 +682,12 @@
             });
         } catch (error) {
             logger.error('app', "Failed to cancel processing", { error });
+            // Use warning instead of critical - don't block the Process button
+            // isProcessing stays true so cancel button remains visible for retry
             invalidationErrorStore.addError({
                 id: "cancel-failed",
                 message: "Failed to cancel processing",
-                severity: "critical",
+                severity: "warning",
                 dismissible: true
             });
         }

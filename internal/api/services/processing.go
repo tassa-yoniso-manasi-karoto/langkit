@@ -17,14 +17,21 @@ import (
 // Compile-time check that ProcessingService implements api.Service
 var _ api.Service = (*ProcessingService)(nil)
 
+// pendingCancelWindow is how long a buffered cancel request remains valid.
+// This handles the race condition where CancelProcessing arrives before
+// SendProcessingRequest due to network timing.
+const pendingCancelWindow = 2 * time.Second
+
 // ProcessingService implements the WebRPC ProcessingService interface
 type ProcessingService struct {
-	mu           sync.Mutex
-	isProcessing bool
-	provider     interfaces.ProcessingProvider
-	logger       zerolog.Logger
-	handler      http.Handler
-	wsServer     interfaces.WebsocketService
+	mu              sync.Mutex
+	isProcessing    bool
+	pendingCancel   bool      // Buffered cancel when cancel arrives before processing starts
+	pendingCancelAt time.Time // When the pending cancel was requested
+	provider        interfaces.ProcessingProvider
+	logger          zerolog.Logger
+	handler         http.Handler
+	wsServer        interfaces.WebsocketService
 }
 
 // NewProcessingService creates a new processing service instance
@@ -60,7 +67,7 @@ func (s *ProcessingService) Description() string {
 func (s *ProcessingService) SendProcessingRequest(ctx context.Context, request *generated.ProcessRequest) (*generated.ProcessingStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.isProcessing {
 		errorMsg := "Processing already in progress"
 		return &generated.ProcessingStatus{
@@ -68,7 +75,17 @@ func (s *ProcessingService) SendProcessingRequest(ctx context.Context, request *
 			Error:        &errorMsg,
 		}, nil
 	}
-	
+
+	// Check for pending cancel (race condition: cancel arrived before processing started)
+	if s.pendingCancel && time.Since(s.pendingCancelAt) < pendingCancelWindow {
+		s.pendingCancel = false
+		s.logger.Info().Msg("Processing request pre-cancelled by pending cancel")
+		return &generated.ProcessingStatus{
+			IsProcessing: false,
+		}, nil
+	}
+	s.pendingCancel = false // Clear any stale pending cancel
+
 	s.isProcessing = true
 	
 	// Emit processing started event
@@ -128,12 +145,16 @@ func (s *ProcessingService) SendProcessingRequest(ctx context.Context, request *
 func (s *ProcessingService) CancelProcessing(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if !s.isProcessing {
-		s.logger.Debug().Msg("CancelProcessing called but no processing in progress")
+		// Buffer the cancel request - processing RPC might still be in flight
+		// due to network timing (cancel arrived before start)
+		s.pendingCancel = true
+		s.pendingCancelAt = time.Now()
+		s.logger.Debug().Msg("CancelProcessing buffered - processing not started yet")
 		return nil
 	}
-	
+
 	s.provider.CancelProcessing()
 	s.logger.Info().Msg("Processing cancellation requested")
 	return nil

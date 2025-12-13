@@ -25,7 +25,11 @@ const AUTODISMISS_TIMEOUTS: Record<ErrorSeverity, number> = {
 
 function createErrorStore() {
     const storedErrors = localStorage.getItem('langkit-errors');
-    const initial = storedErrors ? JSON.parse(storedErrors) : [];
+    let initial: ErrorMessage[] = storedErrors ? JSON.parse(storedErrors) : [];
+
+    // Clear any stale "processing in progress" errors on startup
+    // These can get stuck if the app was closed during processing
+    initial = initial.filter(e => !e.id.includes('processing') && !e.message.toLowerCase().includes('processing'));
 
     // Store the entire writable store in a variable.
     const store = writable<ErrorMessage[]>(initial);

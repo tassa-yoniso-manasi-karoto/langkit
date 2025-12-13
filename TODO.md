@@ -1,9 +1,13 @@
+- discard git
+
 - intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
 
 - progress bar not cleared on Golang translit providers
 
 - ZHO:
   -  zho-Hans.subtitle not recognized as zho
+
+<hr>
 
 - redownload docker demucs and measure GB of compressed layers
 
