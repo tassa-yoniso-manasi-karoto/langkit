@@ -1,20 +1,13 @@
-
-- init pb:
-  - go-aksharamukha FAIL API (never init because front and font missing?)
-  - ichiran database init complete but never completes
-  - pythainlp is up but never start processing
+- test demucs_ft and demucs-nvidia again
 
 - intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
 
-- ZHO:
-  -  zho-Hans.subtitle not recognized as zho
+-  zho-Hans.subtitle not recognized as zho
 
 - anki changelog
 
 
 <hr>
-
-- redownload docker demucs and measure GB of compressed layers
 
 - cleanup abandoned Wails methods
 - support embedded subtitles

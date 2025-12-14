@@ -8,6 +8,7 @@
     import { isDeveloperMode } from '../lib/developerMode';
     import DependenciesChecklist from './DependenciesChecklist.svelte';
     import { OpenURL as BrowserOpenURL } from '../api/services/system';
+    import DockerIcon from './icons/DockerIcon.svelte';
     
     // Custom slide projector transition
     function slideProjector(node, {
@@ -88,7 +89,8 @@
     
     // Get system info from store
     $: systemInfo = $systemInfoStore;
-    
+    $: dockerName = systemInfo?.os === 'linux' ? 'Docker Engine' : 'Docker Desktop';
+
     // Animation states
     let titleVisible = false;
     let contentVisible = false;
@@ -398,7 +400,7 @@
                                     
                                     <p class="text-lg leading-relaxed"
                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
-                                        They enable powerful features like speech-to-text (making dubtites), subtitle summarization and voice enhancement at a low cost or for free without requiring expensive local hardware.
+                                        In Langkit they enable features like speech-to-text (making dubtitles), subtitle summarization and voice enhancement at a low cost without requiring expensive local hardware.
                                     </p>
                                 </div>
                             </div>
@@ -411,17 +413,23 @@
                                 in:slideProjector={{ yStart: 150, yEnd: 0, scaleStart: 0.65, scaleEnd: 1, opacityStart: 0, opacityEnd: 1, blurStart: 6, blurEnd: 0, duration: 800, delay: 0 }}
                                 out:slideProjectorOut={{ duration: 800 }}>
                             <div class="text-center max-w-lg mx-auto px-4">
-                                <h2 class="text-3xl font-semibold mb-6 flex items-center justify-center gap-2"
+                                <h2 class="text-4xl font-semibold mb-6 flex items-center justify-center gap-2"
                                     style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
-                                    <span class="material-icons text-primary">translate</span>
-                                    A Note on Specific Languages
+                                    <DockerIcon size="1.5em" className="text-blue-400" />
+                                    A Note on Docker
                                 </h2>
                                 <div class="space-y-4">
                                     <p class="text-lg leading-relaxed"
                                         style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
-                                        For languages with complex writing systems (like Japanese & Indic scripts), Langkit rely on external tools.
-                                        These tools run inside a system called <strong>Docker Desktop</strong>.
+                                        Some Langkit features rely on external tools that run inside <strong>{dockerName}</strong>.
                                     </p>
+                                    <div class="inline-grid grid-cols-[auto_auto] text-lg"
+                                        style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
+                                        <span class="text-right font-semibold px-4 py-2 border-r border-b border-white/20 whitespace-nowrap">Voice Enhancing</span>
+                                        <span class="text-left px-4 py-2 border-b border-white/20 whitespace-nowrap">Clearer dialogue for free</span>
+                                        <span class="text-right font-semibold px-4 py-2 border-r border-white/20 whitespace-nowrap">Subtitle processing</span>
+                                        <span class="text-left px-4 py-2 whitespace-nowrap">Japanese, Thai, Hindi, etc.</span>
+                                    </div>
                                     <p class="text-lg leading-relaxed"
                                         style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         Docker solves the problem of "this tool is too complicated for normal people to install". 
