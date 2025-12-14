@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	goruntime "runtime"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -93,12 +94,22 @@ func (a *App) bindEnvironmentVariables() {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Initialize UI manager with Wails implementation
-	ui.Initialize(
-		dialogs.NewWailsFileDialog(ctx),
-		dialogs.NewWailsMessageDialog(ctx),
-		browser.NewWailsURLOpener(ctx),
-	)
+	// Initialize UI manager
+	// On Windows, use Zenity dialogs to work around Wails file filter bug
+	// where filters don't display correctly in save dialogs
+	if goruntime.GOOS == "windows" {
+		ui.Initialize(
+			dialogs.NewZenityFileDialog(),
+			dialogs.NewZenityMessageDialog(),
+			browser.NewWailsURLOpener(ctx),
+		)
+	} else {
+		ui.Initialize(
+			dialogs.NewWailsFileDialog(ctx),
+			dialogs.NewWailsMessageDialog(ctx),
+			browser.NewWailsURLOpener(ctx),
+		)
+	}
 
 	a.getLogger().Info().Msg("Application starting up")
 
