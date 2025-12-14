@@ -753,8 +753,8 @@ github.com/stretchr/testify v1.11.0 h1:ib4sjIrwZKxE5u/Japgo/7SJV3PvgjGiRNAvTVGqQ
 github.com/stretchr/testify v1.11.0/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
-github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251214042449-2f026c45c028 h1:UvuGDxeSZjaEUnSmFhyxqfEzuK5/7x+fwpcc4Yhm2go=
-github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251214042449-2f026c45c028/go.mod h1:qmk3FL9zytV6CvZntGyskvYVxv0JwDUkWG4ByYCTFew=
+github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251214115738-ad6540c3ce0e h1:GmJn9fMWsHNyTwQ5yTEImNP3KDx572AvC4CliEBEi/w=
+github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251214115738-ad6540c3ce0e/go.mod h1:qmk3FL9zytV6CvZntGyskvYVxv0JwDUkWG4ByYCTFew=
 github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac h1:irZTZH6g2gTPmZ0zzK/XT2fF9FDThfK4c6CDgsfhXg4=
 github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac/go.mod h1:uJZaFWGBJJ+/iezVfF182nM97i3u5kU3UUOcdD0bkJM=
 github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251214043805-36a5586fb9f2 h1:/1sviiTqD7e0OQEcHA5onJAN8SALqP2C7EwxXXLaRHU=

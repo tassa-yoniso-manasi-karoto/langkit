@@ -65,17 +65,17 @@ func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project 
 			{
 				Type:   composetypes.VolumeTypeBind,
 				Source: filepath.Join(configDir, "input"),
-				Target: "/workspace/input",
+				Target: "/data/input",
 			},
 			{
 				Type:   composetypes.VolumeTypeBind,
 				Source: filepath.Join(configDir, "output"),
-				Target: "/workspace/output",
+				Target: "/data/output",
 			},
 			{
 				Type:   composetypes.VolumeTypeBind,
 				Source: filepath.Join(configDir, "models"),
-				Target: "/root/.cache/torch/hub/checkpoints",
+				Target: "/data/models",
 			},
 		},
 		// Attach to default network
