@@ -2,8 +2,6 @@
 
 - intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
 
--  zho-Hans.subtitle not recognized as zho
-
 - anki changelog
 
 

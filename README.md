@@ -234,7 +234,9 @@ The official Docker + Docker Compose libraries and their dependencies make up mo
 #### How do I use the GPU-accelerated voice separation on Linux?
 </summary>
 
-You need to install the **NVIDIA Container Toolkit** which allows Docker to access your GPU.
+You need:
+1. **NVIDIA drivers** installed on your system (`nvidia` or `nvidia-open-dkms`)
+2. **NVIDIA Container Toolkit** which allows Docker to access your GPU
 
 **Arch, Gentoo, Void, openSUSE** (available in official repos):
 ```bash
@@ -244,6 +246,8 @@ sudo pacman -S nvidia-container-toolkit  # Arch
 **Ubuntu, Debian, Fedora, RHEL** and others:
 
 The package is in NVIDIA's third-party repository. Follow <img src="internal/nvidia.svg" height="16"> [NVIDIA's official install guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+
+> **Note**: The Container Toolkit only provides the bridge between Docker and your GPU, it does not include the drivers themselves. Make sure NVIDIA drivers are installed first.
 
 </details>
 

@@ -33,6 +33,84 @@ var refmatch = map[string]int{
 	"stripped_sdh":   StrippedSDH,
 }
 
+// defaultScripts maps ISO 639-3 language codes to their default script subtag.
+// Used when user doesn't specify a script and we need to pick between variants.
+// Only needed for languages with multiple script variants in common use.
+var defaultScripts = map[string]string{
+	"zho": "hans", // Chinese defaults to Simplified
+	"yue": "hans", // Cantonese also uses Simplified by default
+	"cmn": "hans", // Mandarin Chinese defaults to Simplified
+	// Add others as needed (e.g., "srp": "latn" for Serbian)
+}
+
+// isScriptSubtag returns true for 4-letter ISO 15924 script codes (Hans, Hant, Latn, Cyrl)
+func isScriptSubtag(subtag string) bool {
+	return len(subtag) == 4
+}
+
+// isRegionSubtag returns true for 2-letter ISO 3166-1 region codes (US, GB, BR)
+func isRegionSubtag(subtag string) bool {
+	return len(subtag) == 2
+}
+
+// isExtlangSubtag checks if a 3-letter subtag is a valid ISO 639-3 extended language code.
+// Extended languages like "yue" in "zh-yue" represent more specific language varieties.
+func isExtlangSubtag(subtag string) bool {
+	if len(subtag) != 3 {
+		return false
+	}
+	return iso.FromAnyCode(subtag) != nil
+}
+
+// subtagQuality returns a preference score for a candidate's subtag.
+// Higher scores indicate better matches. Used to pick between variants
+// when multiple files match the same base language.
+func subtagQuality(requestedSubtag, candidateSubtag, langCode string) int {
+	// Exact subtag match - highest priority
+	if requestedSubtag == candidateSubtag {
+		return 100
+	}
+
+	// User didn't specify subtag - accept variants but with preferences
+	if requestedSubtag == "" {
+		// Generic version (no subtag) - high priority
+		if candidateSubtag == "" {
+			return 90
+		}
+
+		// Script subtag (4 letters) - only accept if it's the default
+		if isScriptSubtag(candidateSubtag) {
+			if defaultScript, ok := defaultScripts[langCode]; ok && candidateSubtag == defaultScript {
+				return 85 // Default script for this language
+			}
+			return 0 // Non-default script - reject
+		}
+
+		// Regional subtag (2 letters) - accept with preferences
+		switch langCode {
+		case "eng":
+			if candidateSubtag == "us" {
+				return 85
+			}
+			if candidateSubtag == "gb" {
+				return 80
+			}
+		}
+
+		// Any other regional subtag - lower priority but acceptable
+		return 50
+	}
+
+	// User specified subtag but candidate is generic (no subtag)
+	// This is an acceptable fallback
+	if candidateSubtag == "" {
+		return 70
+	}
+
+	// Different non-empty subtags - no match
+	return 0
+}
+
 type Lang struct {
 	*iso.Language `json:"language"`
 	Subtag string `json:"subtag"` // Typically a ISO 3166-1 region but can also be a ISO 15924 script
@@ -87,7 +165,7 @@ func (tsk *Task) PrepareLangs() *ProcessingError {
 	return nil
 }
 
-// Exemple of input slice: []string{"pt-BR", "yue", "zh-Hant"}
+// Exemple of input slice: []string{"pt-BR", "yue", "zh-Hant", "zh-yue-Hans"}
 func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 	if len(arr) == 0 {
 		return langs, fmt.Errorf("empty slice passed to ParseLanguageTags")
@@ -124,8 +202,25 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 				return nil, fmt.Errorf("an invalid language code or name was passed: '%s'", parts[0])
 			}
 		}
+
+		// Handle extended language subtags (BCP 47 extlangs)
+		// e.g., "zh-yue" -> resolve to Cantonese (yue), "zh-yue-Hans" -> Cantonese with Hans script
+		subtagIdx := 1
 		if len(parts) > 1 {
-			lang.Subtag = strings.ToLower(parts[1])
+			firstSubtag := strings.ToLower(parts[1])
+			// Check if first subtag is an extlang (3-letter valid ISO 639-3 code)
+			if len(firstSubtag) == 3 {
+				if extlang := iso.FromAnyCode(firstSubtag); extlang != nil {
+					// Override to the more specific language
+					lang.Language = extlang
+					subtagIdx = 2 // Skip the extlang, next subtag becomes the actual subtag
+				}
+			}
+		}
+
+		// Set the subtag (script or region) if present
+		if len(parts) > subtagIdx {
+			lang.Subtag = strings.ToLower(parts[subtagIdx])
 		}
 		langs = append(langs, lang)
 	}
@@ -143,38 +238,66 @@ func (tsk *Task) SetPreferred(langs []Lang, l, atm Lang, filename string, out *s
 			logger.Fatal().Err(err).Interface("languages", langs).Msg(msg)
 		}
 	}
-	
-	isPreferredLang := setPreferredLang(langs, l, atm, logger)
+
+	// If no file has been selected yet, atm is just the target language (not a real match).
+	// In this case, skip quality comparison - first matching file wins.
+	noFileSelectedYet := *out == ""
+	isPreferredLang := evalLangPreference(langs, l, atm, noFileSelectedYet, logger)
 	isPreferredSubtype := isPreferredSubtypeOver(*out, filename, logger)
 	isPreferred := isPreferredLang && isPreferredSubtype
-	
+
 	logger.Trace().
 		Str("File", filename).
 		Str("lang_currently_selected", atm.Part3).
 		Bool("isPreferredLang", isPreferredLang).
 		Bool("isPreferredSubtype", isPreferredSubtype).
 		Msgf("candidate subs's lang '%s' should be preferred? %t", l.Part3, isPreferred)
-		
+
 	if isPreferred {
 		*out = filename
-		*Native = atm
+		*Native = l // Store the winning candidate's language (including subtag), not the old atm
 		return true
 	}
 	return false
 }
 
-// Only 1st subtag found is considered, the others are ignored
+// GuessLangFromFilename extracts language information from a filename.
+// Handles BCP 47 tags including extlangs: "zh-yue-Hans" -> Lang{Language: yue, Subtag: hans}
 func GuessLangFromFilename(name string) (lang Lang, err error) {
 	// this int was in the original algo, not sure if I need it or not at some point
 	var fn_start int
 	l := guessLangFromFilename(name, &fn_start)
-	if arr := strings.Split(l, "-"); strings.Contains(l, "-") {
-		lang.Subtag = strings.ToLower(arr[1])
-		l = arr[0]
+	if l == "" {
+		err = fmt.Errorf("No language could be identified from filename")
+		return
 	}
-	lang.Language = iso.FromAnyCode(l)
+
+	parts := strings.Split(l, "-")
+	langCode := strings.ToLower(parts[0])
+	lang.Language = iso.FromAnyCode(langCode)
 	if lang.Language == nil {
 		err = fmt.Errorf("No language could be identified: lang='%s'", l)
+		return
+	}
+
+	// Handle extended language subtags (BCP 47 extlangs)
+	// e.g., "zh-yue" -> resolve to Cantonese (yue), "zh-yue-Hans" -> Cantonese with Hans script
+	subtagIdx := 1
+	if len(parts) > 1 {
+		firstSubtag := strings.ToLower(parts[1])
+		// Check if first subtag is an extlang (3-letter valid ISO 639-3 code)
+		if len(firstSubtag) == 3 {
+			if extlang := iso.FromAnyCode(firstSubtag); extlang != nil {
+				// Override to the more specific language
+				lang.Language = extlang
+				subtagIdx = 2 // Skip the extlang, next subtag becomes the actual subtag
+			}
+		}
+	}
+
+	// Set the subtag (script or region) if present
+	if len(parts) > subtagIdx {
+		lang.Subtag = strings.ToLower(parts[subtagIdx])
 	}
 	return
 }
@@ -287,35 +410,114 @@ func stripCommonSubsMention(s string) string {
 }
 
 
-func setPreferredLang(langs []Lang, l, atm Lang, logger *zerolog.Logger) (b bool) {
+// evalLangPreference determines if candidate l should be preferred over current atm.
+// When noCurrentFile is true, it means atm is just the target language (not a real file match),
+// so we skip quality comparison and accept the first matching candidate.
+func evalLangPreference(langs []Lang, l, atm Lang, noCurrentFile bool, logger *zerolog.Logger) bool {
 	langIdx, langIsDesired := getIdx(langs, l)
-	atmIdx, _ := getIdx(langs, atm)
-	
+	atmIdx, atmIsDesired := getIdx(langs, atm)
+
 	logger.Trace().
 		Bool("lang_is_desired", langIsDesired).
 		Bool("is_preferred_over_current", langIdx <= atmIdx).
+		Bool("no_current_file", noCurrentFile).
 		Msgf("evaluating candidate '%s' against current '%s'", l.Part3, atm.Part3)
-	
-	// idx = idx in the row of lang sorted by preference the user has passed
-	if langIsDesired && langIdx <= atmIdx {
-		b = true
+
+	if !langIsDesired {
+		return false
 	}
-	return
+
+	// If no file has been selected yet, first matching candidate wins
+	// (atm is just the target language, not a real file match)
+	if noCurrentFile {
+		return true
+	}
+
+	// Better language priority (lower index in user's preference list = higher priority)
+	if langIdx < atmIdx {
+		return true
+	}
+
+	// Same language priority - compare subtag quality to pick best variant
+	if langIdx == atmIdx {
+		// If no current valid selection, candidate wins
+		if !atmIsDesired {
+			return true
+		}
+
+		// Both match the same requested language - compare subtag quality
+		requestedLang := langs[langIdx]
+		langQuality := subtagQuality(requestedLang.Subtag, l.Subtag, l.Part3)
+		atmQuality := subtagQuality(requestedLang.Subtag, atm.Subtag, atm.Part3)
+
+		logger.Trace().
+			Int("candidate_subtag_quality", langQuality).
+			Int("current_subtag_quality", atmQuality).
+			Msgf("subtag comparison: candidate '%s' vs current '%s'", l.Subtag, atm.Subtag)
+
+		if langQuality > atmQuality {
+			return true
+		}
+	}
+
+	return false
+}
+
+// setPreferredLang is a convenience wrapper for evalLangPreference with noCurrentFile=false.
+// Used by tests and cases where there's already a current file selected.
+func setPreferredLang(langs []Lang, l, atm Lang, logger *zerolog.Logger) bool {
+	return evalLangPreference(langs, l, atm, false, logger)
 }
 
 func getIdx(langs []Lang, candidate Lang) (int, bool) {
+	// Handle nil Language (e.g., initial empty state before any match)
+	if candidate.Language == nil {
+		return 0, false
+	}
+
 	for i, l := range langs {
-		// support redundant composition implicitly i.e. de-DE or th-TH
-		var isRedundantSubtag bool
-		if match := iso.FromAnyCode(candidate.Subtag); match != nil {
-			isRedundantSubtag = *match == *l.Language
+		if l.Part3 != candidate.Part3 {
+			continue
 		}
-		// pp.Println(candidate)
-		// color.Blueln("candidateSubtag", candidate.Subtag)
-		// color.Blueln("sameLangAsAsked?", l.Part3 == candidate.Part3, "subtagCheckOK?", (l.Subtag == candidate.Subtag || candidate.Subtag == l.Part3), "redundant?", isRedundantSubtag)
-		// color.Yellowln("passing?", l.Part3 == candidate.Part3 && (l.Subtag == candidate.Subtag || isRedundantSubtag))
-		if l.Part3 == candidate.Part3 && (l.Subtag == candidate.Subtag || l.Subtag == "" && isRedundantSubtag) {
+
+		// Base language matches - now check subtag compatibility
+
+		// Exact subtag match
+		if l.Subtag == candidate.Subtag {
 			return i, true
+		}
+
+		// User didn't specify subtag - conditionally accept candidate's subtag
+		if l.Subtag == "" {
+			// No subtag in candidate - always match
+			if candidate.Subtag == "" {
+				return i, true
+			}
+
+			// Script subtag (4 letters) - only accept if it's the default for this language
+			if isScriptSubtag(candidate.Subtag) {
+				if defaultScript, ok := defaultScripts[l.Part3]; ok && candidate.Subtag == defaultScript {
+					return i, true
+				}
+				// Non-default script - don't match (e.g., "zho" won't match "zh-Hant")
+				continue
+			}
+
+			// Regional subtag (2 letters) - always accept
+			// (quality differentiation happens in setPreferredLang via subtagQuality)
+			return i, true
+		}
+
+		// User specified subtag but candidate is generic - acceptable fallback
+		if candidate.Subtag == "" {
+			return i, true
+		}
+
+		// Support redundant composition implicitly i.e. de-DE or th-TH
+		if match := iso.FromAnyCode(candidate.Subtag); match != nil {
+			if *match == *l.Language {
+				return i, true
+			}
 		}
 	}
 	return 0, false
