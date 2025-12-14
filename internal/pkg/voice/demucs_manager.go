@@ -42,20 +42,25 @@ func (m DemucsMode) projectName() string {
 }
 
 func (m DemucsMode) containerName() string {
+	// Docker Compose generates: {project}-{service}-1
 	if m == DemucsModeGPU {
-		return "langkit-demucs-gpu"
+		return "langkit-demucs-gpu-demucs-1"
 	}
-	return "langkit-demucs"
+	return "langkit-demucs-demucs-1"
 }
 
 // buildComposeProject creates the compose project definition for demucs
 func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project {
+	// Network name follows Docker Compose convention: {project}_{network}
+	defaultNetworkName := m.projectName() + "_default"
+
 	service := composetypes.ServiceConfig{
-		Name:       "demucs",
-		Image:      demucsImageName,
-		StdinOpen:  true,
-		Tty:        true,
-		WorkingDir: "/workspace",
+		Name:          "demucs",
+		ContainerName: m.containerName(), // Explicit container name for exec commands
+		Image:         demucsImageName,
+		StdinOpen:     true,
+		Tty:           true,
+		WorkingDir:    "/workspace",
 		Volumes: []composetypes.ServiceVolumeConfig{
 			{
 				Type:   composetypes.VolumeTypeBind,
@@ -72,6 +77,10 @@ func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project 
 				Source: filepath.Join(configDir, "models"),
 				Target: "/root/.cache/torch/hub/checkpoints",
 			},
+		},
+		// Attach to default network
+		Networks: map[string]*composetypes.ServiceNetworkConfig{
+			"default": nil,
 		},
 	}
 
@@ -92,6 +101,12 @@ func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project 
 
 	return &composetypes.Project{
 		Name: m.projectName(),
+		// Default network required for container networking
+		Networks: composetypes.Networks{
+			"default": composetypes.NetworkConfig{
+				Name: defaultNetworkName,
+			},
+		},
 		Services: composetypes.Services{
 			"demucs": service,
 		},

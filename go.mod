@@ -30,10 +30,10 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.0
-	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251213085829-dbc92c54d932
+	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251214042449-2f026c45c028
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
-	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta.0.20251213092104-d10db009ac89
-	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251213153014-332924d76a35
+	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta.0.20251214042735-03c83c499ffa
+	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251214044129-7f6660545258
 	github.com/tidwall/pretty v1.2.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/webrpc/webrpc v0.26.1
@@ -239,9 +239,9 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251213092153-b53e04a3ca93 // indirect
-	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251213092238-f91f72a9e5ab // indirect
-	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251213092910-850c44fb9753 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-aksharamukha v0.0.0-20251214043805-36a5586fb9f2 // indirect
+	github.com/tassa-yoniso-manasi-karoto/go-pythainlp v0.0.0-20251214043307-6259648b9d0d // indirect
+	github.com/tassa-yoniso-manasi-karoto/paiboonizer v0.0.0-20251214043442-4130a1eeb7ca // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
