@@ -488,8 +488,9 @@ import { isDeveloperMode } from '../lib/developerMode';
 {#if $showSettings}
     <div class="settings-modal">
         <!-- Backdrop as sibling element with delayed rendering -->
+        <!-- FLICKERING TEST: replaced backdrop-blur-lg bg-black/30 with solid bg-black/70 -->
         {#if backdropBlurReady}
-            <div class="fixed inset-0 backdrop-blur-lg bg-black/30 settings-backdrop"
+            <div class="fixed inset-0 bg-black/70 settings-backdrop"
                  transition:fade={{ duration: 300 }}
                  on:click={onClose}></div>
         {/if}
@@ -502,8 +503,9 @@ import { isDeveloperMode } from '../lib/developerMode';
                 <!-- Panel container with siblings for blur and content -->
                 <div class="relative w-full">
                     <!-- Panel backdrop blur as sibling -->
+                    <!-- FLICKERING TEST: replaced backdrop-blur-3xl/lg with solid bg-black/50 -->
                     {#if panelBlurVisible}
-                        <div class="{panelBlurReady ? 'backdrop-blur-3xl' : 'backdrop-blur-lg'} rounded-xl absolute inset-0 
+                        <div class="bg-black/50 rounded-xl absolute inset-0
                                     backdrop-panel-transition panel-blur-layer"
                              transition:fade={{ duration: 200 }}></div>
                     {/if}
@@ -1138,19 +1140,21 @@ import { isDeveloperMode } from '../lib/developerMode';
 {/if}
 
 <style>
+    /* FLICKERING TEST: disabled backdrop-filter on inputs */
     :global(.settings-modal input) {
-        background-color: hsla(var(--input-bg), 0.75) !important;
-        backdrop-filter: blur(10px) !important; 
-        -webkit-backdrop-filter: blur(10px) !important;
+        background-color: hsla(var(--input-bg), 0.9) !important;
+        /* backdrop-filter: blur(10px) !important; */
+        /* -webkit-backdrop-filter: blur(10px) !important; */
     }
     
     /* Animated cancel button with propagating hover effect from entry point */
+    /* FLICKERING TEST: disabled backdrop-filter on cancel button */
     :global(.settings-modal .cancel-button) {
       position: relative;
       overflow: hidden;
-      background-color: hsla(var(--input-bg), 0.85) !important;
-      backdrop-filter: blur(8px) !important;
-      -webkit-backdrop-filter: blur(8px) !important;
+      background-color: hsla(var(--input-bg), 0.95) !important;
+      /* backdrop-filter: blur(8px) !important; */
+      /* -webkit-backdrop-filter: blur(8px) !important; */
       border: 3px solid var(--input-border) !important;
       transition: color 0.3s ease-in, border-color 0.3s ease-in !important;
       z-index: 1;
@@ -1184,8 +1188,9 @@ import { isDeveloperMode } from '../lib/developerMode';
     }
     
     /* Enhanced glassmorphic effect */
+    /* FLICKERING TEST: disabled backdrop-filter on focus */
     .glass-input-container input:focus {
-        backdrop-filter: blur(12px);
+        /* backdrop-filter: blur(12px); */
     }
     
     /* Improved scrollbar for better visibility */
