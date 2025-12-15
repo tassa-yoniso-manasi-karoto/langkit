@@ -289,12 +289,10 @@ class LangkitTab:
         mw.bottomWeb.setFixedHeight(0)
         mw.bottomWeb.hide()
 
-        # Attempt to reduce flickering by disabling GPU acceleration on Anki's webviews
-        # (Testing whether multiple compositor surfaces with GPU acceleration cause issues)
+        # Navigate Anki's webviews to blank page to make compositor surfaces dormant
+        # (Test to see if multiple active compositor surfaces cause flickering)
         for webview in [mw.toolbarWeb, mw.web, mw.bottomWeb]:
-            settings = webview.settings()
-            settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, False)
-            settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, False)
+            webview.setUrl(QUrl("about:blank"))
 
         # Disable Anki's auto-refresh mechanisms while Langkit is visible
         self._disable_anki_refresh()
@@ -340,11 +338,16 @@ class LangkitTab:
         
         # Mark Langkit as not visible on main window
         mw._langkit_visible = False
-        
+
         # Redraw toolbar to ensure theme consistency
         if hasattr(mw, 'toolbar') and mw.toolbar:
             mw.toolbar.redraw()
-            
+
+        # Restore Anki's webview content (was set to about:blank to reduce flickering)
+        # Trigger a state reset to force Anki to re-render its webviews
+        if hasattr(mw, 'reset'):
+            mw.reset()
+
         self.is_visible = False
 
         # The webview is kept alive but hidden (single instance pattern)
