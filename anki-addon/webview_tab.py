@@ -52,6 +52,11 @@ class LangkitWebView(QWebEngineView):
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+
+        # Attempt to reduce flickering on Windows by disabling GPU-accelerated canvas/WebGL
+        # (May not fully fix backdrop-filter flickering but worth testing)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, False)
             
         # Set focus policy to ensure webview can receive input
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
