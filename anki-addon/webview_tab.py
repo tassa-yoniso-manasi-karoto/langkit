@@ -153,6 +153,11 @@ class LangkitTab:
         self._original_web_stdHtml = None
         self._original_deckBrowser_refresh = None
         self._original_deckBrowser_refresh_if_needed = None
+
+        # Store Anki's webview pages for compositor surface release (flickering fix test)
+        self._stored_toolbar_page = None
+        self._stored_web_page = None
+        self._stored_bottom_page = None
         
         # Don't create webview here - wait until show() is called
         
@@ -289,10 +294,22 @@ class LangkitTab:
         mw.bottomWeb.setFixedHeight(0)
         mw.bottomWeb.hide()
 
-        # Navigate Anki's webviews to blank page to make compositor surfaces dormant
-        # (Test to see if multiple active compositor surfaces cause flickering)
-        for webview in [mw.toolbarWeb, mw.web, mw.bottomWeb]:
-            webview.setUrl(QUrl("about:blank"))
+        # TEST: Detach Anki's webview pages to release compositor surfaces
+        # This is an aggressive test to see if multiple compositor surfaces cause flickering
+        print("[Langkit] Detaching Anki webview pages to release compositor surfaces")
+        try:
+            self._stored_toolbar_page = mw.toolbarWeb.page()
+            self._stored_web_page = mw.web.page()
+            self._stored_bottom_page = mw.bottomWeb.page()
+
+            # Create minimal placeholder pages to replace the originals
+            # This should release the compositor surfaces while keeping webviews valid
+            mw.toolbarWeb.setPage(QWebEnginePage(mw.toolbarWeb))
+            mw.web.setPage(QWebEnginePage(mw.web))
+            mw.bottomWeb.setPage(QWebEnginePage(mw.bottomWeb))
+            print("[Langkit] Anki webview pages detached successfully")
+        except Exception as e:
+            print(f"[Langkit] Failed to detach Anki webview pages: {e}")
 
         # Disable Anki's auto-refresh mechanisms while Langkit is visible
         self._disable_anki_refresh()
@@ -319,7 +336,23 @@ class LangkitTab:
         
         # FIRST: Restore Anki's auto-refresh mechanisms (including show() methods)
         self._restore_anki_refresh()
-        
+
+        # TEST: Restore Anki's original webview pages before showing
+        print("[Langkit] Restoring Anki webview pages")
+        try:
+            if self._stored_toolbar_page:
+                mw.toolbarWeb.setPage(self._stored_toolbar_page)
+                self._stored_toolbar_page = None
+            if self._stored_web_page:
+                mw.web.setPage(self._stored_web_page)
+                self._stored_web_page = None
+            if self._stored_bottom_page:
+                mw.bottomWeb.setPage(self._stored_bottom_page)
+                self._stored_bottom_page = None
+            print("[Langkit] Anki webview pages restored successfully")
+        except Exception as e:
+            print(f"[Langkit] Failed to restore Anki webview pages: {e}")
+
         # THEN: Show and restore Anki's webviews with the restored methods
         print("[Langkit] Showing Anki's webviews")
         
@@ -338,16 +371,11 @@ class LangkitTab:
         
         # Mark Langkit as not visible on main window
         mw._langkit_visible = False
-
+        
         # Redraw toolbar to ensure theme consistency
         if hasattr(mw, 'toolbar') and mw.toolbar:
             mw.toolbar.redraw()
-
-        # Restore Anki's webview content (was set to about:blank to reduce flickering)
-        # Trigger a state reset to force Anki to re-render its webviews
-        if hasattr(mw, 'reset'):
-            mw.reset()
-
+            
         self.is_visible = False
 
         # The webview is kept alive but hidden (single instance pattern)
