@@ -311,7 +311,8 @@
     $: buttonText = showWelcome ? 'Continue' : showApiKeys ? 'Continue' : 'Get Started';
    </script>
 
-<div class="welcome-popup fixed inset-0 flex items-center justify-center p-4 backdrop-blur-sm"
+<!-- FLICKERING TEST: removed backdrop-blur-sm from container -->
+<div class="welcome-popup fixed inset-0 flex items-center justify-center p-4"
      in:fade={{ duration: 300 }}
      out:fade={{ duration: 200 }}>
     
@@ -324,12 +325,11 @@
          out:scale={{ duration: 200, easing: cubicOut, start: 0.95 }}>
         
         <!-- Panel with more solid appearance and depth -->
+        <!-- FLICKERING TEST: replaced backdrop-filter blur(24px) with solid bg -->
         <div class="relative overflow-hidden rounded-3xl
                     shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)]
                     panel-glow"
-             style="background-color: rgba(0, 0, 0, var(--style-welcome-panel-bg-opacity, 0.3));
-                    backdrop-filter: blur(var(--style-welcome-panel-blur, 24px));
-                    -webkit-backdrop-filter: blur(var(--style-welcome-panel-blur, 24px));
+             style="background-color: rgba(20, 20, 25, 0.95);
                     border: 1px solid rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))">
             
             <!-- Subtle gradient accent -->
