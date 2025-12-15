@@ -337,6 +337,32 @@ func TestGetIdx_ScriptAware(t *testing.T) {
 			Lang{Language: nil, Subtag: ""},
 			false, 0,
 		},
+
+		// Strict subtag matching (user specified subtag)
+		{
+			"en-us does NOT match en-in (strict)",
+			[]Lang{makeLang("eng", "us")},
+			makeLang("eng", "in"),
+			false, 0,
+		},
+		{
+			"en-us does NOT match en-gb (strict)",
+			[]Lang{makeLang("eng", "us")},
+			makeLang("eng", "gb"),
+			false, 0,
+		},
+		{
+			"de-at does NOT match de-de (strict)",
+			[]Lang{makeLang("deu", "at")},
+			makeLang("deu", "de"),
+			false, 0,
+		},
+		{
+			"en-us matches en (generic fallback)",
+			[]Lang{makeLang("eng", "us")},
+			makeLang("eng", ""),
+			true, 0,
+		},
 	}
 
 	for _, tt := range tests {

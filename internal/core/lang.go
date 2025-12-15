@@ -513,12 +513,8 @@ func getIdx(langs []Lang, candidate Lang) (int, bool) {
 			return i, true
 		}
 
-		// Support redundant composition implicitly i.e. de-DE or th-TH
-		if match := iso.FromAnyCode(candidate.Subtag); match != nil {
-			if *match == *l.Language {
-				return i, true
-			}
-		}
+		// Different non-empty subtags - no match (strict matching)
+		// e.g., user wants "en-us", file has "en-in" → reject
 	}
 	return 0, false
 }
