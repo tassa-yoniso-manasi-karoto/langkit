@@ -1603,9 +1603,10 @@
      on:dragover={(e) => { e.preventDefault(); }}
      on:drop={(e) => { e.preventDefault(); }}>
     <BackgroundGradient />
-    {#if showGlow && !isWindowMinimized && userActivityState !== UserActivityState.AFK}
+    <!-- DISABLED FOR FLICKERING TEST: GlowEffect applies 150px backdrop-filter to entire viewport -->
+    <!-- {#if showGlow && !isWindowMinimized && userActivityState !== UserActivityState.AFK}
         <GlowEffect {isProcessing} />
-    {/if}
+    {/if} -->
 
     <!-- Return to Anki button (Qt mode only) -->
     <ReturnToAnkiButton />
