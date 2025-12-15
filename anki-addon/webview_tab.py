@@ -288,7 +288,14 @@ class LangkitTab:
         print(f"[Langkit] Storing bottom bar height: {self.original_bottom_height}")
         mw.bottomWeb.setFixedHeight(0)
         mw.bottomWeb.hide()
-        
+
+        # Attempt to reduce flickering by disabling GPU acceleration on Anki's webviews
+        # (Testing whether multiple compositor surfaces with GPU acceleration cause issues)
+        for webview in [mw.toolbarWeb, mw.web, mw.bottomWeb]:
+            settings = webview.settings()
+            settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, False)
+
         # Disable Anki's auto-refresh mechanisms while Langkit is visible
         self._disable_anki_refresh()
         
