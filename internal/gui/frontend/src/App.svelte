@@ -148,7 +148,10 @@
     
     // Cancel button reference for fill effect
     let cancelButtonRef: HTMLButtonElement | null = null;
-    
+
+    // Track lite mode for conditional backdrop-filter (Qt+Windows flickering workaround)
+    $: liteMode = $liteModeStore.enabled;
+
     // Reactive tracking of language settings
     // A reactive statement to sync settings target language with quick access language
     $: {
@@ -1644,10 +1647,11 @@
     <ReturnToAnkiButton />
 
     <!-- Settings button  -->
+    <!-- Conditionally disable backdrop-blur in lite mode to prevent Qt WebEngine flickering -->
     <div class="absolute top-4 right-4 z-20 flex items-center gap-4">
         <button
             class="w-10 h-10 flex items-center justify-center rounded-xl
-                   bg-white/5 backdrop-blur-md border border-white/10
+                   {liteMode ? 'bg-white/15' : 'bg-white/5 backdrop-blur-md'} border border-white/10
                    text-white/70 transition-all duration-300
                    hover:bg-white/10 hover:border-primary/30 hover:text-primary
                    hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/20

@@ -1,8 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte'; // Added onDestroy
     import { slide, fade } from 'svelte/transition';
-    import { settings, showSettings, mergeSettingsWithDefaults, liteModeStore, systemInfoStore } from '../lib/stores';
-    import { isAnkiMode } from '../lib/runtime/stores';
+    import { settings, showSettings, mergeSettingsWithDefaults, liteModeStore } from '../lib/stores';
 import { isDeveloperMode } from '../lib/developerMode';
     import { OpenExecutableDialog } from '../api/services/media';
     import { ValidateLanguageTag } from '../api';
@@ -198,8 +197,6 @@ import { isDeveloperMode } from '../lib/developerMode';
     // Track lite mode for Qt+Windows compatibility
     $: liteMode = $liteModeStore.enabled;
     $: isQtWindows = $liteModeStore.isQtWindows;
-    $: isAnki = $isAnkiMode;
-    $: systemInfo = $systemInfoStore;
 
     // Modified reactive declaration to handle reset state
     $: exportGlowClass = isResetting
@@ -883,7 +880,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             </h3>
                             <!-- Lite Mode (reduced visual effects) -->
                             <div class="setting-row">
-                                <div class="setting-label">
+                                <div class="setting-label" class:disabled={isQtWindows}>
                                     <span>Lite mode</span>
                                     <span class="setting-description">Simplify visuals for better performance on low-end hardware</span>
                                 </div>
@@ -891,22 +888,25 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     <label class="toggle-switch" class:disabled={isQtWindows}>
                                         <input
                                             type="checkbox"
-                                            bind:checked={currentSettings.liteMode}
+                                            checked={isQtWindows ? true : currentSettings.liteMode}
                                             on:change={() => {
-                                                updateSettings();
-                                                liteModeStore.setUserPreference(currentSettings.liteMode);
+                                                if (!isQtWindows) {
+                                                    currentSettings.liteMode = !currentSettings.liteMode;
+                                                    updateSettings();
+                                                    liteModeStore.setUserPreference(currentSettings.liteMode);
+                                                }
                                             }}
                                             disabled={isQtWindows}
                                         />
                                         <span class="slider round"></span>
                                     </label>
                                 </div>
+                                {#if isQtWindows}
+                                    <div class="setting-note-card">
+                                        Forced on due to <ExternalLink href="https://github.com/ankitects/anki/issues/4470">Qt bug on Windows</ExternalLink>
+                                    </div>
+                                {/if}
                             </div>
-                            {#if isQtWindows}
-                                <div class="setting-note">
-                                    Enabled by default due to <ExternalLink href="https://github.com/ankitects/anki/issues/4470">Qt bug on Windows</ExternalLink>
-                                </div>
-                            {/if}
                             
                             <!-- Show log viewer by default -->
                             <div class="setting-row">
@@ -1494,14 +1494,18 @@ import { isDeveloperMode } from '../lib/developerMode';
         transform: translateX(30px); /* Adjusted for new width */
     }
 
-    /* Disabled toggle switch state (for forced settings like Qt+Windows lite mode) */
+    /* Disabled state for forced settings (Qt+Windows lite mode) */
     .toggle-switch.disabled {
-        opacity: 0.6;
+        opacity: 0.3;
         cursor: not-allowed;
     }
 
     .toggle-switch.disabled .slider {
         cursor: not-allowed;
+    }
+
+    .setting-label.disabled {
+        opacity: 0.4;
     }
     
     /* Setting row styles */
@@ -1527,12 +1531,14 @@ import { isDeveloperMode } from '../lib/developerMode';
         color: rgba(255, 255, 255, 0.6);
     }
 
-    .setting-note {
+    .setting-note-card {
+        grid-column: 1 / -1; /* Span both columns */
         font-size: 0.7rem;
-        color: rgba(255, 255, 255, 0.5);
-        margin-top: -0.5rem;
-        margin-bottom: 0.5rem;
-        padding-left: 0.25rem;
+        color: rgba(255, 255, 255, 0.6);
+        background-color: rgba(60, 60, 80, 0.4);
+        padding: 0.4rem 0.6rem;
+        margin-top: -0.5rem; /* Counteract grid gap */
+        border-radius: 0.375rem;
         font-style: italic;
     }
 

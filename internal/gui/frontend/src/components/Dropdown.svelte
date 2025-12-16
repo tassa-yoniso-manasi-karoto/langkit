@@ -428,7 +428,7 @@
     {#if isOpen && hasRenderedOptions}
         <Portal target="body">
             <div 
-                class="dropdown-options fixed max-h-60 overflow-auto focus:outline focus:outline-2 focus:outline-primary/50" 
+                class="dropdown-options fixed max-h-60 overflow-auto focus:outline focus:outline-2 focus:outline-primary/50"
                 bind:this={optionsContainerRef} 
                 role="listbox"
                 aria-activedescendant={highlightedIndex >= 0 ? `option-${highlightedIndex}` : undefined}
