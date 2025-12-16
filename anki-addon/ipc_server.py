@@ -57,14 +57,15 @@ class DialogRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(result).encode('utf-8'))
 
-        except BrokenPipeError:
+        except (BrokenPipeError, ConnectionAbortedError):
             # Client closed connection before response was sent - this is normal
+            # BrokenPipeError on Unix, ConnectionAbortedError on Windows
             pass
         except Exception as e:
             print(f"[Langkit Dialog] Error handling request: {e}")
             try:
                 self.send_error(500, str(e))
-            except BrokenPipeError:
+            except (BrokenPipeError, ConnectionAbortedError):
                 pass
 
     def do_GET(self):
@@ -87,8 +88,9 @@ class DialogRequestHandler(BaseHTTPRequestHandler):
                     self.send_error(500, str(e))
             else:
                 self.send_error(404, "Not found")
-        except BrokenPipeError:
+        except (BrokenPipeError, ConnectionAbortedError):
             # Client closed connection before response was sent - this is normal
+            # BrokenPipeError on Unix, ConnectionAbortedError on Windows
             pass
 
 
