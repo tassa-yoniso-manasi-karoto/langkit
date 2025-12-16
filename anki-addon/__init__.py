@@ -13,8 +13,7 @@ from aqt import mw, gui_hooks
 from aqt.qt import *
 from aqt.utils import showInfo, showWarning, qconnect
 from aqt.utils import tr
-from aqt.profiles import VideoDriver
-from anki.utils import is_win, is_mac, is_lin
+from anki.utils import is_mac
 import aqt.toolbar
 
 # Add addon directory to path for imports
@@ -437,67 +436,6 @@ class LangkitAddon:
             self._save_config()
             
             return True
-        
-        # Windows Direct3D check
-        if not is_win:
-            return True
-            
-        current_driver = mw.pm.video_driver()
-        
-        # Only warn about Direct3D on high refresh rate displays
-        if current_driver != VideoDriver.Direct3D:
-            return True
-
-        # Check actual refresh rate - only warn if >60Hz
-        try:
-            screen = QGuiApplication.primaryScreen()
-            if screen and screen.refreshRate() <= 60:
-                return True  # 60Hz or lower, no warning needed
-        except Exception:
-            pass  # If we can't detect, show warning to be safe
-
-        # Check warning count
-        warning_count = self.config.get("direct3d_refresh_warning_count", 0)
-        
-        # Don't show after 2 warnings
-        if warning_count >= 2:
-            return True
-            
-        # Show warning about high refresh rate displays
-        msg = QMessageBox(mw)
-        msg.setIcon(QMessageBox.Icon.Information)
-        msg.setWindowTitle("Display Configuration Notice")
-        msg.setText("<b>Using Direct3D with High Refresh Rate Display</b>")
-        
-        # Different message for second warning (reminder)
-        if warning_count == 1:
-            info_text = (
-                "Reminder: If you're experiencing visual glitches or flickering in Langkit, "
-                "it may be due to your high refresh rate display.\n\n"
-                "Try lowering your display refresh rate to 60Hz in Windows Display Settings "
-                "or switch to OpenGL in Anki's preferences (though performance may be reduced).\n\n"
-                "No further reminder will occur."
-            )
-        else:
-            # First time warning
-            info_text = (
-                "Langkit works best with Direct3D for performance, but some users with "
-                "high refresh rate displays (>60Hz) may experience visual glitches.\n\n"
-                "If you notice any flickering or visual issues:\n"
-                "• Try lowering your display refresh rate to 60Hz in Windows Display Settings\n"
-                "• Or switch to Video Driver : OpenGL in Anki's preferences (though performance will suffer)\n\n"
-                "Most users will not experience any issues."
-            )
-        
-        msg.setInformativeText(info_text)
-        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-        msg.exec()
-        
-        # Increment warning count
-        self.config["direct3d_refresh_warning_count"] = warning_count + 1
-        self._save_config()
-        
-        return True
         
     def cleanup(self):
         """Clean up resources on shutdown."""
