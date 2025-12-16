@@ -1,6 +1,16 @@
 <script lang="ts">
     import { defaultValues, defaultProgressWaveValues } from '../../lib/dev/styleControlsDefaults';
-    
+    import { liteModeStore } from '../../lib/stores';
+
+    // Track lite mode for Qt+Windows compatibility testing
+    $: liteMode = $liteModeStore.enabled;
+    $: liteModeReason = $liteModeStore.reason;
+
+    function toggleLiteMode() {
+        // Toggle via debug override
+        liteModeStore.setDebugOverride(!liteMode);
+    }
+
     // Props
     export let styleControls: typeof defaultValues;
     export let progressWaveControls: typeof defaultProgressWaveValues;
@@ -234,6 +244,36 @@ complexity without benefit.
 </div>
 
 {#if activeStyleSubTab === 'main'}
+    <!-- Qt Windows Compatibility -->
+    <div class="control-section">
+        <h5 class="text-xs font-semibold mb-2 opacity-80">Qt Windows Compatibility</h5>
+        <div class="flex items-center gap-3 mb-2">
+            <button
+                class="toggle-button {liteMode ? 'active' : ''}"
+                on:click={toggleLiteMode}
+                title="Toggle lite mode for Qt WebEngine on Windows"
+            >
+                <span class="toggle-slider"></span>
+            </button>
+            <span class="text-xs text-white/80">
+                Lite Mode
+                {#if liteMode}
+                    <span class="text-primary ml-1">(ON)</span>
+                {:else}
+                    <span class="text-white/40 ml-1">(OFF)</span>
+                {/if}
+            </span>
+        </div>
+        <div class="text-xs text-white/50 mb-2">
+            Disables backdrop-filter blur effects to prevent flickering on Qt WebEngine + Windows.
+            {#if liteModeReason === 'auto'}
+                <span class="text-yellow-400"> Auto-enabled (Anki + Windows detected)</span>
+            {:else if liteModeReason === 'debug-override'}
+                <span class="text-primary"> Debug override active</span>
+            {/if}
+        </div>
+    </div>
+
     <!-- Main Interface Controls -->
     {#each Object.entries(mainInterfaceConfig) as [sectionKey, section]}
         <div class="control-section">
@@ -736,4 +776,47 @@ complexity without benefit.
     .border-white\/20 { border-color: rgba(255, 255, 255, 0.2); }
     .border-white\/30 { border-color: rgba(255, 255, 255, 0.3); }
     .bg-white\/10 { background-color: rgba(255, 255, 255, 0.1); }
+
+    /* Toggle switch for reduced effects mode */
+    .toggle-button {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        padding: 0;
+    }
+
+    .toggle-button:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .toggle-button.active {
+        background: var(--primary-color, #9f6ef7);
+        border-color: var(--primary-color, #9f6ef7);
+    }
+
+    .toggle-slider {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-button.active .toggle-slider {
+        transform: translateX(20px);
+    }
+
+    .text-primary { color: var(--primary-color, #9f6ef7); }
+    .text-yellow-400 { color: #facc15; }
+    .gap-3 { gap: 0.75rem; }
 </style>

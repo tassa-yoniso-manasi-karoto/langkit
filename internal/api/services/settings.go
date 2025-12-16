@@ -73,7 +73,7 @@ func (s *SettingsService) LoadSettings(ctx context.Context) (*generated.Settings
 		},
 		TargetLanguage:                   settings.TargetLanguage,
 		NativeLanguages:                  settings.NativeLanguages,
-		EnableGlow:                       settings.EnableGlow,
+		LiteMode:                         settings.LiteMode,
 		ShowLogViewerByDefault:           settings.ShowLogViewerByDefault,
 		MaxLogEntries:                    int32(settings.MaxLogEntries),
 		MaxAPIRetries:                    int32(settings.MaxAPIRetries),
@@ -119,7 +119,7 @@ func (s *SettingsService) SaveSettings(ctx context.Context, genSettings *generat
 	settings := config.Settings{
 		TargetLanguage:                   genSettings.TargetLanguage,
 		NativeLanguages:                  genSettings.NativeLanguages,
-		EnableGlow:                       genSettings.EnableGlow,
+		LiteMode:                         genSettings.LiteMode,
 		ShowLogViewerByDefault:           genSettings.ShowLogViewerByDefault,
 		MaxLogEntries:                    int(genSettings.MaxLogEntries),
 		MaxAPIRetries:                    int(genSettings.MaxAPIRetries),

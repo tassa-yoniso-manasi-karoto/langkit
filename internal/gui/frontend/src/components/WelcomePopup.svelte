@@ -3,7 +3,7 @@
     import { fade, scale, fly, slide } from 'svelte/transition';
     import { cubicOut, backOut, elasticOut } from 'svelte/easing';
     import lottie from 'lottie-web';
-    import { statisticsStore, systemInfoStore } from '../lib/stores';
+    import { statisticsStore, systemInfoStore, liteModeStore } from '../lib/stores';
     import { logger } from '../lib/logger';
     import { isDeveloperMode } from '../lib/developerMode';
     import DependenciesChecklist from './DependenciesChecklist.svelte';
@@ -90,6 +90,9 @@
     // Get system info from store
     $: systemInfo = $systemInfoStore;
     $: dockerName = systemInfo?.os === 'linux' ? 'Docker Engine' : 'Docker Desktop';
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
 
     // Animation states
     let titleVisible = false;
@@ -311,7 +314,8 @@
     $: buttonText = showWelcome ? 'Continue' : showApiKeys ? 'Continue' : 'Get Started';
    </script>
 
-<div class="welcome-popup fixed inset-0 flex items-center justify-center p-4 backdrop-blur-sm"
+<!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
+<div class="welcome-popup fixed inset-0 flex items-center justify-center p-4 {liteMode ? '' : 'backdrop-blur-sm'}"
      in:fade={{ duration: 300 }}
      out:fade={{ duration: 200 }}>
     
@@ -324,14 +328,14 @@
          out:scale={{ duration: 200, easing: cubicOut, start: 0.95 }}>
         
         <!-- Panel with more solid appearance and depth -->
+        <!-- Conditionally disable backdrop-filter in reduced mode to prevent Qt WebEngine flickering -->
         <div class="relative overflow-hidden rounded-3xl
                     shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)]
                     panel-glow"
-             style="background-color: rgba(0, 0, 0, var(--style-welcome-panel-bg-opacity, 0.3));
-                    backdrop-filter: blur(var(--style-welcome-panel-blur, 24px));
-                    -webkit-backdrop-filter: blur(var(--style-welcome-panel-blur, 24px));
+             style="background-color: {liteMode ? 'rgba(20, 20, 25, 0.95)' : 'rgba(0, 0, 0, var(--style-welcome-panel-bg-opacity, 0.3))'};
+                    {liteMode ? '' : 'backdrop-filter: blur(var(--style-welcome-panel-blur, 24px)); -webkit-backdrop-filter: blur(var(--style-welcome-panel-blur, 24px));'}
                     border: 1px solid rgba(255, 255, 255, var(--style-welcome-border-opacity, 0.1))">
-            
+
             <!-- Subtle gradient accent -->
             <div class="absolute -top-32 -right-32 w-64 h-64 rounded-full bg-primary/10 blur-3xl"></div>
             
@@ -413,12 +417,12 @@
                                 in:slideProjector={{ yStart: 150, yEnd: 0, scaleStart: 0.65, scaleEnd: 1, opacityStart: 0, opacityEnd: 1, blurStart: 6, blurEnd: 0, duration: 800, delay: 0 }}
                                 out:slideProjectorOut={{ duration: 800 }}>
                             <div class="text-center max-w-lg mx-auto px-4">
-                                <h2 class="text-4xl font-semibold mb-6 flex items-center justify-center gap-2"
+                                <h2 class="text-4xl font-semibold {systemInfo.os === 'windows' ? 'mb-3' : 'mb-6'} flex items-center justify-center gap-2"
                                     style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                     <DockerIcon size="1.5em" className="text-blue-400" />
                                     A Note on Docker
                                 </h2>
-                                <div class="space-y-4">
+                                <div class="{systemInfo.os === 'windows' ? 'space-y-3' : 'space-y-4'}">
                                     <p class="text-lg leading-relaxed"
                                         style="color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                         Some Langkit features rely on external tools that run inside <strong>{dockerName}</strong>.
@@ -436,11 +440,11 @@
                                         Docker packages these nightmare-to-install tools into something that works out-of-the-box.
                                     </p>
                                     {#if systemInfo.os === 'windows'}
-                                    <p class="text-lg leading-relaxed"
+                                    <p class="text-sm leading-relaxed"
                                     	style="color: rgba(255, 255, 255, var(--style-welcome-text-secondary-opacity, 0.7))">
                                     	⚠️ In addition to installing Docker Desktop itself, Windows users require a one-time setup of the <strong>Windows Subsystem for Linux (WSL)</strong> for Docker to work.
                                     </p>
-                                    <div class="pt-4">
+                                    <div class="pt-2">
                                     	<button on:click={() => BrowserOpenURL('https://docs.microsoft.com/en-us/windows/wsl/install')} class="px-6 py-2.5 rounded-lg font-medium transition-colors duration-300 relative overflow-hidden hover:shadow-lg hover:shadow-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 active:scale-[0.97] will-change-transform border" style="background-color: rgba(159, 110, 247, var(--style-welcome-button-bg-opacity, 0.7)); border-color: rgba(159, 110, 247, var(--style-welcome-button-border-opacity, 0.5)); color: rgba(255, 255, 255, var(--style-welcome-text-primary-opacity, 1))">
                                     		View official WSL Installation Guide
                                     	</button>

@@ -1,13 +1,18 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    
+    import { liteModeStore } from '../lib/stores';
+
     export let isProcessing = false;
     let blob: HTMLDivElement;
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
 </script>
 
 <div class="glow-container" class:paused={isProcessing}>
     <div bind:this={blob} class="glow-blob" class:paused={isProcessing}></div>
-    <div class="glow-blur"></div>
+    <!-- Disable backdrop-filter in lite mode to avoid Qt WebEngine flickering on Windows -->
+    <div class="glow-blur" class:lite={liteMode}></div>
 </div>
 
 
@@ -64,6 +69,12 @@
         -webkit-backdrop-filter: blur(150px);
         pointer-events: none;
         contain: strict;
+    }
+
+    /* Qt WebEngine on Windows: disable backdrop-filter to prevent flickering */
+    .glow-blur.lite {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     @keyframes float {

@@ -1,6 +1,6 @@
-- test demucs_ft and demucs-nvidia again
-
 - intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
+
+- anki error while taking too long to save debug report
 
 - anki changelog
 

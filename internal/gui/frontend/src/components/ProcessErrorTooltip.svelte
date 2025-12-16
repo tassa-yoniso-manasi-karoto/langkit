@@ -5,6 +5,10 @@
     import { flip } from 'svelte/animate';
     import { invalidationErrorStore, type ErrorMessage, type ErrorSeverity } from '../lib/invalidationErrorStore';
     import { logger } from '../lib/logger';
+    import { liteModeStore } from '../lib/stores';
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
 
     // Position is passed in from the ProcessButton.
     export let position = { x: 0, y: 0 };
@@ -64,7 +68,7 @@
         in:fade={{ duration: 300, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }}
         out:fade={{ duration: 300, easing: (t) => t * (2-t) }}
     >
-        <div class="backdrop-blur-md bg-tooltip-bg/60 bg-gradient-to-br from-primary/30 to-secondary/20 text-white border border-primary/20 rounded-lg p-4 min-w-[280px] max-w-[400px] transition-all duration-200 font-sans shadow-lg shadow-primary/20 pointer-events-auto">
+        <div class="{liteMode ? 'bg-tooltip-bg/90' : 'backdrop-blur-md bg-tooltip-bg/60'} bg-gradient-to-br from-primary/30 to-secondary/20 text-white border border-primary/20 rounded-lg p-4 min-w-[280px] max-w-[400px] transition-all duration-200 font-sans shadow-lg shadow-primary/20 pointer-events-auto">
             <div class="text-sm font-medium mb-3 text-gray-300 flex items-center gap-2">
                 {#if groupedErrors.length > 0 && groupedErrors[0].errors.length > 0}
                     <span class="material-icons text-primary text-xl">notification_important</span>
@@ -75,7 +79,7 @@
             </div>
             <ul class="list-none p-0 m-0 pointer-events-auto">
                 {#each groupedErrors[0]?.errors || [] as error (error.id)}
-                    <li class="bg-error-card-bg/60 backdrop-blur-sm border border-secondary/30 rounded-md p-3 mb-3 transition-all duration-200 cursor-pointer relative hover:bg-error-card-hover/70 shadow-md hover:shadow-secondary/20"
+                    <li class="{liteMode ? 'bg-error-card-bg/80' : 'bg-error-card-bg/60 backdrop-blur-sm'} border border-secondary/30 rounded-md p-3 mb-3 transition-all duration-200 cursor-pointer relative hover:bg-error-card-hover/70 shadow-md hover:shadow-secondary/20"
                         on:click={handleErrorClick(error)}
                         in:slide|local={{ duration: 200, easing: (t) => t * (2-t) }}
                         out:slide|local={{ duration: 150, easing: (t) => t * t }}
@@ -104,7 +108,7 @@
                     </li>
                 {/each}
             </ul>
-            <div class="absolute left-1/2 bottom-[-6px] transform -translate-x-1/2 rotate-45 w-3 h-3 bg-tooltip-bg/60 backdrop-blur-md border-l border-l-primary/20 border-b border-b-primary/20"></div>
+            <div class="absolute left-1/2 bottom-[-6px] transform -translate-x-1/2 rotate-45 w-3 h-3 {liteMode ? 'bg-tooltip-bg/90' : 'bg-tooltip-bg/60 backdrop-blur-md'} border-l border-l-primary/20 border-b border-b-primary/20"></div>
         </div>
     </div>
 </Portal>

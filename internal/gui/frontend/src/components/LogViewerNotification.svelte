@@ -2,7 +2,10 @@
     import { onMount, onDestroy } from 'svelte';
     import { fade } from 'svelte/transition';
     import Portal from 'svelte-portal/src/Portal.svelte';
-    import { settings, statisticsStore, userActivityState } from '../lib/stores';
+    import { settings, statisticsStore, userActivityState, liteModeStore } from '../lib/stores';
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
     import { logStore, type LogMessage } from '../lib/logStore';
 
     // Component props
@@ -180,10 +183,11 @@
             style="left: {position.x}px; top: {position.y}px; transform: translate(-50%, -100%) translateY({visible ? '0' : '-10px'}); z-index: var(--z-index-log-viewer-notification);"
         >
             <!-- Dynamic background and border based on error type -->
-            <div class="backdrop-blur-md 
-                       {errorType === 'error_all' ? 'bg-error-hard/10' : 
-                         errorType === 'error_task' ? 'bg-error-soft/10' : 
-                         'bg-primary/20'} 
+            <!-- Conditionally disable backdrop-blur in lite mode to prevent Qt WebEngine flickering -->
+            <div class="{liteMode ? '' : 'backdrop-blur-md'}
+                       {errorType === 'error_all' ? (liteMode ? 'bg-error-hard/30' : 'bg-error-hard/10') :
+                         errorType === 'error_task' ? (liteMode ? 'bg-error-soft/30' : 'bg-error-soft/10') :
+                         (liteMode ? 'bg-primary/40' : 'bg-primary/20')} 
                        bg-gradient-to-br 
                        {errorType === 'error_all' 
                          ? 'from-hsla(var(--error-hard-hue), var(--error-hard-saturation), var(--error-hard-lightness), 0.15) to-secondary/10' 
@@ -239,7 +243,7 @@
                     </span>
                 </div>
                 
-                <div class="bg-black/20 backdrop-blur-sm 
+                <div class="{liteMode ? 'bg-black/40' : 'bg-black/20 backdrop-blur-sm'}
                             border 
                             {errorType === 'error_all' 
                               ? 'border-error-hard/20' 
@@ -295,14 +299,14 @@
                     </div>
                 </div>
                 
-                <div class="absolute left-1/2 bottom-[-6px] transform -translate-x-1/2 rotate-45 w-3 h-3 
-                           {errorType === 'error_all' 
-                             ? 'bg-error-hard/10' 
+                <div class="absolute left-1/2 bottom-[-6px] transform -translate-x-1/2 rotate-45 w-3 h-3
+                           {errorType === 'error_all'
+                             ? (liteMode ? 'bg-error-hard/30' : 'bg-error-hard/10')
                              : errorType === 'error_task'
-                               ? 'bg-error-soft/10'
-                               : 'bg-primary/20'
-                           } 
-                           backdrop-blur-md 
+                               ? (liteMode ? 'bg-error-soft/30' : 'bg-error-soft/10')
+                               : (liteMode ? 'bg-primary/40' : 'bg-primary/20')
+                           }
+                           {liteMode ? '' : 'backdrop-blur-md'} 
                            {errorType === 'error_all' 
                              ? 'border-l-error-hard/20 border-b-error-hard/20' 
                              : errorType === 'error_task'

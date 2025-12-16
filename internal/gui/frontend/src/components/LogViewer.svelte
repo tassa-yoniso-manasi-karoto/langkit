@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
 	import { get } from 'svelte/store';
-	import { settings, enableTraceLogsStore } from '../lib/stores';
+	import { settings, enableTraceLogsStore, liteModeStore } from '../lib/stores';
 	import { logStore, type LogMessage } from '../lib/logStore';
     import { GetTraceLogs } from '../api/services/logging';
     import { logger } from '../lib/logger';
@@ -204,6 +204,9 @@
     
     // Track filtered logs length for change detection
     let previousFilteredLogsLength = 0;
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
 
     // Create a derived store for filtered logs.
     // This will automatically and efficiently re-filter whenever a dependency changes.
@@ -2161,7 +2164,8 @@
      aria-label="Application logs"
      aria-live="polite">
     <!-- Top controls row -->
-    <div class="px-3 py-2 border-b border-primary/20 bg-bgold-800/60 backdrop-blur-md h-10 flex items-center justify-between rounded-t-lg">
+    <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
+    <div class="px-3 py-2 border-b border-primary/20 {liteMode ? 'bg-bgold-800/90' : 'bg-bgold-800/60 backdrop-blur-md'} h-10 flex items-center justify-between rounded-t-lg">
         <div class="flex items-center gap-6">
             <!-- Log level filter -->
             <div class="flex items-center gap-2 whitespace-nowrap">
@@ -2222,7 +2226,7 @@
         		{#if filteredLogs.length === 0}
         			<!-- Empty state -->
         			<div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-        				<span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg" aria-live="polite">
+        				<span class="{liteMode ? 'bg-black/30' : 'bg-black/10 backdrop-blur-sm'} border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg" aria-live="polite">
         					No logs to display
         				</span>
         			</div>
@@ -2413,7 +2417,7 @@
     {:else}
      <!-- Loading state before initialization is complete -->
      <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-      <span class="bg-black/10 backdrop-blur-sm border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg">
+      <span class="{liteMode ? 'bg-black/30' : 'bg-black/10 backdrop-blur-sm'} border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg">
        Initializing Log Viewer...
       </span>
      </div>

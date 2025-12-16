@@ -14,7 +14,7 @@ type Settings = {
     };
     targetLanguage: string;
     nativeLanguages: string;
-    enableGlow: boolean;
+    liteMode: boolean;
     showLogViewerByDefault: boolean;
     maxLogEntries: number;
     maxAPIRetries: number;
@@ -67,7 +67,7 @@ const initSettings: Settings = {
     },
     targetLanguage: '',
     nativeLanguages: 'en, en-US',
-    enableGlow: true,
+    liteMode: false,
     showLogViewerByDefault: false,
     maxLogEntries: 10000,
     maxAPIRetries: 10,
@@ -487,3 +487,86 @@ export interface SystemInfo {
 }
 
 export const systemInfoStore = writable<SystemInfo>({ os: '', arch: '' });
+
+// Lite mode store
+// When true, disables backdrop-filter blur effects to work around Qt WebEngine
+// flickering issues on Windows. Can be:
+// - 'auto-forced': Automatically enabled on Qt+Windows (cannot be disabled by user)
+// - 'user': User preference via liteMode setting
+// - 'debug-override': Dev testing on non-Windows platforms
+// - 'none': Full effects enabled
+interface LiteModeState {
+    enabled: boolean;
+    reason: 'auto-forced' | 'user' | 'debug-override' | 'none';
+    isQtWindows: boolean;  // Track if we're on Qt+Windows for UI disabling
+}
+
+function createLiteModeStore() {
+    const { subscribe, set, update } = writable<LiteModeState>({
+        enabled: false,
+        reason: 'none',
+        isQtWindows: false
+    });
+
+    let _isQtWindows = false;
+
+    return {
+        subscribe,
+        // Auto-set based on runtime detection (called once on startup)
+        setAuto: (isAnkiMode: boolean, os: string) => {
+            _isQtWindows = isAnkiMode && os === 'windows';
+            logger.debug('store/liteMode', 'Auto-detecting lite mode', {
+                isAnkiMode,
+                os,
+                isQtWindows: _isQtWindows
+            });
+            if (_isQtWindows) {
+                // Force enable on Qt+Windows
+                set({
+                    enabled: true,
+                    reason: 'auto-forced',
+                    isQtWindows: true
+                });
+            } else {
+                set({
+                    enabled: false,
+                    reason: 'none',
+                    isQtWindows: false
+                });
+            }
+        },
+        // Set based on user preference (liteMode setting)
+        setUserPreference: (liteMode: boolean) => {
+            // On Qt+Windows, ignore user preference - always forced
+            if (_isQtWindows) {
+                logger.debug('store/liteMode', 'User preference ignored (Qt+Windows forced)', { liteMode });
+                return;
+            }
+            logger.debug('store/liteMode', 'User preference set', { liteMode });
+            set({
+                enabled: liteMode,
+                reason: liteMode ? 'user' : 'none',
+                isQtWindows: false
+            });
+        },
+        // Debug override for testing on non-Windows platforms
+        setDebugOverride: (enabled: boolean) => {
+            logger.info('store/liteMode', 'Debug override set', { enabled });
+            set({
+                enabled,
+                reason: enabled ? 'debug-override' : 'none',
+                isQtWindows: _isQtWindows
+            });
+        },
+        // Get just the enabled state (convenience)
+        isEnabled: (): boolean => {
+            let enabled = false;
+            subscribe(state => {
+                enabled = state.enabled;
+            })();
+            return enabled;
+        }
+    };
+}
+
+export const liteModeStore = createLiteModeStore();

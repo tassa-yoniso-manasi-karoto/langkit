@@ -1,7 +1,8 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte'; // Added onDestroy
     import { slide, fade } from 'svelte/transition';
-    import { settings, showSettings, mergeSettingsWithDefaults } from '../lib/stores';
+    import { settings, showSettings, mergeSettingsWithDefaults, liteModeStore, systemInfoStore } from '../lib/stores';
+    import { isAnkiMode } from '../lib/runtime/stores';
 import { isDeveloperMode } from '../lib/developerMode';
     import { OpenExecutableDialog } from '../api/services/media';
     import { ValidateLanguageTag } from '../api';
@@ -17,7 +18,8 @@ import { isDeveloperMode } from '../lib/developerMode';
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
     import SelectInput from './SelectInput.svelte';
-    import Hovertip from './Hovertip.svelte'; // Import hovertip component
+    import Hovertip from './Hovertip.svelte';
+    import ExternalLink from './ExternalLink.svelte';
 
     // Track if we're currently resetting the animation state
     let isResetting = false;
@@ -84,7 +86,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         },
         targetLanguage: '',
         nativeLanguages: '',
-        enableGlow: true,
+        liteMode: false,
         showLogViewerByDefault: false,
         maxAPIRetries: 10,
         maxLogEntries: 10000,
@@ -192,6 +194,12 @@ import { isDeveloperMode } from '../lib/developerMode';
 
     // Check if we should show dev-only features (either by version or developer mode)
     $: isDevVersion = version === "dev" || $isDeveloperMode;
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
+    $: isQtWindows = $liteModeStore.isQtWindows;
+    $: isAnki = $isAnkiMode;
+    $: systemInfo = $systemInfoStore;
 
     // Modified reactive declaration to handle reset state
     $: exportGlowClass = isResetting
@@ -307,7 +315,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         }
         try {
             // Always update settings (not just WebAssembly-related ones)
-            // UI settings like enableGlow and showLogViewerByDefault need to update immediately too
+            // UI settings like liteMode and showLogViewerByDefault need to update immediately too
             await SaveSettings(currentSettings);
             // Create a new object with the correct type for forceWasmMode before setting
             const settingsToUpdate = {
@@ -486,10 +494,11 @@ import { isDeveloperMode } from '../lib/developerMode';
 </script>
 
 {#if $showSettings}
-    <div class="settings-modal">
+    <div class="settings-modal" data-reduced-mode={liteMode}>
         <!-- Backdrop as sibling element with delayed rendering -->
+        <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
         {#if backdropBlurReady}
-            <div class="fixed inset-0 backdrop-blur-lg bg-black/30 settings-backdrop"
+            <div class="fixed inset-0 settings-backdrop {liteMode ? 'bg-black/70' : 'backdrop-blur-lg bg-black/30'}"
                  transition:fade={{ duration: 300 }}
                  on:click={onClose}></div>
         {/if}
@@ -502,9 +511,12 @@ import { isDeveloperMode } from '../lib/developerMode';
                 <!-- Panel container with siblings for blur and content -->
                 <div class="relative w-full">
                     <!-- Panel backdrop blur as sibling -->
+                    <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
+                    <!-- In reduced mode: use lighter, nearly opaque background instead of blur -->
                     {#if panelBlurVisible}
-                        <div class="{panelBlurReady ? 'backdrop-blur-3xl' : 'backdrop-blur-lg'} rounded-xl absolute inset-0 
+                        <div class="{liteMode ? '' : (panelBlurReady ? 'backdrop-blur-3xl' : 'backdrop-blur-lg')} rounded-xl absolute inset-0
                                     backdrop-panel-transition panel-blur-layer"
+                             style="{liteMode ? 'background-color: rgba(22, 22, 28, 0.93);' : ''}"
                              transition:fade={{ duration: 200 }}></div>
                     {/if}
                     
@@ -551,7 +563,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                             minlength="1"
                                             maxlength="9"
                                             placeholder="e.g. es, yue or pt-BR"
-                                            class="w-full bg-ui-element backdrop-blur-sm border border-primary/30 rounded px-2 py-2
+                                            class="w-full {liteMode ? 'bg-ui-element' : 'bg-ui-element backdrop-blur-sm'} border border-primary/30 rounded px-2 py-2
                                                    hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
                                                    focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
                                         />
@@ -585,7 +597,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                             minlength="1"
                                             maxlength="100"
                                             placeholder="e.g. en, fr, es"
-                                            class="w-full bg-ui-element backdrop-blur-sm border border-primary/30 rounded px-2 py-2
+                                            class="w-full {liteMode ? 'bg-ui-element' : 'bg-ui-element backdrop-blur-sm'} border border-primary/30 rounded px-2 py-2
                                                    hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
                                                    focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
                                         />
@@ -623,7 +635,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     <input
                                         type="password"
                                         bind:value={currentSettings.apiKeys.replicate}
-                                        class="w-full bg-black backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                        class="w-full {liteMode ? 'bg-black/80' : 'bg-black backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
                                                hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
                                                focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                                focus:shadow-input-focus transition-all duration-200"
@@ -638,7 +650,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     <input
                                         type="password"
                                         bind:value={currentSettings.apiKeys.elevenLabs}
-                                        class="w-full bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                        class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
                                                hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
                                                focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                                focus:shadow-input-focus transition-all duration-200"
@@ -653,7 +665,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                      <input
                                          type="password"
                                          bind:value={currentSettings.apiKeys.openAI}
-                                         class="w-full bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                         class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
                                                 hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
                                                 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                                 focus:shadow-input-focus transition-all duration-200"
@@ -668,7 +680,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                      <input
                                          type="password"
                                          bind:value={currentSettings.apiKeys.openRouter}
-                                         class="w-full bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                         class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
                                                 hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
                                                 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                                 focus:shadow-input-focus transition-all duration-200"
@@ -683,7 +695,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                      <input
                                          type="password"
                                          bind:value={currentSettings.apiKeys.google}
-                                         class="w-full bg-black/40 backdrop-blur-sm border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                         class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
                                                 hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
                                                 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
                                                 focus:shadow-input-focus transition-all duration-200"
@@ -869,23 +881,32 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 <span class="material-icons text-primary">palette</span>
                                 Interface Settings
                             </h3>
-                            <!-- Enable glow effects -->
+                            <!-- Lite Mode (reduced visual effects) -->
                             <div class="setting-row">
                                 <div class="setting-label">
-                                    <span>Enable glow effects</span>
-                                    <span class="setting-description">Disable it if the UI is laggy</span>
+                                    <span>Lite mode</span>
+                                    <span class="setting-description">Simplify visuals for better performance on low-end hardware</span>
                                 </div>
                                 <div class="setting-control">
-                                    <label class="toggle-switch">
+                                    <label class="toggle-switch" class:disabled={isQtWindows}>
                                         <input
                                             type="checkbox"
-                                            bind:checked={currentSettings.enableGlow}
-                                            on:change={updateSettings}
+                                            bind:checked={currentSettings.liteMode}
+                                            on:change={() => {
+                                                updateSettings();
+                                                liteModeStore.setUserPreference(currentSettings.liteMode);
+                                            }}
+                                            disabled={isQtWindows}
                                         />
                                         <span class="slider round"></span>
                                     </label>
                                 </div>
                             </div>
+                            {#if isQtWindows}
+                                <div class="setting-note">
+                                    Enabled by default due to <ExternalLink href="https://github.com/ankitects/anki/issues/4470">Qt bug on Windows</ExternalLink>
+                                </div>
+                            {/if}
                             
                             <!-- Show log viewer by default -->
                             <div class="setting-row">
@@ -919,7 +940,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         className="w-48 px-3 py-2 hover:border-primary/55
                                                 hover:shadow-input focus:shadow-input-focus
                                                 focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
                                         on:change={updateSettings}
                                     />
                                 </div>
@@ -945,7 +966,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         className="w-48 px-3 py-2 hover:border-primary/55
                                                 hover:shadow-input focus:shadow-input-focus
                                                 focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
                                     />
                                 </div>
                             </div>
@@ -971,7 +992,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         className="w-48 px-3 py-2 hover:border-primary/55
                                                 hover:shadow-input focus:shadow-input-focus
                                                 focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
                                     />
                                 </div>
                             </div>
@@ -991,7 +1012,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         className="w-48 px-3 py-2 hover:border-primary/55
                                                 hover:shadow-input focus:shadow-input-focus
                                                 focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
                                     />
                                 </div>
                             </div>
@@ -1011,7 +1032,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         className="w-48 px-3 py-2 hover:border-primary/55
                                                 hover:shadow-input focus:shadow-input-focus
                                                 focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
                                     />
                                 </div>
                             </div>
@@ -1031,7 +1052,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         className="w-48 px-3 py-2 hover:border-primary/55
                                                 hover:shadow-input focus:shadow-input-focus
                                                 focus:border-primary focus:ring-1
-                                                focus:ring-primary/50 bg-black/40 backdrop-blur-sm border-primary/40 text-white"
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
                                     />
                                 </div>
                             </div>
@@ -1076,9 +1097,10 @@ import { isDeveloperMode } from '../lib/developerMode';
                             </h3>
                             <div class="space-y-4">
                                 <div class="flex items-center gap-4">
+                                    <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
                                     <button
                                         class="debug-export-button px-6 py-3 text-white rounded-lg font-semibold
-                                               bg-input-bg/50 backdrop-blur-sm focus:outline-none"
+                                               {liteMode ? 'bg-input-bg/80' : 'bg-input-bg/50 backdrop-blur-sm'} focus:outline-none"
                                         on:click={exportDebugReport}
                                         disabled={isExportingDebug}
                                         class:glow-success={exportGlowClass === 'glow-success'}
@@ -1120,11 +1142,12 @@ import { isDeveloperMode } from '../lib/developerMode';
                         >
                             Cancel
                         </button>
+                        <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
                         <button
-                            class="px-6 py-2 bg-primary/90 backdrop-blur-sm text-white rounded-lg font-medium 
-                                  transition-all duration-200 hover:bg-primary disabled:opacity-50 
+                            class="px-6 py-2 {liteMode ? 'bg-primary' : 'bg-primary/90 backdrop-blur-sm'} text-white rounded-lg font-medium
+                                  transition-all duration-200 hover:bg-primary disabled:opacity-50
                                   disabled:cursor-not-allowed shadow-md shadow-primary/30"
-                            on:click={saveSettings} 
+                            on:click={saveSettings}
                             disabled={!isValid}
                         >
                             Save Changes
@@ -1138,19 +1161,32 @@ import { isDeveloperMode } from '../lib/developerMode';
 {/if}
 
 <style>
-    :global(.settings-modal input) {
+    /* Input styling - blur enabled only when not in reduced mode */
+    :global(.settings-modal:not([data-reduced-mode="true"]) input) {
         background-color: hsla(var(--input-bg), 0.75) !important;
-        backdrop-filter: blur(10px) !important; 
+        backdrop-filter: blur(10px) !important;
         -webkit-backdrop-filter: blur(10px) !important;
     }
-    
+    :global(.settings-modal[data-reduced-mode="true"] input) {
+        background-color: hsla(var(--input-bg), 0.9) !important;
+    }
+
     /* Animated cancel button with propagating hover effect from entry point */
-    :global(.settings-modal .cancel-button) {
+    /* Blur enabled only when not in reduced mode */
+    :global(.settings-modal:not([data-reduced-mode="true"]) .cancel-button) {
       position: relative;
       overflow: hidden;
       background-color: hsla(var(--input-bg), 0.85) !important;
       backdrop-filter: blur(8px) !important;
       -webkit-backdrop-filter: blur(8px) !important;
+      border: 3px solid var(--input-border) !important;
+      transition: color 0.3s ease-in, border-color 0.3s ease-in !important;
+      z-index: 1;
+    }
+    :global(.settings-modal[data-reduced-mode="true"] .cancel-button) {
+      position: relative;
+      overflow: hidden;
+      background-color: hsla(var(--input-bg), 0.95) !important;
       border: 3px solid var(--input-border) !important;
       transition: color 0.3s ease-in, border-color 0.3s ease-in !important;
       z-index: 1;
@@ -1183,9 +1219,10 @@ import { isDeveloperMode } from '../lib/developerMode';
       transform: scale(3);
     }
     
-    /* Enhanced glassmorphic effect */
-    .glass-input-container input:focus {
+    /* Enhanced glassmorphic effect - blur enabled only when not in reduced mode */
+    :global(.settings-modal:not([data-reduced-mode="true"])) .glass-input-container input:focus {
         backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
     }
     
     /* Improved scrollbar for better visibility */
@@ -1456,6 +1493,16 @@ import { isDeveloperMode } from '../lib/developerMode';
     input:checked + .slider:before {
         transform: translateX(30px); /* Adjusted for new width */
     }
+
+    /* Disabled toggle switch state (for forced settings like Qt+Windows lite mode) */
+    .toggle-switch.disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .toggle-switch.disabled .slider {
+        cursor: not-allowed;
+    }
     
     /* Setting row styles */
     .setting-row {
@@ -1479,7 +1526,16 @@ import { isDeveloperMode } from '../lib/developerMode';
         font-size: 0.75rem;
         color: rgba(255, 255, 255, 0.6);
     }
-    
+
+    .setting-note {
+        font-size: 0.7rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: -0.5rem;
+        margin-bottom: 0.5rem;
+        padding-left: 0.25rem;
+        font-style: italic;
+    }
+
     .setting-control {
         min-width: 120px;
         width: 100%;

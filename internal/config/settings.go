@@ -34,7 +34,7 @@ type Settings struct {
 	} `json:"apiKeys" mapstructure:"api_keys"`
 	TargetLanguage         string `json:"targetLanguage" mapstructure:"target_language"`
 	NativeLanguages        string `json:"nativeLanguages" mapstructure:"native_languages"`
-	EnableGlow             bool   `json:"enableGlow" mapstructure:"enable_glow"`
+	LiteMode               bool   `json:"liteMode" mapstructure:"lite_mode"`
 	ShowLogViewerByDefault bool   `json:"showLogViewerByDefault" mapstructure:"show_log_viewer_default"`
 	MaxLogEntries          int    `json:"maxLogEntries" mapstructure:"max_log_entries"`
 	MaxAPIRetries          int    `json:"maxAPIRetries" mapstructure:"max_api_retries"`
@@ -129,7 +129,7 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("target_language", "")
 	viper.SetDefault("native_languages", "en, en-US")
 
-	viper.SetDefault("enable_glow", true)
+	viper.SetDefault("lite_mode", false)
 	viper.SetDefault("show_log_viewer_default", false)
 	viper.SetDefault("max_log_entries", 10000)
 	viper.SetDefault("max_api_retries", 10)
@@ -236,7 +236,7 @@ func SaveSettings(settings Settings) error {
 	// Set all other non-sensitive settings
 	viper.Set("target_language", settings.TargetLanguage)
 	viper.Set("native_languages", settings.NativeLanguages)
-	viper.Set("enable_glow", settings.EnableGlow)
+	viper.Set("lite_mode", settings.LiteMode)
 	viper.Set("show_log_viewer_default", settings.ShowLogViewerByDefault)
 	viper.Set("max_log_entries", settings.MaxLogEntries)
 	viper.Set("max_api_retries", settings.MaxAPIRetries)

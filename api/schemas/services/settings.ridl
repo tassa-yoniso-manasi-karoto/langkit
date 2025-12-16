@@ -29,7 +29,7 @@ struct Settings
   - apiKeys: APIKeys
   - targetLanguage: string
   - nativeLanguages: string
-  - enableGlow: bool
+  - liteMode: bool
   - showLogViewerByDefault: bool
   - maxLogEntries: int32
   - maxAPIRetries: int32

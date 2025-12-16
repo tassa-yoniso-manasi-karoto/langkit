@@ -46,11 +46,12 @@
 }
     
     
+/* FLICKERING TEST: disabled will-change, 3D transforms */
 .feature-card {
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
                 background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: transform, box-shadow, opacity;
+    /* will-change: transform, box-shadow, opacity; */
     /* Gradient from top-left (purplish) to bottom-right with reduced opacity */
     background: var(--style-feature-card-gradient) !important;
     /* Position relative for pseudo-element gradient border */
@@ -58,11 +59,11 @@
     /* Remove default border since we're using pseudo-element */
     border: none;
     overflow: hidden; /* Prevent borders from overflowing */
-    
+
     /* Enable 3D transforms */
-    transform-style: preserve-3d;
+    /* transform-style: preserve-3d; */
     transform-origin: center center;
-    backface-visibility: hidden;
+    /* backface-visibility: hidden; */
     
     /* Create a pseudo-element for the gradient border that respects rounded corners */
     &::before {
@@ -96,11 +97,12 @@
               4px 4px 8px -2px rgba(0, 0, 0, 0.2);
 }
 
+/* FLICKERING TEST: simplified transform, disabled filter */
 .feature-card[aria-checked="true"] {
-    transform: translateY(-3px) translateZ(30px) scale(1.02);
+    transform: translateY(-3px) scale(1.02); /* removed translateZ */
     /* Selected state gradient - enhanced version of base gradient */
     background: var(--style-feature-card-gradient) !important;
-    filter: brightness(1.15) saturate(1.1);
+    /* filter: brightness(1.15) saturate(1.1); */
     /* Brighter border for selected state using pseudo-element */
     &::before {
         padding: 1px;
@@ -128,11 +130,12 @@
 }
 
 
+/* FLICKERING TEST: simplified transform, disabled filter */
 .feature-card:hover:not(.disabled) {
-    transform: translateY(-6px) translateZ(50px) scale(1.025) rotateX(-3deg);
+    transform: translateY(-6px) scale(1.025); /* removed translateZ, rotateX */
     /* Hover state gradient - enhanced version of base gradient */
     background: var(--style-feature-card-gradient) !important;
-    filter: brightness(1.1) saturate(1.05);
+    /* filter: brightness(1.1) saturate(1.05); */
     
     /* Enhanced shadow for hover depth */
     box-shadow: 
@@ -148,9 +151,10 @@
 }
 
 /* Combined hover + enabled state for most dramatic effect */
+/* FLICKERING TEST: simplified transform, disabled filter */
 .feature-card:hover[aria-checked="true"]:not(.disabled) {
-    transform: translateY(-6px) translateZ(55px) scale(1.025) rotateX(-3deg);
-    filter: brightness(1.2) saturate(1.15);
+    transform: translateY(-6px) scale(1.025); /* removed translateZ, rotateX */
+    /* filter: brightness(1.2) saturate(1.15); */
     
     /* Enhanced pseudo-element border for hover+enabled */
     &::before {

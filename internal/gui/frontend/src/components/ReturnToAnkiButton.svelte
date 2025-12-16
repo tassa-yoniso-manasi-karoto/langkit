@@ -5,11 +5,15 @@
     import Portal from 'svelte-portal/src/Portal.svelte';
     import { logger } from '../lib/logger';
     import { isAnkiMode, runtimeInitialized } from '../lib/runtime/stores';
+    import { liteModeStore } from '../lib/stores';
     import { get } from 'svelte/store';
     
     // State for the return hint drawer
     let showReturnHint = false;
     let hideHintTimeout: number;
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
     
     onMount(() => {
         // Subscribe to runtime mode changes
@@ -57,9 +61,10 @@
 {#if $runtimeInitialized && $isAnkiMode}
     <Portal target="body">
         <div class="fixed top-4 left-4" style="z-index: var(--z-index-return-to-anki);">
+            <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
             <button
                 class="w-10 h-10 flex items-center justify-center rounded-xl
-                       bg-white/5 backdrop-blur-md border border-white/10
+                       {liteMode ? 'bg-white/15' : 'bg-white/5 backdrop-blur-md'} border border-white/10
                        text-white/30 transition-all duration-300
                        hover:bg-white/10 hover:border-primary/30 hover:text-white/80
                        hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/20
@@ -80,8 +85,8 @@
                     class="absolute left-full h-7 flex items-center overflow-hidden"
                     style="margin-left: -1px; top: 0.425rem;"
                 >
-                    <div 
-                        class="h-full flex items-center px-4 bg-white/5 backdrop-blur-md 
+                    <div
+                        class="h-full flex items-center px-4 {liteMode ? 'bg-white/15' : 'bg-white/5 backdrop-blur-md'}
                                border border-l-0 border-white/10 rounded-r-xl
                                text-white/50 text-sm whitespace-nowrap"
                         in:slide={{ axis: 'x', duration: 550, easing: cubicOut }}

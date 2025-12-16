@@ -3,7 +3,7 @@
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
-    import { dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, settings, systemInfoStore } from '../lib/stores';
+    import { dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, settings, systemInfoStore, liteModeStore } from '../lib/stores';
     import { logger } from '../lib/logger';
     import ExternalLink from './ExternalLink.svelte';
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
@@ -28,6 +28,9 @@
     
     // Get system info from store
     $: systemInfo = $systemInfoStore;
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
 
     // Download states
     let ffmpeg_downloading = false;
@@ -143,8 +146,9 @@
 <div class="space-y-6 px-4 w-full max-w-xl">
     <!-- FFmpeg Status -->
     <div>
+        <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
         <div class="flex items-center justify-between p-4 rounded-2xl
-                    backdrop-blur-md border border-white/10
+                    {liteMode ? 'bg-black/40' : 'backdrop-blur-md'} border border-white/10
                     transition-all duration-300
                     relative overflow-hidden"
              style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
@@ -250,8 +254,9 @@
     
     <!-- MediaInfo Status -->
     <div>
+        <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
         <div class="flex items-center justify-between p-4 rounded-2xl
-                    backdrop-blur-md border border-white/10
+                    {liteMode ? 'bg-black/40' : 'backdrop-blur-md'} border border-white/10
                     transition-all duration-300
                     relative overflow-hidden"
              style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
@@ -357,8 +362,9 @@
     
     <!-- Docker Status -->
     <div>
+        <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
         <div class="flex items-center justify-between p-4 rounded-2xl
-                    backdrop-blur-md border border-white/10
+                    {liteMode ? 'bg-black/40' : 'backdrop-blur-md'} border border-white/10
                     transition-all duration-300
                     relative overflow-hidden"
              style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));
@@ -440,8 +446,9 @@
     
     <!-- Internet Status -->
     <div>
+        <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
         <div class="flex items-center justify-between p-4 rounded-2xl
-                    backdrop-blur-md border border-white/10
+                    {liteMode ? 'bg-black/40' : 'backdrop-blur-md'} border border-white/10
                     transition-all duration-300
                     relative overflow-hidden"
              style="background-color: rgba(255, 255, 255, var(--style-welcome-card-bg-opacity, 0.1));

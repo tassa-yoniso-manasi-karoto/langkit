@@ -3,7 +3,10 @@
     import { onMount, onDestroy } from 'svelte';
     import Portal from "svelte-portal/src/Portal.svelte";
     import { getWasmState } from '../lib/wasm-state';
-    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore } from '../lib/stores';
+    import { settings, llmStateStore, statisticsStore, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, enableTraceLogsStore, enableFrontendLoggingStore, displayFrontendLogsStore, liteModeStore } from '../lib/stores';
+
+    // Track lite mode for Qt+Windows compatibility
+    $: liteMode = $liteModeStore.enabled;
     import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import { browserEngine } from '../lib/whichBrowser';
@@ -606,6 +609,7 @@
                 <div
                     bind:this={dashboardPanel}
                     class="dev-dashboard-panel"
+                    class:lite={liteMode}
                     transition:scale={{duration: 300}}
                 >
                     <!-- Header (draggable area) -->
@@ -758,6 +762,12 @@
         backdrop-filter: blur(10px);
         overflow: hidden;
         color: white;
+    }
+
+    /* Qt WebEngine on Windows: disable backdrop-filter to prevent flickering */
+    .dev-dashboard-panel.lite {
+        backdrop-filter: none;
+        background: hsla(215, 15%, 15%, 0.97);
     }
     
     .dashboard-header {

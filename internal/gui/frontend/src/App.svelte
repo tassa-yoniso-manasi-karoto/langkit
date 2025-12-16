@@ -5,7 +5,7 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore, llmStateStore } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore, llmStateStore, liteModeStore } from './lib/stores'; 
     import { logStore } from './lib/logStore';
     import { invalidationErrorStore } from './lib/invalidationErrorStore';
     import { currentSchemeNeedsDockerStore } from './lib/featureGroupStore';
@@ -699,9 +699,12 @@
             
             settings.set(loadedSettings as any); // Use type assertion until Settings type is fully updated
             
-            // Initialize showGlow based on enableGlow setting (if not minimized)
+            // Initialize showGlow based on liteMode setting (if not minimized)
+            // liteMode = true means reduced effects, so showGlow = !liteMode
             if (!isWindowMinimized) {
-                showGlow = loadedSettings.enableGlow;
+                showGlow = !loadedSettings.liteMode;
+                // Sync with liteModeStore store
+                liteModeStore.setUserPreference(loadedSettings.liteMode);
             }
             defaultTargetLanguage = loadedSettings.targetLanguage;
             showLogViewer = loadedSettings.showLogViewerByDefault;
@@ -931,7 +934,8 @@
                 if (minimized) {
                     showGlow = false;
                 } else {
-                    showGlow = $settings?.enableGlow ?? true; // Use nullish coalescing
+                    // liteMode = true means no glow, so showGlow = !liteMode
+                    showGlow = !($settings?.liteMode ?? false);
                 }
                 
                 // Log specific optimization changes
@@ -1018,6 +1022,7 @@
     let handleTransitionEnd: (e: TransitionEvent) => void;
     let updateLogViewerButtonPosition: () => void;
     let uiSettingsSubscription: () => void;
+    let liteModeSubscription: () => void;
     
     // Global drag and drop handler
     async function handleGlobalFileDrop(x: number, y: number, paths: string[]) {
@@ -1252,6 +1257,12 @@
             const systemInfo = await GetSystemInfo();
             systemInfoStore.set(systemInfo);
             logger.debug('app', 'System info initialized', { os: systemInfo.os, arch: systemInfo.arch });
+
+            // Initialize reduced effects mode based on runtime and OS
+            // This disables backdrop-filter blur effects on Qt+Windows to avoid flickering
+            const ankiMode = get(isAnkiMode);
+            liteModeStore.setAuto(ankiMode, systemInfo.os);
+            // Debug override can be toggled in the Developer Dashboard > Style tab
         } catch (error) {
             logger.error('app', 'Failed to get system info', { error });
         }
@@ -1398,14 +1409,17 @@
             
             // Subscribe to UI settings changes
             uiSettingsSubscription = settings.subscribe(($newSettings) => {
-                // Update showGlow when enableGlow setting changes
-                if ($newSettings && $newSettings.enableGlow !== undefined) {
+                // Update showGlow when liteMode setting changes
+                // liteMode = true means no glow, so showGlow = !liteMode
+                if ($newSettings && $newSettings.liteMode !== undefined) {
                     // Only update showGlow if not minimized
                     if (!isWindowMinimized) {
-                        showGlow = $newSettings.enableGlow;
+                        showGlow = !$newSettings.liteMode;
+                        // Sync with liteModeStore store
+                        liteModeStore.setUserPreference($newSettings.liteMode);
                     }
                 }
-                
+
                 // Update showLogViewer when showLogViewerByDefault setting changes
                 if ($newSettings && $newSettings.showLogViewerByDefault !== undefined) {
                     // If the user hasn't explicitly set showLogViewer yet, or if we're turning it on
@@ -1415,7 +1429,20 @@
                     }
                 }
             });
-            
+
+            // Subscribe to liteModeStore for Dev Dashboard toggle (has priority over saved settings)
+            liteModeSubscription = liteModeStore.subscribe(($liteMode) => {
+                // Update showGlow when liteModeStore changes (e.g., debug override from Dev Dashboard)
+                if (!isWindowMinimized) {
+                    showGlow = !$liteMode.enabled;
+                    logger.trace('app', 'showGlow updated from liteModeStore', {
+                        enabled: $liteMode.enabled,
+                        reason: $liteMode.reason,
+                        showGlow
+                    });
+                }
+            });
+
             // Listen for settings changes to enable/disable WebAssembly
             settings.subscribe(async ($newSettings) => {
                 // Only process WebAssembly settings if they've changed
@@ -1554,7 +1581,12 @@
         if (uiSettingsSubscription) {
             uiSettingsSubscription();
         }
-        
+
+        // Unsubscribe from liteModeStore subscription
+        if (liteModeSubscription) {
+            liteModeSubscription();
+        }
+
         // Unsubscribe from activity state
         unsubscribeActivityState();
         
@@ -1603,6 +1635,7 @@
      on:dragover={(e) => { e.preventDefault(); }}
      on:drop={(e) => { e.preventDefault(); }}>
     <BackgroundGradient />
+    <!-- GlowEffect now has conditional backdrop-filter via liteModeStore store -->
     {#if showGlow && !isWindowMinimized && userActivityState !== UserActivityState.AFK}
         <GlowEffect {isProcessing} />
     {/if}
