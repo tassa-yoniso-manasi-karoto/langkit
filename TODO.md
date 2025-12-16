@@ -2,6 +2,7 @@
 
 - anki changelog
 
+- bad local layer detection?
 
 <hr>
 

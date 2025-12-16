@@ -1323,6 +1323,10 @@
                     severity: 'warning',
                     dismissible: true
                 });
+
+                // Force lite mode to reduce GPU load when no hardware acceleration
+                liteModeStore.setNoHardwareAcceleration();
+                showGlow = false;
             }
         } catch (error) {
             logger.error('app', 'Failed to check hardware acceleration', { error });

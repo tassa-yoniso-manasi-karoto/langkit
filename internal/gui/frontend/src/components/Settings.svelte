@@ -194,9 +194,10 @@ import { isDeveloperMode } from '../lib/developerMode';
     // Check if we should show dev-only features (either by version or developer mode)
     $: isDevVersion = version === "dev" || $isDeveloperMode;
 
-    // Track lite mode for Qt+Windows compatibility
+    // Track lite mode state
     $: liteMode = $liteModeStore.enabled;
-    $: isQtWindows = $liteModeStore.isQtWindows;
+    $: liteModeForced = $liteModeStore.isForced;
+    $: liteModeReason = $liteModeStore.reason;
 
     // Modified reactive declaration to handle reset state
     $: exportGlowClass = isResetting
@@ -880,30 +881,34 @@ import { isDeveloperMode } from '../lib/developerMode';
                             </h3>
                             <!-- Lite Mode (reduced visual effects) -->
                             <div class="setting-row">
-                                <div class="setting-label" class:disabled={isQtWindows}>
+                                <div class="setting-label" class:disabled={liteModeForced}>
                                     <span>Lite mode</span>
                                     <span class="setting-description">Simplify visuals for better performance on low-end hardware</span>
                                 </div>
                                 <div class="setting-control">
-                                    <label class="toggle-switch" class:disabled={isQtWindows}>
+                                    <label class="toggle-switch" class:disabled={liteModeForced}>
                                         <input
                                             type="checkbox"
-                                            checked={isQtWindows ? true : currentSettings.liteMode}
+                                            checked={liteModeForced ? true : currentSettings.liteMode}
                                             on:change={() => {
-                                                if (!isQtWindows) {
+                                                if (!liteModeForced) {
                                                     currentSettings.liteMode = !currentSettings.liteMode;
                                                     updateSettings();
                                                     liteModeStore.setUserPreference(currentSettings.liteMode);
                                                 }
                                             }}
-                                            disabled={isQtWindows}
+                                            disabled={liteModeForced}
                                         />
                                         <span class="slider round"></span>
                                     </label>
                                 </div>
-                                {#if isQtWindows}
+                                {#if liteModeForced}
                                     <div class="setting-note-card">
-                                        Forced on due to <ExternalLink href="https://github.com/ankitects/anki/issues/4470">Qt bug on Windows</ExternalLink>
+                                        {#if liteModeReason === 'qt-windows'}
+                                            Forced on due to <ExternalLink href="https://github.com/ankitects/anki/issues/4470">Qt bug on Windows</ExternalLink>
+                                        {:else if liteModeReason === 'no-hw-accel'}
+                                            Forced on because hardware acceleration is unavailable
+                                        {/if}
                                     </div>
                                 {/if}
                             </div>

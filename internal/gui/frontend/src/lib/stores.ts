@@ -489,64 +489,86 @@ export interface SystemInfo {
 export const systemInfoStore = writable<SystemInfo>({ os: '', arch: '' });
 
 // Lite mode store
-// When true, disables backdrop-filter blur effects to work around Qt WebEngine
-// flickering issues on Windows. Can be:
-// - 'auto-forced': Automatically enabled on Qt+Windows (cannot be disabled by user)
+// When true, disables backdrop-filter blur effects to work around:
+// - Qt WebEngine flickering issues on Windows
+// - Lack of hardware acceleration (software rendering)
+// Reasons:
+// - 'qt-windows': Automatically enabled on Qt+Windows (cannot be disabled by user)
+// - 'no-hw-accel': No hardware acceleration available (cannot be disabled by user)
 // - 'user': User preference via liteMode setting
 // - 'debug-override': Dev testing on non-Windows platforms
 // - 'none': Full effects enabled
 interface LiteModeState {
     enabled: boolean;
-    reason: 'auto-forced' | 'user' | 'debug-override' | 'none';
-    isQtWindows: boolean;  // Track if we're on Qt+Windows for UI disabling
+    reason: 'qt-windows' | 'no-hw-accel' | 'user' | 'debug-override' | 'none';
+    isForced: boolean;  // Track if forced (Qt+Windows or no hw accel) for UI disabling
 }
 
 function createLiteModeStore() {
     const { subscribe, set, update } = writable<LiteModeState>({
         enabled: false,
         reason: 'none',
-        isQtWindows: false
+        isForced: false
     });
 
-    let _isQtWindows = false;
+    let _isForced = false;
+    let _forcedReason: 'qt-windows' | 'no-hw-accel' | null = null;
 
     return {
         subscribe,
         // Auto-set based on runtime detection (called once on startup)
         setAuto: (isAnkiMode: boolean, os: string) => {
-            _isQtWindows = isAnkiMode && os === 'windows';
+            const isQtWindows = isAnkiMode && os === 'windows';
             logger.debug('store/liteMode', 'Auto-detecting lite mode', {
                 isAnkiMode,
                 os,
-                isQtWindows: _isQtWindows
+                isQtWindows
             });
-            if (_isQtWindows) {
+            if (isQtWindows) {
                 // Force enable on Qt+Windows
+                _isForced = true;
+                _forcedReason = 'qt-windows';
                 set({
                     enabled: true,
-                    reason: 'auto-forced',
-                    isQtWindows: true
+                    reason: 'qt-windows',
+                    isForced: true
                 });
             } else {
                 set({
                     enabled: false,
                     reason: 'none',
-                    isQtWindows: false
+                    isForced: false
                 });
             }
         },
+        // Force enable when hardware acceleration is unavailable
+        setNoHardwareAcceleration: () => {
+            // Don't override if already forced for Qt+Windows reason
+            if (_forcedReason === 'qt-windows') {
+                logger.debug('store/liteMode', 'No hw accel ignored (already forced for Qt+Windows)');
+                return;
+            }
+            logger.info('store/liteMode', 'Forcing lite mode due to no hardware acceleration');
+            _isForced = true;
+            _forcedReason = 'no-hw-accel';
+            set({
+                enabled: true,
+                reason: 'no-hw-accel',
+                isForced: true
+            });
+        },
         // Set based on user preference (liteMode setting)
         setUserPreference: (liteMode: boolean) => {
-            // On Qt+Windows, ignore user preference - always forced
-            if (_isQtWindows) {
-                logger.debug('store/liteMode', 'User preference ignored (Qt+Windows forced)', { liteMode });
+            // If forced for any reason, ignore user preference
+            if (_isForced) {
+                logger.debug('store/liteMode', 'User preference ignored (forced)', { liteMode, reason: _forcedReason });
                 return;
             }
             logger.debug('store/liteMode', 'User preference set', { liteMode });
             set({
                 enabled: liteMode,
                 reason: liteMode ? 'user' : 'none',
-                isQtWindows: false
+                isForced: false
             });
         },
         // Debug override for testing on non-Windows platforms
@@ -555,7 +577,7 @@ function createLiteModeStore() {
             set({
                 enabled,
                 reason: enabled ? 'debug-override' : 'none',
-                isQtWindows: _isQtWindows
+                isForced: _isForced
             });
         },
         // Get just the enabled state (convenience)
