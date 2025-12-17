@@ -22,8 +22,6 @@ Qt WebEngine (used by Anki's embedded WebView on Windows) has a bug where `backd
 - Only Qt WebEngine on Windows exhibits the issue
 - `--disable-gpu-compositing` eliminates flickering but makes the app unusable
 
-See the full bug report: `QtWebEngine_BUG.md` in the project root.
-
 ### 2. No Hardware Acceleration
 
 When WebGL/WebGPU hardware acceleration is unavailable (software rendering), blur effects are computationally expensive and cause poor performance. Lite mode is automatically enabled in this scenario.
@@ -195,7 +193,6 @@ Lite Mode is automatically enabled. To verify:
 - `internal/gui/frontend/src/lib/stores.ts` - `liteModeStore` definition
 - `internal/gui/frontend/src/App.svelte` - Auto-detection logic for Qt+Windows and hardware acceleration
 - `internal/gui/frontend/src/components/Settings.svelte` - User-facing toggle
-- `QtWebEngine_BUG.md` - Full bug report with reproduction details
 
 ## Store API Reference
 

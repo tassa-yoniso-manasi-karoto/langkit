@@ -25,7 +25,7 @@ Inspecting the available webviews via DevTools shows that Anki creates three spe
 
 ## Plan mode
 
-Investigate YOURSELF. The default instruction of plan mode say you should research the issue using the Task tool with Plan subagent, but it is IMO a bad approach so my instructions are: DO NOT USE PLAN SUBAGENT IN PLAN MODE.
+investigate YOURSELF. The default instruction of plan mode say you should research the issue using the Task tool with Plan subagent, but it is IMO a bad approach so my instructions are: YOU ARE NOT ALLOWED TO USE SUB AGENTS EXCEPT go-api-scout OR go-codebase-investigator AND ONLY IF YOU THINK IT IS REALLY NEEDED.
 
 ## Build Commands
 - Build frontend only (deprecated): `cd internal/gui/frontend && npm run build`
