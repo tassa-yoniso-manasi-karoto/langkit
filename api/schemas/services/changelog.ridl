@@ -1,0 +1,35 @@
+webrpc = v1
+name = langkit-changelog
+version = v1.0.0
+
+# Changelog service for version tracking and release notes
+
+struct ChangelogSection
+  - title: string       # e.g., "Added", "Changed", "Fixed"
+  - items: []string     # list of changes
+
+struct ChangelogEntry
+  - version: string         # e.g., "1.0.0-alpha"
+  - date: string            # e.g., "2024-01-15" or "Unreleased"
+  - sections: []ChangelogSection
+
+struct ChangelogResponse
+  - entries: []ChangelogEntry
+  - currentVersion: string
+
+struct UpgradeInfo
+  - hasUpgrade: bool
+  - previousVersion: string
+  - currentVersion: string
+  - upgradeType: string     # "major", "minor", "patch", "none"
+  - shouldShowChangelog: bool
+
+service ChangelogService
+  # Get changelog entries for a specific version or all since a version
+  - GetChangelog(sinceVersion?: string) => (response: ChangelogResponse)
+
+  # Check if user has upgraded and should see changelog
+  - CheckUpgrade() => (info: UpgradeInfo)
+
+  # Mark the current version as seen (updates lastSeenVersion)
+  - MarkVersionSeen() => ()

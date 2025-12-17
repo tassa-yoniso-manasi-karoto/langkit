@@ -134,6 +134,12 @@ func (a *App) startup(ctx context.Context) {
 		if err := a.apiServer.RegisterService(settingsSvc); err != nil {
 			a.getLogger().Fatal().Err(err).Msg("Failed to register settings service")
 		}
+
+		// Register changelog service
+		changelogSvc := services.NewChangelogService(*a.getLogger())
+		if err := a.apiServer.RegisterService(changelogSvc); err != nil {
+			a.getLogger().Fatal().Err(err).Msg("Failed to register changelog service")
+		}
 	} else {
 		// Servers are pre-initialized, just set the global handler
 		// (handler should have been created during InitializeServers)
@@ -147,6 +153,12 @@ func (a *App) startup(ctx context.Context) {
 		settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
 		if err := a.apiServer.RegisterService(settingsSvc); err != nil {
 			a.getLogger().Fatal().Err(err).Msg("Failed to register settings service")
+		}
+
+		// Register changelog service
+		changelogSvc := services.NewChangelogService(*a.getLogger())
+		if err := a.apiServer.RegisterService(changelogSvc); err != nil {
+			a.getLogger().Fatal().Err(err).Msg("Failed to register changelog service")
 		}
 	}
 }

@@ -14,3 +14,4 @@ import ./services/models.ridl
 import ./services/settings.ridl
 import ./services/media.ridl
 import ./services/processing.ridl
+import ./services/changelog.ridl

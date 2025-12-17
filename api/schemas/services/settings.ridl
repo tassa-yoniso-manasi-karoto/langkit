@@ -47,6 +47,8 @@ struct Settings
   - ffmpegPath: string
   - mediainfoPath: string
   - customEndpoints: CustomEndpoints
+  - lastSeenVersion: string
+  - changelogDisplayFrequency: string  # all, minor_major, major_only
 
 struct StatisticsUpdate
   - updates: map<string,any>

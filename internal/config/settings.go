@@ -81,6 +81,10 @@ type Settings struct {
 			Model    string `json:"model" mapstructure:"model"`
 		} `json:"llm" mapstructure:"llm"`
 	} `json:"customEndpoints" mapstructure:"custom_endpoints"`
+
+	// Version tracking for changelog display
+	LastSeenVersion           string `json:"lastSeenVersion" mapstructure:"last_seen_version"`
+	ChangelogDisplayFrequency string `json:"changelogDisplayFrequency" mapstructure:"changelog_display_frequency"` // "all", "medium_major", "major_only"
 }
 
 func GetConfigDir() (string, error) {
@@ -166,6 +170,10 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("custom_endpoints.llm.enabled", false)
 	viper.SetDefault("custom_endpoints.llm.endpoint", "http://localhost:11434/v1/chat/completions")
 	viper.SetDefault("custom_endpoints.llm.model", "")
+
+	// Version tracking defaults
+	viper.SetDefault("last_seen_version", "")
+	viper.SetDefault("changelog_display_frequency", "minor_major")
 
 	// Get the config path
 	configPath, err := getConfigPath()
@@ -271,6 +279,10 @@ func SaveSettings(settings Settings) error {
 	viper.Set("custom_endpoints.llm.enabled", settings.CustomEndpoints.LLM.Enabled)
 	viper.Set("custom_endpoints.llm.endpoint", settings.CustomEndpoints.LLM.Endpoint)
 	viper.Set("custom_endpoints.llm.model", settings.CustomEndpoints.LLM.Model)
+
+	// Save version tracking settings
+	viper.Set("last_seen_version", settings.LastSeenVersion)
+	viper.Set("changelog_display_frequency", settings.ChangelogDisplayFrequency)
 
 	// Ensure config path exists
 	configPath, err := getConfigPath()

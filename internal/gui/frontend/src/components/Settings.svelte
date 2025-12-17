@@ -119,7 +119,9 @@ import { isDeveloperMode } from '../lib/developerMode';
                 endpoint: 'http://localhost:11434/v1/chat/completions',
                 model: ''
             }
-        }
+        },
+        // Version tracking settings
+        changelogDisplayFrequency: 'minor_major'
     };
 
     let targetLangValid = false;
@@ -930,7 +932,26 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     </label>
                                 </div>
                             </div>
-                            
+
+                            <!-- Changelog Display Frequency -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Show changelog</span>
+                                    <span class="setting-description">When to display the changelog after software updates</span>
+                                </div>
+                                <div class="setting-control">
+                                    <SelectInput
+                                        bind:value={currentSettings.changelogDisplayFrequency}
+                                        className="px-3 py-2 rounded-lg"
+                                        on:change={updateSettings}
+                                    >
+                                        <option value="all">On every update</option>
+                                        <option value="minor_major">On minor and major updates</option>
+                                        <option value="major_only">On major updates only</option>
+                                    </SelectInput>
+                                </div>
+                            </div>
+
                             <!-- Maximum log entries -->
                             <div class="setting-row">
                                 <div class="setting-label">

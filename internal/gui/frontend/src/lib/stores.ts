@@ -54,6 +54,10 @@ type Settings = {
             model: string;
         };
     };
+
+    // Version tracking for changelog display
+    lastSeenVersion?: string;
+    changelogDisplayFrequency?: 'all' | 'minor_major' | 'major_only';
 };
 
 /* these values are irrelevant, only the default values of the backend matter */
@@ -104,7 +108,10 @@ const initSettings: Settings = {
             endpoint: 'http://localhost:11434/v1/chat/completions',
             model: ''
         }
-    }
+    },
+    // Default version tracking settings
+    lastSeenVersion: '',
+    changelogDisplayFrequency: 'minor_major'
 };
 
 type showSettings = boolean;
@@ -138,7 +145,10 @@ export function mergeSettingsWithDefaults(loaded: Partial<Settings>): Settings {
         // Ensure scalar fields have proper defaults
         intermediaryFileMode: loaded.intermediaryFileMode || initSettings.intermediaryFileMode,
         deleteResumptionFiles: loaded.deleteResumptionFiles ?? initSettings.deleteResumptionFiles,
-        forceWasmMode: (loaded.forceWasmMode || initSettings.forceWasmMode) as 'auto' | 'enabled' | 'disabled'
+        forceWasmMode: (loaded.forceWasmMode || initSettings.forceWasmMode) as 'auto' | 'enabled' | 'disabled',
+        // Version tracking fields
+        lastSeenVersion: loaded.lastSeenVersion ?? initSettings.lastSeenVersion,
+        changelogDisplayFrequency: (loaded.changelogDisplayFrequency || initSettings.changelogDisplayFrequency) as 'all' | 'minor_major' | 'major_only'
     };
 }
 

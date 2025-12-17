@@ -250,6 +250,13 @@ func initializeServerComponents(ctx context.Context, servers *ServerComponents, 
 	}
 	logger.Info().Msg("Settings service registered")
 
+	// Register changelog service
+	changelogSvc := services.NewChangelogService(*logger)
+	if err := servers.APIServer.RegisterService(changelogSvc); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to register changelog service")
+	}
+	logger.Info().Msg("Changelog service registered")
+
 	// Set up WebSocket connection callback to send initial LLM state
 	servers.WSServer.SetOnConnect(func() {
 		if llmRegistry != nil {

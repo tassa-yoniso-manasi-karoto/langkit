@@ -106,6 +106,8 @@ func (s *SettingsService) LoadSettings(ctx context.Context) (*generated.Settings
 				Model:    settings.CustomEndpoints.LLM.Model,
 			},
 		},
+		LastSeenVersion:           settings.LastSeenVersion,
+		ChangelogDisplayFrequency: settings.ChangelogDisplayFrequency,
 	}
 
 	return genSettings, nil
@@ -135,6 +137,8 @@ func (s *SettingsService) SaveSettings(ctx context.Context, genSettings *generat
 		ForceWasmMode:                    genSettings.ForceWasmMode,
 		FFmpegPath:                       genSettings.FfmpegPath,
 		MediaInfoPath:                    genSettings.MediainfoPath,
+		LastSeenVersion:                  genSettings.LastSeenVersion,
+		ChangelogDisplayFrequency:        genSettings.ChangelogDisplayFrequency,
 	}
 
 	// Handle API keys if provided

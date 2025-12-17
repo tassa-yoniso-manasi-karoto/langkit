@@ -39,6 +39,7 @@
     import CoffeeSupport from './components/CoffeeSupport.svelte';
     import WelcomePopup from './components/WelcomePopup.svelte';
     import ReturnToAnkiButton from './components/ReturnToAnkiButton.svelte';
+    import ChangelogPopup from './components/ChangelogPopup.svelte';
     
     import { GetVersion, GetSystemInfo, CheckForUpdate, ShowWarning } from './api/services/system';
     import { getGraphicsInfo } from './lib/graphicsInfo';
@@ -168,6 +169,9 @@
     
     // State for welcome popup
     let showWelcomePopup = false;
+
+    // State for changelog popup - triggers check after welcome popup closes
+    let triggerChangelogCheck = false;
 
     // Sync welcome popup state with store
     $: welcomePopupVisible.set(showWelcomePopup);
@@ -1840,11 +1844,32 @@
         onClose={() => {
             logger.info('app', 'Welcome popup closed');
             showWelcomePopup = false;
+            // Trigger changelog check after feature cards animation completes
+            // FeatureSelector waits 400ms then animates cards with staggered delays
+            // Total animation time is roughly 1500-2000ms, so we wait 2000ms
+            setTimeout(() => {
+                logger.debug('app', 'Triggering changelog upgrade check');
+                triggerChangelogCheck = true;
+            }, 2000);
         }}
         recheckFFmpeg={checkFFmpegAvailability}
         recheckMediaInfo={checkMediaInfoAvailability}
     />
 {/if}
+
+<!-- Changelog popup - checks for upgrade when triggerCheck becomes true -->
+<ChangelogPopup
+    triggerCheck={triggerChangelogCheck}
+    on:dismissed={() => {
+        logger.info('app', 'Changelog popup dismissed');
+        triggerChangelogCheck = false;
+    }}
+    on:checked={(e) => {
+        if (!e.detail.shouldShow) {
+            triggerChangelogCheck = false;
+        }
+    }}
+/>
 
 <style>
     /* Smooth fade mask for scrollable content */

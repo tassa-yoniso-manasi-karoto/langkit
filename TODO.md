@@ -1,5 +1,3 @@
-- changelog in Anki AND GH releases
-
 - bad local layer detection?
 
 <hr>
