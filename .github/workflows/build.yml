@@ -118,7 +118,13 @@ jobs:
         shell: bash
         run: |
           make generate-go
-        
+
+      # Copy CHANGELOG.md for embedding (Go embed doesn't support symlinks)
+      - name: Copy CHANGELOG.md for embedding
+        shell: bash
+        run: |
+          cp CHANGELOG.md internal/changelog/CHANGELOG.md
+
       # Build WASM components with your custom inlining process
       - name: Build WebAssembly components
         working-directory: internal/gui/frontend
@@ -477,6 +483,12 @@ jobs:
         shell: bash
         run: |
           make generate-go
+
+      # Copy CHANGELOG.md for embedding (Go embed doesn't support symlinks)
+      - name: Copy CHANGELOG.md for embedding
+        shell: bash
+        run: |
+          cp CHANGELOG.md internal/changelog/CHANGELOG.md
 
       # Build WASM components
       - name: Build WebAssembly components
