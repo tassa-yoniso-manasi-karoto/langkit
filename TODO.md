@@ -1,6 +1,7 @@
 - intelligent heightSize of ProgressBars (if only a single feature selected, always make it full size)
 
-- anki changelog
+- changelog in Anki AND GH releases
+
 
 - bad local layer detection?
 

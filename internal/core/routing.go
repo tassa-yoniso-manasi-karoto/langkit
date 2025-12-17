@@ -184,13 +184,13 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		}
 		
 		tsk.Handler.IncrementProgress(
-			"media-bar",
+			ProgressBarIDMedia,
 			0,
 			len(tasks),
 			10,
 			"Processing",
 			"Total media files done...",
-			"h-5",
+			"", // Use importance map for height class
 		)
 		for idx, tsk := range tasks {
 			// Dry run mode - simulate processing without actual work
@@ -250,13 +250,13 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				
 				// Update progress with dry run indication
 				tsk.Handler.IncrementProgress(
-					"media-bar",
+					ProgressBarIDMedia,
 					1,
 					len(tasks),
 					10,
 					"Dry Run Processing",
 					fmt.Sprintf("Testing file %d of %d", idx+1, len(tasks)),
-					"h-5",
+					"", // Use importance map for height class
 				)
 				
 				// Log the file being "processed"
@@ -305,13 +305,13 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				return
 			}
 			tsk.Handler.IncrementProgress(
-				"media-bar",
+				ProgressBarIDMedia,
 				1,
 				len(tasks),
 				10,
 				"Processing",
 				"Total media files done...",
-				"h-5",
+				"", // Use importance map for height class
 			)
 		}
 		

@@ -19,6 +19,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
 )
 
 const (
@@ -414,8 +415,8 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 	var progressCb ProgressCallback
 	if h := ctx.Value(ProgressHandlerKey); h != nil {
 		if handler, ok := h.(ProgressHandler); ok {
-			downloadTaskID := "demucs-model-download"
-			processTaskID := "demucs-process"
+			downloadTaskID := progress.BarDemucsModelDL
+			processTaskID := progress.BarDemucsProcess
 			var lastDownloadPercent, lastProcessPercent int
 			var currentPhase DemucsPhase
 
@@ -434,13 +435,13 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 				case PhaseModelDownload:
 					increment := update.Percent - lastDownloadPercent
 					if increment > 0 {
-						handler.IncrementProgress(downloadTaskID, increment, 100, 25, "Demucs Setup", "Downloading model weights...", "h-2")
+						handler.IncrementProgress(downloadTaskID, increment, 100, 25, "Demucs Setup", "Downloading model weights...", "")
 						lastDownloadPercent = update.Percent
 					}
 				case PhaseProcessing:
 					increment := update.Percent - lastProcessPercent
 					if increment > 0 {
-						handler.IncrementProgress(processTaskID, increment, 100, 30, "Voice Separation", "Processing audio...", "h-2")
+						handler.IncrementProgress(processTaskID, increment, 100, 30, "Voice Separation", "Processing audio...", "")
 						lastProcessPercent = update.Percent
 					}
 				}
@@ -648,7 +649,7 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 	}
 
 	opts := dockerutil.DefaultPullOptions()
-	taskID := "docker-pull"
+	taskID := progress.BarDemucsDockerDL
 
 	// Progress callback for UI
 	if handler != nil {
@@ -667,7 +668,7 @@ func pullImageWithProgress(ctx context.Context, handler ProgressHandler) error {
 					20,
 					"Demucs Setup",
 					status,
-					"h-3",
+					"", // Use importance map for height class
 					humanize.Bytes(uint64(current))+" / "+humanize.Bytes(uint64(total)),
 				)
 				lastBytes = current

@@ -1,7 +1,9 @@
 package core
 
-// Progress bar identifiers
+import "github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
+
+// Progress bar identifiers - aliases to progress package constants for backward compatibility
 const (
-	ProgressBarIDMedia = "media-bar" // Overall media processing progress
-	ProgressBarIDItem  = "item-bar"  // Individual item processing progress
+	ProgressBarIDMedia = progress.BarMediaBar // Overall media processing progress
+	ProgressBarIDItem  = progress.BarItemBar  // Individual item processing progress
 )

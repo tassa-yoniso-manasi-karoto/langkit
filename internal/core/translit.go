@@ -22,8 +22,9 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
 
 
@@ -408,7 +409,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 
 	// Add download progress callback for Docker image pulls
 	if handler != nil {
-		downloadTaskID = fmt.Sprintf("download-%s-%d", p.module.Lang, time.Now().UnixNano())
+		downloadTaskID = fmt.Sprintf("%s-%s-%d", progress.BarTranslitDockerDL, p.module.Lang, time.Now().UnixNano())
 		var lastBytes int64
 
 		p.module.WithDownloadProgressCallback(func(providerName string, current, total int64, status string) {
@@ -427,7 +428,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 					20,
 					"Installing "+providerName+" ",
 					status,
-					"h-3",
+					"", // Use importance map for height class
 					humanizedSize,
 				)
 				lastBytes = current
@@ -452,14 +453,14 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 
 func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {
 	// Generate a unique task ID for this operation
-	taskID := fmt.Sprintf("transliteration-%d", time.Now().UnixNano())
+	taskID := fmt.Sprintf("%s-%s-%d", progress.BarTranslitProcess, p.module.Lang, time.Now().UnixNano())
 	m := p.module
 	nativelyUsesChunks := m.SupportsProgress()
 
 	handler.ZeroLog().Debug().
 		Bool("nativelyUsesChunks", nativelyUsesChunks).
 		Msg("")
-	
+
 	handler.IncrementProgress(
 		taskID,
 		0,
@@ -467,9 +468,9 @@ func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler 
 		30,
 		"Starting transliteration...",
 		"",
-		"h-2",
+		"", // Use importance map for height class
 	)
-	
+
 	// Determine whether to use native progress tracking or custom chunkifier
 	if !nativelyUsesChunks {
 		// For modules without native progress support, use a custom chunkifier
@@ -484,7 +485,7 @@ func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler 
 
 		m.WithCustomChunkifier(common.NewChunkifier(maxChunkSize))
 	}
-	
+
 	m.WithProgressCallback(func(idx, length int) {
 		handler.IncrementProgress(
 			taskID,
@@ -493,7 +494,7 @@ func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler 
 			30,
 			"Transliterating",
 			fmt.Sprintf("Processing text (%d/%d)", idx+1, length),
-			"h-2",
+			"", // Use importance map for height class
 		)
 	})
 	
@@ -585,11 +586,12 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 
 	// Create ichiran manager with progress handler
 	options := []ichiran.ManagerOption{}
-	// Track download progress taskID for cleanup
+	// Track progress taskIDs for cleanup
 	var downloadTaskID string
+	ichiranInitTaskID := progress.BarTranslitInit + "-ichiran"
 	if handler != nil {
 		// Add download progress callback for Docker image pulls
-		downloadTaskID = fmt.Sprintf("ichiran-download-%d", time.Now().UnixNano())
+		downloadTaskID = fmt.Sprintf("%s-ichiran-%d", progress.BarTranslitDockerDL, time.Now().UnixNano())
 		var lastBytes int64
 		options = append(options, ichiran.WithDownloadProgressCallback(func(current, total int64, status string) {
 			if current >= total {
@@ -611,7 +613,7 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 					20,
 					"Downloading Ichiran",
 					status,
-					"h-3",
+					"", // Use importance map for height class
 					humanizedSize,
 				)
 				lastBytes = current
@@ -677,18 +679,16 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 				increment = 0  // Prevent negative increments
 			}
 			lastProgress = progress
-			
-			// Use a unique task ID for ichiran initialization
-			taskID := "ichiran-init"
+
 			// Pass the INCREMENT, not the absolute value
 			handler.IncrementProgress(
-				taskID,
+				ichiranInitTaskID,
 				int(increment),  // increment since last update
 				100,            // total
 				25,             // priority (lower than main tasks)
 				"Installing Ichiran",
 				description,
-				"h-3", // size hint
+				"", // Use importance map for height class
 			)
 		}
 		options = append(options, ichiran.WithProgressHandler(dockerutil.ProgressHandler(progressHandler)))
@@ -699,7 +699,7 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 	if err != nil {
 		return fmt.Errorf("failed to create ichiran manager: %w", err)
 	}
-	
+
 	// Use the manager's Init methods which will track progress
 	var initErr error
 	if !recreate {
@@ -707,9 +707,9 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 	} else {
 		initErr = mgr.InitRecreate(ctx, true)
 	}
-	
+
 	if handler != nil {
-		handler.RemoveProgressBar("ichiran-init")
+		handler.RemoveProgressBar(ichiranInitTaskID)
 	}
 	
 	return initErr
@@ -717,29 +717,29 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 
 func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {
 	// Generate a unique task ID for this operation
-	taskID := fmt.Sprintf("jp-transliteration-%d", time.Now().UnixNano())
-	
+	taskID := fmt.Sprintf("%s-jpn-%d", progress.BarTranslitProcess, time.Now().UnixNano())
+
 	// Calculate optimal chunk size based on text length
 	runeCount := utf8.RuneCountInString(text)
 	maxChunkSize, numChunks := calculateChunkSize(runeCount)
-	
+
 	handler.ZeroLog().Debug().
 		Int("runeCount", runeCount).
 		Int("maxChunkSize", maxChunkSize).
 		Int("numChunks", numChunks).
 		Msg("using ichiran with custom chunkifier")
-	
+
 	// Split text into chunks using Chunkify
 	chunks, err := common.NewChunkifier(maxChunkSize).Chunkify(text)
 	if err != nil {
 		return StringResult{}, fmt.Errorf("error splitting text into chunks: %w", err)
 	}
 	totalChunks := len(chunks)
-	
+
 	handler.ZeroLog().Trace().
 		Int("actualNumChunks", totalChunks).
 		Msg("")
-	
+
 	handler.IncrementProgress(
 		taskID,
 		0,
@@ -747,7 +747,7 @@ func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler
 		30,
 		"Starting Japanese analysis...",
 		"",
-		"h-2",
+		"", // Use importance map for height class
 	)
 	
 	var tokenizedResult, romanizedResult, selectiveResult, tokenizedSelectiveResult strings.Builder
@@ -797,7 +797,7 @@ func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler
 			30,
 			"Analyzing Japanese",
 			fmt.Sprintf("Processing chunk %d/%d", i+1, totalChunks),
-			"h-2",
+			"", // Use importance map for height class
 		)
 	}
 	

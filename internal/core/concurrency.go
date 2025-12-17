@@ -53,28 +53,27 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 	
 
 	updateBar := func(incr int) {
-		id := "item-bar"
 		if totalItems == 0 {
-			tsk.Handler.RemoveProgressBar(id)
-			tsk.Handler.ZeroLog().Debug().Msgf("rm %s as totalItems is zero", id)
+			tsk.Handler.RemoveProgressBar(ProgressBarIDItem)
+			tsk.Handler.ZeroLog().Debug().Msgf("rm %s as totalItems is zero", ProgressBarIDItem)
 			return
 		}
 		tsk.Handler.IncrementProgressAdvanced(
-			id,
+			ProgressBarIDItem,
 			incr,
 			totalItems,
 			20,
 			"Subtitle lines processed (all files)...",
 			"",
-			"h-3",
+			"", // Use importance map for height class
 		)
 	}
-	
+
 	updateBar(0)
-	
+
 	// Explicitly rm progress bar when function exits to avoid
 	// lingering "Subtitle lines processed (all files)... 0/1" in GUI
-	defer tsk.Handler.RemoveProgressBar("item-bar")
+	defer tsk.Handler.RemoveProgressBar(ProgressBarIDItem)
 
 	supCtx, supCancel := context.WithCancel(ctx)
 	defer supCancel()

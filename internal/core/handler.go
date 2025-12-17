@@ -413,8 +413,9 @@ type GUIHandler struct {
 	llmRegistry    interface{}         // Stores LLM registry instance
 	
 	// Processing management
-	cancelMu   sync.Mutex
-	cancelFunc context.CancelFunc
+	cancelMu      sync.Mutex
+	cancelFunc    context.CancelFunc
+	importanceMap ImportanceMap // Computed per processing run for dynamic progress bar heights
 }
 
 // GUIHandler implements multiple focused interfaces: compile-time assertions
@@ -623,6 +624,15 @@ func (h *GUIHandler) incrementProgressInternal(
 	progressType string, // "download" for download progress, "" for regular task progress
 	humanizedSize string, // Only used when progressType == "download"
 ) {
+	// Use importance map for height class if not explicitly provided
+	if heightClass == "" && h.importanceMap != nil {
+		heightClass = h.importanceMap.GetHeightClass(taskID)
+	}
+	// Default to h-3 (Normal) if still empty
+	if heightClass == "" {
+		heightClass = "h-3"
+	}
+
 	// Make sure we have the ETA calculator map initialized
 	if h.etaCalculators == nil {
 		h.etaCalculators = make(map[string]eta.Provider)
@@ -1295,10 +1305,30 @@ func (h *GUIHandler) SendProcessingRequest(ctx context.Context, request interfac
 	}
 	
 	tsk.MediaSourceFile = req.Path
-	
+
+	// Determine if bulk processing (directory) and compute importance map
+	isBulk := false
+	if stat, err := os.Stat(req.Path); err == nil {
+		isBulk = stat.IsDir()
+	}
+
+	// Build feature set from request
+	features := FeatureSet{
+		HasEnhance:  req.SelectedFeatures["voiceEnhancing"],
+		HasTranslit: req.SelectedFeatures["subtitleRomanization"] ||
+			req.SelectedFeatures["subtitleTokenization"] ||
+			req.SelectedFeatures["selectiveTransliteration"],
+		HasCondense: req.SelectedFeatures["condensedAudio"],
+		HasSTT:      tsk.STT != "",
+	}
+
+	// Compute importance map for progress bar heights
+	h.importanceMap = ComputeImportanceMap(tsk.Mode, isBulk, features)
+
 	h.logger.Info().
 		Str("file", tsk.MediaSourceFile).
 		Int("mode", int(tsk.Mode)).
+		Bool("isBulk", isBulk).
 		Bool("MergeOutputFiles", tsk.MergeOutputFiles).
 		Msg("Starting processing")
 	
