@@ -1,4 +1,3 @@
-- demucs docker’s lifecycle is not properly managed
 - demucs local not loud enough
 
 - cleanup abandoned Wails methods

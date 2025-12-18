@@ -18,6 +18,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
 
@@ -44,13 +45,17 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		InitTranslitService(logger)
 	}
 	
-	// Register a deferred cleanup function to ensure TranslitProviderManager is properly shut down
-	// for non-bulk processing tasks (bulk processing has its own cleanup)
+	// Register a deferred cleanup function to ensure TranslitProviderManager and Demucs
+	// are properly shut down for non-bulk processing tasks (bulk processing has its own cleanup)
 	if !tsk.IsBulkProcess {
 		defer func() {
 			if DefaultProviderManager != nil {
 				tsk.Handler.ZeroLog().Info().Msg("Shutting down TranslitProviderManager")
 				ShutdownTranslitService()
+			}
+			// Stop demucs container if it was started during this processing run
+			if err := voice.StopDemucsManager(); err != nil {
+				tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop Demucs container")
 			}
 		}()
 	}
@@ -301,7 +306,11 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 					tsk.Handler.ZeroLog().Info().Msg("Shutting down TranslitProviderManager after error")
 					ShutdownTranslitService()
 				}
-				
+				// Stop demucs container if it was started
+				if err := voice.StopDemucsManager(); err != nil {
+					tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop Demucs container after error")
+				}
+
 				return
 			}
 			tsk.Handler.IncrementProgress(
@@ -319,6 +328,10 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		if DefaultProviderManager != nil {
 			tsk.Handler.ZeroLog().Info().Msg("Shutting down TranslitProviderManager after bulk processing")
 			ShutdownTranslitService()
+		}
+		// Stop demucs container after bulk processing is complete
+		if err := voice.StopDemucsManager(); err != nil {
+			tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop Demucs container after bulk processing")
 		}
 	}
 	tsk.Handler.ZeroLog().Debug().Msg("Routing completed successfully")
