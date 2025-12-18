@@ -101,6 +101,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
 					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn",
+						"-af", "aresample=resampler=soxr:out_sample_rate=44100", // High-quality resample to 44.1kHz for demucs
 						"-acodec", "libopus", "-b:a", media.OpusBitrate, OriginalAudio,
 			}...)
 		if err != nil {
