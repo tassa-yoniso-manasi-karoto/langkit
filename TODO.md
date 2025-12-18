@@ -1,6 +1,5 @@
-- bad local layer detection?
-
-<hr>
+- demucs docker’s lifecycle is not properly managed
+- demucs local not loud enough
 
 - cleanup abandoned Wails methods
 - support embedded subtitles

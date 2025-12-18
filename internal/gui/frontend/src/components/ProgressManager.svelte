@@ -495,20 +495,6 @@
                         expand_less
                     </span>
                 </button>
-                
-                <!-- Clear all progress bars button -->
-                <button 
-                    class="flex items-center justify-center w-6 h-6
-                           text-secondary/70 hover:text-secondary
-                           transition-all duration-200 relative
-                           overflow-hidden rounded-full
-                           active:bg-secondary/20
-                           focus:outline-none focus:ring-1 focus:ring-secondary/40"
-                    on:click={clearAllBars}
-                    aria-label="Clear all progress bars"
-                >
-                    <span class="material-icons text-[16px]">close</span>
-                </button>
             </div>
         </div>
 
