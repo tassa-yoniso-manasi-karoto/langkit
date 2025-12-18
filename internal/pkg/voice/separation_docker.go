@@ -3,6 +3,8 @@ package voice
 import (
 	"context"
 	"fmt"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,6 +55,22 @@ func (p *DockerDemucsProvider) SeparateVoice(ctx context.Context, audioFile, out
 	// Get or create the demucs manager
 	manager, err := GetDemucsManager(ctx, mode)
 	if err != nil {
+		// Check for NVIDIA GPU not available error
+		errStr := err.Error()
+		if strings.Contains(errStr, "nvidia-container-cli") && strings.Contains(errStr, "no adapters were found") {
+			hint := "Use the CPU-based 'docker-demucs' provider instead"
+			if runtime.GOOS == "linux" {
+				hint += ", or install NVIDIA Container Toolkit if you have an NVIDIA GPU"
+			}
+			return nil, fmt.Errorf("NVIDIA GPU not available: the Docker GPU provider requires an NVIDIA graphics card with proper drivers. %s", hint)
+		}
+		if strings.Contains(errStr, "nvidia-container-cli") {
+			hint := "Make sure your NVIDIA GPU drivers are up to date"
+			if runtime.GOOS == "linux" {
+				hint = "Make sure NVIDIA Container Toolkit is properly installed and your GPU drivers are up to date"
+			}
+			return nil, fmt.Errorf("NVIDIA container runtime error: %w. %s", err, hint)
+		}
 		return nil, fmt.Errorf("failed to get demucs manager: %w", err)
 	}
 

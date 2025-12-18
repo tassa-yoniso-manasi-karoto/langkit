@@ -1,5 +1,13 @@
 - demucs local not loud enough
 
+- Wave svg reset too fast make longer loop
+- Fix useless log spam of LLM providers
+
+- without leakless: https://github.com/go-rod/rod/issues/739#issuecomment-1272420000
+
+- “Found ffmpeg for CLI task” in GUI mode, but it ‘s not so much a problem by itself i guess: can add a last resort check in AppData\Local\langkit\tools
+
+
 - cleanup abandoned Wails methods
 - support embedded subtitles
 - ensure support .ass subtitles
@@ -29,6 +37,7 @@
 .
 
 - condensed audio
+  - live edit summary prompt
   - multiple previous subtitle for summarization fully contextualized (Providing x previous subtitles or their summaries of previous episodes as context)
   - ENHANCE condensed audio
 
