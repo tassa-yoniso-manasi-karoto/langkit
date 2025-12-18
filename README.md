@@ -7,7 +7,7 @@
 </p>
 
 
-### Status: alpha
+### Status: feature-complete alpha
 
 Langkit is an all-in-one tool designed to **facilitate language learning from native media content** using a collection of diverse features to transform movies, TV shows, etc., into **easily ‘digestible’ material**.
 
@@ -257,10 +257,14 @@ The package is in NVIDIA's third-party repository. Follow <img src="internal/nvi
 See [Releases](https://github.com/tassa-yoniso-manasi-karoto/langkit/releases)
 
 # Requirements
+
+> [!TIP]
+> In practice, users need **only to install Docker Desktop themselves** if they want all the features that Langkit offers. All required dependencies can be installed with 1 click inside Langkit on <img src="internal/windows.svg" height="16"> & <picture> <source media="(prefers-color-scheme: dark)" srcset="internal/macos-dark.svg" height="16"> <img src="internal/macos-light.svg" height="16">  </picture>.
+
 - FFmpeg **v6 or higher (dev builds being preferred)**,
   - The FFmpeg dev team recommends end-users to use only the latest [builds from the dev branch (master builds)](https://github.com/BtbN/FFmpeg-Builds/releases). 
 - [MediaInfo](https://mediaarea.net/en/MediaInfo/Download),
-- *(optional)* [Docker Desktop](https://www.docker.com/products/docker-desktop/) (<img src="internal/windows.svg" height="16"> / <picture> <source media="(prefers-color-scheme: dark)" srcset="internal/macos-dark.svg" height="16"> <img src="internal/macos-light.svg" height="16">  </picture>) / Docker Engine (<img src="internal/linux.svg" height="20">): only if you need to process subtitles in Japanese or any Indic languages
+- *(optional)* [Docker Desktop](https://www.docker.com/products/docker-desktop/) (<img src="internal/windows.svg" height="16"> / <picture> <source media="(prefers-color-scheme: dark)" srcset="internal/macos-dark.svg" height="16"> <img src="internal/macos-light.svg" height="16">  </picture>) / Docker Engine (<img src="internal/linux.svg" height="20">): only if you want voice enhancing for free or need to process subtitles in Japanese, Thai or any Indic languages
 
 The binary's location for FFmpeg and Mediainfo can be provided by a flag, in $PATH or in a "bin" directory placed in the folder where langkit is. 
 
@@ -362,3 +366,6 @@ See [DEV.md](https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/master/D
 All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
 
 # Support the project
+
+If you like it, leave a star on Github!
+

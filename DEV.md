@@ -100,7 +100,7 @@ The `internal/ui` package provides a singleton-based abstraction for runtime-spe
 ### Project stats
 
 ```bash
-cloc . --include-ext=go,ts,svelte,rs,css --exclude-dir=node_modules,vendor,dist,build --not-match-f="\.gen\.(go|ts)$"  --by-file-by-lang
+cloc . --include-ext=go,ts,svelte,rs,py,css --exclude-dir=node_modules,vendor,dist,build --not-match-f="\.gen\.(go|ts)\$" --not-match-f="(kanjis\.go|static\.go|deep_copy\.go)" --by-file-by-lang
 ```
 
 # Feature(s) selection to internal mode matrix

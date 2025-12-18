@@ -152,7 +152,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		        } else if errors.Is(err, context.DeadlineExceeded) {
 				return tsk.Handler.LogErr(err, AbortTask, "enhance: Operation timed out.")
 			}
-			return tsk.Handler.LogErr(err, AbortTask, "Voice separation processing error.")
+			return tsk.Handler.LogErr(err, AbortAllTasks, "Voice separation processing error.")
 		}
 		
 		// Must write to disk so that it can be reused if ft error

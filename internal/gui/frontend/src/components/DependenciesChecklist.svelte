@@ -440,7 +440,7 @@
         
         <ErrorCard 
             show={dockerReady && dockerStatus && !dockerStatus.available}
-            message="Linguistic processing for <strong>Japanese & Indic languages</strong> will not be available so subtitle-related features for <strong>these languages will be out of service</strong>." 
+            message="Voice enhancing feature using your hardware for free won't be available. Linguistic processing for <strong>Japanese/Thai/Indic languages</strong> and will not be available so subtitle-related features for <strong>these languages will be out of service</strong>." 
         />
     </div>
     

@@ -131,7 +131,7 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("api_keys.google", "")
 
 	viper.SetDefault("target_language", "")
-	viper.SetDefault("native_languages", "en, en-US")
+	viper.SetDefault("native_languages", "en")
 
 	viper.SetDefault("lite_mode", false)
 	viper.SetDefault("show_log_viewer_default", false)
