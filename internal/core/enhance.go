@@ -101,7 +101,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 		err := media.FFmpeg(
 			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
 					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn",
-						"-acodec", "libopus", "-b:a", "128k", OriginalAudio,
+						"-acodec", "libopus", "-b:a", media.OpusBitrate, OriginalAudio,
 			}...)
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to demux the desired audiotrack.")
@@ -188,7 +188,7 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 				"[a1][a2]amix=inputs=2[amixed];" +
 				fmt.Sprintf("[amixed]alimiter=limit=%f[final]", tsk.Limiter),
 				"-map", "[final]", "-metadata:s:a:0", "language=" + tsk.Targ.String(),
-				"-acodec", "libopus", "-b:a", "128k",
+				"-acodec", "libopus", "-b:a", media.OpusBitrate,
 				MergedFile,
 		}...)
 	if err != nil {

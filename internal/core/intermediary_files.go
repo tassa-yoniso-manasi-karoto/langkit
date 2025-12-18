@@ -136,18 +136,11 @@ func (ifm *IntermediaryFileManager) recompressAudioFiles() error {
 			continue
 		}
 		
-		// Recompress to Opus at lower bitrate
 		ifm.handler.ZeroLog().Info().
 			Str("file", audioFile).
 			Msg("Recompressing audio file to save space")
 		
-		err := media.FFmpeg(
-			"-loglevel", "error", "-y",
-			"-i", audioFile,
-			"-c:a", "libopus",
-			"-b:a", "64k", // Lower bitrate for space saving + enough for voice-only audio
-			recompressedFile,
-		)
+		err := media.RunFFmpegConvert(audioFile, recompressedFile)
 		
 		if err != nil {
 			ifm.handler.ZeroLog().Warn().
@@ -158,7 +151,6 @@ func (ifm *IntermediaryFileManager) recompressAudioFiles() error {
 			continue
 		}
 		
-		// Delete original after successful recompression
 		os.Remove(audioFile)
 	}
 	

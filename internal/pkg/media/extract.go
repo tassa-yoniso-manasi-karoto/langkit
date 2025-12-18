@@ -23,7 +23,7 @@ func ExtractAudio(codec string, tracknum int, offset, startAt, endAt time.Durati
 			"-filter:a", "volume=10dB",
 			"-vn",
 			"-acodec", "libopus",
-			"-b:a", "96k", // could be moved to 112kbps but honestly I don't think it would bring any noticable inprovement
+			"-b:a", OpusBitrate,
 		}
 	}
 	outFile := fmt.Sprintf("%s_%s-%s.%s", outPrefix, pathPosition(startAt), pathPosition(endAt), codec)
