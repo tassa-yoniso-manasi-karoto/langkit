@@ -9,13 +9,15 @@ export interface ProgressBarData {
     operation: string;        // short label, e.g. "Subtitle Extraction"
     description?: string;     // short text, e.g. "Splitting audio track"
     color: string;           // flowbite color prop, e.g. "blue" | "red" | "purple"
-    size: string;            // e.g. "h-2" | "h-4" 
+    size: string;            // e.g. "h-2" | "h-4"
     labelOutside?: string;
     priority?: number;       // lower number => higher (earlier) in the UI
     errorState?: string;     // 'error_task', 'error_all' or 'user_cancel'
-    animated?: boolean;      // whether the progress bar should have animation 
+    animated?: boolean;      // whether the progress bar should have animation
     striped?: boolean;       // whether the progress bar should have striped pattern
     status?: string;         // custom status text (defaults to "Processing..." or "Complete")
+    type?: string;           // "download" for download progress, "" for regular task progress
+    humanizedSize?: string;  // humanized size display for download type (e.g., "529 MB / 530 MB")
 }
 
 export const progressBars = writable<ProgressBarData[]>([]);

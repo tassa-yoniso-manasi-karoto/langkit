@@ -157,16 +157,21 @@
         // Don't reset flags immediately when processing stops
         // This allows error messages to remain visible for the user
         // The reset will happen after all bars are removed with a timeout (see reactive statement above)
-        
+
         $progressBars.forEach(bar => {
-            if (bar.progress >= 100 && !taskErrors.has(bar.id)) {
+            // For download bars, consider complete when progress rounds to 100%
+            const isDownloadComplete = bar.type === 'download' && Math.round(bar.progress) >= 100;
+            const isRegularComplete = bar.progress >= 100;
+            const isComplete = isDownloadComplete || isRegularComplete;
+
+            if (isComplete && !taskErrors.has(bar.id)) {
                 const barSize = bar.size || 'h-2.5';
-                
+
                 // Parse height size to determine if it's large
                 const sizeMatch = barSize.match(/h-([0-9.]+)/);
                 const sizeValue = sizeMatch ? parseFloat(sizeMatch[1]) : 2.5;
                 const isLargeBar = sizeValue > 3;  // Larger than h-3
-                
+
                 if (isLargeBar && userActivityState === 'active') {
                     // Only remove completed large bars if user is active
                     // and wait a bit longer to ensure user sees completion
@@ -184,24 +189,43 @@
         processingWasActive = isProcessing;
     }
     
-    // Automatic removal of fully completed bars (not in error) after 2s
+    // Automatic removal of fully completed bars (not in error) after 2 minutes
     onMount(() => {
+        // Track which bars have been scheduled for removal to avoid duplicate timeouts
+        const scheduledForRemoval = new Set<string>();
+
         // Track progress bars
         const progressSub = progressBars.subscribe((bars) => {
             for (const bar of bars) {
-                if (bar.progress >= 100 && !taskErrors.has(bar.id) && !bar.errorState) {
+                // Skip if already scheduled for removal
+                if (scheduledForRemoval.has(bar.id)) {
+                    continue;
+                }
+
+                // For download bars, consider complete when progress rounds to 100%
+                // (handles rounding issues where 529MB/530MB = 99.81% displays as 100%)
+                const isDownloadComplete = bar.type === 'download' && Math.round(bar.progress) >= 100;
+                const isRegularComplete = bar.progress >= 100;
+                const isComplete = isDownloadComplete || isRegularComplete;
+
+                if (isComplete && !taskErrors.has(bar.id) && !bar.errorState) {
                     // Only auto-remove small bars (h-3 or smaller), or larger bars if user is active
                     const barSize = bar.size || 'h-2.5';
-                    
+
                     // Parse height size to determine if it's small
                     // h-3 or smaller is considered small, anything larger is considered large
                     const sizeMatch = barSize.match(/h-([0-9.]+)/);
                     const sizeValue = sizeMatch ? parseFloat(sizeMatch[1]) : 2.5;
                     const isSmallBar = sizeValue <= 3;
-                    
+
                     if (isSmallBar && !bar.errorState) {
+                        // Mark as scheduled to prevent duplicate timeouts
+                        scheduledForRemoval.add(bar.id);
                         // Remove small bars after a delay whether user is active or not
-                        setTimeout(() => removeProgressBar(bar.id), 120000); // 2 minutes
+                        setTimeout(() => {
+                            removeProgressBar(bar.id);
+                            scheduledForRemoval.delete(bar.id);
+                        }, 120000); // 2 minutes
                     }
                     // Larger bars will remain until user activity is detected (handled in checkForCompletedLargeBars)
                     // Bars with errors remain visible until manually cleared
