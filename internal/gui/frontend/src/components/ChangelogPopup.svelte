@@ -23,8 +23,13 @@
     // Track lite mode for Qt+Windows compatibility
     $: liteMode = $liteModeStore.enabled;
 
-    // Check if this is a major release (for red badge styling)
-    $: isMajorRelease = upgradeType === 'major';
+    // Check if this is a major release - either the upgrade itself is major,
+    // or any entry in the cumulative changelog is a major version (X.0.0)
+    $: containsMajorRelease = changelogEntries.some(entry => {
+        const match = entry.version.match(/^(\d+)\.0\.0$/);
+        return match !== null;
+    });
+    $: isMajorRelease = upgradeType === 'major' || containsMajorRelease;
 
     // Organize changelog entries into sections
     $: changelog = organizeChangelog(changelogEntries);

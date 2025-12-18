@@ -32,13 +32,14 @@ Guidelines for LLMs updating this changelog from git history:
 ### Added
 
 - Local voice enhancing option using Demucs: runs entirely on your computer at no cost, significantly faster with GPU acceleration
-- Custom STT and LLM endpoint options for power users
+- Custom STT and LLM endpoint options for power users for local inference
+- Fast & accurate local Thai romanization using Paiboon style: no scraping of thai2english needed anymore!
 - Lite mode option replacing blurs to address flickering issue of when running inside Anki on Windows
 - Warning dialog when hardware acceleration is unavailable, with guidance on how to fix it
 
 ### Changed
 
-- Faster and more reliable setup: language tools now download as pre-built packages with automatic retry on connection failures
+- Faster and more reliable setup: all docker-based processing tools now download as pre-built packages with download progress bar to keep users aware of the installation process
 - More robust Anki integration with better detection of hardware and configuration issues
 - Progress bars now highlight the most relevant task based on your selected features
 
@@ -47,5 +48,6 @@ Guidelines for LLMs updating this changelog from git history:
 - Progress bars for fast transliteration (Russian, Chinese) now show correct completion percentage
 - Drag and drop now works anywhere in the window, not just the top-left area
 - Subtitle detection now recognizes Chinese script variants (Simplified/Traditional) and other regional tags
+- Romanization of chinese now longers throws an error on windows
 - Specific language variants are now respected: requesting de-AT no longer matches de-DE subtitles
 - Cancel button responds immediately even when clicked right after starting
