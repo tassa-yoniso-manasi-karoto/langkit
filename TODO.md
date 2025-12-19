@@ -1,5 +1,8 @@
 - demucs local not loud enough
 
+18:12:47 WRN Failed to stop Demucs container error="Get \"http://%2Fvar%2Frun%2Fdocker.sock/v1.51/containers/json?all=1&filters=%7B%22label%22%3A%7B%22com.docker.compose.config-hash%22%3Atrue%2C%22com.docker.compose.oneoff%3DFalse%22%3Atrue%2C%22com.docker.compose.project%3Dlangkit-demucs-gpu%22%3Atrue%7D%7D\": context canceled"
+
+
 - Wave svg reset too fast make longer loop
 - Fix useless log spam of LLM providers
 

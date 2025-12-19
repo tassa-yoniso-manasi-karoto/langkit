@@ -76,7 +76,7 @@ func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project 
 			{
 				Type:   composetypes.VolumeTypeBind,
 				Source: filepath.Join(configDir, "models"),
-				Target: "/data/models",
+				Target: "/root/.demucs/models", // demucs-next ignores TORCH_HOME, uses ~/.demucs/models
 			},
 		},
 		// Attach to default network
