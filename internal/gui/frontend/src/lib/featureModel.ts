@@ -270,14 +270,14 @@ const featuresArray: FeatureDefinition[] = [
             voiceBoost: {
                 type: 'number',
                 label: 'Voice Boost (dB)',
-                default: 13,
-                step: '0.1'
+                default: 37,
+                step: 1
             },
             originalBoost: {
                 type: 'number',
                 label: 'Original Audio Boost (dB)',
                 default: -9,
-                step: '0.1'
+                step: 1
             },
             limiter: {
                 type: 'slider',
