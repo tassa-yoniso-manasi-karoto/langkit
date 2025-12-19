@@ -65,7 +65,17 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	
 	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
 	audioPrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
-	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL.opus")
+
+	// Local providers use FLAC to preserve 44.1kHz sample rate (demucs-next has poor resampler)
+	// Remote providers use Opus for size efficiency (Replicate's demucs handles 48kHz fine)
+	isRemoteProvider := strings.Contains(tsk.SeparationLib, "replicate")
+	var demuxExt, demuxCodec string
+	if isRemoteProvider {
+		demuxExt, demuxCodec = ".opus", "libopus"
+	} else {
+		demuxExt, demuxCodec = ".flac", "flac"
+	}
+	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL" + demuxExt)
 	VoiceFile := audioPrefix + langkitMadeVocalsOnlyMarker(tsk.SeparationLib) + extPerProvider[tsk.SeparationLib]
 	
 	// Check if a recompressed version exists (from previous run with recompress mode)
@@ -98,12 +108,22 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	// 			no need to demux if isolate vocalfile exists already
 	if errors.Is(errOriginal, os.ErrNotExist) {
 		tsk.Handler.ZeroLog().Info().Msg("Demuxing the audiotrack...")
-		err := media.FFmpeg(
-			[]string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
-					"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn",
-						"-af", "aresample=resampler=soxr:out_sample_rate=44100", // High-quality resample to 44.1kHz for demucs
-						"-acodec", "libopus", "-b:a", media.OpusBitrate, OriginalAudio,
-			}...)
+
+		// Build FFmpeg args based on provider type
+		ffmpegArgs := []string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
+			"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn"}
+
+		if isRemoteProvider {
+			// Remote: Opus for size efficiency, no resample needed (Replicate handles it)
+			ffmpegArgs = append(ffmpegArgs, "-acodec", demuxCodec, "-b:a", media.OpusBitrate)
+		} else {
+			// Local: FLAC at 44.1kHz to bypass demucs-next's poor linear interpolation resampler
+			ffmpegArgs = append(ffmpegArgs, "-af", "aresample=resampler=soxr:out_sample_rate=44100",
+				"-acodec", demuxCodec)
+		}
+		ffmpegArgs = append(ffmpegArgs, OriginalAudio)
+
+		err := media.FFmpeg(ffmpegArgs...)
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to demux the desired audiotrack.")
 		}
