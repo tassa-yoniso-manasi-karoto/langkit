@@ -4,7 +4,7 @@
     "conflicts": [],
     "mod": 0,
     "min_point_version": 55,
-    "human_version": "0.5.0",
+    "human_version": "1.0.0",
     "homepage": "https://github.com/tassa-yoniso-manasi-karoto/langkit",
     "author": "tassa-yoniso-manasi-karoto",
     "description": "Integrate Langkit's language learning tools directly into Anki. Transform native media content into flashcards, romanize subtitles, and more."

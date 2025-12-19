@@ -27,11 +27,11 @@ Guidelines for LLMs updating this changelog from git history:
 - The use of em dashes as punctuation is absolutely forbidden
 -->
 
-## [1.0.0-alpha] - Unreleased
+## [1.0.0-alpha] - 2025-12-19
 
 ### Added
 
-- Local voice enhancing option using Demucs: runs entirely on your computer at no cost, significantly faster with GPU acceleration
+- Local voice enhancing option using Demucs: runs entirely on your computer for free, significantly faster with GPU acceleration
 - Custom STT and LLM endpoint options for power users for local inference
 - Fast & accurate local Thai romanization using Paiboon style: no scraping of thai2english needed anymore!
 - Lite mode option replacing blurs to address flickering issue of when running inside Anki on Windows
@@ -46,8 +46,8 @@ Guidelines for LLMs updating this changelog from git history:
 
 ### Fixed
 
-- Degraded audio quality of OPUS audio files introduced in 0.9.3-alpha
 - Progress bars for transliteration Russian & Chinese now show correct completion percentage and better organized romanization scheme
 - On webkit: Drag and drop now works anywhere in the window, not just the top-left area
-- Romanization of chinese now longers throws an error on Windows
-- Cancel button responds immediately even when clicked right after starting
+- Romanization of chinese subtitles now longers throws an error on Windows
+- Cancel button works reliably when clicked right after starting
+- Degraded audio quality of OPUS audio files introduced in 0.9.3-alpha

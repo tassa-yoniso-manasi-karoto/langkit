@@ -678,7 +678,8 @@ jobs:
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
           generate_release_notes: true
           body: |
-            - **Prior to use, please read the "FAQ", "Requirements", and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
+            Release notes available in the [CHANGELOG](https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/master/CHANGELOG.md)
+            - **Prior to use, please read the "FAQ" and "API Keys" sections of the [README](https://github.com/tassa-yoniso-manasi-karoto/langkit#faq)**
             - All binaries for <picture> <source media="(prefers-color-scheme: dark)" srcset="https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/dev/internal/macos-dark.svg"> <img src="https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/dev/internal/macos-light.svg" height="16">  </picture> are provided as-is and are entirely untested.
 
             ##  <img src="https://github.com/tassa-yoniso-manasi-karoto/langkit/blob/dev/internal/windows.svg" height="16"> "Windows protected your PC" popup
