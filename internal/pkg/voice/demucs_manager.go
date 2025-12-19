@@ -812,25 +812,64 @@ func startDemucsIdleWatcher() {
 	}
 }
 
-// StopDemucsManager stops all singleton managers if running
+// StopDemucsManager stops all singleton managers if running and cleans up output directories
 func StopDemucsManager() error {
 	demucsMu.Lock()
 	defer demucsMu.Unlock()
 
 	var lastErr error
 	if demucsCPUInstance != nil {
+		cleanupDemucsOutput(demucsCPUInstance)
 		if err := demucsCPUInstance.Stop(context.Background()); err != nil {
 			lastErr = err
 		}
 		demucsCPUInstance = nil
 	}
 	if demucsGPUInstance != nil {
+		cleanupDemucsOutput(demucsGPUInstance)
 		if err := demucsGPUInstance.Stop(context.Background()); err != nil {
 			lastErr = err
 		}
 		demucsGPUInstance = nil
 	}
 	return lastErr
+}
+
+// cleanupDemucsOutput removes the output directory contents after processing
+// by executing rm inside the container (since files are owned by root)
+func cleanupDemucsOutput(dm *DemucsManager) {
+	if dm == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Execute cleanup inside the container where we have root permissions
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		DemucsLogger.Warn().Err(err).Msg("Failed to create Docker client for cleanup")
+		return
+	}
+	defer cli.Close()
+
+	execConfig := container.ExecOptions{
+		Cmd:          []string{"sh", "-c", "rm -rf /data/output/*"},
+		AttachStdout: false,
+		AttachStderr: false,
+	}
+
+	execID, err := cli.ContainerExecCreate(ctx, dm.containerName, execConfig)
+	if err != nil {
+		DemucsLogger.Warn().Err(err).Msg("Failed to create cleanup exec")
+		return
+	}
+
+	if err := cli.ContainerExecStart(ctx, execID.ID, container.ExecStartOptions{}); err != nil {
+		DemucsLogger.Warn().Err(err).Msg("Failed to execute cleanup command")
+		return
+	}
+
+	DemucsLogger.Debug().Str("container", dm.containerName).Msg("Cleaned up demucs output directory")
 }
 
 // IsDemucsAvailable checks if Docker is available for running demucs
