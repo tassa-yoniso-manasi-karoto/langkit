@@ -69,11 +69,9 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	// Local providers use FLAC to preserve 44.1kHz sample rate (demucs-next has poor resampler)
 	// Remote providers use Opus for size efficiency (Replicate's demucs handles 48kHz fine)
 	isRemoteProvider := strings.Contains(tsk.SeparationLib, "replicate")
-	var demuxExt, demuxCodec string
+	demuxExt := ".flac"
 	if isRemoteProvider {
-		demuxExt, demuxCodec = ".opus", "libopus"
-	} else {
-		demuxExt, demuxCodec = ".flac", "flac"
+		demuxExt = ".opus"
 	}
 	OriginalAudio := filepath.Join(os.TempDir(), tsk.audioBase() + "." + langCode + ".ORIGINAL" + demuxExt)
 	VoiceFile := audioPrefix + langkitMadeVocalsOnlyMarker(tsk.SeparationLib) + extPerProvider[tsk.SeparationLib]
@@ -109,21 +107,14 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	if errors.Is(errOriginal, os.ErrNotExist) {
 		tsk.Handler.ZeroLog().Info().Msg("Demuxing the audiotrack...")
 
-		// Build FFmpeg args based on provider type
-		ffmpegArgs := []string{"-loglevel", "error", "-y", "-i", tsk.MediaSourceFile,
-			"-map", fmt.Sprint("0:a:", tsk.UseAudiotrack), "-vn"}
-
+		var err error
 		if isRemoteProvider {
 			// Remote: Opus for size efficiency, no resample needed (Replicate handles it)
-			ffmpegArgs = append(ffmpegArgs, "-acodec", demuxCodec, "-b:a", media.OpusBitrate)
+			err = media.ExtractAudioTrack(tsk.MediaSourceFile, tsk.UseAudiotrack, OriginalAudio)
 		} else {
 			// Local: FLAC at 44.1kHz to bypass demucs-next's poor linear interpolation resampler
-			ffmpegArgs = append(ffmpegArgs, "-af", "aresample=resampler=soxr:out_sample_rate=44100",
-				"-acodec", demuxCodec)
+			err = media.ExtractAudioTrack(tsk.MediaSourceFile, tsk.UseAudiotrack, OriginalAudio, media.Resample44100Soxr...)
 		}
-		ffmpegArgs = append(ffmpegArgs, OriginalAudio)
-
-		err := media.FFmpeg(ffmpegArgs...)
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortTask, "Failed to demux the desired audiotrack.")
 		}

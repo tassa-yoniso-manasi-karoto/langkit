@@ -17,6 +17,10 @@ import (
 
 const OpusBitrate = "112k"
 
+// Resample44100Soxr is a high-quality resample filter for 44.1kHz output
+// Used to bypass demucs-next's poor linear interpolation resampler
+var Resample44100Soxr = []string{"-af", "aresample=resampler=soxr:out_sample_rate=44100"}
+
 var (
 	FFmpegPath = "ffmpeg"
 	MaxWidth   = 1000
@@ -116,21 +120,73 @@ func RunFFmpegConcat(concatFile, outputWav string) error {
 	return FFmpeg([]string{"-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
 }
 
-// Converts the WAV file to specified audio format using FFmpeg
-func RunFFmpegConvert(inputWav, outputFile string) error {
-	// Determine codec and parameters based on file extension
+// ExtractAudioTrack extracts an audio track from a media file to specified format
+// Optional extraArgs (e.g., resample filters) are inserted before codec settings
+func ExtractAudioTrack(inputFile string, trackIndex int, outputFile string, extraArgs ...string) error {
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(outputFile)), ".")
-	
-	args := []string{"-loglevel", "error", "-i", inputWav, "-acodec"}
+
+	args := []string{"-loglevel", "error", "-i", inputFile,
+		"-map", fmt.Sprintf("0:a:%d", trackIndex), "-vn"}
+
+	// Extra args (filters like -af) go after input, before codec
+	args = append(args, extraArgs...)
+
+	// Codec and bitrate based on output format
+	args = append(args, "-acodec")
 	switch ext {
 	case "m4a":
-		args = append(args, []string{"aac", "-b:a", "192k", outputFile}...)
+		args = append(args, "aac", "-b:a", "192k")
 	case "opus", "ogg":
-		args = append(args, []string{"libopus", "-b:a", OpusBitrate, outputFile}...)
+		args = append(args, "libopus", "-b:a", OpusBitrate)
+	case "flac":
+		args = append(args, "flac")
+	case "wav":
+		args = append(args, "pcm_s16le")
 	default:
-		args = append(args, []string{"libmp3lame", "-b:a", "192k", outputFile}...)
+		args = append(args, "libmp3lame", "-b:a", "192k")
 	}
 
+	args = append(args, outputFile)
+	return FFmpeg(args...)
+}
+
+// Converts audio file to specified format using FFmpeg
+func RunFFmpegConvert(inputFile, outputFile string) error {
+	return runFFmpegConvert(inputFile, outputFile, nil)
+}
+
+// RunFFmpegConvertArgs converts audio with additional FFmpeg args (e.g., filters)
+// Extra args are inserted after input, before codec settings (proper FFmpeg ordering)
+func RunFFmpegConvertArgs(inputFile, outputFile string, extraArgs ...string) error {
+	return runFFmpegConvert(inputFile, outputFile, extraArgs)
+}
+
+// runFFmpegConvert is the internal implementation for audio conversion
+func runFFmpegConvert(inputFile, outputFile string, extraArgs []string) error {
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(outputFile)), ".")
+
+	// Start with input
+	args := []string{"-loglevel", "error", "-i", inputFile}
+
+	// Extra args (filters like -af) go after input, before codec
+	args = append(args, extraArgs...)
+
+	// Codec and bitrate based on output format
+	args = append(args, "-acodec")
+	switch ext {
+	case "m4a":
+		args = append(args, "aac", "-b:a", "192k")
+	case "opus", "ogg":
+		args = append(args, "libopus", "-b:a", OpusBitrate)
+	case "flac":
+		args = append(args, "flac")
+	case "wav":
+		args = append(args, "pcm_s16le")
+	default:
+		args = append(args, "libmp3lame", "-b:a", "192k")
+	}
+
+	args = append(args, outputFile)
 	return FFmpeg(args...)
 }
 
