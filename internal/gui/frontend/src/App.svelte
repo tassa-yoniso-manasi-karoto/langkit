@@ -737,14 +737,22 @@
             statisticsStore.set(stats);
             
             // Check if this is the first app start or if deps are missing
-            if (stats.countAppStart === 0 || 
-                version == "dev" || 
-                ($ffmpegStatusStore.checked && !$ffmpegStatusStore.available) || 
+            if (stats.countAppStart === 0 ||
+                ($ffmpegStatusStore.checked && !$ffmpegStatusStore.available) ||
                 ($mediainfoStatusStore.checked && !$mediainfoStatusStore.available)) {
                 logger.info('app', 'First app start or missing dependencies, showing welcome popup');
                 showWelcomePopup = true;
+            } else {
+                // Welcome popup won't show, trigger changelog check after feature cards animate
+                // FeatureSelector starts immediately when welcomePopupVisible is false
+                // Give time for feature cards staggered animation (~1500ms) plus buffer
+                logger.debug('app', 'Welcome popup skipped, scheduling changelog check');
+                setTimeout(() => {
+                    logger.debug('app', 'Triggering changelog upgrade check (no welcome popup)');
+                    triggerChangelogCheck = true;
+                }, 2000);
             }
-            
+
             // Increment app start count
             const newCount = await IncrementStatistic('countAppStart');
             logger.trace('app', `App start count incremented to: ${newCount}`);
