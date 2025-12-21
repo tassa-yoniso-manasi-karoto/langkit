@@ -21,6 +21,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
 )
 
@@ -169,26 +170,47 @@ func DefaultDemucsOptions() DemucsOptions {
 	}
 }
 
-// FFprobePath is the path to the ffprobe executable (can be overridden)
-var FFprobePath = "ffprobe"
-
-// FFmpegPath is the path to the ffmpeg executable (can be overridden)
-var FFmpegPath = "ffmpeg"
-
-// getAudioDurationSeconds returns the duration of an audio file in seconds using ffprobe
+// getAudioDurationSeconds returns the duration of an audio file in seconds using ffmpeg
 func getAudioDurationSeconds(filePath string) (float64, error) {
-	cmd := exec.Command(FFprobePath, "-v", "error", "-show_entries", "format=duration",
-		"-of", "default=noprint_wrappers=1:nokey=1", filePath)
-	output, err := cmd.Output()
-	if err != nil {
-		return 0, fmt.Errorf("ffprobe failed: %w", err)
+	// Use ffmpeg -i to get file info (duration is in stderr)
+	cmd := exec.Command(media.FFmpegPath, "-i", filePath, "-hide_banner", "-f", "null", "-")
+	output, _ := cmd.CombinedOutput() // ffmpeg returns error for -f null, ignore it
+
+	// Parse "Duration: HH:MM:SS.ms" from output
+	outputStr := string(output)
+	durationIdx := strings.Index(outputStr, "Duration: ")
+	if durationIdx == -1 {
+		return 0, fmt.Errorf("could not find duration in ffmpeg output")
 	}
-	durationStr := strings.TrimSpace(string(output))
-	duration, err := strconv.ParseFloat(durationStr, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse duration '%s': %w", durationStr, err)
+
+	// Extract duration string (format: "HH:MM:SS.ms")
+	durationStart := durationIdx + len("Duration: ")
+	commaIdx := strings.Index(outputStr[durationStart:], ",")
+	if commaIdx == -1 {
+		return 0, fmt.Errorf("could not parse duration format")
 	}
-	return duration, nil
+	durationStr := outputStr[durationStart : durationStart+commaIdx]
+
+	// Parse HH:MM:SS.ms format
+	parts := strings.Split(durationStr, ":")
+	if len(parts) != 3 {
+		return 0, fmt.Errorf("unexpected duration format: %s", durationStr)
+	}
+
+	hours, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse hours: %w", err)
+	}
+	minutes, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse minutes: %w", err)
+	}
+	seconds, err := strconv.ParseFloat(parts[2], 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse seconds: %w", err)
+	}
+
+	return hours*3600 + minutes*60 + seconds, nil
 }
 
 // splitAudioFile splits an audio file into segments of specified duration
@@ -209,7 +231,7 @@ func splitAudioFile(inputPath string, segmentSeconds int, outputDir string) ([]s
 		segmentPattern,
 	}
 
-	cmd := exec.Command(FFmpegPath, args...)
+	cmd := exec.Command(media.FFmpegPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("failed to split audio: %w, output: %s", err, string(output))
@@ -251,7 +273,7 @@ func encodeAudio(inputPath, outputPath, format string) error {
 	args = append(args, codecArgs...)
 	args = append(args, outputPath)
 
-	cmd := exec.Command(FFmpegPath, args...)
+	cmd := exec.Command(media.FFmpegPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ffmpeg encoding failed: %w, output: %s", err, string(output))
@@ -295,7 +317,7 @@ func concatenateAudioFiles(inputFiles []string, outputPath string) error {
 		outputPath,
 	}
 
-	cmd := exec.Command(FFmpegPath, args...)
+	cmd := exec.Command(media.FFmpegPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to concatenate audio: %w, output: %s", err, string(output))
