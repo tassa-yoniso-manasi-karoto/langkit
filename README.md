@@ -113,7 +113,7 @@ This feature works by merging the original audiotrack with negative gain togethe
 > This feature can only improve clarity of voices poorly audible due to conflicting music/effects. It enhances the loudness but not the recording quality of voices.
 
 > [!NOTE]
-> **Docker-based options** run locally on your machine for free. They work on CPU (very slow) or with <img src="internal/nvidia.svg" height="16"> GPU acceleration (x50-70 time faster). The Docker image will be pulled automatically on first use (~7GB download). <br> Processing time on CPU is roughly 1.5x the track duration.
+> **Docker-based options** run locally on your machine for free. They work on CPU (very slow) or with <img src="internal/nvidia.svg" height="16"> GPU acceleration (x50-70 time faster, minimum 2GB of VRAM needed). The Docker image will be pulled automatically on first use (~7GB download). <br> Processing time on CPU is roughly 1.5x the track duration.
 
 | Name (to be passed with --sep) | Quality | Price | Type | Note |
 |--------------------------------|---------|-------|------|------|

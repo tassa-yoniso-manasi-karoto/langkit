@@ -23,6 +23,8 @@ type Settings = {
     timeoutSep: number;  // Voice separation timeout (seconds)
     timeoutSTT: number;  // Speech-to-text timeout (seconds)
     timeoutDL: number;   // Download operations timeout (seconds)
+    // Demucs settings
+    demucsMaxSegmentMinutes: number;  // Max minutes per segment to avoid GPU OOM
     // WebAssembly settings
     useWasm: boolean;
     wasmSizeThreshold: number;
@@ -80,6 +82,8 @@ const initSettings: Settings = {
     timeoutSep: 2100,  // 35 minutes for voice separation
     timeoutSTT: 90,    // 90 seconds for STT operations
     timeoutDL: 600,    // 10 minutes for downloads
+    // Default values for Demucs settings
+    demucsMaxSegmentMinutes: 20,  // 20 min segments ~2GB output tensor
     // Default values for WebAssembly settings
     useWasm: true,
     wasmSizeThreshold: 500, // Default from spec

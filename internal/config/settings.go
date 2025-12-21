@@ -45,6 +45,9 @@ type Settings struct {
 	TimeoutSTT int `json:"timeoutSTT" mapstructure:"timeout_stt"` // seconds
 	TimeoutDL  int `json:"timeoutDL" mapstructure:"timeout_dl"`   // seconds
 
+	// Demucs settings
+	DemucsMaxSegmentMinutes int `json:"demucsMaxSegmentMinutes" mapstructure:"demucs_max_segment_minutes"` // max minutes per segment to avoid GPU OOM
+
 	// NEW: LogViewer settings
 	LogViewerVirtualizationThreshold int `json:"logViewerVirtualizationThreshold" mapstructure:"log_viewer_virtualization_threshold"`
 
@@ -141,8 +144,11 @@ func InitConfig(customPath string) error {
 
 	// Set default timeout values
 	viper.SetDefault("timeout_sep", 2100) // 35 minutes for voice separation (Demucs, etc.)
-	viper.SetDefault("timeout_stt", 90)   // 90 seconds for each subtitle segment transcription 
+	viper.SetDefault("timeout_stt", 90)   // 90 seconds for each subtitle segment transcription
 	viper.SetDefault("timeout_dl", 600)   // 10 minutes for downloading files
+
+	// Demucs settings - split long files to avoid GPU OOM (output tensor must fit in VRAM)
+	viper.SetDefault("demucs_max_segment_minutes", 15) // 15 min segments: at least 4GB VRAM needed
 
 	viper.SetDefault("log_viewer_virtualization_threshold", 500)
 
@@ -252,6 +258,7 @@ func SaveSettings(settings Settings) error {
 	viper.Set("timeout_sep", settings.TimeoutSep)
 	viper.Set("timeout_stt", settings.TimeoutSTT)
 	viper.Set("timeout_dl", settings.TimeoutDL)
+	viper.Set("demucs_max_segment_minutes", settings.DemucsMaxSegmentMinutes)
 	viper.Set("log_viewer_virtualization_threshold", settings.LogViewerVirtualizationThreshold)
 
 	// Save event throttling settings
@@ -357,4 +364,9 @@ func (settings Settings) LoadKeys() {
 	voice.CustomEndpoints.Store("stt_enabled", settings.CustomEndpoints.STT.Enabled)
 	voice.CustomEndpoints.Store("stt_endpoint", settings.CustomEndpoints.STT.Endpoint)
 	voice.CustomEndpoints.Store("stt_model", settings.CustomEndpoints.STT.Model)
+
+	// Set demucs max segment setting
+	if settings.DemucsMaxSegmentMinutes > 0 {
+		voice.DemucsMaxSegmentMinutes = settings.DemucsMaxSegmentMinutes
+	}
 }

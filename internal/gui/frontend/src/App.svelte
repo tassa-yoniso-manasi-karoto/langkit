@@ -738,6 +738,7 @@
             
             // Check if this is the first app start or if deps are missing
             if (stats.countAppStart === 0 ||
+                version == "dev" ||
                 ($ffmpegStatusStore.checked && !$ffmpegStatusStore.available) ||
                 ($mediainfoStatusStore.checked && !$mediainfoStatusStore.available)) {
                 logger.info('app', 'First app start or missing dependencies, showing welcome popup');

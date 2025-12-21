@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -147,22 +149,159 @@ var (
 
 // DemucsOptions holds configuration for demucs processing
 type DemucsOptions struct {
-	Model        string  // htdemucs, htdemucs_ft, etc. (default: htdemucs)
-	OutputFormat string  // wav, mp3, flac (default: wav)
-	Stems        string  // vocals, drums, bass, other (default: vocals)
-	Shifts       int     // shift trick for better quality (default: 1)
-	Overlap      float64 // overlap between prediction windows (default: 0.25)
+	Model              string  // htdemucs, htdemucs_ft, etc. (default: htdemucs)
+	OutputFormat       string  // wav, mp3, flac (default: wav)
+	Stems              string  // vocals, drums, bass, other (default: vocals)
+	Shifts             int     // shift trick for better quality (default: 1)
+	Overlap            float64 // overlap between prediction windows (default: 0.25)
+	MaxSegmentMinutes  int     // max minutes per segment to avoid GPU OOM (default: 20, 0=no limit)
 }
 
 // DefaultDemucsOptions returns default options for demucs
 func DefaultDemucsOptions() DemucsOptions {
 	return DemucsOptions{
-		Model:        "htdemucs",
-		OutputFormat: "flac", // flac/opus keep timing sync, mp3/wav can cause A/V desync
-		Stems:        "vocals",
-		Shifts:       1,
-		Overlap:      0.25,
+		Model:             "htdemucs",
+		OutputFormat:      "flac", // flac/opus keep timing sync, mp3/wav can cause A/V desync
+		Stems:             "vocals",
+		Shifts:            1,
+		Overlap:           0.25,
+		MaxSegmentMinutes: 20, // 20 min segments ~2GB output tensor, safe for most GPUs
 	}
+}
+
+// FFprobePath is the path to the ffprobe executable (can be overridden)
+var FFprobePath = "ffprobe"
+
+// FFmpegPath is the path to the ffmpeg executable (can be overridden)
+var FFmpegPath = "ffmpeg"
+
+// getAudioDurationSeconds returns the duration of an audio file in seconds using ffprobe
+func getAudioDurationSeconds(filePath string) (float64, error) {
+	cmd := exec.Command(FFprobePath, "-v", "error", "-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1", filePath)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe failed: %w", err)
+	}
+	durationStr := strings.TrimSpace(string(output))
+	duration, err := strconv.ParseFloat(durationStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse duration '%s': %w", durationStr, err)
+	}
+	return duration, nil
+}
+
+// splitAudioFile splits an audio file into segments of specified duration
+// Returns paths to the segment files
+func splitAudioFile(inputPath string, segmentSeconds int, outputDir string) ([]string, error) {
+	ext := filepath.Ext(inputPath)
+
+	// Use simple prefix to avoid glob issues with special chars in original filename
+	segmentPattern := filepath.Join(outputDir, "seg_%03d"+ext)
+
+	args := []string{
+		"-y", "-loglevel", "error",
+		"-i", inputPath,
+		"-f", "segment",
+		"-segment_time", strconv.Itoa(segmentSeconds),
+		"-c", "copy", // Copy codec, no re-encoding
+		"-reset_timestamps", "1",
+		segmentPattern,
+	}
+
+	cmd := exec.Command(FFmpegPath, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to split audio: %w, output: %s", err, string(output))
+	}
+
+	// Find all segment files
+	pattern := filepath.Join(outputDir, "seg_*"+ext)
+	segments, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find segments: %w", err)
+	}
+
+	if len(segments) == 0 {
+		return nil, fmt.Errorf("no segments created")
+	}
+
+	// Sort segments to ensure correct order
+	sort.Strings(segments)
+	return segments, nil
+}
+
+// encodeAudio encodes an audio file to the specified format using ffmpeg
+func encodeAudio(inputPath, outputPath, format string) error {
+	var codecArgs []string
+	switch format {
+	case "flac":
+		codecArgs = []string{"-c:a", "flac"}
+	case "wav":
+		codecArgs = []string{"-c:a", "pcm_s24le"}
+	case "mp3":
+		codecArgs = []string{"-c:a", "libmp3lame", "-q:a", "2"}
+	case "opus":
+		codecArgs = []string{"-c:a", "libopus", "-b:a", "128k"}
+	default:
+		codecArgs = []string{"-c:a", "copy"}
+	}
+
+	args := []string{"-y", "-loglevel", "error", "-i", inputPath}
+	args = append(args, codecArgs...)
+	args = append(args, outputPath)
+
+	cmd := exec.Command(FFmpegPath, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg encoding failed: %w, output: %s", err, string(output))
+	}
+	return nil
+}
+
+// concatenateAudioFiles joins multiple audio files into one using ffmpeg concat demuxer
+// Outputs PCM/WAV to avoid timestamp issues from segmented files
+func concatenateAudioFiles(inputFiles []string, outputPath string) error {
+	if len(inputFiles) == 0 {
+		return fmt.Errorf("no input files to concatenate")
+	}
+	if len(inputFiles) == 1 {
+		// Just copy the single file
+		return copyFile(inputFiles[0], outputPath)
+	}
+
+	// Create a temporary concat list file
+	listFile := outputPath + ".concat.txt"
+	defer os.Remove(listFile)
+
+	var content strings.Builder
+	for _, f := range inputFiles {
+		// FFmpeg concat requires escaped paths
+		escaped := strings.ReplaceAll(f, "'", "'\\''")
+		content.WriteString(fmt.Sprintf("file '%s'\n", escaped))
+	}
+
+	if err := os.WriteFile(listFile, []byte(content.String()), 0644); err != nil {
+		return fmt.Errorf("failed to create concat list: %w", err)
+	}
+
+	// Decode to PCM and output as WAV (avoids wasteful re-encoding)
+	args := []string{
+		"-y", "-loglevel", "error",
+		"-f", "concat",
+		"-safe", "0",
+		"-i", listFile,
+		"-c:a", "pcm_s24le",
+		outputPath,
+	}
+
+	cmd := exec.Command(FFmpegPath, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to concatenate audio: %w, output: %s", err, string(output))
+	}
+
+	return nil
 }
 
 // DemucsManager handles Docker lifecycle for the Demucs project
@@ -342,8 +481,15 @@ func (dm *DemucsManager) GetContainerName() string {
 	return dm.containerName
 }
 
-// ProcessAudio runs demucs on the input audio file and returns the vocals track
+// ProcessAudio runs demucs on the input audio file and returns the vocals track.
+// If the audio is longer than MaxSegmentMinutes, it will be split into segments,
+// processed separately, and concatenated to avoid GPU OOM errors.
 func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opts DemucsOptions) ([]byte, error) {
+	// Check for cancellation
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Ensure input file exists
 	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("input file does not exist: %s", inputPath)
@@ -360,6 +506,128 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// Check if we need to split the audio
+	maxSegmentMinutes := opts.MaxSegmentMinutes
+	if maxSegmentMinutes <= 0 {
+		maxSegmentMinutes = 20 // Default to 20 minutes if not set
+	}
+	maxSegmentSeconds := maxSegmentMinutes * 60
+
+	duration, err := getAudioDurationSeconds(inputPath)
+	if err != nil {
+		DemucsLogger.Warn().Err(err).Msg("Could not determine audio duration, processing without splitting")
+		return dm.processSingleFile(ctx, inputPath, inputDir, outputDir, opts, nil)
+	}
+
+	DemucsLogger.Debug().
+		Float64("duration_seconds", duration).
+		Int("max_segment_seconds", maxSegmentSeconds).
+		Msg("Audio duration check")
+
+	// If audio is short enough, process directly
+	if duration <= float64(maxSegmentSeconds) {
+		return dm.processSingleFile(ctx, inputPath, inputDir, outputDir, opts, nil)
+	}
+
+	// Audio is too long - split into segments
+	numSegments := int(duration/float64(maxSegmentSeconds)) + 1
+	DemucsLogger.Info().
+		Float64("duration_minutes", duration/60).
+		Int("max_segment_minutes", maxSegmentMinutes).
+		Int("num_segments", numSegments).
+		Msg("Audio exceeds max segment duration, splitting for processing")
+
+	// Create temp directory for segments
+	segmentDir := filepath.Join(inputDir, fmt.Sprintf("segments_%d", time.Now().UnixNano()))
+	if err := os.MkdirAll(segmentDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create segment directory: %w", err)
+	}
+	defer os.RemoveAll(segmentDir) // Clean up segments after processing
+
+	// Check for cancellation before splitting
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Split the audio
+	segments, err := splitAudioFile(inputPath, maxSegmentSeconds, segmentDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to split audio: %w", err)
+	}
+
+	DemucsLogger.Debug().
+		Int("num_segments", len(segments)).
+		Strs("segments", segments).
+		Msg("Audio split into segments")
+
+	// For multi-segment processing, use WAV for intermediate files (faster, no encoding)
+	// then encode to requested format at the end
+	segmentOpts := opts
+	segmentOpts.OutputFormat = "wav"
+
+	// Process each segment and collect output paths
+	var outputPaths []string
+	totalSegments := len(segments)
+	for i, segment := range segments {
+		// Check for cancellation before each segment
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		DemucsLogger.Info().
+			Int("segment", i+1).
+			Int("total", totalSegments).
+			Str("file", filepath.Base(segment)).
+			Msg("Processing segment")
+
+		// Process this segment with segment info for progress scaling
+		segInfo := &segmentInfo{index: i, total: totalSegments}
+		audioData, err := dm.processSingleFile(ctx, segment, inputDir, outputDir, segmentOpts, segInfo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process segment %d: %w", i+1, err)
+		}
+
+		// Write segment output to temp file for concatenation
+		segmentOutput := filepath.Join(segmentDir, fmt.Sprintf("output_%03d.wav", i))
+		if err := os.WriteFile(segmentOutput, audioData, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write segment output: %w", err)
+		}
+		outputPaths = append(outputPaths, segmentOutput)
+	}
+
+	// Concatenate all WAV outputs
+	concatenatedWav := filepath.Join(segmentDir, "concatenated.wav")
+	if err := concatenateAudioFiles(outputPaths, concatenatedWav); err != nil {
+		return nil, fmt.Errorf("failed to concatenate segments: %w", err)
+	}
+
+	// Encode to final format (default: flac)
+	finalFormat := opts.OutputFormat
+	if finalFormat == "" {
+		finalFormat = "flac"
+	}
+	finalOutput := filepath.Join(segmentDir, "final."+finalFormat)
+	if err := encodeAudio(concatenatedWav, finalOutput, finalFormat); err != nil {
+		return nil, fmt.Errorf("failed to encode final output to %s: %w", finalFormat, err)
+	}
+
+	// Read the final encoded output
+	result, err := os.ReadFile(finalOutput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read final output: %w", err)
+	}
+
+	DemucsLogger.Info().
+		Int("segments_processed", len(segments)).
+		Int("output_size", len(result)).
+		Msg("Successfully processed and concatenated all segments")
+
+	return result, nil
+}
+
+// processSingleFile processes a single audio file through demucs (no splitting)
+// If segInfo is provided, progress is scaled to reflect position within multi-segment processing
+func (dm *DemucsManager) processSingleFile(ctx context.Context, inputPath, inputDir, outputDir string, opts DemucsOptions, segInfo *segmentInfo) ([]byte, error) {
 	// Copy input file to the input directory
 	inputFilename := filepath.Base(inputPath)
 	destPath := filepath.Join(inputDir, inputFilename)
@@ -407,7 +675,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 
 	// Execute command in container
 	DemucsLogger.Debug().
-		Strs("cmd", cmdArgs).
+		Str("cmd", strings.Join(cmdArgs, "")).
 		Str("container", dm.containerName).
 		Msg("Executing demucs command")
 
@@ -415,12 +683,26 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 	var progressCb ProgressCallback
 	if h := ctx.Value(ProgressHandlerKey); h != nil {
 		if handler, ok := h.(ProgressHandler); ok {
+			DemucsLogger.Debug().Msg("Progress handler found in context")
 			downloadTaskID := progress.BarDemucsModelDL
 			processTaskID := progress.BarDemucsProcess
-			var lastDownloadPercent, lastProcessPercent int
+			var lastDownloadPercent int
 			var currentPhase DemucsPhase
 
+			// Initialize lastOverallPercent to base progress from completed segments
+			// This prevents progress jumping when a new segment starts
+			var lastOverallPercent int
+			if segInfo != nil && segInfo.total > 1 {
+				// Multiply before divide to avoid truncation when total > 100
+				lastOverallPercent = (segInfo.index * 100) / segInfo.total
+			}
+
 			progressCb = func(update ProgressUpdate) {
+				DemucsLogger.Trace().
+					Int("phase", int(update.Phase)).
+					Int("percent", update.Percent).
+					Int("currentPhase", int(currentPhase)).
+					Msg("Progress callback received")
 				// Handle phase transitions
 				if update.Phase != PhaseUnknown && update.Phase != currentPhase {
 					// Phase changed
@@ -439,10 +721,30 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 						lastDownloadPercent = update.Percent
 					}
 				case PhaseProcessing:
-					increment := update.Percent - lastProcessPercent
+					// Calculate overall progress considering segment position
+					var overallPercent int
+					var description string
+					if segInfo != nil && segInfo.total > 1 {
+						// Multi-segment: scale progress across all segments
+						// Formula: (index * 100 + segmentPercent) / total
+						// Multiply before divide to avoid truncation when total > 100
+						overallPercent = (segInfo.index*100 + update.Percent) / segInfo.total
+						description = fmt.Sprintf("Processing segment %d/%d...", segInfo.index+1, segInfo.total)
+
+						// Ensure last segment at 100% completes the overall progress
+						if segInfo.index == segInfo.total-1 && update.Percent == 100 {
+							overallPercent = 100
+						}
+					} else {
+						// Single file: use percent directly
+						overallPercent = update.Percent
+						description = "Processing audio..."
+					}
+
+					increment := overallPercent - lastOverallPercent
 					if increment > 0 {
-						handler.IncrementProgress(processTaskID, increment, 100, 30, "Voice Separation", "Processing audio...", "")
-						lastProcessPercent = update.Percent
+						handler.IncrementProgress(processTaskID, increment, 100, 30, "Voice Separation", description, "")
+						lastOverallPercent = overallPercent
 					}
 				}
 			}
@@ -451,10 +753,24 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 
 	output, err := dm.execInContainerWithProgress(ctx, cmdArgs, progressCb)
 	if err != nil {
+		// Check for CUDA OOM error and provide helpful message
+		if strings.Contains(output, "CUDA out of memory") {
+			return nil, fmt.Errorf("GPU out of memory during voice separation. Try lowering the 'Max segment duration' setting in Settings → Voice Separation. Current audio may be too long for your GPU's VRAM")
+		}
 		return nil, fmt.Errorf("demucs execution failed: %w\nOutput: %s", err, output)
 	}
+	// Also check output for OOM even if no error (demucs may report success despite failure)
+	if strings.Contains(output, "CUDA out of memory") {
+		return nil, fmt.Errorf("GPU out of memory during voice separation. Try lowering the 'Max segment duration' setting in Settings → Voice Separation")
+	}
 
-	DemucsLogger.Debug().Str("output", output).Msg("Demucs command completed")
+	// Write demucs output to temp log file instead of logger (can be very large)
+	logFile := filepath.Join(os.TempDir(), fmt.Sprintf("demucs_%d.log", time.Now().Unix()))
+	if err := os.WriteFile(logFile, []byte(output), 0644); err == nil {
+		DemucsLogger.Debug().Str("log_file", logFile).Msg("Demucs command completed")
+	} else {
+		DemucsLogger.Debug().Msg("Demucs command completed")
+	}
 
 	// Find the output file
 	// demucs-inference outputs to: /data/output/<model>/<track_name>/<stem>.<ext>
@@ -476,6 +792,12 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 	os.RemoveAll(trackOutputDir)
 
 	return audioData, nil
+}
+
+// segmentInfo tracks the current segment being processed for progress calculation
+type segmentInfo struct {
+	index int // 0-based index of current segment
+	total int // total number of segments
 }
 
 // DemucsPhase represents the current phase of demucs execution
@@ -511,11 +833,13 @@ func (dm *DemucsManager) execInContainerWithProgress(ctx context.Context, cmd []
 	defer cli.Close()
 
 	// Create exec configuration - use TTY for Rich progress output
+	// Set COLUMNS to force Rich library to output full progress bar with percentages
 	execConfig := container.ExecOptions{
 		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          true,
+		Env:          []string{"COLUMNS=200", "TERM=xterm-256color"},
 	}
 
 	// Create the exec instance
@@ -524,8 +848,11 @@ func (dm *DemucsManager) execInContainerWithProgress(ctx context.Context, cmd []
 		return "", fmt.Errorf("failed to create exec: %w", err)
 	}
 
-	// Attach to the exec instance
-	resp, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{Tty: true})
+	// Attach to the exec instance with console size to ensure Rich outputs percentages
+	resp, err := cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{
+		Tty:         true,
+		ConsoleSize: &[2]uint{50, 200}, // height, width - wide enough for Rich progress
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to attach to exec: %w", err)
 	}
@@ -546,6 +873,14 @@ func (dm *DemucsManager) execInContainerWithProgress(ctx context.Context, cmd []
 			// Parse progress from Rich TTY output
 			if progressCb != nil {
 				phase, pct := parseDemucsProgress(chunk, currentPhase)
+				if pct >= 0 {
+					DemucsLogger.Trace().
+						Int("parsed_phase", int(phase)).
+						Int("parsed_pct", pct).
+						Int("current_phase", int(currentPhase)).
+						Int("last_pct", lastPercent).
+						Msg("Parsed progress from output")
+				}
 				if phase != PhaseUnknown {
 					currentPhase = phase
 				}
@@ -581,21 +916,9 @@ func parseDemucsProgress(data []byte, currentPhase DemucsPhase) (DemucsPhase, in
 	detectedPhase := PhaseUnknown
 
 	// Detect phase from content
-	// "Downloading htdemucs" indicates model download phase
+	// "Downloading" indicates model download phase
 	if bytes.Contains(data, []byte("Downloading")) {
 		detectedPhase = PhaseModelDownload
-	}
-	// "Separated track" or audio file extensions indicate processing phase
-	if bytes.Contains(data, []byte("Separated track")) ||
-		bytes.Contains(data, []byte(".opus")) ||
-		bytes.Contains(data, []byte(".mp3")) ||
-		bytes.Contains(data, []byte(".flac")) ||
-		bytes.Contains(data, []byte(".wav")) {
-		// Only switch to processing if we see these AND we're past download
-		// (the filename appears in both phases, so check for "Separated" or after download)
-		if bytes.Contains(data, []byte("Separated track")) || currentPhase == PhaseModelDownload {
-			detectedPhase = PhaseProcessing
-		}
 	}
 
 	// Find percentage - look for pattern \d+%
@@ -617,6 +940,12 @@ func parseDemucsProgress(data []byte, currentPhase DemucsPhase) (DemucsPhase, in
 				i = j
 			}
 		}
+	}
+
+	// If we found a percentage and we're not downloading, we must be processing
+	// This handles the case where model is cached and we skip the download phase
+	if lastPercent >= 0 && detectedPhase != PhaseModelDownload {
+		detectedPhase = PhaseProcessing
 	}
 
 	return detectedPhase, lastPercent
@@ -734,6 +1063,7 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		if h := ctx.Value(ProgressHandlerKey); h != nil {
 			if ph, ok := h.(ProgressHandler); ok {
 				handler = ph
+				DemucsLogger = *handler.ZeroLog()
 			}
 		}
 

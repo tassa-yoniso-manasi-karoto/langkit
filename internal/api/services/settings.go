@@ -81,6 +81,7 @@ func (s *SettingsService) LoadSettings(ctx context.Context) (*generated.Settings
 		TimeoutSep:                       int32(settings.TimeoutSep),
 		TimeoutSTT:                       int32(settings.TimeoutSTT),
 		TimeoutDL:                        int32(settings.TimeoutDL),
+		DemucsMaxSegmentMinutes:          int32(settings.DemucsMaxSegmentMinutes),
 		LogViewerVirtualizationThreshold: int32(settings.LogViewerVirtualizationThreshold),
 		EventThrottling: &generated.EventThrottling{
 			Enabled:     settings.EventThrottling.Enabled,
@@ -129,6 +130,7 @@ func (s *SettingsService) SaveSettings(ctx context.Context, genSettings *generat
 		TimeoutSep:                       int(genSettings.TimeoutSep),
 		TimeoutSTT:                       int(genSettings.TimeoutSTT),
 		TimeoutDL:                        int(genSettings.TimeoutDL),
+		DemucsMaxSegmentMinutes:          int(genSettings.DemucsMaxSegmentMinutes),
 		LogViewerVirtualizationThreshold: int(genSettings.LogViewerVirtualizationThreshold),
 		IntermediaryFileMode:             config.IntermediaryFileMode(genSettings.IntermediaryFileMode),
 		DeleteResumptionFiles:            genSettings.DeleteResumptionFiles,

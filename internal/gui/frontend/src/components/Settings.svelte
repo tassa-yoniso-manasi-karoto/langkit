@@ -805,6 +805,34 @@ import { isDeveloperMode } from '../lib/developerMode';
                             {/if}
                         </section>
 
+                        <!-- Demucs Settings Section -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">graphic_eq</span>
+                                Voice Separation (Demucs)
+                            </h3>
+
+                            <!-- Max segment minutes -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Max segment duration</span>
+                                    <span class="setting-description">Maximum minutes per segment for GPU processing. Lower values use less VRAM but process more chunks. - Default: 20</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.demucsMaxSegmentMinutes}
+                                        min={1}
+                                        max={60}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                        </section>
+                        
                         <!-- Intermediary File Handling Settings -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">

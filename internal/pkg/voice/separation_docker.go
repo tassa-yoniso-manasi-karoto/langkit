@@ -11,6 +11,10 @@ import (
 	"github.com/failsafe-go/failsafe-go"
 )
 
+// DemucsMaxSegmentMinutes is the maximum segment duration for demucs processing.
+// Set by config package to avoid import cycle. Default: 20 minutes.
+var DemucsMaxSegmentMinutes = 20
+
 // DockerDemucsProvider implements AudioSeparationProvider using Docker-based Demucs
 type DockerDemucsProvider struct {
 	useFinetuned bool
@@ -81,6 +85,11 @@ func (p *DockerDemucsProvider) SeparateVoice(ctx context.Context, audioFile, out
 	}
 	if p.useFinetuned {
 		opts.Model = "htdemucs_ft"
+	}
+
+	// Use the package-level max segment setting (set by config package)
+	if DemucsMaxSegmentMinutes > 0 {
+		opts.MaxSegmentMinutes = DemucsMaxSegmentMinutes
 	}
 
 	// Build a retry policy for the processing
