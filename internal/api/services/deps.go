@@ -158,7 +158,7 @@ func (s *DependencyService) CheckFFmpegAvailability(ctx context.Context) (*gener
 	}
 
 	// Try to find FFmpeg
-	ffmpegPath, err := executils.FindBinary("ffmpeg")
+	ffmpegPath, err := config.FindBinary("ffmpeg")
 	if err != nil {
 		errMsg := "FFmpeg is not installed"
 		result.Error = &errMsg
@@ -211,7 +211,7 @@ func (s *DependencyService) CheckMediaInfoAvailability(ctx context.Context) (*ge
 	}
 
 	// Try to find MediaInfo
-	mediainfoPath, err := executils.FindBinary("mediainfo")
+	mediainfoPath, err := config.FindBinary("mediainfo")
 	if err != nil {
 		errMsg := "MediaInfo CLI is not installed"
 		result.Error = &errMsg

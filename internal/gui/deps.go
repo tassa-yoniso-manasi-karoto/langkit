@@ -119,7 +119,7 @@ func (a *App) CheckFFmpegAvailability() (map[string]interface{}, error) {
 	}
 
 	// Try to find FFmpeg
-	ffmpegPath, err := executils.FindBinary("ffmpeg")
+	ffmpegPath, err := config.FindBinary("ffmpeg")
 	if err != nil {
 		result["error"] = "FFmpeg is not installed or not in PATH"
 		a.getLogger().Debug().Err(err).Msg("FFmpeg not found")
@@ -172,7 +172,7 @@ func (a *App) CheckMediaInfoAvailability() (map[string]interface{}, error) {
 	}
 
 	// Try to find MediaInfo
-	mediainfoPath, err := executils.FindBinary("mediainfo")
+	mediainfoPath, err := config.FindBinary("mediainfo")
 	if err != nil {
 		result["error"] = "MediaInfo is not installed or not in PATH"
 		a.getLogger().Debug().Err(err).Msg("MediaInfo not found")

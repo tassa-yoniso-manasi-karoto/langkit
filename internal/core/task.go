@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
@@ -232,7 +231,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 	}
 
 	// Find and set binary paths using the unified finder
-	if ffmpegPath, err := executils.FindBinary("ffmpeg"); err == nil {
+	if ffmpegPath, err := config.FindBinary("ffmpeg"); err == nil {
 		media.FFmpegPath = ffmpegPath
 		metadata.FFmpegPath = ffmpegPath
 		tsk.Handler.ZeroLog().Debug().Str("path", ffmpegPath).Msg("Found ffmpeg for CLI task")
@@ -240,7 +239,7 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 		tsk.Handler.ZeroLog().Warn().Err(err).Msg("ffmpeg not found for CLI task")
 	}
 
-	if mediainfoPath, err := executils.FindBinary("mediainfo"); err == nil {
+	if mediainfoPath, err := config.FindBinary("mediainfo"); err == nil {
 		MediainfoPath = mediainfoPath
 		tsk.Handler.ZeroLog().Debug().Str("path", mediainfoPath).Msg("Found mediainfo for CLI task")
 	} else {
