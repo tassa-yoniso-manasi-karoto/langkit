@@ -202,8 +202,8 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("timeout_stt", 90)   // 90 seconds for each subtitle segment transcription
 	viper.SetDefault("timeout_dl", 600)   // 10 minutes for downloading files
 
-	// Demucs settings - split long files to avoid GPU OOM (output tensor must fit in VRAM)
-	viper.SetDefault("demucs_max_segment_minutes", 15) // 15 min segments: at least 4GB VRAM needed
+	// Demucs settings - 0 means use GPU-auto-detected value from voice package
+	viper.SetDefault("demucs_max_segment_minutes", 0)
 
 	viper.SetDefault("log_viewer_virtualization_threshold", 500)
 
@@ -420,8 +420,11 @@ func (settings Settings) LoadKeys() {
 	voice.CustomEndpoints.Store("stt_endpoint", settings.CustomEndpoints.STT.Endpoint)
 	voice.CustomEndpoints.Store("stt_model", settings.CustomEndpoints.STT.Model)
 
-	// Set demucs max segment setting
+	// Set demucs max segment setting (0 = recalculate from GPU VRAM)
 	if settings.DemucsMaxSegmentMinutes > 0 {
 		voice.DemucsMaxSegmentMinutes = settings.DemucsMaxSegmentMinutes
+	} else {
+		// Reset to auto-detected value
+		voice.DemucsMaxSegmentMinutes = voice.CalculateOptimalSegmentMinutes()
 	}
 }

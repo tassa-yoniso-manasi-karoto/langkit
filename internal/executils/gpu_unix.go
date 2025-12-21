@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -120,4 +121,28 @@ func runWithTimeout(cmd *exec.Cmd, timeout time.Duration) (string, error) {
 		}
 		return "", exec.ErrNotFound
 	}
+}
+
+// GetNvidiaVRAMMiB returns the total VRAM in MiB for the first NVIDIA GPU.
+// Returns 0 if nvidia-smi is not available or no GPU is found.
+func GetNvidiaVRAMMiB() int {
+	// Use nvidia-smi query for clean output: "12227 MiB" or just "12227"
+	cmd := exec.Command("nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits")
+	output, err := runWithTimeout(cmd, 5*time.Second)
+	if err != nil {
+		return 0
+	}
+
+	// Parse first line (first GPU)
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 {
+		return 0
+	}
+
+	vram, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if err != nil {
+		return 0
+	}
+
+	return vram
 }

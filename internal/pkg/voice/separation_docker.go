@@ -9,11 +9,49 @@ import (
 	"time"
 
 	"github.com/failsafe-go/failsafe-go"
+
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 )
 
 // DemucsMaxSegmentMinutes is the maximum segment duration for demucs processing.
-// Set by config package to avoid import cycle. Default: 20 minutes.
-var DemucsMaxSegmentMinutes = 20
+// Set by config package to avoid import cycle. Initialized based on GPU VRAM if available.
+var DemucsMaxSegmentMinutes = CalculateOptimalSegmentMinutes()
+
+// CalculateOptimalSegmentMinutes determines the optimal segment duration based on GPU VRAM.
+// Based on empirical testing:
+//   - Baseline (model): ~1100 MiB
+//   - Per minute of audio: ~140 MiB
+//
+// Formula: max_minutes = (available_VRAM - 1100) / 140
+// Uses 85% of total VRAM to leave headroom for system usage.
+func CalculateOptimalSegmentMinutes() int {
+	vramMiB := executils.GetNvidiaVRAMMiB()
+	if vramMiB == 0 {
+		// No NVIDIA GPU detected or nvidia-smi not available, use conservative default
+		return 15
+	}
+
+	// Use 85% of VRAM for safety margin
+	availableMiB := float64(vramMiB) * 0.85
+
+	// Baseline model size ~1100 MiB, ~140 MiB per minute
+	const baselineMiB = 1100
+	const mibPerMinute = 140
+
+	if availableMiB <= baselineMiB {
+		// Not enough VRAM even for baseline, use minimum
+		return 1
+	}
+
+	maxMinutes := int((availableMiB - baselineMiB) / mibPerMinute)
+
+	// Clamp to reasonable range (no upper cap - let GPU VRAM be the limit)
+	if maxMinutes < 1 {
+		return 1
+	}
+
+	return maxMinutes
+}
 
 // DockerDemucsProvider implements AudioSeparationProvider using Docker-based Demucs
 type DockerDemucsProvider struct {

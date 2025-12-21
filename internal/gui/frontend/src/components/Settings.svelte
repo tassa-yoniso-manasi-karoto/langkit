@@ -816,13 +816,13 @@ import { isDeveloperMode } from '../lib/developerMode';
                             <div class="setting-row">
                                 <div class="setting-label">
                                     <span>Max segment duration</span>
-                                    <span class="setting-description">Maximum minutes per segment for GPU processing. Lower values use less VRAM but process more chunks. - Default: 20</span>
+                                    <span class="setting-description">Maximum minutes per segment for GPU processing. Set to 0 for auto-optimized based on GPU VRAM.</span>
                                 </div>
                                 <div class="setting-control">
                                     <NumericInput
                                         bind:value={currentSettings.demucsMaxSegmentMinutes}
-                                        min={1}
-                                        max={60}
+                                        min={0}
+                                        max={999}
                                         step={1}
                                         className="w-48 px-3 py-2 hover:border-primary/55
                                                 hover:shadow-input focus:shadow-input-focus
