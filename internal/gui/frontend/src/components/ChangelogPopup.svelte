@@ -93,6 +93,17 @@
                 const changelogResponse = await GetChangelog(info.previousVersion || undefined);
                 changelogEntries = changelogResponse.entries;
 
+                // Check if there's actually any content to show
+                const hasContent = changelogEntries.some(entry =>
+                    entry.sections && entry.sections.length > 0
+                );
+
+                if (!hasContent) {
+                    logger.debug('Changelog', 'No changelog content to show, skipping popup');
+                    dispatch('checked', { shouldShow: false });
+                    return;
+                }
+
                 logger.info('Changelog', 'Showing changelog popup', {
                     version: version,
                     entriesCount: changelogEntries.length
