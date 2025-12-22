@@ -234,7 +234,7 @@ func InitConfig(customPath string) error {
 
 	// Version tracking defaults
 	viper.SetDefault("last_seen_version", "")
-	viper.SetDefault("changelog_display_frequency", "minor_major")
+	viper.SetDefault("changelog_display_frequency", "all")
 
 	// Get the config path
 	configPath, err := getConfigPath()

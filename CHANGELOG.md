@@ -27,6 +27,12 @@ Guidelines for LLMs updating this changelog from git history:
 - The use of em dashes as punctuation is absolutely forbidden
 -->
 
+## [1.0.1-alpha] - 2025-12-22
+
+### Changed
+
+- Local voice enhancing now handles any file length on Nvidia GPUs with as little as 2GB VRAM through automatic segmentation of audio according to your GPU's VRAM
+
 ## [1.0.0-alpha] - 2025-12-19
 
 ### Added

@@ -4,8 +4,6 @@
 
 - without leakless: https://github.com/go-rod/rod/issues/739#issuecomment-1272420000
 
-- “Found ffmpeg for CLI task” in GUI mode, but it ‘s not so much a problem by itself i guess: can add a last resort check in AppData\Local\langkit\tools
-
 
 - cleanup abandoned Wails methods
 - support embedded subtitles
