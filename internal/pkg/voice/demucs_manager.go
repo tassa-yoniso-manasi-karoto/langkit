@@ -485,7 +485,7 @@ func StopDemucsManager() error {
 	return lastErr
 }
 
-// cleanupDemucsOutput removes the output directory contents after processing
+// cleanupDemucsOutput removes the input and output directory contents after processing
 // by executing rm inside the container (since files are owned by root)
 func cleanupDemucsOutput(dm *DemucsManager) {
 	if dm == nil {
@@ -503,7 +503,7 @@ func cleanupDemucsOutput(dm *DemucsManager) {
 	defer cli.Close()
 
 	execConfig := container.ExecOptions{
-		Cmd:          []string{"sh", "-c", "rm -rf /data/output/*"},
+		Cmd:          []string{"sh", "-c", "rm -rf /data/output/* /data/input/*"},
 		AttachStdout: false,
 		AttachStderr: false,
 	}
@@ -519,7 +519,7 @@ func cleanupDemucsOutput(dm *DemucsManager) {
 		return
 	}
 
-	DemucsLogger.Debug().Str("container", dm.containerName).Msg("Cleaned up demucs output directory")
+	DemucsLogger.Debug().Str("container", dm.containerName).Msg("Cleaned up demucs input/output directories")
 }
 
 // IsDemucsAvailable checks if Docker is available for running demucs
