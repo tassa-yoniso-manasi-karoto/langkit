@@ -8,8 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -170,161 +168,6 @@ func DefaultDemucsOptions() DemucsOptions {
 	}
 }
 
-// getAudioDurationSeconds returns the duration of an audio file in seconds using ffmpeg
-func getAudioDurationSeconds(filePath string) (float64, error) {
-	// Use ffmpeg -i to get file info (duration is in stderr)
-	cmd := exec.Command(media.FFmpegPath, "-i", filePath, "-hide_banner", "-f", "null", "-")
-	output, _ := cmd.CombinedOutput() // ffmpeg returns error for -f null, ignore it
-
-	// Parse "Duration: HH:MM:SS.ms" from output
-	outputStr := string(output)
-	durationIdx := strings.Index(outputStr, "Duration: ")
-	if durationIdx == -1 {
-		return 0, fmt.Errorf("could not find duration in ffmpeg output")
-	}
-
-	// Extract duration string (format: "HH:MM:SS.ms")
-	durationStart := durationIdx + len("Duration: ")
-	commaIdx := strings.Index(outputStr[durationStart:], ",")
-	if commaIdx == -1 {
-		return 0, fmt.Errorf("could not parse duration format")
-	}
-	durationStr := outputStr[durationStart : durationStart+commaIdx]
-
-	// Parse HH:MM:SS.ms format
-	parts := strings.Split(durationStr, ":")
-	if len(parts) != 3 {
-		return 0, fmt.Errorf("unexpected duration format: %s", durationStr)
-	}
-
-	hours, err := strconv.ParseFloat(parts[0], 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse hours: %w", err)
-	}
-	minutes, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse minutes: %w", err)
-	}
-	seconds, err := strconv.ParseFloat(parts[2], 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse seconds: %w", err)
-	}
-
-	return hours*3600 + minutes*60 + seconds, nil
-}
-
-// splitAudioFile splits an audio file into segments of specified duration
-// Returns paths to the segment files
-func splitAudioFile(inputPath string, segmentSeconds int, outputDir string) ([]string, error) {
-	ext := filepath.Ext(inputPath)
-
-	// Use simple prefix to avoid glob issues with special chars in original filename
-	segmentPattern := filepath.Join(outputDir, "seg_%03d"+ext)
-
-	args := []string{
-		"-y", "-loglevel", "error",
-		"-i", inputPath,
-		"-f", "segment",
-		"-segment_time", strconv.Itoa(segmentSeconds),
-		"-c", "copy", // Copy codec, no re-encoding
-		"-reset_timestamps", "1",
-		segmentPattern,
-	}
-
-	cmd := exec.Command(media.FFmpegPath, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to split audio: %w, output: %s", err, string(output))
-	}
-
-	// Find all segment files
-	pattern := filepath.Join(outputDir, "seg_*"+ext)
-	segments, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find segments: %w", err)
-	}
-
-	if len(segments) == 0 {
-		return nil, fmt.Errorf("no segments created")
-	}
-
-	// Sort segments to ensure correct order
-	sort.Strings(segments)
-	return segments, nil
-}
-
-// encodeAudio encodes an audio file to the specified format using ffmpeg
-func encodeAudio(inputPath, outputPath, format string) error {
-	var codecArgs []string
-	switch format {
-	case "flac":
-		codecArgs = []string{"-c:a", "flac"}
-	case "wav":
-		codecArgs = []string{"-c:a", "pcm_s24le"}
-	case "mp3":
-		codecArgs = []string{"-c:a", "libmp3lame", "-q:a", "2"}
-	case "opus":
-		codecArgs = []string{"-c:a", "libopus", "-b:a", "128k"}
-	default:
-		codecArgs = []string{"-c:a", "copy"}
-	}
-
-	args := []string{"-y", "-loglevel", "error", "-i", inputPath}
-	args = append(args, codecArgs...)
-	args = append(args, outputPath)
-
-	cmd := exec.Command(media.FFmpegPath, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ffmpeg encoding failed: %w, output: %s", err, string(output))
-	}
-	return nil
-}
-
-// concatenateAudioFiles joins multiple audio files into one using ffmpeg concat demuxer
-// Outputs PCM/WAV to avoid timestamp issues from segmented files
-func concatenateAudioFiles(inputFiles []string, outputPath string) error {
-	if len(inputFiles) == 0 {
-		return fmt.Errorf("no input files to concatenate")
-	}
-	if len(inputFiles) == 1 {
-		// Just copy the single file
-		return copyFile(inputFiles[0], outputPath)
-	}
-
-	// Create a temporary concat list file
-	listFile := outputPath + ".concat.txt"
-	defer os.Remove(listFile)
-
-	var content strings.Builder
-	for _, f := range inputFiles {
-		// FFmpeg concat requires escaped paths
-		escaped := strings.ReplaceAll(f, "'", "'\\''")
-		content.WriteString(fmt.Sprintf("file '%s'\n", escaped))
-	}
-
-	if err := os.WriteFile(listFile, []byte(content.String()), 0644); err != nil {
-		return fmt.Errorf("failed to create concat list: %w", err)
-	}
-
-	// Decode to PCM and output as WAV (avoids wasteful re-encoding)
-	args := []string{
-		"-y", "-loglevel", "error",
-		"-f", "concat",
-		"-safe", "0",
-		"-i", listFile,
-		"-c:a", "pcm_s24le",
-		outputPath,
-	}
-
-	cmd := exec.Command(media.FFmpegPath, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to concatenate audio: %w, output: %s", err, string(output))
-	}
-
-	return nil
-}
 
 // DemucsManager handles Docker lifecycle for the Demucs project
 type DemucsManager struct {
@@ -535,7 +378,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 	}
 	maxSegmentSeconds := maxSegmentMinutes * 60
 
-	duration, err := getAudioDurationSeconds(inputPath)
+	duration, err := media.GetAudioDurationSeconds(inputPath)
 	if err != nil {
 		DemucsLogger.Warn().Err(err).Msg("Could not determine audio duration, processing without splitting")
 		return dm.processSingleFile(ctx, inputPath, inputDir, outputDir, opts, nil)
@@ -572,7 +415,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 	}
 
 	// Split the audio
-	segments, err := splitAudioFile(inputPath, maxSegmentSeconds, segmentDir)
+	segments, err := media.SplitAudioFile(inputPath, maxSegmentSeconds, segmentDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to split audio: %w", err)
 	}
@@ -617,19 +460,25 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 		outputPaths = append(outputPaths, segmentOutput)
 	}
 
-	// Concatenate all WAV outputs
+	// Concatenate all WAV outputs using media package
 	concatenatedWav := filepath.Join(segmentDir, "concatenated.wav")
-	if err := concatenateAudioFiles(outputPaths, concatenatedWav); err != nil {
+	concatListFile, err := media.CreateConcatFile(outputPaths)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create concat list: %w", err)
+	}
+	defer os.Remove(concatListFile)
+
+	if err := media.RunFFmpegConcat(concatListFile, concatenatedWav); err != nil {
 		return nil, fmt.Errorf("failed to concatenate segments: %w", err)
 	}
 
-	// Encode to final format (default: flac)
+	// Encode to final format (default: flac) using media package
 	finalFormat := opts.OutputFormat
 	if finalFormat == "" {
 		finalFormat = "flac"
 	}
 	finalOutput := filepath.Join(segmentDir, "final."+finalFormat)
-	if err := encodeAudio(concatenatedWav, finalOutput, finalFormat); err != nil {
+	if err := media.RunFFmpegConvert(concatenatedWav, finalOutput); err != nil {
 		return nil, fmt.Errorf("failed to encode final output to %s: %w", finalFormat, err)
 	}
 

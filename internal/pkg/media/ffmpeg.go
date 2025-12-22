@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -118,6 +120,89 @@ func CreateConcatFile(wavFiles []string) (string, error) {
 // Runs FFmpeg concat command with the provided concat file and output wav file
 func RunFFmpegConcat(concatFile, outputWav string) error {
 	return FFmpeg([]string{"-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputWav}...)
+}
+
+// GetAudioDurationSeconds returns the duration of an audio file in seconds using ffmpeg
+func GetAudioDurationSeconds(filePath string) (float64, error) {
+	// Use ffmpeg -i to get file info (duration is in stderr)
+	cmd := executils.NewCommand(FFmpegPath, "-i", filePath, "-hide_banner", "-f", "null", "-")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	_ = cmd.Run() // ffmpeg returns error for -f null, ignore it
+
+	// Parse "Duration: HH:MM:SS.ms" from output
+	outputStr := stderr.String()
+	durationIdx := strings.Index(outputStr, "Duration: ")
+	if durationIdx == -1 {
+		return 0, fmt.Errorf("could not find duration in ffmpeg output")
+	}
+
+	// Extract duration string (format: "HH:MM:SS.ms")
+	durationStart := durationIdx + len("Duration: ")
+	commaIdx := strings.Index(outputStr[durationStart:], ",")
+	if commaIdx == -1 {
+		return 0, fmt.Errorf("could not parse duration format")
+	}
+	durationStr := outputStr[durationStart : durationStart+commaIdx]
+
+	// Parse HH:MM:SS.ms format
+	parts := strings.Split(durationStr, ":")
+	if len(parts) != 3 {
+		return 0, fmt.Errorf("unexpected duration format: %s", durationStr)
+	}
+
+	hours, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse hours: %w", err)
+	}
+	minutes, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse minutes: %w", err)
+	}
+	seconds, err := strconv.ParseFloat(parts[2], 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse seconds: %w", err)
+	}
+
+	return hours*3600 + minutes*60 + seconds, nil
+}
+
+// SplitAudioFile splits an audio file into segments of specified duration in seconds.
+// Returns paths to the segment files sorted in order.
+func SplitAudioFile(inputPath string, segmentSeconds int, outputDir string) ([]string, error) {
+	ext := filepath.Ext(inputPath)
+
+	// Use simple prefix to avoid glob issues with special chars in original filename
+	segmentPattern := filepath.Join(outputDir, "seg_%03d"+ext)
+
+	args := []string{
+		"-loglevel", "error",
+		"-i", inputPath,
+		"-f", "segment",
+		"-segment_time", strconv.Itoa(segmentSeconds),
+		"-c", "copy", // Copy codec, no re-encoding
+		"-reset_timestamps", "1",
+		segmentPattern,
+	}
+
+	if err := FFmpeg(args...); err != nil {
+		return nil, fmt.Errorf("failed to split audio: %w", err)
+	}
+
+	// Find all segment files
+	pattern := filepath.Join(outputDir, "seg_*"+ext)
+	segments, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find segments: %w", err)
+	}
+
+	if len(segments) == 0 {
+		return nil, fmt.Errorf("no segments created")
+	}
+
+	// Sort segments to ensure correct order
+	sort.Strings(segments)
+	return segments, nil
 }
 
 // ExtractAudioTrack extracts an audio track from a media file to specified format

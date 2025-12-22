@@ -234,22 +234,22 @@ func NewTask(handler MessageHandler) (tsk *Task) {
 	if ffmpegPath, err := config.FindBinary("ffmpeg"); err == nil {
 		media.FFmpegPath = ffmpegPath
 		metadata.FFmpegPath = ffmpegPath
-		tsk.Handler.ZeroLog().Debug().Str("path", ffmpegPath).Msg("Found ffmpeg for CLI task")
+		tsk.Handler.ZeroLog().Debug().Str("path", ffmpegPath).Msg("NewTask: Found ffmpeg")
 	} else {
-		tsk.Handler.ZeroLog().Warn().Err(err).Msg("ffmpeg not found for CLI task")
+		tsk.Handler.ZeroLog().Warn().Err(err).Msg("NewTask: ffmpeg not found")
 	}
 
 	if mediainfoPath, err := config.FindBinary("mediainfo"); err == nil {
 		MediainfoPath = mediainfoPath
-		tsk.Handler.ZeroLog().Debug().Str("path", mediainfoPath).Msg("Found mediainfo for CLI task")
+		tsk.Handler.ZeroLog().Debug().Str("path", mediainfoPath).Msg("NewTask: Found mediainfo")
 	} else {
-		tsk.Handler.ZeroLog().Warn().Err(err).Msg("mediainfo not found for CLI task")
+		tsk.Handler.ZeroLog().Warn().Err(err).Msg("NewTask: mediainfo not found")
 	}
 
 	if settings, err := config.LoadSettings(); err == nil {
 		tsk.ApplyConfig(settings)
 	} else {
-		tsk.Handler.ZeroLog().Error().Err(err).Msg("Failed to load settings")
+		tsk.Handler.ZeroLog().Error().Err(err).Msg("NewTask: Failed to load settings")
 	}
 
 	return tsk
