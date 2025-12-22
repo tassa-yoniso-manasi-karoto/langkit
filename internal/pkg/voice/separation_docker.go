@@ -20,10 +20,13 @@ var DemucsMaxSegmentMinutes = CalculateOptimalSegmentMinutes()
 // CalculateOptimalSegmentMinutes determines the optimal segment duration based on GPU VRAM.
 // Based on empirical testing:
 //   - Baseline (model): ~1100 MiB
-//   - Per minute of audio: ~140 MiB
+//   - Per minute of audio: ~210 MiB (includes output tensor allocation spike)
 //
-// Formula: max_minutes = (available_VRAM - 1100) / 140
-// Uses 85% of total VRAM to leave headroom for system usage.
+// The output phase requires a large tensor allocation after processing completes,
+// which can cause OOM even if inference used less memory steadily.
+//
+// Formula: max_minutes = (available_VRAM - 1100) / 210
+// Uses 80% of total VRAM to leave headroom for system usage and allocation spikes.
 func CalculateOptimalSegmentMinutes() int {
 	vramMiB := executils.GetNvidiaVRAMMiB()
 	if vramMiB == 0 {
@@ -31,12 +34,12 @@ func CalculateOptimalSegmentMinutes() int {
 		return 15
 	}
 
-	// Use 85% of VRAM for safety margin
-	availableMiB := float64(vramMiB) * 0.85
+	// Use 80% of VRAM for safety margin (output allocation can spike)
+	availableMiB := float64(vramMiB) * 0.80
 
-	// Baseline model size ~1100 MiB, ~140 MiB per minute
+	// Baseline model size ~1100 MiB, ~210 MiB per minute (includes output tensor)
 	const baselineMiB = 1100
-	const mibPerMinute = 140
+	const mibPerMinute = 210
 
 	if availableMiB <= baselineMiB {
 		// Not enough VRAM even for baseline, use minimum
