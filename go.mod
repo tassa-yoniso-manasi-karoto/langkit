@@ -5,7 +5,7 @@ go 1.23.12
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/adrg/xdg v0.5.3
-	github.com/asticode/go-astisub v0.32.0
+	github.com/asticode/go-astisub v0.38.0
 	github.com/barbashov/iso639-3 v1.0.0
 	github.com/bogem/id3v2 v1.2.0
 	github.com/compose-spec/compose-go/v2 v2.8.2
