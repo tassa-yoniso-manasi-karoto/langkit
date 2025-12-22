@@ -2,6 +2,7 @@ package voice
 
 import (
 	"context"
+	"github.com/rs/zerolog"
 )
 
 // AIServiceProvider is a common interface for all external AI service providers
@@ -24,4 +25,14 @@ type AudioSeparationProvider interface {
 	AIServiceProvider
 	// SeparateVoice extracts voice from a mixed audio file
 	SeparateVoice(ctx context.Context, audioFile, outputFormat string, maxTry, timeout int) ([]byte, error)
+}
+
+// ProgressHandler is called to report progress updates
+type ProgressHandler interface {
+	// IncrementDownloadProgress is for file/image downloads - displays humanized bytes
+	IncrementDownloadProgress(taskID string, increment, total, priority int, operation, descr, heightClass, humanizedSize string)
+	// IncrementProgress is for processing tasks - displays percentage
+	IncrementProgress(taskID string, increment, total, priority int, operation, descr, size string)
+	RemoveProgressBar(taskID string)
+	ZeroLog() *zerolog.Logger
 }
