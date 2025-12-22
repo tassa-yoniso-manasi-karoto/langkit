@@ -310,24 +310,24 @@ func (dm *DemucsManager) processSingleFile(ctx context.Context, inputPath, input
 	}
 
 	output, err := dm.execInContainerWithProgress(ctx, cmdArgs, progressCb)
+	// Write demucs output to temp log file instead of logger (can be very large)
+	logFile := filepath.Join(os.TempDir(), fmt.Sprintf("demucs_%d.log", time.Now().Unix()))
+	if writeErr := os.WriteFile(logFile, []byte(output), 0644); writeErr == nil {
+		DemucsLogger.Debug().Str("log_file", logFile).Msg("Demucs command completed")
+	} else {
+		DemucsLogger.Debug().Msg("Demucs command completed")
+	}
+	
 	if err != nil {
-		// Check for CUDA OOM error and provide helpful message
+		// Check for CUDA OOM error (handled upstream in enhance.go with helpful message)
 		if strings.Contains(output, "CUDA out of memory") {
-			return nil, fmt.Errorf("GPU out of memory during voice separation. Try lowering the 'Max segment duration' setting in Settings → Voice Separation. Current audio may be too long for your GPU's VRAM")
+			return nil, ErrCUDAOutOfMemory
 		}
 		return nil, fmt.Errorf("demucs execution failed: %w\nOutput: %s", err, output)
 	}
 	// Also check output for OOM even if no error (demucs may report success despite failure)
 	if strings.Contains(output, "CUDA out of memory") {
-		return nil, fmt.Errorf("GPU out of memory during voice separation. Try lowering the 'Max segment duration' setting in Settings → Voice Separation")
-	}
-
-	// Write demucs output to temp log file instead of logger (can be very large)
-	logFile := filepath.Join(os.TempDir(), fmt.Sprintf("demucs_%d.log", time.Now().Unix()))
-	if err := os.WriteFile(logFile, []byte(output), 0644); err == nil {
-		DemucsLogger.Debug().Str("log_file", logFile).Msg("Demucs command completed")
-	} else {
-		DemucsLogger.Debug().Msg("Demucs command completed")
+		return nil, ErrCUDAOutOfMemory
 	}
 
 	// Find the output file

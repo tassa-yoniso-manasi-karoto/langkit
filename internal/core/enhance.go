@@ -163,6 +163,15 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 				return tsk.Handler.LogErrWithLevel(Debug, ctx.Err(), AbortAllTasks, "enhance: operation canceled by user")
 		        } else if errors.Is(err, context.DeadlineExceeded) {
 				return tsk.Handler.LogErr(err, AbortTask, "enhance: Operation timed out.")
+			} else if errors.Is(err, voice.ErrCUDAOutOfMemory) {
+				usedMinutes := voice.DemucsMaxSegmentMinutes
+				var msg string
+				if usedMinutes <= 1 {
+					msg = "GPU does not have enough VRAM for local voice separation. Use a cloud-based provider or switch to CPU mode (slower but works with any hardware)."
+				} else {
+					msg = fmt.Sprintf("GPU ran out of memory (attempted %d min segments). Lower the 'Max segment duration' in Settings → Voice Separation to a value below %d.", usedMinutes, usedMinutes)
+				}
+				return tsk.Handler.LogErr(err, AbortAllTasks, msg)
 			}
 			return tsk.Handler.LogErr(err, AbortAllTasks, "Voice separation processing error.")
 		}

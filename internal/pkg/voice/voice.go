@@ -31,6 +31,10 @@ import (
 var (
 	APIKeys         = &sync.Map{}
 	CustomEndpoints = &sync.Map{}
+
+	// ErrCUDAOutOfMemory indicates GPU ran out of memory during processing.
+	// This error should not be retried - user needs to reduce segment duration.
+	ErrCUDAOutOfMemory = errors.New("CUDA out of memory")
 )
 
 func init() {
@@ -606,15 +610,19 @@ func (p *OpenAIProvider) TranscribeAudio(ctx context.Context, audioFile, languag
 // buildRetryPolicy is a single function that builds a generic retry policy for any type R.
 //
 // Make retries ignore all errors unless we have hit the max attempts, in which case
-// the last error is returned. The only early abort condition is context.Canceled.
+// the last error is returned. Early abort conditions: context.Canceled, ErrCUDAOutOfMemory.
 func buildRetryPolicy[R any](maxTry int) failsafe.Policy[R] {
 	return retrypolicy.Builder[R]().
-		// Handle any error for retry, except context.Canceled which we abort on.
+		// Handle any error for retry, except those we abort on immediately.
 		HandleIf(func(_ R, err error) bool {
-			return err != nil && !errors.Is(err, context.Canceled)
+			return err != nil &&
+				!errors.Is(err, context.Canceled) &&
+				!errors.Is(err, ErrCUDAOutOfMemory)
 		}).
-		// Abort if context was canceled.
-		AbortOnErrors(context.Canceled).
+		// Abort immediately on these errors (no retry).
+		AbortIf(func(_ R, err error) bool {
+			return errors.Is(err, context.Canceled) || errors.Is(err, ErrCUDAOutOfMemory)
+		}).
 		// Retry up to maxTry attempts before returning last error.
 		WithMaxAttempts(maxTry).
 		// Return the last error upon exceeding attempts (instead of a special ExceededError).
@@ -623,8 +631,10 @@ func buildRetryPolicy[R any](maxTry int) failsafe.Policy[R] {
 		WithBackoffFactor(500*time.Millisecond, 5*time.Second, 2.0).
 		// Log each failed attempt with more detailed error information.
 		OnRetry(func(evt failsafe.ExecutionEvent[R]) {
-			fmt.Fprintf(os.Stderr, "WARN: Attempt %d failed with error: %v; retrying...\n",
-				evt.Attempts(), evt.LastError())
+			DemucsLogger.Warn().
+				Int("attempt", evt.Attempts()).
+				Err(evt.LastError()).
+				Msg("Retry policy: attempt failed, retrying...")
 		}).
 		Build()
 }
