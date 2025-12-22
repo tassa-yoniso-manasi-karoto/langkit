@@ -14,10 +14,11 @@ import (
 	"github.com/gookit/color"
 	"github.com/schollz/progressbar/v3"
 
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
-	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/fsutil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/profiling"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/voice"
 )
 
@@ -118,6 +119,29 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		//	Err(err).Str("behavior", AbortAllTasks).
 		//	Msg("can't access passed media file/directory")
 	}
+
+	// Check disk space before starting processing.
+	// 10 GB minimum is required for temporary files, intermediate outputs, etc.
+	requiredDiskSpaceGB := 10
+	usingDockerDemucs := strings.Contains(tsk.SeparationLib, "docker")
+	if usingDockerDemucs {
+		// Docker demucs image is ~7 GB compressed but expands to ~14 GB on disk,
+		// so we need 20 GB to safely accommodate the image plus processing headroom.
+		requiredDiskSpaceGB = 20
+		tsk.Handler.ZeroLog().Debug().Msg("Docker demucs detected, requiring 20 GB disk space")
+	}
+
+	// Get the directory to check (use parent directory if path is a file)
+	checkPath := userProvided
+	if !stat.IsDir() {
+		checkPath = filepath.Dir(userProvided)
+	}
+
+	// Check both media path and Docker data root (if using Docker demucs)
+	if err := fsutil.CheckDiskSpaceBoth(checkPath, requiredDiskSpaceGB, usingDockerDemucs, tsk.Handler.ZeroLog()); err != nil {
+		return tsk.Handler.LogErr(err, AbortAllTasks, "")
+	}
+
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
 		if ok := tsk.checkIntegrity(); ok  {
 			tsk.Execute(ctx)
@@ -279,10 +303,13 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				es.TotalFileCount = len(tasks)
 			}) // necessity: high
 
+			// Check disk space during processing and log warnings if low
+			fsutil.LogDiskSpaceWarnings(userProvided, tsk.Handler.ZeroLog())
+
 			// trick to have a new line without the log prefix
 			tsk.Handler.ZeroLog().Info().Msg("\r             \n")//+mediabar.String())
 			tsk.Handler.ZeroLog().Info().Msg("now: ." + strings.TrimPrefix(tsk.MediaSourceFile, userProvided))
-			
+
 			if err := tsk.Execute(ctx); err != nil {
 				reporter.SaveSnapshot("Execute failed in bulk mode", tsk.DebugVals()) // necessity: high
 				if errors.Is(err.Err, context.Canceled) {
