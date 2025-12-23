@@ -16,6 +16,7 @@ require (
 	github.com/go-rod/rod v0.116.2
 	github.com/gookit/color v1.5.4
 	github.com/gorilla/websocket v1.5.3
+	github.com/jinzhu/copier v0.4.0
 	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/klauspost/compress v1.18.0
 	github.com/labstack/echo/v4 v4.13.3

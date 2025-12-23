@@ -7,7 +7,6 @@
 
 - cleanup abandoned Wails methods
 - support embedded subtitles
-- ensure support .ass subtitles
 
 - ichiran multithreaded?
 

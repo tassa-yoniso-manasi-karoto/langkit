@@ -181,6 +181,10 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L501
 					foreignSubs.TrimCC2Dubs()
 				}
+				// Filter ASS/SSA to Default-style only for accurate item count
+				if isASSFormat(tsk.TargSubFile) {
+					foreignSubs.FilterToDefaultStyle()
+				}
 				totalItems += len(foreignSubs.Items)
 			}
 			

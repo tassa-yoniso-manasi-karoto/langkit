@@ -90,9 +90,10 @@ func TestSelectiveTransliteration(t *testing.T) {
 	t.Logf("Transliteration completed in %v", duration)
 
 	// Check that the expected output files exist - using TranslitType.ToSuffix() to get the correct paths
-	tokenizedPath := strings.TrimSuffix(tempSubPath, ".srt") + Tokenize.ToSuffix()  // "_tokenized.srt"
-	translitPath := strings.TrimSuffix(tempSubPath, ".srt") + Romanize.ToSuffix()   // "_romanized.srt"
-	selectivePath := strings.TrimSuffix(tempSubPath, ".srt") + Selective.ToSuffix() // "_selective.srt"
+	ext := filepath.Ext(tempSubPath) // ".srt"
+	tokenizedPath := strings.TrimSuffix(tempSubPath, ext) + Tokenize.ToSuffix(ext)  // "_tokenized.srt"
+	translitPath := strings.TrimSuffix(tempSubPath, ext) + Romanize.ToSuffix(ext)   // "_romanized.srt"
+	selectivePath := strings.TrimSuffix(tempSubPath, ext) + Selective.ToSuffix(ext) // "_selective.srt"
 
 	// Check that all expected files exist
 	assert.FileExists(t, tokenizedPath, "Tokenized subtitle file should exist")

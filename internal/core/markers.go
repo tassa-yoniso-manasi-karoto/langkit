@@ -36,9 +36,12 @@ func isLangkitMadeDubtitles(s string) bool {
 	return false
 }
 // allows rejecting those files during subfile screening (see lang.go)
+// Checks for the transliteration suffix pattern (e.g., "_tokenized", "_romanized")
+// regardless of file extension.
 func isLangkitMadeTranslit(s string) bool {
 	for _, t := range []TranslitType{Tokenize, Romanize, Selective, TokenizedSelective} {
-		if strings.Contains(s, t.ToSuffix()) {
+		// Check for the transliteration type suffix (e.g., "_tokenized", "_romanized")
+		if strings.Contains(s, "_"+t.String()) {
 			return true
 		}
 	}

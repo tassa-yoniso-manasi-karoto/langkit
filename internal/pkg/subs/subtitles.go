@@ -274,7 +274,24 @@ func removeTrailingGroup(s string) string {
 	return string(runes[:contentEnd+1])
 }
 
+// FilterToDefaultStyle removes all items that don't have a style matching "Default" prefix.
+// This is used for ASS/SSA files where non-Default styles typically represent
+// positioned signs, animations, or other non-dialogue content.
+// Items without a style (e.g., from SRT files) are preserved.
+func (subs *Subtitles) FilterToDefaultStyle() {
+	if subs == nil || subs.Subtitles == nil {
+		return
+	}
 
+	filtered := make([]*astisub.Item, 0, len(subs.Items))
+	for _, item := range subs.Items {
+		// Keep items without a style (SRT files) or with Default-prefixed style
+		if item.Style == nil || strings.HasPrefix(item.Style.ID, "Default") {
+			filtered = append(filtered, item)
+		}
+	}
+	subs.Items = filtered
+}
 
 func placeholder() {
 	color.Redln(" 𝒻*** 𝓎ℴ𝓊 𝒸ℴ𝓂𝓅𝒾𝓁ℯ𝓇")

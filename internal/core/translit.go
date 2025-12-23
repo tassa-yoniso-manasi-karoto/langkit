@@ -22,13 +22,12 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 
+	astisub "github.com/asticode/go-astisub"
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
-
-
-// FIXME transcoding srt into ass causes astisub runtime panic, no sure if supported or not
 
 var (
 	Splitter = common.DefaultSplitter // All providers must accept and return UTF-8.
@@ -61,8 +60,10 @@ func (m TranslitType) String() string {
 	return []string{"tokenized", "romanized", "selective", "selective_tokenized"}[m]
 }
 
-func (m TranslitType) ToSuffix() string {
-	return "_" + m.String() + ".srt"
+// ToSuffix returns the suffix for transliteration output files, preserving the original extension.
+// The ext parameter should include the leading dot (e.g., ".srt", ".ass").
+func (m TranslitType) ToSuffix(ext string) string {
+	return "_" + m.String() + ext
 }
 
 
@@ -124,16 +125,17 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 		}
 		
 		// Register the mock files with the output registry
+		mockExt := filepath.Ext(tsk.TargSubFile)
 		for _, path := range mockFiles {
 			tsk.Handler.ZeroLog().Info().Str("mock_file", path).Msg("Created mock transliteration file")
 			// Add to output registry if available
 			if tsk.MergeOutputFiles {
 				featType := "transliteration"
-				if strings.HasSuffix(path, Tokenize.ToSuffix()) {
+				if strings.HasSuffix(path, Tokenize.ToSuffix(mockExt)) {
 					featType = "tokenization"
-				} else if strings.HasSuffix(path, Romanize.ToSuffix()) {
+				} else if strings.HasSuffix(path, Romanize.ToSuffix(mockExt)) {
 					featType = "romanization"
-				} else if strings.HasSuffix(path, Selective.ToSuffix()) {
+				} else if strings.HasSuffix(path, Selective.ToSuffix(mockExt)) {
 					featType = "selective_transliteration"
 				}
 				tsk.RegisterOutputFile(path, "subtitle", tsk.Targ, featType, 0)
@@ -145,13 +147,15 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	
 	// Record overall timing
 	startTime := time.Now()
-	
-	base := strings.TrimSuffix(tsk.TargSubFile, ".srt")
 
-	subsFilepathTokenized := base + Tokenize.ToSuffix()
-	subsFilepathTranslit  := base + Romanize.ToSuffix()
-	subsFilepathSelective := base + Selective.ToSuffix()
-	subsFilepathTokenizedSelective := base + TokenizedSelective.ToSuffix()
+	// Preserve the original subtitle format (e.g., .srt, .ass, .ssa)
+	inputExt := filepath.Ext(tsk.TargSubFile)
+	base := strings.TrimSuffix(tsk.TargSubFile, inputExt)
+
+	subsFilepathTokenized := base + Tokenize.ToSuffix(inputExt)
+	subsFilepathTranslit  := base + Romanize.ToSuffix(inputExt)
+	subsFilepathSelective := base + Selective.ToSuffix(inputExt)
+	subsFilepathTokenizedSelective := base + TokenizedSelective.ToSuffix(inputExt)
 	
 	outputTypes := []TranslitOutputType{
 		TranslitOutputType{Tokenize, "", subsFilepathTokenized, OutputTokenized, 70, "tokenization"},
@@ -229,8 +233,8 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 			Msg("Some transliteration outputs exist but others need to be generated")
 	}
 
-	// Get complete subtitle text
-	subtitleText := GetCompleteSubtitleText(tsk.TargSubs)
+	// Get complete subtitle text from TargSubsRaw (preserves all ASS styles for output)
+	subtitleText := GetCompleteSubtitleText(tsk.TargSubsRaw)
 	tsk.Handler.ZeroLog().Trace().Msgf("translit: subtitleText: len=%d", len(subtitleText))
 	
 	// Use the provider manager to get a provider and process the text
@@ -313,8 +317,8 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 			continue
 		}
 		
-		// Create and write subtitle
-		newSubs := CreateSubtitlesFromText(tsk.TargSubs, output.text)
+		// Create and write subtitle from TargSubsRaw (preserves all ASS styles)
+		newSubs := CreateSubtitlesFromText(tsk.TargSubsRaw, output.text)
 		if err := newSubs.Write(output.path); err != nil {
 			tsk.Handler.ZeroLog().Error().
 				Err(err).
@@ -344,11 +348,17 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 	return nil
 }
 
-// GetCompleteSubtitleText extracts all text from subtitles into a single string with splitters
+// GetCompleteSubtitleText extracts all text from subtitles into a single string with splitters.
+// For ASS/SSA files, only items with styles matching "Default" prefix are processed.
+// Other styles (positioned signs, animations, etc.) are skipped but preserved in the output.
 func GetCompleteSubtitleText(subs *subs.Subtitles) string {
 	var result strings.Builder
-	
+
 	for _, item := range (*subs).Subtitles.Items {
+		// Skip non-Default styles (e.g., positioned signs, animation frames)
+		if !isDefaultStyle(item) {
+			continue
+		}
 		for _, line := range item.Lines {
 			for _, lineItem := range line.Items {
 				result.WriteString(lineItem.Text)
@@ -356,21 +366,36 @@ func GetCompleteSubtitleText(subs *subs.Subtitles) string {
 			}
 		}
 	}
-	
+
 	return result.String()
 }
 
-// CreateSubtitlesFromText creates a new subtitle file from processed text
+// isDefaultStyle checks if an item's style matches the "Default" prefix.
+// Items without a style are treated as Default (common in SRT files).
+func isDefaultStyle(item *astisub.Item) bool {
+	if item.Style == nil {
+		return true // No style means default (e.g., SRT format)
+	}
+	return strings.HasPrefix(item.Style.ID, "Default")
+}
+
+// CreateSubtitlesFromText creates a new subtitle file from processed text.
+// Only items with styles matching "Default" prefix have their text replaced.
+// Other styles are preserved unchanged (positioned signs, animations, etc.).
 func CreateSubtitlesFromText(originalSubs *subs.Subtitles, processedText string) *subs.Subtitles {
 	// Create a deep copy of the original subtitles
 	newSubs := subs.DeepCopy(originalSubs)
-	
+
 	// Split the processed text into parts by splitter
 	parts := strings.Split(processedText, Splitter)
 	partIndex := 0
-	
+
 	// Apply processed parts to the subtitle structure
 	for i := range (*newSubs).Items {
+		// Skip non-Default styles - keep them unchanged
+		if !isDefaultStyle((*newSubs).Items[i]) {
+			continue
+		}
 		for j := range (*newSubs).Items[i].Lines {
 			for k := range (*newSubs).Items[i].Lines[j].Items {
 				if partIndex < len(parts) {
@@ -380,7 +405,7 @@ func CreateSubtitlesFromText(originalSubs *subs.Subtitles, processedText string)
 			}
 		}
 	}
-	
+
 	return newSubs
 }
 
@@ -880,23 +905,25 @@ func clean(s string) string{
 
 
 
-// CreateMockTransliterationFiles creates mock transliteration files for testing
+// CreateMockTransliterationFiles creates mock transliteration files for testing.
+// The output files preserve the extension of the input subtitle file.
 func CreateMockTransliterationFiles(subsFilepath string, types []TranslitType) ([]string, error) {
 	// Only run in test mode with mock providers
 	if os.Getenv("LANGKIT_USE_MOCK_PROVIDERS") != "true" {
 		return nil, nil
 	}
-	
+
 	outputs := []string{}
 	baseDir := filepath.Dir(subsFilepath)
-	baseName := strings.TrimSuffix(filepath.Base(subsFilepath), filepath.Ext(subsFilepath))
-	
+	ext := filepath.Ext(subsFilepath)
+	baseName := strings.TrimSuffix(filepath.Base(subsFilepath), ext)
+
 	// Create mock files for each requested type
 	for _, tlitType := range types {
-		outputPath := filepath.Join(baseDir, baseName + tlitType.ToSuffix())
-		
-		// Create a simple mock subtitle file
-		srtContent := `1
+		outputPath := filepath.Join(baseDir, baseName + tlitType.ToSuffix(ext))
+
+		// Create a simple mock subtitle file (SRT format works for both .srt and .ass testing)
+		mockContent := `1
 00:00:01,000 --> 00:00:04,000
 Mock ` + tlitType.String() + ` content line 1
 
@@ -908,15 +935,15 @@ Mock ` + tlitType.String() + ` content line 2
 00:00:09,000 --> 00:00:12,000
 [Mock ` + tlitType.String() + ` of ` + filepath.Base(subsFilepath) + `]
 `
-		err := os.WriteFile(outputPath, []byte(srtContent), 0644)
+		err := os.WriteFile(outputPath, []byte(mockContent), 0644)
 		if err != nil {
 			return outputs, fmt.Errorf("failed to write %s file: %w", tlitType.String(), err)
 		}
-		
+
 		outputs = append(outputs, outputPath)
 		fmt.Printf("Created mock transliteration file: %s\n", outputPath)
 	}
-	
+
 	return outputs, nil
 }
 

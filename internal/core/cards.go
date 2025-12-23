@@ -19,7 +19,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
 
-var AstisubSupportedExt = []string{".srt", ".ass", ".ssa", "vtt", ".stl", ".ttml"}
+var SupportedExt = []string{".srt", ".ass", ".ssa"}
 
 // Path utility functions
 func (tsk *Task) outputBase() string {
@@ -95,8 +95,8 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	// case where no STT is involved
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
 		if tsk.WantTranslit {
-			tsk.processClosedCaptions()
-			
+			tsk.prepareSubtitles()
+
 			if err := tsk.processTransliteration(ctx); err != nil {
 				return err
 			}
@@ -116,8 +116,8 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		es.MediaInfoDump = fmt.Sprintf("%+v", tsk.Meta.MediaInfo) // necessity: high
 	})
 
-	tsk.processClosedCaptions()
-	
+	tsk.prepareSubtitles()
+
 	if procErr := tsk.handleUserConfirmation(); procErr != nil {
 		return procErr
 	}
@@ -342,7 +342,7 @@ func (tsk *Task) Autosub() *ProcessingError {
 			continue
 		}
 		
-		if !slices.Contains(AstisubSupportedExt, ext) {
+		if !slices.Contains(SupportedExt, ext) {
 			tsk.Handler.ZeroLog().Debug().
 				Str("file", file.Name()).
 				Str("extension", ext).
@@ -593,15 +593,48 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 	return nil
 }
 
-// processClosedCaptions handles closed caption detection and processing
-func (tsk *Task) processClosedCaptions() {
-	// Check if subtitles are closed captions and process accordingly
+// prepareSubtitles handles subtitle preprocessing before feature processing.
+// This includes:
+// 1. CC bracket trimming for closed captions
+// 2. Deep copy to TargSubsRaw for transliteration (preserves all ASS styles)
+// 3. Filtering TargSubs to Default-style only for ASS/SSA files
+func (tsk *Task) prepareSubtitles() {
+	// Step 1: Check if subtitles are closed captions and trim brackets
 	if isClosedCaptions(tsk.TargSubFile) {
-		tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed into dubtitles.")
+		tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed.")
 		tsk.TargSubs.TrimCC2Dubs()
 	} else {
 		tsk.Handler.ZeroLog().Debug().Msg("Foreign subs are NOT detected as closed captions.")
 	}
+
+	// Step 2: Deep copy to TargSubsRaw for transliteration (preserves all styles)
+	tsk.TargSubsRaw = subs.DeepCopy(tsk.TargSubs)
+
+	// Step 3: Filter TargSubs to Default-style only for ASS/SSA files
+	// Other features (subs2cards, condense) only need dialogue, not positioned signs/animations
+	if isASSFormat(tsk.TargSubFile) {
+		beforeCount := len(tsk.TargSubs.Items)
+		tsk.TargSubs.FilterToDefaultStyle()
+		afterCount := len(tsk.TargSubs.Items)
+		if beforeCount != afterCount {
+			tsk.Handler.ZeroLog().Info().
+				Int("before", beforeCount).
+				Int("after", afterCount).
+				Msg("Filtered ASS subtitles to Default style only")
+
+			// Adjust totalItems for accurate progress bar (single-file mode only)
+			// In bulk mode, filtering was already done in routing.go during the scan
+			if !tsk.IsBulkProcess {
+				totalItems -= (beforeCount - afterCount)
+			}
+		}
+	}
+}
+
+// isASSFormat checks if the file is an ASS or SSA subtitle file
+func isASSFormat(file string) bool {
+	ext := strings.ToLower(filepath.Ext(file))
+	return ext == ".ass" || ext == ".ssa"
 }
 
 // handleUserConfirmation prompts the user for confirmation in specific cases

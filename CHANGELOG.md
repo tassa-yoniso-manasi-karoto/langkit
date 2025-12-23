@@ -27,6 +27,12 @@ Guidelines for LLMs updating this changelog from git history:
 - The use of em dashes as punctuation is absolutely forbidden
 -->
 
+## [1.1.0-alpha] - Unreleased
+
+### Added
+
+- Support for styled subtitle files (.ass/.ssa) commonly found in anime releases
+
 ## [1.0.1-alpha] - 2025-12-22
 
 ### Changed

@@ -109,8 +109,9 @@ type Task struct {
 	
 	// Subtitles
 	NativeSubs           *subs.Subtitles
-	TargSubs             *subs.Subtitles
-	
+	TargSubs             *subs.Subtitles    // Purified: Default-style only for ASS, CC-trimmed
+	TargSubsRaw          *subs.Subtitles    // Full structure (all styles) for transliteration
+
 	// Processing options
 	IsBulkProcess        bool
 	DubsOnly             bool
@@ -473,7 +474,8 @@ func (tsk *Task) DebugVals() string {
 	
 	cp.NativeSubs = &subs.Subtitles{}
 	cp.TargSubs = &subs.Subtitles{}
-	
+	cp.TargSubsRaw = &subs.Subtitles{}
+
 	// Create a sanitized copy of the file manager to avoid exposing the handler context
 	if cp.fileManager != nil {
 		sanitizedFileManager := &IntermediaryFileManager{
