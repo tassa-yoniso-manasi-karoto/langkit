@@ -330,16 +330,21 @@ func (tsk *Task) ApplyCLIFlags(cmd *cobra.Command) *ProcessingError {
 	
 	// Handle audio separation library aliases
 	switch tsk.SeparationLib {
-	// Docker-based local CPU
+	// Docker-based Demucs (local CPU)
 	case "dd", "docker-demucs":
 		tsk.SeparationLib = "docker-demucs"
 	case "ddf", "docker-demucs_ft":
 		tsk.SeparationLib = "docker-demucs_ft"
-	// Docker-based local GPU (NVIDIA)
+	// Docker-based Demucs (local GPU/NVIDIA)
 	case "dn", "docker-nvidia-demucs":
 		tsk.SeparationLib = "docker-nvidia-demucs"
 	case "dnf", "docker-nvidia-demucs_ft":
 		tsk.SeparationLib = "docker-nvidia-demucs_ft"
+	// Docker-based MelBand RoFormer (audio-separator)
+	case "kim", "docker-nvidia-mel-roformer-kim":
+		tsk.SeparationLib = "docker-nvidia-mel-roformer-kim"
+	case "kimc", "docker-mel-roformer-kim":
+		tsk.SeparationLib = "docker-mel-roformer-kim"
 	// Replicate API-based (cloud)
 	case "de", "demucs", "replicate-demucs":
 		tsk.SeparationLib = "replicate-demucs"

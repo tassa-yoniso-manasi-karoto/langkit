@@ -46,6 +46,8 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		InitTranslitService(logger)
 	}
 	
+	voice.Logger = *tsk.Handler.ZeroLog()
+	
 	// Register a deferred cleanup function to ensure TranslitProviderManager and Demucs
 	// are properly shut down for non-bulk processing tasks (bulk processing has its own cleanup)
 	if !tsk.IsBulkProcess {
@@ -57,6 +59,10 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			// Stop demucs container if it was started during this processing run
 			if err := voice.StopDemucsManager(); err != nil {
 				tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop Demucs container")
+			}
+			// Stop audio-separator container if it was started
+			if err := voice.StopAudioSeparatorManager(); err != nil {
+				tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop audio-separator container")
 			}
 		}()
 	}
@@ -123,12 +129,12 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	// Check disk space before starting processing.
 	// 10 GB minimum is required for temporary files, intermediate outputs, etc.
 	requiredDiskSpaceGB := 10
-	usingDockerDemucs := strings.Contains(tsk.SeparationLib, "docker")
-	if usingDockerDemucs {
+	usingDockerVoiceSep := strings.Contains(tsk.SeparationLib, "docker")
+	if usingDockerVoiceSep {
 		// Docker demucs image is ~7 GB compressed but expands to ~14 GB on disk,
 		// so we need 20 GB to safely accommodate the image plus processing headroom.
 		requiredDiskSpaceGB = 20
-		tsk.Handler.ZeroLog().Debug().Msg("Docker demucs detected, requiring 20 GB disk space")
+		tsk.Handler.ZeroLog().Debug().Msg("Docker voice separation detected, requiring 20 GB disk space")
 	}
 
 	// Get the directory to check (use parent directory if path is a file)
@@ -138,7 +144,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	}
 
 	// Check both media path and Docker data root (if using Docker demucs)
-	if err := fsutil.CheckDiskSpaceBoth(checkPath, requiredDiskSpaceGB, usingDockerDemucs, tsk.Handler.ZeroLog()); err != nil {
+	if err := fsutil.CheckDiskSpaceBoth(checkPath, requiredDiskSpaceGB, usingDockerVoiceSep, tsk.Handler.ZeroLog()); err != nil {
 		return tsk.Handler.LogErr(err, AbortAllTasks, "")
 	}
 
@@ -341,6 +347,10 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				if err := voice.StopDemucsManager(); err != nil {
 					tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop Demucs container after error")
 				}
+				// Stop audio-separator container if it was started
+				if err := voice.StopAudioSeparatorManager(); err != nil {
+					tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop audio-separator container after error")
+				}
 
 				return
 			}
@@ -363,6 +373,10 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		// Stop demucs container after bulk processing is complete
 		if err := voice.StopDemucsManager(); err != nil {
 			tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop Demucs container after bulk processing")
+		}
+		// Stop audio-separator container after bulk processing is complete
+		if err := voice.StopAudioSeparatorManager(); err != nil {
+			tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop audio-separator container after bulk processing")
 		}
 	}
 	tsk.Handler.ZeroLog().Debug().Msg("Routing completed successfully")

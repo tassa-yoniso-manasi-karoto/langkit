@@ -19,6 +19,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
+	"github.com/rs/zerolog"
 	
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -29,12 +30,18 @@ import (
 )
 
 var (
+	Logger = zerolog.Nop()
+	
 	APIKeys         = &sync.Map{}
 	CustomEndpoints = &sync.Map{}
 
 	// ErrCUDAOutOfMemory indicates GPU ran out of memory during processing.
 	// This error should not be retried - user needs to reduce segment duration.
 	ErrCUDAOutOfMemory = errors.New("CUDA out of memory")
+
+	// ErrModelDownloadFailed indicates model weights could not be downloaded.
+	// Usually due to network issues or the model server being unavailable.
+	ErrModelDownloadFailed = errors.New("model download failed")
 )
 
 func init() {
@@ -631,7 +638,7 @@ func buildRetryPolicy[R any](maxTry int) failsafe.Policy[R] {
 		WithBackoffFactor(500*time.Millisecond, 5*time.Second, 2.0).
 		// Log each failed attempt with more detailed error information.
 		OnRetry(func(evt failsafe.ExecutionEvent[R]) {
-			DemucsLogger.Warn().
+			Logger.Warn().
 				Int("attempt", evt.Attempts()).
 				Err(evt.LastError()).
 				Msg("Retry policy: attempt failed, retrying...")

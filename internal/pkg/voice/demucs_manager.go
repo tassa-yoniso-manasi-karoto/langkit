@@ -112,9 +112,6 @@ var (
 	demucsLastUsed    time.Time
 	demucsIdleTimeout = 30 * time.Minute
 	demucsWatcherOnce sync.Once
-
-	// DemucsLogger is the logger for demucs operations
-	DemucsLogger = zerolog.Nop()
 )
 
 // DemucsOptions holds configuration for demucs processing
@@ -271,7 +268,7 @@ func (dm *DemucsManager) removeStaleContainer(ctx context.Context) error {
 		// Only ignore "not found" errors
 		if !strings.Contains(err.Error(), "No such container") &&
 			!strings.Contains(err.Error(), "not found") {
-			DemucsLogger.Warn().Err(err).Str("container", dm.containerName).Msg("Failed to remove stale container")
+			Logger.Warn().Err(err).Str("container", dm.containerName).Msg("Failed to remove stale container")
 		}
 		return nil
 	}
@@ -279,7 +276,7 @@ func (dm *DemucsManager) removeStaleContainer(ctx context.Context) error {
 	// Brief pause to ensure Docker has processed the removal
 	time.Sleep(200 * time.Millisecond)
 
-	DemucsLogger.Debug().Str("container", dm.containerName).Msg("Removed stale container")
+	Logger.Debug().Str("container", dm.containerName).Msg("Removed stale container")
 	return nil
 }
 
@@ -398,7 +395,7 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		if mode == DemucsModeGPU {
 			modeStr = "GPU"
 		}
-		DemucsLogger.Info().
+		Logger.Info().
 			Str("mode", modeStr).
 			Msg("Docker recreate requested, stopping existing container")
 		(*instance).Stop(ctx)
@@ -411,7 +408,6 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		if h := ctx.Value(ProgressHandlerKey); h != nil {
 			if ph, ok := h.(ProgressHandler); ok {
 				handler = ph
-				DemucsLogger = *handler.ZeroLog()
 			}
 		}
 
@@ -428,7 +424,7 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		// Initialize container - use InitRecreate if explicitly requested
 		var initErr error
 		if wantRecreate {
-			DemucsLogger.Info().Msg("Recreating Docker container")
+			Logger.Info().Msg("Recreating Docker container")
 			initErr = mgr.InitRecreate(ctx)
 		} else {
 			initErr = mgr.Init(ctx)
@@ -436,7 +432,7 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 
 		// Handle name conflict errors reactively (instead of preemptive cleanup)
 		if initErr != nil && strings.Contains(initErr.Error(), "already in use") {
-			DemucsLogger.Warn().Msg("Container name conflict detected, cleaning up stale container and retrying")
+			Logger.Warn().Msg("Container name conflict detected, cleaning up stale container and retrying")
 			mgr.removeStaleContainer(ctx)
 			// Retry initialization
 			if wantRecreate {
@@ -497,7 +493,7 @@ func cleanupDemucsOutput(dm *DemucsManager) {
 	// Execute cleanup inside the container where we have root permissions
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		DemucsLogger.Warn().Err(err).Msg("Failed to create Docker client for cleanup")
+		Logger.Warn().Err(err).Msg("Failed to create Docker client for cleanup")
 		return
 	}
 	defer cli.Close()
@@ -510,16 +506,16 @@ func cleanupDemucsOutput(dm *DemucsManager) {
 
 	execID, err := cli.ContainerExecCreate(ctx, dm.containerName, execConfig)
 	if err != nil {
-		DemucsLogger.Warn().Err(err).Msg("Failed to create cleanup exec")
+		Logger.Warn().Err(err).Msg("Failed to create cleanup exec")
 		return
 	}
 
 	if err := cli.ContainerExecStart(ctx, execID.ID, container.ExecStartOptions{}); err != nil {
-		DemucsLogger.Warn().Err(err).Msg("Failed to execute cleanup command")
+		Logger.Warn().Err(err).Msg("Failed to execute cleanup command")
 		return
 	}
 
-	DemucsLogger.Debug().Str("container", dm.containerName).Msg("Cleaned up demucs input/output directories")
+	Logger.Debug().Str("container", dm.containerName).Msg("Cleaned up demucs input/output directories")
 }
 
 // IsDemucsAvailable checks if Docker is available for running demucs

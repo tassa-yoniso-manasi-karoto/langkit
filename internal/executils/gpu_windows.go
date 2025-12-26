@@ -186,6 +186,25 @@ func runWithTimeout(cmd *exec.Cmd, timeout time.Duration) (string, error) {
 	}
 }
 
+// GetNvidiaGPUName returns the name of the first NVIDIA GPU.
+// Returns empty string if nvidia-smi is not available or no GPU is found.
+func GetNvidiaGPUName() string {
+	cmd := exec.Command("nvidia-smi", "--query-gpu=name", "--format=csv,noheader")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
+	output, err := runWithTimeout(cmd, 5*time.Second)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+
+	return strings.TrimSpace(lines[0])
+}
+
 // GetNvidiaVRAMMiB returns the total VRAM in MiB for the first NVIDIA GPU.
 // Returns 0 if nvidia-smi is not available or no GPU is found.
 func GetNvidiaVRAMMiB() int {

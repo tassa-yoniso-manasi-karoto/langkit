@@ -22,12 +22,15 @@ import (
 
 
 var extPerProvider = map[string]string{
-	// Docker-based (local CPU)
+	// Docker-based Demucs (local CPU)
 	"docker-demucs":              "flac",
 	"docker-demucs_ft":           "flac",
-	// Docker-based (local GPU/NVIDIA)
+	// Docker-based Demucs (local GPU/NVIDIA)
 	"docker-nvidia-demucs":       "flac",
 	"docker-nvidia-demucs_ft":    "flac",
+	// Docker-based MelBand RoFormer (audio-separator)
+	"docker-mel-roformer-kim":        "flac",
+	"docker-nvidia-mel-roformer-kim": "flac",
 	// Replicate API-based (cloud)
 	"replicate-demucs":           "flac",
 	"replicate-demucs_ft":        "flac",

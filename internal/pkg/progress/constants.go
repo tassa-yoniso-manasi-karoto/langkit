@@ -15,6 +15,11 @@ const (
 	BarDemucsDockerDL = "demucs-docker-dl" // Docker image download (~7GB)
 	BarDemucsModelDL  = "demucs-model-dl"  // Model weights download
 
+	// Audio-separator / MelBand RoFormer bars
+	BarAudioSepProcess  = "audiosep-process"   // Voice separation processing
+	BarAudioSepDockerDL = "audiosep-docker-dl" // Docker image download
+	BarAudioSepModelDL  = "audiosep-model-dl"  // Model weights download
+
 	// Transliteration bars
 	BarTranslitProcess  = "translit-process"   // Romanization/tokenization processing
 	BarTranslitDockerDL = "translit-docker-dl" // Provider Docker image download

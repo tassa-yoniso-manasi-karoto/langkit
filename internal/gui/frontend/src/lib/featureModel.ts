@@ -70,6 +70,8 @@ export const sepLibGithubUrls: Record<string, string[]> = {
     'docker-demucs_ft':       ['https://github.com/Ryan5453/demucs', 'https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs'],
     'docker-nvidia-demucs':   ['https://github.com/Ryan5453/demucs', 'https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs'],
     'docker-nvidia-demucs_ft': ['https://github.com/Ryan5453/demucs', 'https://github.com/tassa-yoniso-manasi-karoto/langkit-docker-demucs'],
+    'docker-mel-roformer-kim': ['https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model', 'https://github.com/nomadkaraoke/python-audio-separator'],
+    'docker-nvidia-mel-roformer-kim': ['https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model', 'https://github.com/nomadkaraoke/python-audio-separator'],
     'replicate-demucs':       ['https://github.com/Ryan5453/demucs'],
     'replicate-demucs_ft':    ['https://github.com/Ryan5453/demucs'],
     'replicate-spleeter':     ['https://github.com/deezer/spleeter'],
@@ -81,6 +83,8 @@ export const sepLibDisplayNames: Record<string, string> = {
     'docker-demucs_ft':       'Demucs Fine-tuned',
     'docker-nvidia-demucs':   'Demucs',
     'docker-nvidia-demucs_ft': 'Demucs Fine-tuned',
+    'docker-mel-roformer-kim': 'MelBand RoFormer',
+    'docker-nvidia-mel-roformer-kim': 'MelBand RoFormer',
     'replicate-demucs':       'Demucs',
     'replicate-demucs_ft':    'Demucs Fine-tuned',
     'replicate-spleeter':     'Spleeter',
@@ -249,12 +253,14 @@ const featuresArray: FeatureDefinition[] = [
             sepLib: {
                 type: 'dropdown',
                 label: 'Voice separation library',
-                default: 'docker-demucs',
+                default: 'docker-nvidia-mel-roformer-kim',
                 choices: [
-                    'docker-demucs',
-                    'docker-demucs_ft',
+                    'docker-nvidia-mel-roformer-kim',
+                    'docker-mel-roformer-kim',
                     'docker-nvidia-demucs',
                     'docker-nvidia-demucs_ft',
+                    'docker-demucs',
+                    'docker-demucs_ft',
                     'replicate-demucs',
                     'replicate-demucs_ft',
                     'replicate-spleeter'
@@ -270,7 +276,7 @@ const featuresArray: FeatureDefinition[] = [
             voiceBoost: {
                 type: 'number',
                 label: 'Voice Boost (dB)',
-                default: 37,
+                default: 13,
                 step: 1
             },
             originalBoost: {

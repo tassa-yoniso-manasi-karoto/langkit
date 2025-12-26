@@ -925,11 +925,14 @@
             }
 
             // Adjust voiceBoost default based on provider type
-            // Docker/local providers output quieter audio, so they need higher boost (37 dB)
-            // Replicate providers output louder audio, so they need lower boost (13 dB)
+            // Docker-based Demucs outputs quieter audio, so needs higher boost (37 dB)
+            // Replicate and MelBand RoFormer output normal volume, so need lower boost (13 dB)
             const isReplicateProvider = value.startsWith('replicate-');
-            const newVoiceBoost = isReplicateProvider ? 13 : 37;
+            const isMelRoformerProvider = value.includes('mel-roformer');
+            const newVoiceBoost = (isReplicateProvider || isMelRoformerProvider) ? 13 : 37;
             currentFeatureOptions.voiceEnhancing.voiceBoost = newVoiceBoost;
+            // Trigger Svelte reactivity so the UI updates
+            currentFeatureOptions = {...currentFeatureOptions};
             logger.debug('FeatureSelector', 'Adjusted voiceBoost for provider', {
                 provider: value,
                 voiceBoost: newVoiceBoost

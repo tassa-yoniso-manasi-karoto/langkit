@@ -67,11 +67,11 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 
 	duration, err := media.GetAudioDurationSeconds(inputPath)
 	if err != nil {
-		DemucsLogger.Warn().Err(err).Msg("Could not determine audio duration, processing without splitting")
+		Logger.Warn().Err(err).Msg("Could not determine audio duration, processing without splitting")
 		return dm.processSingleFile(ctx, inputPath, inputDir, outputDir, opts, nil)
 	}
 
-	DemucsLogger.Debug().
+	Logger.Debug().
 		Float64("duration_seconds", duration).
 		Int("max_segment_seconds", maxSegmentSeconds).
 		Msg("Audio duration check")
@@ -83,7 +83,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 
 	// Audio is too long - split into segments
 	numSegments := int(duration/float64(maxSegmentSeconds)) + 1
-	DemucsLogger.Info().
+	Logger.Info().
 		Float64("duration_minutes", duration/60).
 		Int("max_segment_minutes", maxSegmentMinutes).
 		Int("num_segments", numSegments).
@@ -107,7 +107,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 		return nil, fmt.Errorf("failed to split audio: %w", err)
 	}
 
-	DemucsLogger.Debug().
+	Logger.Debug().
 		Int("num_segments", len(segments)).
 		Strs("segments", segments).
 		Msg("Audio split into segments")
@@ -126,7 +126,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 			return nil, err
 		}
 
-		DemucsLogger.Info().
+		Logger.Info().
 			Int("segment", i+1).
 			Int("total", totalSegments).
 			Str("file", filepath.Base(segment)).
@@ -175,7 +175,7 @@ func (dm *DemucsManager) ProcessAudio(ctx context.Context, inputPath string, opt
 		return nil, fmt.Errorf("failed to read final output: %w", err)
 	}
 
-	DemucsLogger.Info().
+	Logger.Info().
 		Int("segments_processed", len(segments)).
 		Int("output_size", len(result)).
 		Msg("Successfully processed and concatenated all segments")
@@ -232,7 +232,7 @@ func (dm *DemucsManager) processSingleFile(ctx context.Context, inputPath, input
 	cmdArgs = append(cmdArgs, "/data/input/"+inputFilename)
 
 	// Execute command in container
-	DemucsLogger.Debug().
+	Logger.Debug().
 		Str("cmd", strings.Join(cmdArgs, "")).
 		Str("container", dm.containerName).
 		Msg("Executing demucs command")
@@ -241,7 +241,7 @@ func (dm *DemucsManager) processSingleFile(ctx context.Context, inputPath, input
 	var progressCb ProgressCallback
 	if h := ctx.Value(ProgressHandlerKey); h != nil {
 		if handler, ok := h.(ProgressHandler); ok {
-			DemucsLogger.Debug().Msg("Progress handler found in context")
+			Logger.Debug().Msg("Progress handler found in context")
 			downloadTaskID := progress.BarDemucsModelDL
 			processTaskID := progress.BarDemucsProcess
 			var lastDownloadPercent int
@@ -256,7 +256,7 @@ func (dm *DemucsManager) processSingleFile(ctx context.Context, inputPath, input
 			}
 
 			progressCb = func(update ProgressUpdate) {
-				DemucsLogger.Trace().
+				Logger.Trace().
 					Int("phase", int(update.Phase)).
 					Int("percent", update.Percent).
 					Int("currentPhase", int(currentPhase)).
@@ -313,15 +313,21 @@ func (dm *DemucsManager) processSingleFile(ctx context.Context, inputPath, input
 	// Write demucs output to temp log file instead of logger (can be very large)
 	logFile := filepath.Join(os.TempDir(), fmt.Sprintf("demucs_%d.log", time.Now().Unix()))
 	if writeErr := os.WriteFile(logFile, []byte(output), 0644); writeErr == nil {
-		DemucsLogger.Debug().Str("log_file", logFile).Msg("Demucs command completed")
+		Logger.Debug().Str("log_file", logFile).Msg("Demucs command completed")
 	} else {
-		DemucsLogger.Debug().Msg("Demucs command completed")
+		Logger.Debug().Msg("Demucs command completed")
 	}
 	
 	if err != nil {
 		// Check for CUDA OOM error (handled upstream in enhance.go with helpful message)
 		if strings.Contains(output, "CUDA out of memory") {
 			return nil, ErrCUDAOutOfMemory
+		}
+		// Check for model download failure (network issues)
+		if strings.Contains(output, "Failed to download") ||
+			strings.Contains(output, "ConnectionError") ||
+			strings.Contains(output, "NewConnectionError") {
+			return nil, ErrModelDownloadFailed
 		}
 		return nil, fmt.Errorf("demucs execution failed: %w\nOutput: %s", err, output)
 	}
@@ -337,7 +343,7 @@ func (dm *DemucsManager) processSingleFile(ctx context.Context, inputPath, input
 	// The vocals file will be at: output/<model>/<trackname>/vocals.<ext>
 	vocalsPath := filepath.Join(outputDir, model, trackName, stems+"."+outputFormat)
 
-	DemucsLogger.Debug().Str("vocals_path", vocalsPath).Msg("Looking for output file")
+	Logger.Debug().Str("vocals_path", vocalsPath).Msg("Looking for output file")
 
 	// Read the output file
 	audioData, err := os.ReadFile(vocalsPath)
@@ -432,7 +438,7 @@ func (dm *DemucsManager) execInContainerWithProgress(ctx context.Context, cmd []
 			if progressCb != nil {
 				phase, pct := parseDemucsProgress(chunk, currentPhase)
 				if pct >= 0 {
-					DemucsLogger.Trace().
+					Logger.Trace().
 						Int("parsed_phase", int(phase)).
 						Int("parsed_pct", pct).
 						Int("current_phase", int(currentPhase)).

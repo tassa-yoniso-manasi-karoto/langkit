@@ -162,6 +162,11 @@ func (f *ProviderFactory) GetAudioSeparationProvider(name string) (AudioSeparati
 		return NewDockerDemucsProvider(false, true), nil
 	case "docker-nvidia-demucs_ft":
 		return NewDockerDemucsProvider(true, true), nil
+	// MelBand RoFormer (audio-separator) - Docker-based
+	case "docker-mel-roformer-kim":
+		return NewAudioSeparatorProvider(false), nil
+	case "docker-nvidia-mel-roformer-kim":
+		return NewAudioSeparatorProvider(true), nil
 	default:
 		return nil, fmt.Errorf("unknown audio separation provider: %s", name)
 	}
