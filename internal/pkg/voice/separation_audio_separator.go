@@ -72,8 +72,25 @@ func (p *AudioSeparatorProvider) SeparateVoice(ctx context.Context, audioFile, o
 		return nil, fmt.Errorf("failed to get audio-separator manager: %w", err)
 	}
 
-	// Build retry policy
-	policy := buildRetryPolicy[[]byte](maxTry)
+	// Extract progress handler from context for cleanup
+	var handler ProgressHandler
+	if h := ctx.Value(ProgressHandlerKey); h != nil {
+		handler, _ = h.(ProgressHandler)
+	}
+
+	// Create download expectation for cleanup on retry
+	expectation := &DownloadExpectation{
+		ModelDir:   manager.modelsDir,
+		ModelFiles: AudioSepModelFiles[audioSepModelFilename],
+		ProgressBars: []string{
+			progress.BarAudioSepModelDL,
+			progress.BarAudioSepProcess,
+		},
+		Handler: handler,
+	}
+
+	// Build retry policy with cleanup
+	policy := buildRetryPolicyWithCleanup[[]byte](maxTry, expectation)
 
 	// Execute with retry policy
 	audioBytes, err := failsafe.Get(func() ([]byte, error) {
@@ -193,15 +210,23 @@ func (p *AudioSeparatorProvider) processAudio(ctx context.Context, manager *Audi
 		if strings.Contains(output, "CUDA out of memory") {
 			return nil, ErrCUDAOutOfMemory
 		}
+		// Network errors or incomplete/unreadable model files - all should trigger re-download
 		if strings.Contains(output, "Failed to download file") ||
 			strings.Contains(output, "ConnectionError") ||
-			strings.Contains(output, "NewConnectionError") {
+			strings.Contains(output, "NewConnectionError") ||
+			strings.Contains(output, "PytorchStreamReader failed") ||
+			strings.Contains(output, "failed finding central directory") {
 			return nil, ErrModelDownloadFailed
 		}
 		return nil, fmt.Errorf("audio-separator execution failed: %w\nOutput: %s", err, output)
 	}
 	if strings.Contains(output, "CUDA out of memory") {
 		return nil, ErrCUDAOutOfMemory
+	}
+	// Also check for unreadable model even without exec error (audio-separator may report and exit 0)
+	if strings.Contains(output, "PytorchStreamReader failed") ||
+		strings.Contains(output, "failed finding central directory") {
+		return nil, ErrModelDownloadFailed
 	}
 
 	// Find the output file

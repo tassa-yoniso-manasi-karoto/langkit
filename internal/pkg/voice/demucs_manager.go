@@ -41,7 +41,7 @@ func (m DemucsMode) containerName() string {
 }
 
 // buildComposeProject creates the compose project definition for demucs
-func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project {
+func (m DemucsMode) buildComposeProject(configDir, modelsDir string) *composetypes.Project {
 	// Network name follows Docker Compose convention: {project}_{network}
 	defaultNetworkName := m.projectName() + "_default"
 
@@ -65,7 +65,7 @@ func (m DemucsMode) buildComposeProject(configDir string) *composetypes.Project 
 			},
 			{
 				Type:   composetypes.VolumeTypeBind,
-				Source: filepath.Join(configDir, "models"),
+				Source: modelsDir,
 				Target: "/root/.demucs/models", // demucs-next ignores TORCH_HOME, uses ~/.demucs/models
 			},
 		},
@@ -145,6 +145,7 @@ type DemucsManager struct {
 	projectName   string
 	containerName string
 	configDir     string
+	modelsDir     string
 }
 
 // NewDemucsManager creates a new Demucs manager instance with specified mode
@@ -164,15 +165,21 @@ func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 		return nil, fmt.Errorf("failed to get config directory: %w", err)
 	}
 
-	// Ensure volume directories exist
-	for _, subdir := range []string{"input", "output", "models"} {
+	// Get shared models directory (migration is handled by GetDemucsManager before creating manager)
+	modelsDir, err := GetDemucsModelsDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get models directory: %w", err)
+	}
+
+	// Ensure volume directories exist (models dir is now shared, not per-container)
+	for _, subdir := range []string{"input", "output"} {
 		if err := os.MkdirAll(filepath.Join(configDir, subdir), 0755); err != nil {
 			return nil, fmt.Errorf("failed to create %s directory: %w", subdir, err)
 		}
 	}
 
-	// Build compose project
-	project := mode.buildComposeProject(configDir)
+	// Build compose project with shared models directory
+	project := mode.buildComposeProject(configDir, modelsDir)
 
 	logConfig := dockerutil.LogConfig{
 		Prefix:      manager.projectName,
@@ -204,6 +211,7 @@ func NewDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 	manager.docker = dockerManager
 	manager.logger = logger
 	manager.configDir = configDir
+	manager.modelsDir = modelsDir
 
 	return manager, nil
 }
@@ -379,6 +387,15 @@ func GetDemucsManager(ctx context.Context, mode DemucsMode) (*DemucsManager, err
 	wantRecreate := false
 	if val, ok := ctx.Value(DockerRecreateKey).(bool); ok {
 		wantRecreate = val
+	}
+
+	// Run migration from old per-container directories to shared location.
+	// If migration occurred, containers need recreation to use new volume mounts.
+	if migrated, err := MigrateDemucsModels(); err != nil {
+		Logger.Warn().Err(err).Msg("Model migration had issues, continuing anyway")
+	} else if migrated {
+		Logger.Info().Msg("Model files migrated to shared directory, containers will be recreated")
+		wantRecreate = true
 	}
 
 	// Select the appropriate instance based on mode

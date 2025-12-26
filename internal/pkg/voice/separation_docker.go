@@ -11,6 +11,7 @@ import (
 	"github.com/failsafe-go/failsafe-go"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
 )
 
 // DemucsMaxSegmentMinutes is the maximum segment duration for demucs processing.
@@ -133,8 +134,25 @@ func (p *DockerDemucsProvider) SeparateVoice(ctx context.Context, audioFile, out
 		opts.MaxSegmentMinutes = DemucsMaxSegmentMinutes
 	}
 
-	// Build a retry policy for the processing
-	policy := buildRetryPolicy[[]byte](maxTry)
+	// Extract progress handler from context for cleanup
+	var handler ProgressHandler
+	if h := ctx.Value(ProgressHandlerKey); h != nil {
+		handler, _ = h.(ProgressHandler)
+	}
+
+	// Create download expectation for cleanup on retry
+	expectation := &DownloadExpectation{
+		ModelDir:   manager.modelsDir,
+		ModelFiles: DemucsModelFiles[opts.Model],
+		ProgressBars: []string{
+			progress.BarDemucsModelDL,
+			progress.BarDemucsProcess,
+		},
+		Handler: handler,
+	}
+
+	// Build retry policy with cleanup
+	policy := buildRetryPolicyWithCleanup[[]byte](maxTry, expectation)
 
 	// Execute with retry policy
 	audioBytes, err := failsafe.Get(func() ([]byte, error) {
