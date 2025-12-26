@@ -117,7 +117,7 @@ This feature works by merging the original audiotrack with negative gain togethe
 |--------------------------------|---------|-------|----------|------|
 | **LOCAL GPU** <img src="internal/docker.svg" height="16"><img src="internal/nvidia.svg" height="16"> | ———— | ————— | ———— | ———————————————— |
 | docker-nvidia-mel-roformer-kim, kim | excellent (12.6) | FREE | 4GB | **Recommended** - 4-5x slower than Demucs |
-| docker-nvidia-demucs, dn       | good (9.9) | FREE | 2GB | Good enough for most usage cases |
+| docker-nvidia-demucs, dn       | good (9.9) | FREE | 2GB | Good enough for most usage cases but sometime leaves static/hiss  |
 | docker-nvidia-demucs_ft, dnf   | good (10.8) | FREE | 2GB | <sub>Fine-tuned version: "takes 4 times longer but might be a bit better".</sub> |
 | **LOCAL CPU** <img src="internal/docker.svg" height="16"> | ———— | ————— | ———— | ———————————————— |
 | docker-mel-roformer-kim, kimc  | excellent (12.6) | FREE | ———— | Best quality, extremely slow on CPU |
