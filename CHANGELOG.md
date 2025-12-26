@@ -31,6 +31,7 @@ Guidelines for LLMs updating this changelog from git history:
 
 ### Added
 
+- New default voice separation model: MelBand RoFormer. ~40% better quality than Demucs, requires 4GB VRAM
 - Support for styled subtitle files (.ass/.ssa) commonly found in anime releases
 
 ## [1.0.1-alpha] - 2025-12-22
