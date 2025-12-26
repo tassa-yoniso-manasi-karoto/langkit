@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	nurl "net/url"
@@ -21,10 +20,6 @@ import (
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 	"github.com/olekukonko/tablewriter"
-
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
@@ -185,121 +180,58 @@ func SanitizeBuffer(content []byte, settings config.Settings) []byte {
 	return []byte(str)
 }
 
-// DockerNslookupCheck uses the Docker API to run "nslookup <domain>" in a BusyBox
-// container. This check is intended to reveal any Docker-specific networking issues.
+// DockerNslookupCheck runs "nslookup <domain>" in a BusyBox container via Docker CLI.
+// This check is intended to reveal any Docker-specific networking issues.
+// Uses Docker CLI instead of Go SDK for better Windows compatibility.
 func DockerNslookupCheck(w io.Writer, domain string) {
-	ctx := context.Background()
 	finalMsg := "Docker connectivity check: "
 
-	cli, err := client.NewClientWithOpts(
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-	)
-	if err != nil {
-		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to create Docker client (%v)\n", err))
-		log.Trace().Msgf("[docker-nslookup] Error creating Docker client: %v", err)
-		return
-	}
-	defer func() {
-		if err := cli.Close(); err != nil {
-			log.Trace().Msgf("[docker-nslookup] Docker client close error: %v", err)
-		}
-	}()
+	// Use Docker CLI with timeout - this is more reliable on Windows than the Go SDK
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	// Check if the busybox image is already available locally.
-	_, _, err = cli.ImageInspectWithRaw(ctx, "busybox:latest")
+	log.Trace().Msgf("[docker-nslookup] Running nslookup %s via Docker CLI...", domain)
+
+	// docker run --rm busybox nslookup <domain>
+	// --rm ensures container is removed after exit
+	cmd := executils.CommandContext(ctx, "docker", "run", "--rm", "busybox", "nslookup", domain)
+	output, err := cmd.CombinedOutput()
+
 	if err != nil {
-		// If not found, pull the busybox image.
-		log.Trace().Msg("[docker-nslookup] busybox image not found locally, pulling busybox:latest...")
-		pullResp, err := cli.ImagePull(ctx, "docker.io/library/busybox:latest", image.PullOptions{})
-		if err != nil {
-			fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to pull busybox image (%v)\n", err))
-			log.Trace().Msgf("[docker-nslookup] Error pulling busybox image: %v", err)
+		// Check if it's a context timeout
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintf(w, finalMsg+color.Red.Sprintf("timed out after 30s\n"))
+			log.Trace().Msg("[docker-nslookup] Timed out")
 			return
 		}
-		// Read the response completely to ensure the pull finishes.
-		_, _ = io.Copy(ioutil.Discard, pullResp)
-		_ = pullResp.Close()
-	} else {
-		log.Trace().Msg("[docker-nslookup] busybox image found locally; skipping pull.")
-	}
-
-	// Create a new container for the nslookup command.
-	log.Trace().Msgf("[docker-nslookup] Creating container for nslookup %s...", domain)
-	ctr, err := cli.ContainerCreate(
-		ctx,
-		&container.Config{
-			Image: "busybox",
-			Cmd:   []string{"nslookup", domain},
-			Tty:   false,
-		},
-		nil, nil, nil, "",
-	)
-	if err != nil {
-		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to create container (%v)\n", err))
-		log.Trace().Msgf("[docker-nslookup] Error creating container: %v", err)
-		return
-	}
-	// Remove the container once finished.
-	defer func() {
-		_ = cli.ContainerRemove(ctx, ctr.ID, container.RemoveOptions{Force: true})
-	}()
-
-	// Start the container.
-	log.Trace().Msgf("[docker-nslookup] Starting container %s...", ctr.ID)
-	if err := cli.ContainerStart(ctx, ctr.ID, container.StartOptions{}); err != nil {
-		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to start container (%v)\n", err))
-		log.Trace().Msgf("[docker-nslookup] Error starting container: %v", err)
-		return
-	}
-
-	// Wait for the container to finish.
-	log.Trace().Msg("[docker-nslookup] Waiting for container to exit...")
-	statusCh, errCh := cli.ContainerWait(ctx, ctr.ID, container.WaitConditionNotRunning)
-	select {
-	case err := <-errCh:
-		if err != nil {
-			fmt.Fprintf(w, finalMsg + color.Red.Sprintf("error waiting for container (%v)\n", err))
-			log.Trace().Msgf("[docker-nslookup] Error waiting for container: %v", err)
-			return
+		// Docker command failed - could be Docker not running, image pull failed, or DNS failure
+		errMsg := string(output)
+		if strings.Contains(errMsg, "Cannot connect to the Docker daemon") ||
+			strings.Contains(errMsg, "docker daemon is not running") ||
+			strings.Contains(errMsg, "pipe/docker_engine") {
+			fmt.Fprintf(w, finalMsg+color.Red.Sprintf("Docker daemon not running\n"))
+		} else if strings.Contains(errMsg, "pull access denied") ||
+			strings.Contains(errMsg, "manifest unknown") {
+			fmt.Fprintf(w, finalMsg+color.Red.Sprintf("failed to pull busybox image\n"))
+		} else {
+			fmt.Fprintf(w, finalMsg+color.Red.Sprintf("failed (%v)\n", err))
 		}
-	case status := <-statusCh:
-		log.Trace().Msgf("[docker-nslookup] Container exited with code %d", status.StatusCode)
-		if status.StatusCode != 0 {
-			fmt.Fprintf(w, finalMsg + color.Red.Sprintf("nslookup failed (exit code %d)\n", status.StatusCode))
-			return
-		}
-	}
-
-	// Fetch the container logs.
-	log.Trace().Msg("[docker-nslookup] Fetching container logs...")
-	logs, err := cli.ContainerLogs(ctx, ctr.ID, container.LogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-	})
-	if err != nil {
-		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("failed to retrieve logs (%v)\n", err))
-		log.Trace().Msgf("[docker-nslookup] Error retrieving logs: %v", err)
-		return
-	}
-	defer logs.Close()
-
-	logOutput, err := ioutil.ReadAll(logs)
-	if err != nil {
-		fmt.Fprintf(w, finalMsg + color.Red.Sprintf("error reading logs (%v)\n", err))
-		log.Trace().Msgf("[docker-nslookup] Error reading logs: %v", err)
+		log.Trace().Err(err).Str("output", errMsg).Msg("[docker-nslookup] Command failed")
 		return
 	}
 
-	if len(logOutput) == 0 {
+	// Parse output to determine success
+	outputStr := string(output)
+	log.Trace().Str("output", outputStr).Msg("[docker-nslookup] Command succeeded")
+
+	if len(outputStr) == 0 {
 		finalMsg += color.Red.Sprint("nslookup produced no output")
-	} else if containsError(string(logOutput)) {
+	} else if containsError(outputStr) {
 		finalMsg += color.Red.Sprint("nslookup failed (DNS error)")
 	} else {
 		finalMsg += color.Green.Sprint("nslookup succeeded (network available)")
 	}
 
-	// Write the summary to the crash report.
 	fmt.Fprintln(w, finalMsg)
 	log.Trace().Msgf("[docker-nslookup] Final result: %s", finalMsg)
 }

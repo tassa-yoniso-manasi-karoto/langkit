@@ -14,6 +14,8 @@ import (
 	"github.com/gookit/color"
 	"github.com/schollz/progressbar/v3"
 
+	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/fsutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
@@ -135,6 +137,16 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 		// so we need 20 GB to safely accommodate the image plus processing headroom.
 		requiredDiskSpaceGB = 20
 		tsk.Handler.ZeroLog().Debug().Msg("Docker voice separation detected, requiring 20 GB disk space")
+	}
+
+	// Pre-pull busybox for maintenance tasks (migration, cleanup) if Docker is available
+	if dockerutil.EngineIsReachable() == nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			cmd := executils.CommandContext(ctx, "docker", "pull", "-q", "busybox")
+			_ = cmd.Run() // Best effort, ignore errors
+		}()
 	}
 
 	// Get the directory to check (use parent directory if path is a file)
