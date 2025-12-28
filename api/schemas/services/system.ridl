@@ -11,6 +11,11 @@ struct SystemInfo
 struct VersionInfo
   - version: string
 
+struct NvidiaGPUInfo
+  - available: bool        # Whether an NVIDIA GPU with drivers is detected
+  - name: string           # GPU name (e.g., "NVIDIA GeForce RTX 3080"), empty if not available
+  - vramMiB: int64         # Total VRAM in MiB, 0 if not available
+
 service SystemService
   # Get system information (OS and architecture)
   - GetSystemInfo() => (info: SystemInfo)
@@ -26,3 +31,6 @@ service SystemService
 
   # Show a warning dialog to the user (returns true if acknowledged)
   - ShowWarning(title: string, message: string) => (acknowledged: bool)
+
+  # Get NVIDIA GPU information (VRAM, name, availability)
+  - GetNvidiaGPUInfo() => (info: NvidiaGPUInfo)

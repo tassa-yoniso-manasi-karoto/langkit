@@ -21,8 +21,10 @@
         updateFeatureChoices,
         summaryProvidersStore,
         summaryModelsStore,
+        sepLibVRAMRequirements,
         type RomanizationScheme
     } from '../lib/featureModel';
+    import { nvidiaGPUStore } from '../lib/nvidiaGPUStore';
     import { 
         featureGroupStore, 
         type FeatureGroup,
@@ -780,8 +782,37 @@
             } else {
                 invalidationErrorStore.removeError('provider-voiceEnhancing');
             }
+
+            // Check VRAM insufficiency when GPU acceleration is enabled
+            const useNvidiaGPU = currentFeatureOptions.voiceEnhancing.useNvidiaGPU;
+            if (useNvidiaGPU && sepLib && sepLib.startsWith('docker-')) {
+                const gpuStatus = get(nvidiaGPUStore);
+                const baseModelName = sepLib.replace('docker-', '');
+                const requiredVRAM = sepLibVRAMRequirements[baseModelName] || 0;
+
+                if (!gpuStatus.available) {
+                    invalidationErrorStore.addError({
+                        id: 'vram-insufficient',
+                        message: 'GPU acceleration is enabled but no NVIDIA GPU was detected. Disable GPU acceleration or install NVIDIA drivers.',
+                        severity: 'critical'
+                    });
+                } else if (gpuStatus.vramMiB < requiredVRAM) {
+                    const requiredGB = Math.ceil(requiredVRAM / 1024);
+                    const availableGB = (gpuStatus.vramMiB / 1024).toFixed(1);
+                    invalidationErrorStore.addError({
+                        id: 'vram-insufficient',
+                        message: `Insufficient VRAM: ${baseModelName} requires ~${requiredGB}GB but only ${availableGB}GB available. Disable GPU acceleration to use CPU mode instead.`,
+                        severity: 'critical'
+                    });
+                } else {
+                    invalidationErrorStore.removeError('vram-insufficient');
+                }
+            } else {
+                invalidationErrorStore.removeError('vram-insufficient');
+            }
         } else {
             invalidationErrorStore.removeError('provider-voiceEnhancing');
+            invalidationErrorStore.removeError('vram-insufficient');
         }
     }
 
@@ -931,6 +962,30 @@
             const isMelRoformerProvider = value.includes('mel-roformer');
             const newVoiceBoost = (isReplicateProvider || isMelRoformerProvider) ? 13 : 37;
             currentFeatureOptions.voiceEnhancing.voiceBoost = newVoiceBoost;
+
+            // Auto-enable GPU acceleration if this is a Docker provider and we have enough VRAM
+            const isDockerProvider = value.startsWith('docker-');
+            if (isDockerProvider) {
+                const gpuStatus = get(nvidiaGPUStore);
+                // Extract base model name from sepLib (e.g., 'docker-mel-roformer-kim' -> 'mel-roformer-kim')
+                const baseModelName = value.replace('docker-', '');
+                const requiredVRAM = sepLibVRAMRequirements[baseModelName] || 0;
+                const hasEnoughVRAM = gpuStatus.available && gpuStatus.vramMiB >= requiredVRAM;
+
+                // Auto-enable GPU if we have enough VRAM
+                currentFeatureOptions.voiceEnhancing.useNvidiaGPU = hasEnoughVRAM;
+                logger.debug('FeatureSelector', 'Auto-set GPU acceleration', {
+                    provider: value,
+                    gpuAvailable: gpuStatus.available,
+                    vramMiB: gpuStatus.vramMiB,
+                    requiredVRAM,
+                    autoEnabled: hasEnoughVRAM
+                });
+            } else {
+                // Disable GPU for non-Docker providers (replicate)
+                currentFeatureOptions.voiceEnhancing.useNvidiaGPU = false;
+            }
+
             // Trigger Svelte reactivity so the UI updates
             currentFeatureOptions = {...currentFeatureOptions};
             logger.debug('FeatureSelector', 'Adjusted voiceBoost for provider', {
@@ -938,7 +993,13 @@
                 voiceBoost: newVoiceBoost
             });
         }
-        
+
+        // Trigger VRAM check when useNvidiaGPU changes
+        if (featureId === 'voiceEnhancing' && optionId === 'useNvidiaGPU') {
+            logger.debug('FeatureSelector', 'GPU acceleration toggled', { enabled: value });
+            debouncedUpdateProviderWarnings();
+        }
+
         // Handle group option changes
         if (isGroupOption && groupId) {
             logger.debug('FeatureSelector', 'Received group option change', { 
@@ -1109,7 +1170,32 @@
     
     // Reactive statements
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
-    
+
+    // Auto-enable GPU acceleration when NVIDIA GPU check completes
+    $: if ($nvidiaGPUStore.checked && currentFeatureOptions?.voiceEnhancing) {
+        const sepLib = currentFeatureOptions.voiceEnhancing.sepLib as string;
+        if (sepLib && sepLib.startsWith('docker-')) {
+            const baseModelName = sepLib.replace('docker-', '');
+            const requiredVRAM = sepLibVRAMRequirements[baseModelName] || 0;
+            const hasEnoughVRAM = $nvidiaGPUStore.available && $nvidiaGPUStore.vramMiB >= requiredVRAM;
+
+            // Only auto-enable if not already set and we have enough VRAM
+            if (currentFeatureOptions.voiceEnhancing.useNvidiaGPU === undefined ||
+                currentFeatureOptions.voiceEnhancing.useNvidiaGPU === false) {
+                if (hasEnoughVRAM) {
+                    currentFeatureOptions.voiceEnhancing.useNvidiaGPU = true;
+                    currentFeatureOptions = {...currentFeatureOptions};
+                    logger.info('FeatureSelector', 'Auto-enabled GPU acceleration on startup', {
+                        gpuName: $nvidiaGPUStore.name,
+                        vramMiB: $nvidiaGPUStore.vramMiB,
+                        requiredVRAM,
+                        model: baseModelName
+                    });
+                }
+            }
+        }
+    }
+
     // React to ALL changes to quickAccessLangTag (whether from user input or settings)
     let lastProcessedLangTag = '';
     $: if (quickAccessLangTag !== lastProcessedLangTag && isInitialDataLoaded) {

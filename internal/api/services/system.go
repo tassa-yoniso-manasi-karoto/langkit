@@ -9,6 +9,7 @@ import (
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/ui/dialogs"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/version"
@@ -85,4 +86,16 @@ func (s *SystemService) ShowWarning(ctx context.Context, title string, message s
 		return false, err
 	}
 	return acknowledged, nil
+}
+
+// GetNvidiaGPUInfo returns NVIDIA GPU information (availability, name, VRAM)
+func (s *SystemService) GetNvidiaGPUInfo(ctx context.Context) (*generated.NvidiaGPUInfo, error) {
+	vramMiB := executils.GetNvidiaVRAMMiB()
+	gpuName := executils.GetNvidiaGPUName()
+
+	return &generated.NvidiaGPUInfo{
+		Available: vramMiB > 0 && gpuName != "",
+		Name:      gpuName,
+		VramMiB:   int64(vramMiB),
+	}, nil
 }

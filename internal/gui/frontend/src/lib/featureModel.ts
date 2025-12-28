@@ -90,6 +90,16 @@ export const sepLibDisplayNames: Record<string, string> = {
     'replicate-spleeter':     'Spleeter',
 };
 
+// VRAM requirements in MiB for GPU-accelerated voice separation models
+// Used for auto-enabling GPU checkbox and VRAM insufficiency warnings
+// Note: Values are set slightly below marketed sizes because GPUs report
+// actual capacity which is often less (e.g., "4GB" card reports ~3900 MiB)
+export const sepLibVRAMRequirements: Record<string, number> = {
+    'mel-roformer-kim': 3800,  // Requires ~4GB card
+    'demucs':           1900,  // Requires ~2GB card
+    'demucs_ft':        1900,  // Requires ~2GB card
+};
+
 // Define the features with their options
 // Define common merge options for reference
 const commonMergeOptions = {
@@ -253,18 +263,22 @@ const featuresArray: FeatureDefinition[] = [
             sepLib: {
                 type: 'dropdown',
                 label: 'Voice separation library',
-                default: 'docker-nvidia-mel-roformer-kim',
+                default: 'docker-mel-roformer-kim',
                 choices: [
-                    'docker-nvidia-mel-roformer-kim',
                     'docker-mel-roformer-kim',
-                    'docker-nvidia-demucs',
-                    'docker-nvidia-demucs_ft',
                     'docker-demucs',
                     'docker-demucs_ft',
                     'replicate-demucs',
                     'replicate-demucs_ft',
                     'replicate-spleeter'
                 ]
+            },
+            useNvidiaGPU: {
+                type: 'boolean',
+                label: 'Use NVIDIA GPU acceleration',
+                default: false,
+                hovertip: 'Enable GPU acceleration for faster voice separation. Requires an NVIDIA GPU with sufficient VRAM.',
+                showCondition: "context.voiceEnhancingNeedsDocker"
             },
             dockerRecreate: {
                 type: 'boolean',

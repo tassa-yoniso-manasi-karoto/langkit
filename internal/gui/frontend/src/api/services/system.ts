@@ -101,3 +101,37 @@ export async function ShowWarning(title: string, message: string): Promise<boole
         throw error;
     }
 }
+
+/**
+ * NvidiaGPUInfo represents NVIDIA GPU information
+ */
+export interface NvidiaGPUInfo {
+    available: boolean;  // Whether an NVIDIA GPU with drivers is detected
+    name: string;        // GPU name (e.g., "NVIDIA GeForce RTX 3080"), empty if not available
+    vramMiB: number;     // Total VRAM in MiB, 0 if not available
+}
+
+/**
+ * GetNvidiaGPUInfo - Get NVIDIA GPU information
+ * Returns availability, GPU name, and VRAM in MiB
+ */
+export async function GetNvidiaGPUInfo(): Promise<NvidiaGPUInfo> {
+    const service = await getSystemService();
+
+    try {
+        const response = await service.getNvidiaGPUInfo();
+        return {
+            available: response.info.available,
+            name: response.info.name,
+            vramMiB: Number(response.info.vramMiB)
+        };
+    } catch (error) {
+        console.error('GetNvidiaGPUInfo error:', error);
+        // Return unavailable on error
+        return {
+            available: false,
+            name: '',
+            vramMiB: 0
+        };
+    }
+}

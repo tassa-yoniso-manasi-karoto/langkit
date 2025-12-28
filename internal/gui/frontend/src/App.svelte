@@ -5,7 +5,8 @@
     import { get } from 'svelte/store';
     import '@material-design-icons/font';
 
-    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore, llmStateStore, liteModeStore } from './lib/stores'; 
+    import { settings, showSettings, wasmActive, statisticsStore, welcomePopupVisible, userActivityState as userActivityStateStore, dockerStatusStore, internetStatusStore, ffmpegStatusStore, mediainfoStatusStore, systemInfoStore, llmStateStore, liteModeStore } from './lib/stores';
+    import { nvidiaGPUStore } from './lib/nvidiaGPUStore';
     import { logStore } from './lib/logStore';
     import { invalidationErrorStore } from './lib/invalidationErrorStore';
     import { currentSchemeNeedsDockerStore } from './lib/featureGroupStore';
@@ -642,11 +643,29 @@
             : defaultTargetLanguage;
 
         try {
+            // Transform voice enhancing options: translate sepLib + useNvidiaGPU to actual provider name
+            const transformedOptions = { ...currentFeatureOptions };
+            if (transformedOptions.voiceEnhancing) {
+                const voiceOpts = { ...transformedOptions.voiceEnhancing };
+                const sepLib = voiceOpts.sepLib as string;
+                const useNvidiaGPU = voiceOpts.useNvidiaGPU as boolean;
+
+                // If GPU is enabled and it's a docker provider, transform to nvidia variant
+                if (useNvidiaGPU && sepLib && sepLib.startsWith('docker-') && !sepLib.includes('nvidia')) {
+                    voiceOpts.sepLib = sepLib.replace('docker-', 'docker-nvidia-');
+                    logger.debug('app', 'Transformed sepLib for GPU', { from: sepLib, to: voiceOpts.sepLib });
+                }
+
+                // Remove the useNvidiaGPU option as backend doesn't need it (it's UI-only)
+                delete voiceOpts.useNvidiaGPU;
+                transformedOptions.voiceEnhancing = voiceOpts;
+            }
+
             // Construct the request object matching the Go backend type
             const request = { // ProcessRequest type
                 path: mediaSource.path,
                 selectedFeatures,
-                options: { Options: currentFeatureOptions }, // LLMs: DO NOT CHANGE THIS LINE. As is to match the backend Go type FeatureOptions.
+                options: { Options: transformedOptions }, // LLMs: DO NOT CHANGE THIS LINE. As is to match the backend Go type FeatureOptions.
                 languageCode: effectiveLanguageCode,
                 audioTrackIndex: mediaSource?.audioTrackIndex ?? 0, // Use nullish coalescing
             };
@@ -851,7 +870,16 @@
             });
         }
     }
-    
+
+    async function checkNvidiaGPUAvailability() {
+        try {
+            await nvidiaGPUStore.refresh();
+            logger.debug('app', 'NVIDIA GPU check completed', get(nvidiaGPUStore));
+        } catch (error) {
+            logger.error('app', 'NVIDIA GPU check failed', { error });
+        }
+    }
+
     // Set up periodic Docker checks when unavailable
     $: {
         if ($dockerStatusStore.checked && !$dockerStatusStore.available && $dockerStatusStore.error !== 'Debug: Forced state') {
@@ -1542,11 +1570,12 @@
         // Trigger initial activity detection
         handleUserActivity();
         
-        // Check Docker, Internet, FFmpeg and MediaInfo availability on startup
+        // Check Docker, Internet, FFmpeg, MediaInfo and NVIDIA GPU availability on startup
         checkDockerAvailability();
         checkInternetConnectivity();
         checkFFmpegAvailability();
         checkMediaInfoAvailability();
+        checkNvidiaGPUAvailability();
     });
 
     // Cleanup on component destruction

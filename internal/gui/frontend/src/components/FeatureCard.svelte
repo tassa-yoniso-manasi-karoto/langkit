@@ -32,6 +32,7 @@
     import GroupOption from './GroupOption.svelte';
     import ExternalLink from './ExternalLink.svelte';
     import SepLibDropdown from './SepLibDropdown.svelte';
+    import NvidiaIcon from './icons/NvidiaIcon.svelte';
     
     export let feature: FeatureDefinition;
     export let enabled = false;
@@ -1224,7 +1225,12 @@
                         <div class="option-row">
                             <div class="option-label">
                                 <span class="text-gray-200 text-[15px] text-left flex items-center gap-2">
-                                    {optionDef.label}
+                                    {#if optionId === 'useNvidiaGPU'}
+                                        <!-- Special label with NVIDIA icon -->
+                                        <span class="flex items-center gap-1">Use <NvidiaIcon size="1.2em" /> GPU acceleration</span>
+                                    {:else}
+                                        {optionDef.label}
+                                    {/if}
                                     {#if optionDef.hovertip}
                                         <Hovertip message={optionDef.hovertip}>
                                             <span slot="trigger" class="material-icons text-primary/70 cursor-help pr-1 leading-none material-icon-adjust">
