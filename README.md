@@ -115,20 +115,20 @@ This feature works by merging the original audiotrack with negative gain togethe
 
 | Name (to be passed with --sep) | Quality ([SDR](https://www.audioshake.ai/post/what-is-an-sdr-score)) | Price | Min VRAM | Note |
 |--------------------------------|---------|-------|----------|------|
-| **LOCAL GPU** <img src="internal/docker.svg" height="16"><img src="internal/nvidia.svg" height="16"> | ———— | ————— | ———— | ———————————————— |
+| **LOCAL GPU** <img src="internal/docker.svg" height="16"><img src="internal/nvidia.svg" height="16"> | ———— | ————— | ——— | ———————————————— |
 | docker-nvidia-mel-roformer-kim, kim | excellent (12.6) | FREE | 4GB | **Recommended** - 4-5x slower than Demucs |
 | docker-nvidia-demucs, dn       | good (9.9) | FREE | 2GB | Good enough for most usage cases but sometime leaves static/hiss  |
 | docker-nvidia-demucs_ft, dnf   | good (10.8) | FREE | 2GB | Fine-tuned version: "takes 4 times longer but might be a bit better". |
-| **LOCAL CPU** <img src="internal/docker.svg" height="16"> | ———— | ————— | ———— | ———————————————— |
-| docker-mel-roformer-kim, kimc  | excellent (12.6) | FREE | ———— | Best quality, extremely slow on CPU |
-| docker-demucs, dd              | good (9.9) | FREE | ———— | Slow on CPU |
-| docker-demucs_ft, ddf          | good (10.8) | FREE | ———— | Fine-tuned version, very slow on CPU |
-| **CLOUD (REPLICATE)** | ———— | ————— | ———— | ———————————————— |
-| replicate-demucs, de           | good (9.9) | very cheap 0.063$/run | ———— | Requires Replicate API token |
-| replicate-demucs_ft, ft        | good (10.8) | cheap 0.252$/run | ———— | Requires Replicate API token |
-| replicate-spleeter, sp         | poor (6.9) | very cheap 0.00027$/run | ———— | Requires Replicate API token |
-| **OTHER** | ———— | ————— | ———— | ———————————————— |
-| elevenlabs, 11, el             | good    | very expensive 1$/*MINUTE* | ———— | Not supported on GUI. <br><sub>mp3 only which desyncs audio. Also distorts soundstage which makes it sound uncanny.</sub> |
+| **LOCAL CPU** <img src="internal/docker.svg" height="16"> | ———— | ————— | ——— | ———————————————— |
+| docker-mel-roformer-kim, kimc  | excellent (12.6) | FREE | ——— | Best quality, extremely slow on CPU |
+| docker-demucs, dd              | good (9.9) | FREE | ——— | Slow on CPU |
+| docker-demucs_ft, ddf          | good (10.8) | FREE | ——— | Fine-tuned version, very slow on CPU |
+| **CLOUD** <picture> <source media="(prefers-color-scheme: dark)" srcset="internal/replicate-wordmark-dark.svg" height="16"> <img src="internal/replicate-wordmark-light.svg" height="16">  </picture> | ———— | ————— | ——— | ———————————————— |
+| replicate-demucs, de           | good (9.9) | very cheap 0.063$/run | ——— | Requires Replicate API token |
+| replicate-demucs_ft, ft        | good (10.8) | cheap 0.252$/run | ——— | Requires Replicate API token |
+| replicate-spleeter, sp         | poor (6.9) | very cheap 0.00027$/run | ——— | Requires Replicate API token |
+| **OTHER** | ———— | ————— | ——— | ———————————————— |
+| elevenlabs, 11, el             | good    | very expensive 1$/*MINUTE* | ——— | Not supported on GUI. <br><sub>mp3 only which desyncs audio. Also distorts soundstage which makes it sound uncanny.</sub> |
 
 
 

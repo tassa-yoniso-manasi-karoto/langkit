@@ -1,7 +1,5 @@
-- better voice separation provider display
-  - nvidia tickbox underneath?
-  - invalidation error according to VRAM
 
+- support embedded subtitles
 
 - 🚧🚧 add tlit in TSV/CSV
 
@@ -13,7 +11,6 @@
 
 
 - cleanup abandoned Wails methods
-- support embedded subtitles
 
 - ichiran multithreaded?
 
