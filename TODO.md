@@ -1,3 +1,9 @@
+- better voice separation provider display
+  - nvidia tickbox underneath?
+
+
+- 🚧🚧 add tlit in TSV/CSV
+
 
 - Wave svg reset too fast make longer loop
 - Fix useless log spam of LLM providers
@@ -27,7 +33,6 @@
 
 ### future implementations
 
-- 🚧🚧 add tlit in TSV/CSV
 - 🚧🚧 draft word frequency list feature
 
 .

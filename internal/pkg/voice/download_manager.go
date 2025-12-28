@@ -2,17 +2,23 @@ package voice
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/adrg/xdg"
+	"github.com/dustin/go-humanize"
 	"github.com/failsafe-go/failsafe-go"
 	"github.com/failsafe-go/failsafe-go/retrypolicy"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
 )
 
 // DownloadExpectation tracks expected files for a model download operation.
@@ -49,19 +55,38 @@ func (d *DownloadExpectation) Cleanup() {
 
 // Model file mappings - files expected for each model type
 
-// DemucsModelFiles maps demucs model names to their expected weight files.
-// These are downloaded by the demucs library from fbaipublicfiles.com.
-var DemucsModelFiles = map[string][]string{
+// DemucsModelFile represents a model file with its CDN URL and local filename.
+type DemucsModelFile struct {
+	URL       string // Full CDN URL
+	LocalName string // Local filename (8-char checksum only, per demucs-next)
+}
+
+// DemucsModelURLs maps demucs model names to their download info.
+// demucs-next uses only the 8-char checksum portion for filenames.
+// Note: htdemucs and htdemucs_ft share the first layer file.
+var DemucsModelURLs = map[string][]DemucsModelFile{
 	"htdemucs": {
-		"955717e8-8726e21a.th",
-		"htdemucs.yaml",
+		{"https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th", "8726e21a.th"},
 	},
 	"htdemucs_ft": {
-		"f7e0c4bc-ba3fe64a.th",
-		"d12395a8-e57c48e6.th",
-		"92cfc3b6-ef3bcb9c.th",
-		"04573f0d-f3cf25b2.th",
-		"htdemucs_ft.yaml",
+		{"https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th", "8726e21a.th"},
+		{"https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/f7e0c4bc-ba3fe64a.th", "ba3fe64a.th"},
+		{"https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/d12395a8-e57c48e6.th", "e57c48e6.th"},
+		{"https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/92cfc3b6-ef3bcb9c.th", "ef3bcb9c.th"},
+	},
+}
+
+// DemucsModelFiles maps demucs model names to their expected weight files.
+// Uses the 8-char checksum filenames that demucs-next expects.
+var DemucsModelFiles = map[string][]string{
+	"htdemucs": {
+		"8726e21a.th",
+	},
+	"htdemucs_ft": {
+		"8726e21a.th",
+		"ba3fe64a.th",
+		"e57c48e6.th",
+		"ef3bcb9c.th",
 	},
 }
 
@@ -231,6 +256,150 @@ func joinCommands(cmds []string) string {
 	return result
 }
 
+// PreDownloadDemucsModel downloads model weights before starting demucs container.
+// This provides reliable progress tracking with IncrementDownloadProgress.
+// If all files already exist, this is a no-op.
+// Returns nil on success (including when files already exist).
+func PreDownloadDemucsModel(ctx context.Context, model string, modelsDir string, handler ProgressHandler) error {
+	files, ok := DemucsModelURLs[model]
+	if !ok {
+		Logger.Debug().Str("model", model).Msg("No pre-download URLs for model, will use demucs internal download")
+		return nil
+	}
+
+	// Check which files need downloading
+	var filesToDownload []DemucsModelFile
+	for _, f := range files {
+		localPath := filepath.Join(modelsDir, f.LocalName)
+		if _, err := os.Stat(localPath); os.IsNotExist(err) {
+			filesToDownload = append(filesToDownload, f)
+		}
+	}
+
+	if len(filesToDownload) == 0 {
+		Logger.Debug().Str("model", model).Msg("All model files already exist, skipping pre-download")
+		return nil
+	}
+
+	if handler != nil {
+		handler.ZeroLog().Info().
+			Str("model", model).
+			Int("files", len(filesToDownload)).
+			Msg("Pre-downloading demucs model weights...")
+	}
+
+	taskID := progress.BarDemucsModelDL
+
+	totalFiles := len(filesToDownload)
+	for i, f := range filesToDownload {
+		localPath := filepath.Join(modelsDir, f.LocalName)
+
+		Logger.Debug().
+			Str("url", f.URL).
+			Str("dest", localPath).
+			Int("file", i+1).
+			Int("total", totalFiles).
+			Msg("Downloading model file")
+
+		// Build description with layer count for multi-file models
+		description := "Downloading model weights..."
+		if totalFiles > 1 {
+			description = fmt.Sprintf("Downloading model weights... (%d/%d)", i+1, totalFiles)
+		}
+
+		if err := downloadFileWithProgress(ctx, f.URL, localPath, taskID, description, handler); err != nil {
+			// Clean up partial download
+			os.Remove(localPath)
+			if handler != nil {
+				handler.RemoveProgressBar(taskID)
+			}
+			return fmt.Errorf("failed to download %s: %w", f.LocalName, err)
+		}
+	}
+
+	if handler != nil {
+		handler.RemoveProgressBar(taskID)
+		handler.ZeroLog().Info().Str("model", model).Msg("Model weights pre-download complete")
+	}
+
+	return nil
+}
+
+// downloadFileWithProgress downloads a file with progress reporting via IncrementDownloadProgress.
+func downloadFileWithProgress(ctx context.Context, url, destPath, taskID, description string, handler ProgressHandler) error {
+	// Create HTTP request with context
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to start download: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	totalSize := resp.ContentLength
+	if totalSize <= 0 {
+		// If Content-Length is not available, we can't show progress
+		Logger.Warn().Str("url", url).Msg("Content-Length not available, progress won't be accurate")
+		totalSize = 100 * 1024 * 1024 // Assume ~100MB as fallback
+	}
+
+	// Create destination file
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer out.Close()
+
+	// Download with progress tracking
+	buf := make([]byte, 32*1024) // 32KB buffer
+	var downloaded int64
+	var lastReportedPercent int
+
+	for {
+		// Check for cancellation
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			_, writeErr := out.Write(buf[:n])
+			if writeErr != nil {
+				return fmt.Errorf("failed to write file: %w", writeErr)
+			}
+			downloaded += int64(n)
+
+			// Report progress
+			if handler != nil && totalSize > 0 {
+				currentPercent := int(downloaded * 100 / totalSize)
+				if currentPercent > lastReportedPercent {
+					increment := currentPercent - lastReportedPercent
+					humanizedSize := humanize.Bytes(uint64(downloaded)) + " / " + humanize.Bytes(uint64(totalSize))
+					handler.IncrementDownloadProgress(taskID, increment, 100, 25, "Demucs Setup", description, "", humanizedSize)
+					lastReportedPercent = currentPercent
+				}
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return fmt.Errorf("failed to read response: %w", readErr)
+		}
+	}
+
+	return nil
+}
+
 // buildRetryPolicyWithCleanup creates a retry policy that cleans up on retry.
 // This is used for operations that may download model files.
 func buildRetryPolicyWithCleanup[R any](maxTry int, expectation *DownloadExpectation) failsafe.Policy[R] {
@@ -297,8 +466,8 @@ func isAbortError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check for context cancellation
-	if err.Error() == "context canceled" {
+	// Check for context cancellation (including wrapped errors)
+	if errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "context canceled") {
 		return true
 	}
 	// Check for CUDA OOM

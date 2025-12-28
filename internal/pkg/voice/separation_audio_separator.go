@@ -101,6 +101,10 @@ func (p *AudioSeparatorProvider) SeparateVoice(ctx context.Context, audioFile, o
 	}, policy)
 
 	if err != nil {
+		// Clean up incomplete model files on cancellation (AbortIf skips OnRetry callback)
+		if ctx.Err() != nil || strings.Contains(err.Error(), "context canceled") {
+			expectation.Cleanup()
+		}
 		return nil, fmt.Errorf("audio-separator processing failed after retries: %w", err)
 	}
 
@@ -182,7 +186,7 @@ func (p *AudioSeparatorProvider) processAudio(ctx context.Context, manager *Audi
 				case AudioSepPhaseModelDownload:
 					increment := update.Percent - lastDownloadPercent
 					if increment > 0 {
-						handler.IncrementProgress(modelDLTaskID, increment, 100, 25, "RoFormer Setup", "Downloading model weights...", "")
+						handler.IncrementDownloadProgress(modelDLTaskID, increment, 100, 25, "RoFormer Setup", "Downloading model weights...", "", update.HumanizedSize)
 						lastDownloadPercent = update.Percent
 					}
 				case AudioSepPhaseProcessing:

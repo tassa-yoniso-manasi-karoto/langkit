@@ -523,12 +523,17 @@ func cleanupDemucsOutput(dm *DemucsManager) {
 
 	execID, err := cli.ContainerExecCreate(ctx, dm.containerName, execConfig)
 	if err != nil {
-		Logger.Warn().Err(err).Msg("Failed to create cleanup exec")
+		// Silently ignore "not running" errors - container may have been stopped by user cancellation
+		if !strings.Contains(err.Error(), "is not running") {
+			Logger.Warn().Err(err).Msg("Failed to create cleanup exec")
+		}
 		return
 	}
 
 	if err := cli.ContainerExecStart(ctx, execID.ID, container.ExecStartOptions{}); err != nil {
-		Logger.Warn().Err(err).Msg("Failed to execute cleanup command")
+		if !strings.Contains(err.Error(), "is not running") {
+			Logger.Warn().Err(err).Msg("Failed to execute cleanup command")
+		}
 		return
 	}
 

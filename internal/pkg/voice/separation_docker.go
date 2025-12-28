@@ -140,6 +140,13 @@ func (p *DockerDemucsProvider) SeparateVoice(ctx context.Context, audioFile, out
 		handler, _ = h.(ProgressHandler)
 	}
 
+	// Pre-download model weights with progress tracking before starting demucs
+	// This provides reliable progress UI; demucs will find files already present
+	if err := PreDownloadDemucsModel(ctx, opts.Model, manager.modelsDir, handler); err != nil {
+		Logger.Warn().Err(err).Str("model", opts.Model).Msg("Pre-download failed, will fall back to demucs internal download")
+		// Don't return error - let demucs try its own download as fallback
+	}
+
 	// Create download expectation for cleanup on retry
 	expectation := &DownloadExpectation{
 		ModelDir:   manager.modelsDir,
@@ -164,6 +171,10 @@ func (p *DockerDemucsProvider) SeparateVoice(ctx context.Context, audioFile, out
 	}, policy)
 
 	if err != nil {
+		// Clean up incomplete model files on cancellation (AbortIf skips OnRetry callback)
+		if ctx.Err() != nil || strings.Contains(err.Error(), "context canceled") {
+			expectation.Cleanup()
+		}
 		return nil, fmt.Errorf("docker demucs processing failed after retries: %w", err)
 	}
 

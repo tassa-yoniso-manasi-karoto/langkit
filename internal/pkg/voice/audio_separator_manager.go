@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -305,8 +306,9 @@ const (
 
 // AudioSepProgressUpdate contains progress info with phase context
 type AudioSepProgressUpdate struct {
-	Phase   AudioSepPhase
-	Percent int
+	Phase         AudioSepPhase
+	Percent       int
+	HumanizedSize string // e.g., "9.06M / 913M" - only set during download phase
 }
 
 // AudioSepProgressCallback is called with progress updates
@@ -349,18 +351,37 @@ func (m *AudioSeparatorManager) execInContainerWithProgress(ctx context.Context,
 	var currentPhase AudioSepPhase = AudioSepPhaseUnknown
 
 	for {
+		// Check for context cancellation before reading
+		select {
+		case <-ctx.Done():
+			// Context cancelled - stop reading but don't call progress callback
+			// Drain remaining output for error reporting
+			for {
+				n, err := resp.Reader.Read(buf)
+				if n > 0 {
+					output.Write(buf[:n])
+				}
+				if err != nil {
+					break
+				}
+			}
+			return output.String(), ctx.Err()
+		default:
+		}
+
 		n, readErr := resp.Reader.Read(buf)
 		if n > 0 {
 			chunk := buf[:n]
 			output.Write(chunk)
 
-			if progressCb != nil {
-				phase, pct := parseAudioSepProgress(chunk, currentPhase)
+			// Only call progress callback if context is still active
+			if progressCb != nil && ctx.Err() == nil {
+				phase, pct, humanizedSize := parseAudioSepProgress(chunk, currentPhase)
 				if phase != AudioSepPhaseUnknown {
 					currentPhase = phase
 				}
 				if pct >= 0 && (pct != lastPercent || phase != AudioSepPhaseUnknown) {
-					progressCb(AudioSepProgressUpdate{Phase: currentPhase, Percent: pct})
+					progressCb(AudioSepProgressUpdate{Phase: currentPhase, Percent: pct, HumanizedSize: humanizedSize})
 					lastPercent = pct
 				}
 			}
@@ -382,16 +403,25 @@ func (m *AudioSeparatorManager) execInContainerWithProgress(ctx context.Context,
 	return output.String(), nil
 }
 
-// parseAudioSepProgress extracts phase and percentage from audio-separator output
-func parseAudioSepProgress(data []byte, currentPhase AudioSepPhase) (AudioSepPhase, int) {
+// Regex to parse tqdm byte progress: "9.06M/913M" or "65.5k/913M"
+var tqdmSizePattern = regexp.MustCompile(`(\d+\.?\d*[kMGT]?i?B?)/(\d+\.?\d*[kMGT]?i?B?)`)
+
+// parseAudioSepProgress extracts phase, percentage, and humanized size from audio-separator output
+func parseAudioSepProgress(data []byte, currentPhase AudioSepPhase) (AudioSepPhase, int, string) {
 	str := string(data)
 	detectedPhase := AudioSepPhaseUnknown
+	humanizedSize := ""
 
 	// Detect phase from output patterns:
 	// Download progress: "0% 81.9k/913M [00:00<19:45, 770kiB/s]" - has "iB/s" (bytes per second)
 	// Processing progress: "0% 0/24 [00:00<?, ?it/s]" - has "it/s" (iterations per second)
 	if bytes.Contains(data, []byte("iB/s")) {
 		detectedPhase = AudioSepPhaseModelDownload
+
+		// Extract humanized size from tqdm output (e.g., "9.06M/913M")
+		if matches := tqdmSizePattern.FindStringSubmatch(str); len(matches) == 3 {
+			humanizedSize = matches[1] + " / " + matches[2]
+		}
 	} else if bytes.Contains(data, []byte("it/s")) {
 		detectedPhase = AudioSepPhaseProcessing
 	}
@@ -417,7 +447,7 @@ func parseAudioSepProgress(data []byte, currentPhase AudioSepPhase) (AudioSepPha
 		}
 	}
 
-	return detectedPhase, lastPercent
+	return detectedPhase, lastPercent, humanizedSize
 }
 
 // pullImageWithProgress pulls the audio-separator Docker image with progress reporting
@@ -603,12 +633,17 @@ func cleanupAudioSepWorkdir(m *AudioSeparatorManager) {
 
 	execID, err := cli.ContainerExecCreate(ctx, m.containerName, execConfig)
 	if err != nil {
-		Logger.Warn().Err(err).Msg("Failed to create cleanup exec")
+		// Silently ignore "not running" errors - container may have been stopped by user cancellation
+		if !strings.Contains(err.Error(), "is not running") {
+			Logger.Warn().Err(err).Msg("Failed to create cleanup exec")
+		}
 		return
 	}
 
 	if err := cli.ContainerExecStart(ctx, execID.ID, container.ExecStartOptions{}); err != nil {
-		Logger.Warn().Err(err).Msg("Failed to execute cleanup command")
+		if !strings.Contains(err.Error(), "is not running") {
+			Logger.Warn().Err(err).Msg("Failed to execute cleanup command")
+		}
 		return
 	}
 

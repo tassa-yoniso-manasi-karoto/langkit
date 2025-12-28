@@ -429,13 +429,31 @@ func (dm *DemucsManager) execInContainerWithProgress(ctx context.Context, cmd []
 	var currentPhase DemucsPhase = PhaseUnknown
 
 	for {
+		// Check for context cancellation before reading
+		select {
+		case <-ctx.Done():
+			// Context cancelled - stop reading but don't call progress callback
+			// Drain remaining output for error reporting
+			for {
+				n, err := resp.Reader.Read(buf)
+				if n > 0 {
+					output.Write(buf[:n])
+				}
+				if err != nil {
+					break
+				}
+			}
+			return output.String(), ctx.Err()
+		default:
+		}
+
 		n, readErr := resp.Reader.Read(buf)
 		if n > 0 {
 			chunk := buf[:n]
 			output.Write(chunk)
 
-			// Parse progress from Rich TTY output
-			if progressCb != nil {
+			// Parse progress from Rich TTY output, only if context is still active
+			if progressCb != nil && ctx.Err() == nil {
 				phase, pct := parseDemucsProgress(chunk, currentPhase)
 				if pct >= 0 {
 					Logger.Trace().
