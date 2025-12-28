@@ -1,15 +1,18 @@
 <script lang="ts">
     export let size: string = "1em";
     export let className: string = "";
-    
+    export let noAnimation: boolean = false;
+
     // Add a script variable to track animation state
     let isAnimating = false;
-    
+
     // Function to handle animation start
     function startAnimation() {
-        isAnimating = true;
+        if (!noAnimation) {
+            isAnimating = true;
+        }
     }
-    
+
     // Function to handle animation end
     function endAnimation() {
         isAnimating = false;

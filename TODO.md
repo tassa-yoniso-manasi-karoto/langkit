@@ -1,5 +1,6 @@
 - better voice separation provider display
   - nvidia tickbox underneath?
+  - invalidation error according to VRAM
 
 
 - 🚧🚧 add tlit in TSV/CSV

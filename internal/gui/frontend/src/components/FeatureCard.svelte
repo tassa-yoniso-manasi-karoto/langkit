@@ -31,6 +31,7 @@
     import DockerUnavailableIcon from './icons/DockerUnavailableIcon.svelte';
     import GroupOption from './GroupOption.svelte';
     import ExternalLink from './ExternalLink.svelte';
+    import SepLibDropdown from './SepLibDropdown.svelte';
     
     export let feature: FeatureDefinition;
     export let enabled = false;
@@ -1314,9 +1315,9 @@
                                         />
                                         {/key}
                                     {:else if optionDef.type === 'dropdown' && optionId === 'sepLib' && feature.id === 'voiceEnhancing'}
-                                        <!-- Voice separation library dropdown -->
+                                        <!-- Voice separation library dropdown with icons -->
                                         {#key optionDef.choices}
-                                        <Dropdown
+                                        <SepLibDropdown
                                             options={optionDef.choices || []}
                                             value={options[optionId]}
                                             on:change={(e) => handleDropdownChange(optionId, e.detail)}
