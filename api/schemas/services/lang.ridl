@@ -29,8 +29,6 @@ struct RomanizationScheme
 
 struct RomanizationStylesResponse
   - schemes: []RomanizationScheme
-  - dockerUnreachable: bool
-  - dockerEngine: string
   - needsDocker: bool
   - needsScraper: bool
 

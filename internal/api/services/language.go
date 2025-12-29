@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog"
-	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
 	generated "github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
@@ -182,8 +181,7 @@ func (s *LanguageService) NeedsTokenization(ctx context.Context, language string
 
 func (s *LanguageService) GetRomanizationStyles(ctx context.Context, languageCode string) (*generated.RomanizationStylesResponse, error) {
 	resp := &generated.RomanizationStylesResponse{
-		DockerEngine: dockerutil.DockerBackendName(),
-		Schemes:      []*generated.RomanizationScheme{},
+		Schemes: []*generated.RomanizationScheme{},
 	}
 
 	// Get available schemes for the language
@@ -201,23 +199,13 @@ func (s *LanguageService) GetRomanizationStyles(ctx context.Context, languageCod
 			return nil, err
 		}
 	}
-	
+
 	for _, scheme := range schemes {
 		if scheme.NeedsDocker {
 			resp.NeedsDocker = true
 		}
 		if scheme.NeedsScraper {
 			resp.NeedsScraper = true
-		}
-	}
-
-	if resp.NeedsDocker {
-		if err := dockerutil.EngineIsReachable(); err != nil {
-			s.logger.Warn().
-				Err(err).
-				Str("lang", languageCode).
-				Msg("Docker is required but not available")
-			resp.DockerUnreachable = true
 		}
 	}
 

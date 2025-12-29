@@ -196,11 +196,9 @@ type RomanizationScheme struct {
 }
 
 type RomanizationStylesResponse struct {
-	Schemes           []RomanizationScheme `json:"schemes"`
-	DockerUnreachable bool                 `json:"dockerUnreachable"`
-	DockerEngine      string               `json:"dockerEngine"`
-	NeedsDocker       bool                 `json:"needsDocker"`
-	NeedsScraper      bool                 `json:"needsScraper"`
+	Schemes      []RomanizationScheme `json:"schemes"`
+	NeedsDocker  bool                 `json:"needsDocker"`
+	NeedsScraper bool                 `json:"needsScraper"`
 }
 /*
 func (a *App) GetRomanizationStyles(languageCode string) (RomanizationStylesResponse, error) {

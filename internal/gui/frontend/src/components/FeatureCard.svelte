@@ -42,12 +42,13 @@
     export let romanizationSchemes = [];
     export let tokenizationAllowed = false;
     export let isRomanizationAvailable = true;
-    export let dockerUnreachable = false;
-    export let dockerEngine = 'Docker';
     export let standardTag = '';
-    
+
     export let providerGithubUrls = {};
     export let selectedFeatures = {};
+
+    // Use dockerStatusStore as source of truth for Docker engine name
+    $: effectiveDockerEngine = $dockerStatusStore.engine || 'Docker';
 
     const dispatch = createEventDispatcher();
     
@@ -112,9 +113,7 @@
     let llmStateUnsubscribe: () => void;
     
     // Docker status tracking for debug override
-    let dockerStatus: { available?: boolean; error?: string } | null = null;
-    let dockerStatusUnsubscribe: () => void;
-    
+        
     // Debug override state
     let debugLLMState: string | null = null;
     
@@ -182,9 +181,9 @@
     $: isLLMError = debugLLMState ? debugLLMState === 'error' : llmState?.globalState === 'error';
     $: llmErrorMessage = isLLMError ? (llmState?.message || 'LLM system error') : null;
     
-    // Reactive computation for Docker state (respecting debug override)
-    $: isDockerStatusForced = dockerStatus?.error === 'Debug: Forced state';
-    $: isDockerUnavailable = dockerStatus?.checked ? !dockerStatus?.available : dockerUnreachable;
+    // Reactive computation for Docker state (using dockerStatusStore as source of truth)
+    $: isDockerStatusForced = $dockerStatusStore.error === 'Debug: Forced state';
+    $: isDockerUnavailable = $dockerStatusStore.checked && !$dockerStatusStore.available;
     
     // Reactive computation for voiceEnhancing Docker requirement
     $: voiceEnhancingNeedsDocker = feature.id === 'voiceEnhancing' &&
@@ -226,12 +225,8 @@
         sttModelsUnsubscribe = sttModelsStore.subscribe(value => {
             currentSTTModels = value;
         });
-        
+
         // Subscribe to LLM state for summary options
-        dockerStatusUnsubscribe = dockerStatusStore.subscribe(value => {
-            dockerStatus = value;
-        });
-        
         llmStateUnsubscribe = llmStateStore.subscribe(state => {
             llmState = state;
             logger.trace('featureCard', `LLM state update in FeatureCard ${feature.id}:`, state?.globalState);
@@ -320,9 +315,6 @@
         }
         if (llmStateUnsubscribe) {
             llmStateUnsubscribe();
-        }
-        if (dockerStatusUnsubscribe) {
-            dockerStatusUnsubscribe();
         }
         if (settingsUnsubscribe) {
             settingsUnsubscribe();
@@ -954,7 +946,7 @@
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>{dockerEngine} is running and reachable.</span>
+                                    <span>{effectiveDockerEngine} is running and reachable.</span>
                                 </div>
                             </div>
                         {/if}
@@ -963,7 +955,7 @@
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
-                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                    <span>{effectiveDockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
                         {:else if !standardTag}
@@ -1002,7 +994,7 @@
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>{dockerEngine} is running and reachable.</span>
+                                    <span>{effectiveDockerEngine} is running and reachable.</span>
                                 </div>
                             </div>
                         {/if}
@@ -1011,7 +1003,7 @@
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
-                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                    <span>{effectiveDockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
                         {:else if !standardTag}
@@ -1040,7 +1032,7 @@
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>{dockerEngine} is running and reachable.</span>
+                                    <span>{effectiveDockerEngine} is running and reachable.</span>
                                 </div>
                             </div>
                         {/if}
@@ -1049,7 +1041,7 @@
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
-                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                    <span>{effectiveDockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
                         {/if}
@@ -1107,7 +1099,7 @@
                             <div class={messageItemClass}>
                                 <DockerIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>{dockerEngine} is running and reachable.</span>
+                                    <span>{effectiveDockerEngine} is running and reachable.</span>
                                 </div>
                             </div>
                         {/if}
@@ -1116,7 +1108,7 @@
                             <div class={messageItemClass}>
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
-                                    <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                    <span>{effectiveDockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
                                 </div>
                             </div>
                         {/if}

@@ -571,13 +571,9 @@ export const romanizationSchemesStore = writable<RomanizationScheme[]>([]);
 export const languageRequirementsStore = writable<{
     needsScraper: boolean;
     needsDocker: boolean;
-    dockerUnreachable: boolean;
-    dockerEngine: string;
-}>({ 
-    needsScraper: false, 
-    needsDocker: false,
-    dockerUnreachable: false,
-    dockerEngine: 'Docker'
+}>({
+    needsScraper: false,
+    needsDocker: false
 });
 
 // Create the main feature group store

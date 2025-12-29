@@ -78,9 +78,7 @@
     let romanizationSchemes: RomanizationScheme[] = [];
     let isRomanizationAvailable = false;
     let isSelectiveTransliterationAvailable = false;
-    
-    let dockerUnreachable = false;
-    let dockerEngine = '';
+
     let needsDocker = false;
     let needsScraper = false;
     
@@ -309,57 +307,49 @@
             romanizationSchemesStore.set([]);
             languageRequirementsStore.set({
                 needsScraper: false,
-                needsDocker: false,
-                dockerUnreachable: false,
-                dockerEngine: 'Docker'
+                needsDocker: false
             });
-            
+
             return false;
         }
 
         isLoadingSchemes = true;
         try {
             const response = await GetRomanizationStyles(tag);
-            
+
             romanizationSchemes = response.schemes || [];
             isRomanizationAvailable = romanizationSchemes.length > 0;
-            
+
             isSelectiveTransliterationAvailable = tag === 'jpn';
             needsScraper = response.needsScraper || false;
-            dockerUnreachable = response.dockerUnreachable || false;
             needsDocker = response.needsDocker || false;
-            dockerEngine = response.dockerEngine || 'Docker Desktop';
-            
+
             // Update the reactive stores
             romanizationSchemesStore.set(romanizationSchemes);
             languageRequirementsStore.set({
                 needsScraper: response.needsScraper || false,
-                needsDocker: response.needsDocker || false,
-                dockerUnreachable: response.dockerUnreachable || false,
-                dockerEngine: response.dockerEngine || 'Docker Desktop'
+                needsDocker: response.needsDocker || false
             });
-            
-            logger.debug('FeatureSelector', 'Romanization schemes loaded', { 
-                tag, 
-                schemeCount: romanizationSchemes.length, 
-                needsDocker, 
-                needsScraper 
+
+            logger.debug('FeatureSelector', 'Romanization schemes loaded', {
+                tag,
+                schemeCount: romanizationSchemes.length,
+                needsDocker,
+                needsScraper
             });
-            
+
             return isRomanizationAvailable;
         } catch (error) {
             logger.error('FeatureSelector', 'Error fetching romanization styles', { error });
             romanizationSchemes = [];
             isRomanizationAvailable = false;
             isSelectiveTransliterationAvailable = false;
-            
+
             // Clear the stores on error
             romanizationSchemesStore.set([]);
             languageRequirementsStore.set({
                 needsScraper: false,
-                needsDocker: false,
-                dockerUnreachable: false,
-                dockerEngine: 'Docker'
+                needsDocker: false
             });
             
             return false;
@@ -2079,8 +2069,6 @@
                             {romanizationSchemes}
                             {isRomanizationAvailable}
                             {tokenizationAllowed}
-                            {dockerUnreachable}
-                            {dockerEngine}
                             {standardTag}
                             {providerGithubUrls}
                             {selectedFeatures}
