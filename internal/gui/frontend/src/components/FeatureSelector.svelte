@@ -1171,29 +1171,44 @@
     // Reactive statements
     $: anyFeatureSelected = Object.values(selectedFeatures).some(v => v);
 
-    // Auto-enable GPU acceleration when NVIDIA GPU check completes
-    $: if ($nvidiaGPUStore.checked && currentFeatureOptions?.voiceEnhancing) {
+    // Auto-configure voice separation based on GPU availability
+    let gpuConfigApplied = false;
+    $: if ($nvidiaGPUStore.checked && currentFeatureOptions?.voiceEnhancing && !gpuConfigApplied) {
+        gpuConfigApplied = true;
+        const melRoformerVRAM = sepLibVRAMRequirements['mel-roformer-kim'] || 3800;
+        const hasEnoughForMelRoformer = $nvidiaGPUStore.available && $nvidiaGPUStore.vramMiB >= melRoformerVRAM;
+
+        // Set default provider based on VRAM availability
+        // If < 4GB VRAM (or no GPU), use demucs which is faster on CPU
+        // If >= 4GB VRAM, use mel-roformer-kim which has better quality
+        const currentSepLib = currentFeatureOptions.voiceEnhancing.sepLib as string;
+        if (currentSepLib === 'docker-mel-roformer-kim' && !hasEnoughForMelRoformer) {
+            currentFeatureOptions.voiceEnhancing.sepLib = 'docker-demucs';
+            logger.info('FeatureSelector', 'Changed default provider to demucs (insufficient VRAM for mel-roformer)', {
+                vramMiB: $nvidiaGPUStore.vramMiB,
+                requiredVRAM: melRoformerVRAM
+            });
+        }
+
+        // Auto-enable GPU if we have enough VRAM for the selected model
         const sepLib = currentFeatureOptions.voiceEnhancing.sepLib as string;
         if (sepLib && sepLib.startsWith('docker-')) {
             const baseModelName = sepLib.replace('docker-', '');
             const requiredVRAM = sepLibVRAMRequirements[baseModelName] || 0;
             const hasEnoughVRAM = $nvidiaGPUStore.available && $nvidiaGPUStore.vramMiB >= requiredVRAM;
 
-            // Only auto-enable if not already set and we have enough VRAM
-            if (currentFeatureOptions.voiceEnhancing.useNvidiaGPU === undefined ||
-                currentFeatureOptions.voiceEnhancing.useNvidiaGPU === false) {
-                if (hasEnoughVRAM) {
-                    currentFeatureOptions.voiceEnhancing.useNvidiaGPU = true;
-                    currentFeatureOptions = {...currentFeatureOptions};
-                    logger.info('FeatureSelector', 'Auto-enabled GPU acceleration on startup', {
-                        gpuName: $nvidiaGPUStore.name,
-                        vramMiB: $nvidiaGPUStore.vramMiB,
-                        requiredVRAM,
-                        model: baseModelName
-                    });
-                }
+            if (hasEnoughVRAM) {
+                currentFeatureOptions.voiceEnhancing.useNvidiaGPU = true;
+                logger.info('FeatureSelector', 'Auto-enabled GPU acceleration on startup', {
+                    gpuName: $nvidiaGPUStore.name,
+                    vramMiB: $nvidiaGPUStore.vramMiB,
+                    requiredVRAM,
+                    model: baseModelName
+                });
             }
         }
+
+        currentFeatureOptions = {...currentFeatureOptions};
     }
 
     // React to ALL changes to quickAccessLangTag (whether from user input or settings)
