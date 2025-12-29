@@ -717,53 +717,61 @@
         
         // Check dubtitles STT provider
         if (selectedFeatures.dubtitles && currentFeatureOptions.dubtitles) {
-            const sttModel = currentFeatureOptions.dubtitles.stt;
-            logger.trace('FeatureSelector', 'Checking provider requirements for STT model', { sttModel });
-            
-            // Find the model info to get the provider
-            const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
-            
-            if (modelInfo) {
-                const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
-                logger.trace('FeatureSelector', 'Model provider identified', { providerName });
-                
-                // Check if this provider requires a token
-                const { isValid, tokenType } = checkProviderApiToken(providerName);
-                logger.debug('FeatureSelector', 'Provider token check', { 
-                    provider: providerName, 
-                    isValid, 
-                    tokenType 
-                });
-                
-                if (!isValid) {
-                    // Use addError to add/update the error message
-                    const errorMessage = `${tokenType || providerName} API token is required for ${modelInfo.displayName}`;
-                    logger.debug('FeatureSelector', 'Adding provider error', { 
-                        errorId: 'provider-dubtitles', 
-                        message: errorMessage 
+            // If no STT providers are available at all, don't show token-specific error
+            // (FeatureCard shows a setup message for this case instead)
+            const availableSTTModels = currentSTTModels.models.filter(m => m.isAvailable);
+            if (availableSTTModels.length === 0) {
+                logger.debug('FeatureSelector', 'No STT providers available, skipping token check');
+                invalidationErrorStore.removeError('provider-dubtitles');
+            } else {
+                const sttModel = currentFeatureOptions.dubtitles.stt;
+                logger.trace('FeatureSelector', 'Checking provider requirements for STT model', { sttModel });
+
+                // Find the model info to get the provider
+                const modelInfo = currentSTTModels.models.find(m => m.name === sttModel);
+
+                if (modelInfo) {
+                    const providerName = modelInfo.providerName.toLowerCase(); // e.g., "openai", "replicate"
+                    logger.trace('FeatureSelector', 'Model provider identified', { providerName });
+
+                    // Check if this provider requires a token
+                    const { isValid, tokenType } = checkProviderApiToken(providerName);
+                    logger.debug('FeatureSelector', 'Provider token check', {
+                        provider: providerName,
+                        isValid,
+                        tokenType
                     });
-                    
-                    invalidationErrorStore.addError({
-                        id: 'provider-dubtitles',
-                        message: errorMessage,
-                        severity: 'critical'
-                    });
+
+                    if (!isValid) {
+                        // Use addError to add/update the error message
+                        const errorMessage = `${tokenType || providerName} API token is required for ${modelInfo.displayName}`;
+                        logger.debug('FeatureSelector', 'Adding provider error', {
+                            errorId: 'provider-dubtitles',
+                            message: errorMessage
+                        });
+
+                        invalidationErrorStore.addError({
+                            id: 'provider-dubtitles',
+                            message: errorMessage,
+                            severity: 'critical'
+                        });
+                    } else {
+                        // Remove the error if it exists
+                        logger.trace('FeatureSelector', 'Token is valid, removing provider error', {
+                            errorId: 'provider-dubtitles'
+                        });
+                        invalidationErrorStore.removeError('provider-dubtitles');
+                    }
                 } else {
-                    // Remove the error if it exists
-                    logger.trace('FeatureSelector', 'Token is valid, removing provider error', { 
-                        errorId: 'provider-dubtitles' 
-                    });
+                    logger.warn('FeatureSelector', 'Could not find model info', { sttModel });
+                    // Clear any existing error if model not found
                     invalidationErrorStore.removeError('provider-dubtitles');
                 }
-            } else {
-                logger.warn('FeatureSelector', 'Could not find model info', { sttModel });
-                // Clear any existing error if model not found
-                invalidationErrorStore.removeError('provider-dubtitles');
             }
         } else {
             // Remove the error if the feature is disabled
-            logger.trace('FeatureSelector', 'Feature not selected, removing provider error', { 
-                errorId: 'provider-dubtitles' 
+            logger.trace('FeatureSelector', 'Feature not selected, removing provider error', {
+                errorId: 'provider-dubtitles'
             });
             invalidationErrorStore.removeError('provider-dubtitles');
         }

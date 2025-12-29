@@ -857,6 +857,12 @@
             if (enabled && voiceEnhancingNeedsDocker) {
                 return true;
             }
+        } else if (feature.id === 'dubtitles') {
+            // Show setup message when no STT providers are available
+            const availableSTTModels = currentSTTModels.models.filter(m => m.isAvailable);
+            if (enabled && availableSTTModels.length === 0) {
+                return true;
+            }
         }
 
         // Dependency messages
@@ -1111,6 +1117,25 @@
                                 <DockerUnavailableIcon size="1.5em" className="text-blue-400" />
                                 <div class="flex-1 text-xs text-[#ff0000] font-bold">
                                     <span>{dockerEngine} is required but not reachable. Please make sure it is installed and running.</span>
+                                </div>
+                            </div>
+                        {/if}
+
+                    {:else if feature.id === 'dubtitles'}
+                        <!-- No STT providers available message -->
+                        {@const availableSTTProviders = currentSTTModels.models.filter(m => m.isAvailable)}
+                        {#if enabled && availableSTTProviders.length === 0}
+                            <div class={messageItemClass}>
+                                <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
+                                    info
+                                </span>
+                                <div class="flex-1 text-xs text-white/90">
+                                    <span>No STT providers available.</span>
+                                    <button
+                                        class="ml-1 text-primary hover:text-primary-300 transition-colors duration-200 underline"
+                                        on:click={() => $showSettings = true}>
+                                        Add API keys or custom endpoint
+                                    </button>
                                 </div>
                             </div>
                         {/if}

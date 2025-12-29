@@ -1,4 +1,4 @@
-- fix dubtitles when no API keys registered displaying confused info
+
 - redraw text after animation bug linux Qt
 
 - support embedded subtitles
