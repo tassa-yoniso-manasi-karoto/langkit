@@ -540,6 +540,14 @@
         perspective: 1000px;
         transform-style: preserve-3d;
     }
+
+    /* Force compositing layers on animated slides to fix QtWebEngine ghost rendering */
+    :global(.slide-container > div) {
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+    }
     
     /* Blinking cursor for typewriter effect */
     .animate-blink {

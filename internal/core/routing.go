@@ -391,7 +391,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to stop audio-separator container after bulk processing")
 		}
 	}
-	tsk.Handler.ZeroLog().Debug().Msg("Routing completed successfully")
+	tsk.Handler.ZeroLog().Debug().Msg("Routing completed")
 	return
 }
 
