@@ -52,6 +52,9 @@
 
     // Determine if any critical error exists (which will lock the button)
     $: hasCriticalErrors = errors.some(e => e.severity === 'critical');
+    // Only gray out visually for obvious errors (no media, no features) or during processing
+    // Other critical errors keep button looking active so users hover to discover the tooltip
+    $: shouldGrayOut = isProcessing || errors.some(e => (e.id === 'no-media' || e.id === 'no-features') && e.severity === 'critical');
     // For the tooltip we display all errors (if any exist)
     $: hasAnyErrors = errors.length > 0;
     
@@ -175,7 +178,7 @@
     <button
         bind:this={buttonRef}
         class="h-12 px-4 bg-primary text-white rounded-lg font-bold outline-none flex items-center justify-center overflow-hidden"
-        class:opacity-50={hasCriticalErrors || isProcessing}
+        class:opacity-50={shouldGrayOut}
         class:cursor-not-allowed={hasCriticalErrors || isProcessing}
         class:hover:bg-opacity-80={!hasCriticalErrors && !isProcessing}
         class:hover:-translate-y-0.5={!hasCriticalErrors && !isProcessing}
