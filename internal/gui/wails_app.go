@@ -2,7 +2,6 @@ package gui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	goruntime "runtime"
 	"time"
@@ -24,7 +23,6 @@ import (
 
 var handler *core.GUIHandler
 var appThrottler *batch.AdaptiveEventThrottler
-var errHandlerNotInitialized = fmt.Errorf("handler not initialized")
 
 type App struct {
 	ctx         context.Context
@@ -34,7 +32,7 @@ type App struct {
 	llmRegistry *llms.Registry    // LLM Registry for async provider management
 	wsServer    WebSocketEmitter  // WebSocket server for state updates
 	apiServer   *api.Server       // WebRPC API server
-	
+
 	// Pre-initialized servers (when using shared initialization)
 	preInitialized bool
 }
@@ -59,10 +57,10 @@ func NewAppWithServers(servers *ServerComponents) *App {
 	app.apiServer = servers.APIServer
 	app.throttler = servers.Throttler
 	app.preInitialized = true
-	
+
 	// Set the global handler
 	handler = servers.Handler
-	
+
 	return app
 }
 
@@ -120,14 +118,14 @@ func (a *App) startup(ctx context.Context) {
 		if err != nil {
 			a.getLogger().Fatal().Err(err).Msg("Failed to initialize servers")
 		}
-		
+
 		// Store the initialized components
 		a.wsServer = servers.WSServer
 		a.apiServer = servers.APIServer
 		a.throttler = servers.Throttler
 		handler = servers.Handler
 		appThrottler = servers.Throttler
-		
+
 		// Register settings service (needs App reference, so done here)
 		settingsProvider := &settingsProviderAdapter{app: a}
 		settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
@@ -147,7 +145,7 @@ func (a *App) startup(ctx context.Context) {
 			a.getLogger().Fatal().Msg("Handler not initialized with pre-initialized servers")
 		}
 		appThrottler = a.throttler
-		
+
 		// Register settings service (needs App reference, so done here)
 		settingsProvider := &settingsProviderAdapter{app: a}
 		settingsSvc := services.NewSettingsService(*a.getLogger(), settingsProvider)
@@ -196,10 +194,10 @@ func (a *App) domReady(ctx context.Context) {
 	// Initialize LLM system with async registry and WebSocket server
 	a.llmRegistry = core.InitLLM(handler, a.ctx, a.wsServer)
 	a.getLogger().Info().Msg("LLM registry initialized")
-	
+
 	// Set the LLM registry in the handler so it can be accessed by services
 	handler.SetLLMRegistry(a.llmRegistry)
-	
+
 	// Set up WebSocket connection callback to send initial LLM state
 	a.wsServer.SetOnConnect(func() {
 		if a.llmRegistry != nil {
@@ -219,12 +217,6 @@ func (a *App) domReady(ctx context.Context) {
 // either by clicking the window close button or calling runtime.Quit.
 // Returning true will cause the application to continue, false will continue shutdown as normal.
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
-	// Request WebAssembly state for diagnostic purposes
-	a.RequestWasmState()
-
-	// Small delay to allow frontend to respond with state
-	time.Sleep(100 * time.Millisecond)
-
 	// Properly shut down the LLM registry
 	if a.llmRegistry != nil {
 		a.getLogger().Info().Msg("Application closing, shutting down LLM registry")
@@ -238,7 +230,7 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 		a.wsServer.Shutdown()
 		a.wsServer = nil
 	}
-	
+
 	// Properly shut down the API server
 	if a.apiServer != nil {
 		a.getLogger().Info().Msg("Application closing, shutting down API server")
@@ -266,88 +258,6 @@ func (a *App) shutdown(ctx context.Context) {
 	a.getLogger().Info().Msg("Application shutdown")
 }
 
-// Dry run testing methods
-
-// SetDryRunConfig stores the dry run configuration for the next processing run
-func (a *App) SetDryRunConfig(config map[string]interface{}) error {
-	if handler == nil {
-		return errHandlerNotInitialized
-	}
-	
-	// Convert map to DryRunConfig struct
-	dryRunConfig := &core.DryRunConfig{
-		Enabled:        getBoolFromMap(config, "enabled", false),
-		DelayMs:        getIntFromMap(config, "delayMs", 1000),
-		ProcessedCount: getIntFromMap(config, "processedCount", 0),
-		NextErrorIndex: getIntFromMap(config, "nextErrorIndex", -1),
-		NextErrorType:  getStringFromMap(config, "nextErrorType", ""),
-		ErrorPoints:    make(map[int]string),
-	}
-	
-	// Convert errorPoints from map
-	if errorPoints, ok := config["errorPoints"].(map[string]interface{}); ok {
-		for indexStr, errorType := range errorPoints {
-			if index, err := parseStringToInt(indexStr); err == nil {
-				if errorTypeStr, ok := errorType.(string); ok {
-					dryRunConfig.ErrorPoints[index] = errorTypeStr
-				}
-			}
-		}
-	}
-	
-	handler.SetDryRunConfig(dryRunConfig)
-	return nil
-}
-
-// InjectDryRunError schedules an error injection at the next task
-func (a *App) InjectDryRunError(errorType string) error {
-	if handler == nil {
-		return errHandlerNotInitialized
-	}
-	
-	return handler.InjectDryRunError(errorType)
-}
-
-// GetDryRunStatus returns the current dry run status
-func (a *App) GetDryRunStatus() (map[string]interface{}, error) {
-	if handler == nil {
-		return nil, errHandlerNotInitialized
-	}
-	
-	return handler.GetDryRunStatus(), nil
-}
-
-// Helper functions for map conversion
-func getBoolFromMap(m map[string]interface{}, key string, defaultValue bool) bool {
-	if val, ok := m[key].(bool); ok {
-		return val
-	}
-	return defaultValue
-}
-
-func getIntFromMap(m map[string]interface{}, key string, defaultValue int) int {
-	if val, ok := m[key].(float64); ok {
-		return int(val)
-	}
-	if val, ok := m[key].(int); ok {
-		return val
-	}
-	return defaultValue
-}
-
-func getStringFromMap(m map[string]interface{}, key string, defaultValue string) string {
-	if val, ok := m[key].(string); ok {
-		return val
-	}
-	return defaultValue
-}
-
-func parseStringToInt(s string) (int, error) {
-	var i int
-	_, err := fmt.Sscanf(s, "%d", &i)
-	return i, err
-}
-
 // settingsProviderAdapter implements interfaces.SettingsProvider
 type settingsProviderAdapter struct {
 	app *App
@@ -363,7 +273,7 @@ func (s *settingsProviderAdapter) UpdateThrottlerSettings(settings interface{}) 
 	}
 }
 
-// TriggerLLMRegistryUpdate implements interfaces.SettingsProvider  
+// TriggerLLMRegistryUpdate implements interfaces.SettingsProvider
 func (s *settingsProviderAdapter) TriggerLLMRegistryUpdate(settings interface{}) {
 	// Type assert to config.Settings
 	if configSettings, ok := settings.(config.Settings); ok {

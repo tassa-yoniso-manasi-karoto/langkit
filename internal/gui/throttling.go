@@ -44,28 +44,3 @@ func UpdateThrottlerWithSettings(throttler *batch.AdaptiveEventThrottler, settin
 func (a *App) updateThrottlerSettings(settings config.Settings) {
 	UpdateThrottlerWithSettings(a.throttler, settings, *a.getLogger())
 }
-
-// SetEventThrottling enables or disables the event throttling
-func (a *App) SetEventThrottling(enabled bool) {
-	if a.throttler != nil {
-		a.throttler.SetEnabled(enabled)
-		a.getLogger().Debug().Bool("enabled", enabled).Msg("Event throttling toggled")
-	} else {
-		a.getLogger().Warn().Msg("Cannot set throttling state: throttler is nil")
-	}
-}
-
-// GetEventThrottlingStatus returns the current throttling status
-func (a *App) GetEventThrottlingStatus() map[string]interface{} {
-	if a.throttler == nil {
-		a.getLogger().Warn().Msg("Cannot get throttling status: throttler is nil")
-		return map[string]interface{}{
-			"enabled":         false,
-			"currentRate":     0.0,
-			"currentInterval": 0,
-			"error":           "Throttler not initialized",
-		}
-	}
-
-	return a.throttler.GetStatus()
-}

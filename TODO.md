@@ -1,3 +1,9 @@
+- python voice separation progress bar wrong sizes
+
+
+
+<hr>
+
 
 - 🚧🚧 add tlit in TSV/CSV
 
@@ -7,8 +13,6 @@
 
 - without leakless: https://github.com/go-rod/rod/issues/739#issuecomment-1272420000
 
-
-- cleanup abandoned Wails methods
 
 - ichiran multithreaded?
 

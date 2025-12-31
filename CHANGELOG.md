@@ -39,7 +39,7 @@ Guidelines for LLMs updating this changelog from git history:
 
 - Voice separation now auto-detects your GPU: simplified dropdown with model names, NVIDIA checkbox which auto-enables when sufficient VRAM is available
 - Systems with less than 4GB VRAM now default Demucs
-- Model weights downloads show detailed progress (e.g., "9.06M / 913M") and failed downloads are now cleaned up automatically
+- Model weights downloads now show detailed progress (e.g., "9.06M / 913M") and failed downloads are cleaned up automatically
 - Clearer setup guidance for Dubtitles feature on fresh installs
 - Process button stays visually active instead of being greyed out when blocked by configuration errors, ensuring the user will see the error tooltip
 
