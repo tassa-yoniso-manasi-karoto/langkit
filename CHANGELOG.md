@@ -46,6 +46,7 @@ Guidelines for LLMs updating this changelog from git history:
 ### Fixed
 
 - Visual glitches in welcome popup animations when running inside Anki on Linux
+- Progress bar now shows accurate completion for closed caption subtitle files
 
 ## [1.0.1-alpha] - 2025-12-22
 

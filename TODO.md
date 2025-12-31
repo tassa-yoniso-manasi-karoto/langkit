@@ -23,7 +23,6 @@
 .
 
 - LINT
-- REFACTOR CORE
 
 <hr>
 

@@ -597,9 +597,19 @@ func (tsk *Task) setupSubtitles(ctx context.Context, reporter *crash.ReporterIns
 	if err != nil {
 		return tsk.Handler.LogErr(err, AbortTask, "can't read foreign subtitles")
 	}
-	
+
+	// For single-file mode, count items after applying same filters as routing.go
+	// (CC trimming and ASS default-style filtering happen later in prepareSubtitles,
+	// so we need a temporary copy to get accurate count)
 	if !tsk.IsBulkProcess {
-		totalItems = len(tsk.TargSubs.Items)
+		countSubs, _ := subs.OpenFile(tsk.TargSubFile, false)
+		if tsk.IsCCorDubs {
+			countSubs.TrimCC2Dubs()
+		}
+		if isASSFormat(tsk.TargSubFile) {
+			countSubs.FilterToDefaultStyle()
+		}
+		totalItems = len(countSubs.Items)
 	}
 
 	return nil
