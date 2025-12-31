@@ -122,12 +122,28 @@ type AudioTrack struct {
 	AlternateGroup         string `json:"AlternateGroup"`
 }
 
-// MediaInfo represents the media information including general, video, and audio tracks
+// TextTrack represents subtitle/text track metadata from mediainfo
+type TextTrack struct {
+	Type        string `json:"@type"`
+	StreamOrder string `json:"StreamOrder"` // For FFmpeg -map (0-based stream index)
+	ID          string `json:"ID"`
+	Format      string `json:"Format"`      // "ASS", "PGS", "SubRip", "UTF-8"
+	CodecID     string `json:"CodecID"`     // "S_TEXT/ASS", "S_HDMV/PGS"
+	Duration    string `json:"Duration"`
+	Title       string `json:"Title"`       // "Dialogue@MTBB", "Signs/Songs"
+	LangRaw     string `json:"Language"`    // "en", "ja", "zh-Hans"
+	Language    Lang                        // Parsed via ParseLanguageTags
+	Default     string `json:"Default"`     // "Yes" or "No"
+	Forced      string `json:"Forced"`      // "Yes" or "No"
+}
+
+// MediaInfo represents the media information including general, video, audio, and text tracks
 type MediaInfo struct {
 	CreatingLibrary CreatingLibrary
-	GeneralTrack GeneralTrack
-	VideoTrack   VideoTrack
-	AudioTracks  []AudioTrack
+	GeneralTrack    GeneralTrack
+	VideoTrack      VideoTrack
+	AudioTracks     []AudioTrack
+	TextTracks      []TextTrack
 }
 
 type RawMedia struct {
@@ -191,8 +207,27 @@ func Mediainfo(path string) (media MediaInfo, err error) {
 				audioTrack.Language = iso.FromPart3Code("und")
 			}
 			media.AudioTracks = append(media.AudioTracks, audioTrack)
+		case "Text":
+			var textTrack TextTrack
+			if err := json.Unmarshal(rawTrack, &textTrack); err != nil {
+				fmt.Println("Error unmarshalling Text track:", err)
+				continue
+			}
+			// Use ParseLanguageTags for proper BCP 47 handling (gets both Language AND Subtag)
+			if textTrack.LangRaw != "" {
+				langs, err := ParseLanguageTags([]string{textTrack.LangRaw})
+				if err == nil && len(langs) > 0 {
+					textTrack.Language = langs[0]
+				}
+			}
+			// Fallback to "und" if no language detected
+			if textTrack.Language.Language == nil {
+				textTrack.Language.Language = iso.FromPart3Code("und")
+			}
+			media.TextTracks = append(media.TextTracks, textTrack)
 		default:
-			fmt.Println("Unknown track type:", trackType["@type"])
+			// Silently ignore unknown track types (e.g., Menu, Attachment)
+			_ = trackType["@type"]
 		}
 	}
 	return

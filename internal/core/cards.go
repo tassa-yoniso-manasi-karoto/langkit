@@ -21,6 +21,147 @@ import (
 
 var SupportedExt = []string{".srt", ".ass", ".ssa"}
 
+// collectStandaloneCandidates scans directory for standalone subtitle files
+func (tsk *Task) collectStandaloneCandidates() []SubtitleCandidate {
+	var candidates []SubtitleCandidate
+
+	dir := filepath.Dir(tsk.MediaSourceFile)
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		tsk.Handler.ZeroLog().Debug().Err(err).Msg("collectStandaloneCandidates: failed to read directory")
+		return candidates
+	}
+
+	trimmedMedia := strings.TrimSuffix(filepath.Base(tsk.MediaSourceFile), filepath.Ext(tsk.MediaSourceFile))
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		ext := strings.ToLower(filepath.Ext(file.Name()))
+		trimmed := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+
+		// Skip non-subtitle files
+		if !slices.Contains(SupportedExt, ext) {
+			continue
+		}
+
+		// Skip langkit-generated files
+		if isLangkitMadeDubtitles(file.Name()) || isLangkitMadeTranslit(file.Name()) {
+			continue
+		}
+
+		// Skip forced subtitles
+		if strings.Contains(strings.ToLower(trimmed), "forced") {
+			continue
+		}
+
+		// Skip files that don't match media prefix
+		if !strings.HasPrefix(trimmed, trimmedMedia) {
+			continue
+		}
+
+		// Guess language from filename
+		lang, err := GuessLangFromFilename(file.Name())
+		if err != nil {
+			tsk.Handler.ZeroLog().Debug().Err(err).Str("file", file.Name()).Msg("guessing lang from filename")
+			continue
+		}
+
+		candidate := SubtitleCandidate{
+			Lang: lang,
+			Source: SubtitleSource{
+				Type:     SubSourceStandalone,
+				FilePath: filepath.Join(dir, file.Name()),
+			},
+			Subtype: subtypeMatcher(file.Name()),
+		}
+
+		tsk.Handler.ZeroLog().Debug().
+			Str("file", file.Name()).
+			Str("lang", lang.Part3).
+			Str("subtag", lang.Subtag).
+			Msg("Found standalone subtitle candidate")
+
+		candidates = append(candidates, candidate)
+	}
+
+	return candidates
+}
+
+// collectEmbeddedCandidates extracts subtitle track info from video container
+func (tsk *Task) collectEmbeddedCandidates() []SubtitleCandidate {
+	var candidates []SubtitleCandidate
+
+	if tsk.MediaSourceFile == "" {
+		return candidates
+	}
+
+	mediaInfo, err := Mediainfo(tsk.MediaSourceFile)
+	if err != nil {
+		tsk.Handler.ZeroLog().Debug().Err(err).Msg("collectEmbeddedCandidates: failed to get mediainfo")
+		return candidates
+	}
+
+	for i, track := range mediaInfo.TextTracks {
+		// Skip non-text-based formats (PGS, VobSub, etc.)
+		if !isTextBasedFormat(track.Format) {
+			tsk.Handler.ZeroLog().Debug().
+				Str("format", track.Format).
+				Str("title", track.Title).
+				Msg("Skipping non-text subtitle track")
+			continue
+		}
+
+		// Parse StreamOrder to int for FFmpeg extraction
+		var streamIndex int
+		fmt.Sscanf(track.StreamOrder, "%d", &streamIndex)
+
+		candidate := SubtitleCandidate{
+			Lang: track.Language,
+			Source: SubtitleSource{
+				Type:        SubSourceEmbedded,
+				MediaFile:   tsk.MediaSourceFile,
+				TrackIndex:  i,
+				StreamIndex: streamIndex,
+				Format:      track.Format,
+				CodecID:     track.CodecID,
+			},
+			IsDefault: track.Default == "Yes",
+			Title:     track.Title,
+			Subtype:   subtypeMatcher(track.Title), // Derive subtype from Title
+		}
+
+		tsk.Handler.ZeroLog().Debug().
+			Int("trackIndex", i).
+			Int("streamIndex", streamIndex).
+			Str("format", track.Format).
+			Str("lang", track.Language.Part3).
+			Str("subtag", track.Language.Subtag).
+			Str("title", track.Title).
+			Bool("default", candidate.IsDefault).
+			Msg("Found embedded subtitle candidate")
+
+		candidates = append(candidates, candidate)
+	}
+
+	return candidates
+}
+
+// collectAllCandidates combines standalone and embedded subtitle candidates
+func (tsk *Task) collectAllCandidates() []SubtitleCandidate {
+	standalone := tsk.collectStandaloneCandidates()
+	embedded := tsk.collectEmbeddedCandidates()
+
+	tsk.Handler.ZeroLog().Debug().
+		Int("standalone", len(standalone)).
+		Int("embedded", len(embedded)).
+		Msg("Collected subtitle candidates")
+
+	return append(standalone, embedded...)
+}
+
 // Path utility functions
 func (tsk *Task) outputBase() string {
 	base := strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
@@ -295,110 +436,83 @@ mergeOutputs:
 
 // Autosub automatically discovers subtitle files based on the media filename
 func (tsk *Task) Autosub() *ProcessingError {
-	files, err := os.ReadDir(filepath.Dir(tsk.MediaSourceFile))
-	tsk.Handler.ZeroLog().Debug().
-		Int("num_files", len(files)).
-		Str("MediaSourceFile", tsk.MediaSourceFile).
-		Msgf("Reading parent dir of media file: \"%s\"", filepath.Dir(tsk.MediaSourceFile))
+	// Collect candidates from both standalone files and embedded tracks
+	candidates := tsk.collectAllCandidates()
 
-	fileNames := make([]string, len(files))
-	for i, entry := range files {
-		fileNames[i] = entry.Name()
+	if len(candidates) == 0 {
+		return tsk.Handler.LogErrFields(
+			fmt.Errorf("no subtitle candidates found for %s", tsk.Targ.Name),
+			AbortTask,
+			"autosubs failed",
+			map[string]interface{}{"video": filepath.Base(tsk.MediaSourceFile)},
+		)
 	}
 
-	tsk.Handler.ZeroLog().Trace().
-		Strs("files", fileNames).
-		Msg("File list of parent dir of media file")
+	// Select best candidates for target and native languages
+	targCandidate, nativeCandidate := selectBestCandidates(candidates, tsk.Targ, tsk.RefLangs)
 
+	// Create temp directory for embedded subtitle extraction (uses tmpfs)
+	tempDir, err := os.MkdirTemp("", "langkit-subs-*")
 	if err != nil {
-		return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to read directory")
-	} else if len(files) == 0 {
-		return tsk.Handler.LogErr(err, AbortTask, "autosub: read directory but retrieved file list is empty")
+		return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to create temp directory")
 	}
-	trimmedMedia := strings.TrimSuffix(filepath.Base(tsk.MediaSourceFile), filepath.Ext(tsk.MediaSourceFile))
 
-	for _, file := range files {
-		ext := strings.ToLower(filepath.Ext(file.Name()))
-		trimmed := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-
-		if file.IsDir() {
-			tsk.Handler.ZeroLog().Trace().
-				Str("directory", file.Name()).
-				Msg("Skipping: Entry is a directory")
-			continue
-		}
-		
-		if isLangkitMadeDubtitles(file.Name()) {
-			tsk.Handler.ZeroLog().Debug().
-				Str("file", file.Name()).
-				Msg("Skipping: Is a Langkit-generated dubtitle file")
-			continue
-		}
-
-		if isLangkitMadeTranslit(file.Name()) {
-			tsk.Handler.ZeroLog().Debug().
-				Str("file", file.Name()).
-				Msg("Skipping: Is a Langkit-generated transliteration file")
-			continue
-		}
-		
-		if !slices.Contains(SupportedExt, ext) {
-			tsk.Handler.ZeroLog().Debug().
-				Str("file", file.Name()).
-				Str("extension", ext).
-				Msg("Skipping: Unsupported subtitle extension")
-			continue
-		}
-
-		if strings.Contains(strings.ToLower(trimmed), "forced") {
-			tsk.Handler.ZeroLog().Debug().
-				Str("file", file.Name()).
-				Msg("Skipping: Filename contains 'forced'")
-			continue
-		}
-
-		if !strings.HasPrefix(trimmed, trimmedMedia) {
-			tsk.Handler.ZeroLog().Debug().
-				Str("file", file.Name()).
-				Str("media_prefix", trimmedMedia).
-				Msg("Skipping: Filename does not match the media file's prefix")
-			continue
-		}
-		
-		l, err := GuessLangFromFilename(file.Name())
+	// Materialize target subtitle
+	if targCandidate != nil {
+		path, err := targCandidate.Materialize(tempDir)
 		if err != nil {
-			tsk.Handler.ZeroLog().Debug().Err(err).Msg("guessing lang")
-			continue
+			return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to materialize target subtitle")
 		}
-		
-		tsk.Handler.ZeroLog().Debug().
-			Str("Guessed lang", l.Part3).
-			Str("Subtag", l.Subtag).
-			Msgf("File: %s", file.Name())
+		tsk.TargSubFile = path
+		tsk.Targ = targCandidate.Lang
 
-		// Check if subtitle name matches our target language
-		tsk.SetPreferred([]Lang{tsk.Targ}, l, tsk.Targ, file.Name(), &tsk.TargSubFile, &tsk.Targ)
+		// Check if it's CC or dubs based on subtype
+		tsk.IsCCorDubs = targCandidate.Subtype == CC || targCandidate.Subtype == Dub
 
-		// Check if subtitle name matches any of our native/reference languages
-		for _, RefLang := range tsk.RefLangs {
-			tsk.IsCCorDubs = tsk.SetPreferred(tsk.RefLangs, l, RefLang, file.Name(), &tsk.NativeSubFile, &tsk.Native)
-		}
-	}
-	tsk.Handler.ZeroLog().Info().Str("Automatically chosen Target subtitle", tsk.TargSubFile).Msg("")
-	tsk.NativeSubFile = Base2Absolute(tsk.NativeSubFile, filepath.Dir(tsk.MediaSourceFile))
-	tsk.TargSubFile = Base2Absolute(tsk.TargSubFile, filepath.Dir(tsk.MediaSourceFile))
-	if tsk.TargSubFile == "" {
-		return tsk.Handler.LogErrFields(fmt.Errorf("no subtitle file in %s was found", tsk.Targ.Name), AbortTask,
-			"autosubs failed", map[string]interface{}{"video": filepath.Base(tsk.MediaSourceFile)})
-	}
-	if tsk.Mode != Subs2Cards {
-		return nil
-	}
-	if tsk.NativeSubFile == "" {
-		tsk.Handler.ZeroLog().Warn().Str("video", filepath.Base(tsk.MediaSourceFile)).Msg("No sub file for reference/native language was found")
+		tsk.Handler.ZeroLog().Info().
+			Str("path", tsk.TargSubFile).
+			Str("lang", tsk.Targ.Part3).
+			Str("subtag", tsk.Targ.Subtag).
+			Bool("embedded", targCandidate.Source.Type == SubSourceEmbedded).
+			Msg("Automatically chosen Target subtitle")
 	} else {
-		tsk.Handler.ZeroLog().Info().Str("Automatically chosen Native subtitle", tsk.NativeSubFile).Msg("")
+		return tsk.Handler.LogErrFields(
+			fmt.Errorf("no subtitle matching target language %s was found", tsk.Targ.Name),
+			AbortTask,
+			"autosubs failed",
+			map[string]interface{}{"video": filepath.Base(tsk.MediaSourceFile)},
+		)
 	}
+
+	// Materialize native subtitle (if needed for Subs2Cards mode)
+	if tsk.Mode == Subs2Cards {
+		if nativeCandidate != nil {
+			path, err := nativeCandidate.Materialize(tempDir)
+			if err != nil {
+				tsk.Handler.ZeroLog().Warn().Err(err).Msg("Failed to materialize native subtitle")
+			} else {
+				tsk.NativeSubFile = path
+				tsk.Native = nativeCandidate.Lang
+
+				// Update IsCCorDubs if native is CC or dubs
+				if nativeCandidate.Subtype == CC || nativeCandidate.Subtype == Dub {
+					tsk.IsCCorDubs = true
+				}
+
+				tsk.Handler.ZeroLog().Info().
+					Str("path", tsk.NativeSubFile).
+					Str("lang", tsk.Native.Part3).
+					Str("subtag", tsk.Native.Subtag).
+					Bool("embedded", nativeCandidate.Source.Type == SubSourceEmbedded).
+					Msg("Automatically chosen Native subtitle")
+			}
+		} else {
+			tsk.Handler.ZeroLog().Warn().
+				Str("video", filepath.Base(tsk.MediaSourceFile)).
+				Msg("No subtitle matching reference/native language was found")
+		}
+	}
+
 	return nil
 }
 
@@ -600,7 +714,8 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 // 3. Filtering TargSubs to Default-style only for ASS/SSA files
 func (tsk *Task) prepareSubtitles() {
 	// Step 1: Check if subtitles are closed captions and trim brackets
-	if isClosedCaptions(tsk.TargSubFile) {
+	// Uses IsCCorDubs set by Autosub() - works for both standalone and embedded
+	if tsk.IsCCorDubs {
 		tsk.Handler.ZeroLog().Warn().Msg("Foreign subs are detected as closed captions and will be trimmed.")
 		tsk.TargSubs.TrimCC2Dubs()
 	} else {
@@ -749,10 +864,6 @@ func escape(s string) string {
 		return fmt.Sprintf(`"%s"`, quoted)
 	}
 	return s
-}
-
-func isClosedCaptions(file string) bool {
-	return strings.Contains(strings.ToLower(file), "closedcaption")
 }
 
 func placeholder() {

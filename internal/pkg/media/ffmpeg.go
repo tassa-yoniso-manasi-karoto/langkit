@@ -205,6 +205,19 @@ func SplitAudioFile(inputPath string, segmentSeconds int, outputDir string) ([]s
 	return segments, nil
 }
 
+// ExtractSubtitleTrack extracts a subtitle track from a media file
+// streamIndex is the FFmpeg stream index (from mediainfo StreamOrder)
+func ExtractSubtitleTrack(inputFile string, streamIndex int, outputFile string) error {
+	args := []string{
+		"-loglevel", "error",
+		"-i", inputFile,
+		"-map", fmt.Sprintf("0:%d", streamIndex),
+		"-c:s", "copy",
+		outputFile,
+	}
+	return FFmpeg(args...)
+}
+
 // ExtractAudioTrack extracts an audio track from a media file to specified format
 // Optional extraArgs (e.g., resample filters) are inserted before codec settings
 func ExtractAudioTrack(inputFile string, trackIndex int, outputFile string, extraArgs ...string) error {

@@ -33,6 +33,19 @@ Guidelines for LLMs updating this changelog from git history:
 
 - New default voice separation model: MelBand RoFormer. ~40% better quality than Demucs, requires 4GB VRAM
 - Support for styled subtitle files (.ass/.ssa) commonly found in anime releases
+- Support for subtitles embedded in video files (.mkv/.mp4), no manual extraction required
+
+### Changed
+
+- Voice separation now auto-detects your GPU: simplified dropdown with model names, NVIDIA checkbox which auto-enables when sufficient VRAM is available
+- Systems with less than 4GB VRAM now default Demucs
+- Model weights downloads show detailed progress (e.g., "9.06M / 913M") and failed downloads are now cleaned up automatically
+- Clearer setup guidance for Dubtitles feature on fresh installs
+- Process button stays visually active instead of being greyed out when blocked by configuration errors, ensuring the user will see the error tooltip
+
+### Fixed
+
+- Visual glitches in welcome popup animations when running inside Anki on Linux
 
 ## [1.0.1-alpha] - 2025-12-22
 

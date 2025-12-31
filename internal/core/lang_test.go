@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	iso "github.com/barbashov/iso639-3"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,46 +84,6 @@ func TestIsExtlangSubtag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := isExtlangSubtag(tt.subtag)
 			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestSubtagQuality(t *testing.T) {
-	tests := []struct {
-		name             string
-		requestedSubtag  string
-		candidateSubtag  string
-		langCode         string
-		expectedQuality  int
-	}{
-		// Exact matches
-		{"exact match hans", "hans", "hans", "zho", 100},
-		{"exact match us", "us", "us", "eng", 100},
-		{"exact match empty", "", "", "zho", 100},
-
-		// User didn't specify subtag (requestedSubtag == "")
-		{"no request, generic candidate", "", "", "zho", 100}, // Same as exact match
-		{"no request, default script hans for zho", "", "hans", "zho", 85},
-		{"no request, non-default script hant for zho", "", "hant", "zho", 0},
-		{"no request, default script hans for yue", "", "hans", "yue", 85},
-		{"no request, preferred region us for eng", "", "us", "eng", 85},
-		{"no request, secondary region gb for eng", "", "gb", "eng", 80},
-		{"no request, other region in for eng", "", "in", "eng", 50},
-		{"no request, other region br for por", "", "br", "por", 50},
-
-		// User specified subtag but candidate is generic
-		{"requested hans, candidate generic", "hans", "", "zho", 70},
-		{"requested us, candidate generic", "us", "", "eng", 70},
-
-		// Mismatched subtags
-		{"hans vs hant mismatch", "hans", "hant", "zho", 0},
-		{"us vs gb mismatch", "us", "gb", "eng", 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := subtagQuality(tt.requestedSubtag, tt.candidateSubtag, tt.langCode)
-			assert.Equal(t, tt.expectedQuality, result)
 		})
 	}
 }
@@ -372,97 +331,6 @@ func TestGetIdx_ScriptAware(t *testing.T) {
 			if matched {
 				assert.Equal(t, tt.expectedIdx, idx, "index mismatch")
 			}
-		})
-	}
-}
-
-func TestSetPreferredLang_QualityComparison(t *testing.T) {
-	// Create a no-op logger for tests
-	logger := zerolog.Nop()
-
-	tests := []struct {
-		name           string
-		userLangs      []Lang
-		candidate      Lang
-		current        Lang
-		expectedResult bool // true if candidate should be preferred
-	}{
-		// Script quality comparison
-		{
-			"zh-hans beats zh-hant when user requests zho",
-			[]Lang{makeLang("zho", "")},
-			makeLang("zho", "hans"), // candidate: quality 85 (default script)
-			makeLang("zho", "hant"), // current: quality 0 (non-default, doesn't match)
-			true,
-		},
-		{
-			"zh (generic) beats zh-hans when user requests zho",
-			[]Lang{makeLang("zho", "")},
-			makeLang("zho", ""),     // candidate: quality 90 (generic)
-			makeLang("zho", "hans"), // current: quality 85 (default script)
-			true,
-		},
-		{
-			"zh-hans does NOT beat zh (generic) when user requests zho",
-			[]Lang{makeLang("zho", "")},
-			makeLang("zho", "hans"), // candidate: quality 85
-			makeLang("zho", ""),     // current: quality 90
-			false,
-		},
-
-		// Regional quality comparison
-		{
-			"en-us beats en-in when user requests en",
-			[]Lang{makeLang("eng", "")},
-			makeLang("eng", "us"), // candidate: quality 85 (preferred region)
-			makeLang("eng", "in"), // current: quality 50 (other region)
-			true,
-		},
-		{
-			"en-gb beats en-in when user requests en",
-			[]Lang{makeLang("eng", "")},
-			makeLang("eng", "gb"), // candidate: quality 80
-			makeLang("eng", "in"), // current: quality 50
-			true,
-		},
-		{
-			"en (generic) beats en-us when user requests en",
-			[]Lang{makeLang("eng", "")},
-			makeLang("eng", ""),   // candidate: quality 90 (generic)
-			makeLang("eng", "us"), // current: quality 85
-			true,
-		},
-		{
-			"en-in does NOT beat en-us when user requests en",
-			[]Lang{makeLang("eng", "")},
-			makeLang("eng", "in"), // candidate: quality 50
-			makeLang("eng", "us"), // current: quality 85
-			false,
-		},
-
-		// First valid match wins over non-matching current
-		{
-			"candidate wins when current doesn't match user request",
-			[]Lang{makeLang("zho", "")},
-			makeLang("zho", "hans"),        // candidate matches user request
-			makeLang("eng", "us"),           // current is different language (doesn't match)
-			true,
-		},
-
-		// Language priority overrides quality
-		{
-			"first language always beats second language regardless of quality",
-			[]Lang{makeLang("zho", ""), makeLang("eng", "")},
-			makeLang("zho", "hans"), // candidate: first lang, quality 85
-			makeLang("eng", ""),     // current: second lang, quality 90
-			true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := setPreferredLang(tt.userLangs, tt.candidate, tt.current, &logger)
-			assert.Equal(t, tt.expectedResult, result)
 		})
 	}
 }

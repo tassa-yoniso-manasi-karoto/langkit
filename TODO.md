@@ -1,8 +1,4 @@
 
-- redraw text after animation bug linux Qt
-
-- support embedded subtitles
-
 - 🚧🚧 add tlit in TSV/CSV
 
 

@@ -341,7 +341,7 @@ func (tsk *Task) ConcatWAVsToAudio() error {
 
 			targSubs := tsk.TargSubs
 			// don't base the summary on the trimmed version, rely on CC for best context
-			if isClosedCaptions(tsk.TargSubFile) {
+			if tsk.IsCCorDubs {
 				targSubs, _ = subs.OpenFile(tsk.TargSubFile, false)
 			}
 

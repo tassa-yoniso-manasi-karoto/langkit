@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 	"unicode"
 
 	iso "github.com/barbashov/iso639-3"
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
-	"github.com/rs/zerolog"
 )
 
 // TODO May make sense to move some functions to translitkit/pkg
@@ -60,55 +58,6 @@ func isExtlangSubtag(subtag string) bool {
 		return false
 	}
 	return iso.FromAnyCode(subtag) != nil
-}
-
-// subtagQuality returns a preference score for a candidate's subtag.
-// Higher scores indicate better matches. Used to pick between variants
-// when multiple files match the same base language.
-func subtagQuality(requestedSubtag, candidateSubtag, langCode string) int {
-	// Exact subtag match - highest priority
-	if requestedSubtag == candidateSubtag {
-		return 100
-	}
-
-	// User didn't specify subtag - accept variants but with preferences
-	if requestedSubtag == "" {
-		// Generic version (no subtag) - high priority
-		if candidateSubtag == "" {
-			return 90
-		}
-
-		// Script subtag (4 letters) - only accept if it's the default
-		if isScriptSubtag(candidateSubtag) {
-			if defaultScript, ok := defaultScripts[langCode]; ok && candidateSubtag == defaultScript {
-				return 85 // Default script for this language
-			}
-			return 0 // Non-default script - reject
-		}
-
-		// Regional subtag (2 letters) - accept with preferences
-		switch langCode {
-		case "eng":
-			if candidateSubtag == "us" {
-				return 85
-			}
-			if candidateSubtag == "gb" {
-				return 80
-			}
-		}
-
-		// Any other regional subtag - lower priority but acceptable
-		return 50
-	}
-
-	// User specified subtag but candidate is generic (no subtag)
-	// This is an acceptable fallback
-	if candidateSubtag == "" {
-		return 70
-	}
-
-	// Different non-empty subtags - no match
-	return 0
 }
 
 type Lang struct {
@@ -225,40 +174,6 @@ func ParseLanguageTags(arr []string) (langs []Lang, err error) {
 		langs = append(langs, lang)
 	}
 	return
-}
-
-func (tsk *Task) SetPreferred(langs []Lang, l, atm Lang, filename string, out *string, Native *Lang) bool {
-	logger := tsk.Handler.ZeroLog()
-	for idx, lang := range langs {
-		if lang.Language == nil {
-			err := fmt.Errorf("lang at index %d is nil", idx)
-			msg := "BUG: SetPreferred received nil pointer among []Lang."
-			tsk.Handler.LogErrWithLevel(Error, err, AbortAllTasks, msg)
-			time.Sleep(1 * time.Second) // make sure throttler has time to flush
-			logger.Fatal().Err(err).Interface("languages", langs).Msg(msg)
-		}
-	}
-
-	// If no file has been selected yet, atm is just the target language (not a real match).
-	// In this case, skip quality comparison - first matching file wins.
-	noFileSelectedYet := *out == ""
-	isPreferredLang := evalLangPreference(langs, l, atm, noFileSelectedYet, logger)
-	isPreferredSubtype := isPreferredSubtypeOver(*out, filename, logger)
-	isPreferred := isPreferredLang && isPreferredSubtype
-
-	logger.Trace().
-		Str("File", filename).
-		Str("lang_currently_selected", atm.Part3).
-		Bool("isPreferredLang", isPreferredLang).
-		Bool("isPreferredSubtype", isPreferredSubtype).
-		Msgf("candidate subs's lang '%s' should be preferred? %t", l.Part3, isPreferred)
-
-	if isPreferred {
-		*out = filename
-		*Native = l // Store the winning candidate's language (including subtag), not the old atm
-		return true
-	}
-	return false
 }
 
 // GuessLangFromFilename extracts language information from a filename.
@@ -409,66 +324,6 @@ func stripCommonSubsMention(s string) string {
 	return s
 }
 
-
-// evalLangPreference determines if candidate l should be preferred over current atm.
-// When noCurrentFile is true, it means atm is just the target language (not a real file match),
-// so we skip quality comparison and accept the first matching candidate.
-func evalLangPreference(langs []Lang, l, atm Lang, noCurrentFile bool, logger *zerolog.Logger) bool {
-	langIdx, langIsDesired := getIdx(langs, l)
-	atmIdx, atmIsDesired := getIdx(langs, atm)
-
-	logger.Trace().
-		Bool("lang_is_desired", langIsDesired).
-		Bool("is_preferred_over_current", langIdx <= atmIdx).
-		Bool("no_current_file", noCurrentFile).
-		Msgf("evaluating candidate '%s' against current '%s'", l.Part3, atm.Part3)
-
-	if !langIsDesired {
-		return false
-	}
-
-	// If no file has been selected yet, first matching candidate wins
-	// (atm is just the target language, not a real file match)
-	if noCurrentFile {
-		return true
-	}
-
-	// Better language priority (lower index in user's preference list = higher priority)
-	if langIdx < atmIdx {
-		return true
-	}
-
-	// Same language priority - compare subtag quality to pick best variant
-	if langIdx == atmIdx {
-		// If no current valid selection, candidate wins
-		if !atmIsDesired {
-			return true
-		}
-
-		// Both match the same requested language - compare subtag quality
-		requestedLang := langs[langIdx]
-		langQuality := subtagQuality(requestedLang.Subtag, l.Subtag, l.Part3)
-		atmQuality := subtagQuality(requestedLang.Subtag, atm.Subtag, atm.Part3)
-
-		logger.Trace().
-			Int("candidate_subtag_quality", langQuality).
-			Int("current_subtag_quality", atmQuality).
-			Msgf("subtag comparison: candidate '%s' vs current '%s'", l.Subtag, atm.Subtag)
-
-		if langQuality > atmQuality {
-			return true
-		}
-	}
-
-	return false
-}
-
-// setPreferredLang is a convenience wrapper for evalLangPreference with noCurrentFile=false.
-// Used by tests and cases where there's already a current file selected.
-func setPreferredLang(langs []Lang, l, atm Lang, logger *zerolog.Logger) bool {
-	return evalLangPreference(langs, l, atm, false, logger)
-}
-
 func getIdx(langs []Lang, candidate Lang) (int, bool) {
 	// Handle nil Language (e.g., initial empty state before any match)
 	if candidate.Language == nil {
@@ -504,7 +359,6 @@ func getIdx(langs []Lang, candidate Lang) (int, bool) {
 			}
 
 			// Regional subtag (2 letters) - always accept
-			// (quality differentiation happens in setPreferredLang via subtagQuality)
 			return i, true
 		}
 
@@ -517,23 +371,6 @@ func getIdx(langs []Lang, candidate Lang) (int, bool) {
 		// e.g., user wants "en-us", file has "en-in" → reject
 	}
 	return 0, false
-}
-
-// compare subtitles filenames
-func isPreferredSubtypeOver(curr, candidate string, logger *zerolog.Logger) bool {
-	currVal := subtypeMatcher(curr)
-	candidateVal := subtypeMatcher(candidate)
-	
-	eval := candidateVal >= currVal
-	
-	logger.Trace().
-		Str("currently_select_filename", curr).
-		Int("currently_select_subtype", currVal).
-		Str("candidate_filename", candidate).
-		Int("candidate_subtype", candidateVal).
-		Msgf("candidate subs's subtype is preferred? %t", eval)
-	
-	return eval
 }
 
 func subtypeMatcher(s string) int {

@@ -196,7 +196,8 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				if err != nil {
 					tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
 				}
-				if strings.Contains(strings.ToLower(tsk.TargSubFile), "closedcaption") { //TODO D.R.Y. cards.go#L501
+				// Use IsCCorDubs set by Autosub() - works for both standalone and embedded
+				if tsk.IsCCorDubs {
 					foreignSubs.TrimCC2Dubs()
 				}
 				// Filter ASS/SSA to Default-style only for accurate item count
