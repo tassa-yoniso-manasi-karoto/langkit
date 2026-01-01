@@ -150,12 +150,15 @@ func (tsk *Task) Transliterate(ctx context.Context) *ProcessingError {
 
 	// Preserve the original subtitle format (e.g., .srt, .ass, .ssa)
 	inputExt := filepath.Ext(tsk.TargSubFile)
-	base := strings.TrimSuffix(tsk.TargSubFile, inputExt)
+	// Use outputDir() + outputBase() for proper output paths:
+	// - Standalone subtitles: uses TargSubFile naming (preserves resumption)
+	// - Embedded subtitles: uses MediaSourceFile + lang (proper mpv naming)
+	outputBase := filepath.Join(tsk.outputDir(), tsk.outputBase())
 
-	subsFilepathTokenized := base + Tokenize.ToSuffix(inputExt)
-	subsFilepathTranslit  := base + Romanize.ToSuffix(inputExt)
-	subsFilepathSelective := base + Selective.ToSuffix(inputExt)
-	subsFilepathTokenizedSelective := base + TokenizedSelective.ToSuffix(inputExt)
+	subsFilepathTokenized := outputBase + Tokenize.ToSuffix(inputExt)
+	subsFilepathTranslit  := outputBase + Romanize.ToSuffix(inputExt)
+	subsFilepathSelective := outputBase + Selective.ToSuffix(inputExt)
+	subsFilepathTokenizedSelective := outputBase + TokenizedSelective.ToSuffix(inputExt)
 	
 	outputTypes := []TranslitOutputType{
 		TranslitOutputType{Tokenize, "", subsFilepathTokenized, OutputTokenized, 70, "tokenization"},

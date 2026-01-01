@@ -163,17 +163,56 @@ func (tsk *Task) collectAllCandidates() []SubtitleCandidate {
 }
 
 // Path utility functions
+
+// isEmbeddedSubtitle returns true if TargSubFile was extracted from container
+// (i.e., it's not in the same directory as the video file)
+func (tsk *Task) isEmbeddedSubtitle() bool {
+	if tsk.TargSubFile == "" || tsk.MediaSourceFile == "" {
+		return false
+	}
+	return filepath.Dir(tsk.TargSubFile) != filepath.Dir(tsk.MediaSourceFile)
+}
+
+// outputDir returns the directory for all output files (video's directory)
+func (tsk *Task) outputDir() string {
+	if tsk.MediaSourceFile != "" {
+		return filepath.Dir(tsk.MediaSourceFile)
+	}
+	return filepath.Dir(tsk.TargSubFile)
+}
+
+// outputBase returns the base name for all output files.
+// For standalone subtitles: uses TargSubFile (preserves existing naming & resumption)
+// For embedded subtitles: derives from MediaSourceFile + lang suffix
 func (tsk *Task) outputBase() string {
+	// Standalone subtitle: use existing naming (preserves resumption compatibility)
+	if tsk.TargSubFile != "" && !tsk.isEmbeddedSubtitle() {
+		base := strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
+		return strings.ReplaceAll(base, "'", " ")
+	}
+
+	// Embedded subtitle: derive from MediaSourceFile + language suffix
+	if tsk.MediaSourceFile != "" {
+		base := strings.TrimSuffix(filepath.Base(tsk.MediaSourceFile), filepath.Ext(tsk.MediaSourceFile))
+		base = strings.ReplaceAll(base, "'", " ")
+		// Add language suffix for mpv fuzzy matching
+		if tsk.Targ.Language != nil {
+			base += "." + tsk.Targ.String()
+		}
+		return base
+	}
+
+	// Ultimate fallback (shouldn't happen in normal use)
 	base := strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
 	return strings.ReplaceAll(base, "'", " ")
 }
 
 func (tsk *Task) outputFile() string {
-	return filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.outputBase()+tsk.OutputFileExtension)
+	return filepath.Join(tsk.outputDir(), tsk.outputBase()+tsk.OutputFileExtension)
 }
 
 func (tsk *Task) mediaOutputDir() string {
-	return filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.outputBase()+".media")
+	return filepath.Join(tsk.outputDir(), tsk.outputBase()+".media")
 }
 
 func (tsk *Task) audioBase() string {
