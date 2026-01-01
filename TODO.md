@@ -16,7 +16,6 @@ Windows-Specific Testing
 
 Fresh Install / Setup
 
-- Fresh install without API keys shows helpful guidance messages -> MAKE A SINGLE FEATURE MESSAGE FOR BOTH CONDENSED AUDIO AND DUBTITLE
 - No ghost rendering issues (quick check)
 
 

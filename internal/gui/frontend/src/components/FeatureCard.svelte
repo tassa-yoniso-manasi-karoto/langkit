@@ -1067,7 +1067,7 @@
                                         warning
                                     </span>
                                     <div class="flex-1 text-xs text-white/90">
-                                        <span>No LLM providers available. Configure API keys in Settings to use this feature.</span>
+                                        <span>No LLM providers available. Configure API keys or custom endpoint in Settings to use this feature.</span>
                                     </div>
                                 </div>
                             {:else if missingProviders.length > 0}
@@ -1118,16 +1118,11 @@
                         {@const availableSTTProviders = currentSTTModels.models.filter(m => m.isAvailable)}
                         {#if enabled && availableSTTProviders.length === 0}
                             <div class={messageItemClass}>
-                                <span class="material-icons text-[14px] text-primary mt-0.5 group-hover:animate-subtlePulse">
-                                    info
+                                <span class="material-icons text-[14px] text-log-warn mt-0.5">
+                                    warning
                                 </span>
                                 <div class="flex-1 text-xs text-white/90">
-                                    <span>No STT providers available.</span>
-                                    <button
-                                        class="ml-1 text-primary hover:text-primary-300 transition-colors duration-200 underline"
-                                        on:click={() => $showSettings = true}>
-                                        Add API keys or custom endpoint
-                                    </button>
+                                    <span>No STT providers available. Configure API keys or custom endpoint in Settings to use this feature.</span>
                                 </div>
                             </div>
                         {/if}
