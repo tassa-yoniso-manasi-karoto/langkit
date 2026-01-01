@@ -202,14 +202,17 @@ func parseCombination(combo string) FeatureSet {
 func normalizeBarID(header string) string {
 	// Map table headers to bar ID constants
 	headerMap := map[string]string{
-		"media-bar":         progress.BarMediaBar,
-		"item-bar":          progress.BarItemBar,
-		"demucs-process":    progress.BarDemucsProcess,
-		"demucs-docker-dl":  progress.BarDemucsDockerDL,
-		"demucs-model-dl":   progress.BarDemucsModelDL,
-		"translit-process":  progress.BarTranslitProcess,
+		"media-bar":          progress.BarMediaBar,
+		"item-bar":           progress.BarItemBar,
+		"demucs-process":     progress.BarDemucsProcess,
+		"demucs-docker-dl":   progress.BarDemucsDockerDL,
+		"demucs-model-dl":    progress.BarDemucsModelDL,
+		"audiosep-process":   progress.BarAudioSepProcess,
+		"audiosep-docker-dl": progress.BarAudioSepDockerDL,
+		"audiosep-model-dl":  progress.BarAudioSepModelDL,
+		"translit-process":   progress.BarTranslitProcess,
 		"translit-docker-dl": progress.BarTranslitDockerDL,
-		"translit-init":     progress.BarTranslitInit,
+		"translit-init":      progress.BarTranslitInit,
 	}
 
 	normalized := strings.TrimSpace(header)

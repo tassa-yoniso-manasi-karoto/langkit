@@ -1,5 +1,3 @@
-- python voice separation progress bar wrong sizes
-
 Pre-release Testing Checklist
 
 Voice Separation Models

@@ -32,14 +32,17 @@ This document serves as the **ground truth** for progress bar visual importance 
 |----|---------|-------------|
 | `media-bar` | Bulk Processing | Counts video files processed (only in bulk mode) |
 | `item-bar` | Subs2Cards / Subs2Dubs / Condense | Counts subtitle lines processed |
-| `demucs-process` | Voice Enhancement | Voice separation processing |
+| `demucs-process` | Voice Enhancement (Demucs) | Voice separation processing |
+| `audiosep-process` | Voice Enhancement (MelBand RoFormer) | Voice separation processing (alternative to Demucs) |
 | `translit-process` | Transliteration | Romanization/tokenization processing |
 
 ### Download/Setup Bars
 | ID | Feature | Description |
 |----|---------|-------------|
-| `demucs-docker-dl` | Voice Enhancement | Docker image download (first-time) |
-| `demucs-model-dl` | Voice Enhancement | Model weights download |
+| `demucs-docker-dl` | Voice Enhancement (Demucs) | Docker image download (first-time) |
+| `demucs-model-dl` | Voice Enhancement (Demucs) | Model weights download |
+| `audiosep-docker-dl` | Voice Enhancement (MelBand RoFormer) | Docker image download (first-time) |
+| `audiosep-model-dl` | Voice Enhancement (MelBand RoFormer) | Model weights download |
 | `translit-docker-dl` | Transliteration | Provider Docker image download |
 | `translit-init` | Transliteration | Database initialization (e.g., Ichiran) |
 
@@ -50,6 +53,11 @@ The following bars occur sequentially (not concurrently) and can share the same 
 1. **item-bar** and **translit-process**: Subtitle processing happens before/after transliteration
 2. **translit-docker-dl** and **translit-init**: Both are setup phases, happen in sequence
 3. **demucs-docker-dl** and **demucs-model-dl**: Both are setup phases, happen in sequence
+4. **audiosep-docker-dl** and **audiosep-model-dl**: Both are setup phases, happen in sequence
+
+## Voice Enhancement Providers
+
+Demucs and Audio-Separator (MelBand RoFormer) are **alternative providers** for the same Enhance mode. Only one is active at a time based on user selection. Both get **identical importance levels** since they serve the same purpose.
 
 ## Core Principles
 
@@ -67,63 +75,63 @@ No `media-bar`. Primary feature gets maximum visual importance.
 ## 1.1 ENHANCE Mode
 
 <!-- MODE: enhance, BULK: false -->
-| Combination | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|------------------|-----------------|----------------|
-| enhance | 🟧 | 🟨 | 🟥 |
+| Combination | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| enhance | 🟧 | 🟨 | 🟥 | 🟧 | 🟨 | 🟥 |
 
 ## 1.2 TRANSLIT Mode
 
 <!-- MODE: translit, BULK: false -->
-| Combination | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | item-bar |
-|-------------|-------------------|---------------|------------------|------------------|-----------------|----------------|----------|
-| translit | 🟧 | 🟧 | 🟥 | - | - | - | - |
-| translit+enhance | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟧 | - |
-| translit+condense | 🟧 | 🟧 | 🟥 | - | - | - | 🟥 |
-| translit+enhance+condense | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟧 | 🟥 |
+| Combination | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process | item-bar |
+|-------------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|----------|
+| translit | 🟧 | 🟧 | 🟥 | - | - | - | - | - | - | - |
+| translit+enhance | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 | - |
+| translit+condense | 🟧 | 🟧 | 🟥 | - | - | - | - | - | - | 🟥 |
+| translit+enhance+condense | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 | 🟥 |
 
 ## 1.3 CONDENSE Mode
 
 <!-- MODE: condense, BULK: false -->
-| Combination | item-bar | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|----------|------------------|-----------------|----------------|
-| condense | 🟥 | - | - | - |
-| condense+enhance | 🟥 | 🟨 | 🟩 | 🟧 |
+| Combination | item-bar | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|----------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| condense | 🟥 | - | - | - | - | - | - |
+| condense+enhance | 🟥 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
 
 ## 1.4 SUBS2DUBS Mode
 
 <!-- MODE: subs2dubs, BULK: false -->
-| Combination | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|
-| subs2dubs | 🟥 | - | - | - | - | - | - |
-| subs2dubs+enhance | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 |
-| subs2dubs+translit | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - |
-| subs2dubs+condense | 🟥 | - | - | - | - | - | - |
-| subs2dubs+enhance+translit | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 |
-| subs2dubs+enhance+condense | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 |
-| subs2dubs+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - |
-| subs2dubs+enhance+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 |
+| Combination | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| subs2dubs | 🟥 | - | - | - | - | - | - | - | - | - |
+| subs2dubs+enhance | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2dubs+translit | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - |
+| subs2dubs+condense | 🟥 | - | - | - | - | - | - | - | - | - |
+| subs2dubs+enhance+translit | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2dubs+enhance+condense | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2dubs+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - |
+| subs2dubs+enhance+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
 
 ## 1.5 SUBS2CARDS Mode
 
 <!-- MODE: subs2cards, BULK: false -->
-| Combination | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|
-| subs2cards | 🟥 | - | - | - | - | - | - |
-| subs2cards+enhance | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 |
-| subs2cards+translit | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - |
-| subs2cards+condense | 🟥 | - | - | - | - | - | - |
-| subs2cards+stt | 🟥 | - | - | - | - | - | - |
-| subs2cards+enhance+translit | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 |
-| subs2cards+enhance+condense | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 |
-| subs2cards+enhance+stt | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 |
-| subs2cards+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - |
-| subs2cards+translit+stt | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - |
-| subs2cards+condense+stt | 🟥 | - | - | - | - | - | - |
-| subs2cards+enhance+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 |
-| subs2cards+enhance+translit+stt | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 |
-| subs2cards+enhance+condense+stt | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 |
-| subs2cards+translit+condense+stt | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - |
-| subs2cards+enhance+translit+condense+stt | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 |
+| Combination | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| subs2cards | 🟥 | - | - | - | - | - | - | - | - | - |
+| subs2cards+enhance | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2cards+translit | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - |
+| subs2cards+condense | 🟥 | - | - | - | - | - | - | - | - | - |
+| subs2cards+stt | 🟥 | - | - | - | - | - | - | - | - | - |
+| subs2cards+enhance+translit | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2cards+enhance+condense | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2cards+enhance+stt | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2cards+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - |
+| subs2cards+translit+stt | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - |
+| subs2cards+condense+stt | 🟥 | - | - | - | - | - | - | - | - | - |
+| subs2cards+enhance+translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2cards+enhance+translit+stt | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2cards+enhance+condense+stt | 🟥 | - | - | - | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| subs2cards+translit+condense+stt | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - |
+| subs2cards+enhance+translit+condense+stt | 🟥 | 🟨 | 🟨 | 🟧 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
 
 ---
 
@@ -134,63 +142,63 @@ No `media-bar`. Primary feature gets maximum visual importance.
 ## 2.1 ENHANCE Mode (Bulk)
 
 <!-- MODE: enhance, BULK: true -->
-| Combination | media-bar | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|-----------|------------------|-----------------|----------------|
-| enhance | 🟥 | 🟨 | 🟩 | 🟧 |
+| Combination | media-bar | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|-----------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| enhance | 🟥 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
 
 ## 2.2 TRANSLIT Mode (Bulk)
 
 <!-- MODE: translit, BULK: true -->
-| Combination | media-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | item-bar |
-|-------------|-----------|-------------------|---------------|------------------|------------------|-----------------|----------------|----------|
-| translit | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - |
-| translit+enhance | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟨 | - |
-| translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | 🟧 |
-| translit+enhance+condense | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟨 | 🟧 |
+| Combination | media-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process | item-bar |
+|-------------|-----------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|----------|
+| translit | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - | - |
+| translit+enhance | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 | - |
+| translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - | 🟧 |
+| translit+enhance+condense | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 | 🟧 |
 
 ## 2.3 CONDENSE Mode (Bulk)
 
 <!-- MODE: condense, BULK: true -->
-| Combination | media-bar | item-bar | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|-----------|----------|------------------|-----------------|----------------|
-| condense | 🟥 | 🟧 | - | - | - |
-| condense+enhance | 🟥 | 🟧 | 🟩 | 🟦 | 🟨 |
+| Combination | media-bar | item-bar | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|-----------|----------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| condense | 🟥 | 🟧 | - | - | - | - | - | - |
+| condense+enhance | 🟥 | 🟧 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
 
 ## 2.4 SUBS2DUBS Mode (Bulk)
 
 <!-- MODE: subs2dubs, BULK: true -->
-| Combination | media-bar | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|-----------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|
-| subs2dubs | 🟥 | 🟧 | - | - | - | - | - | - |
-| subs2dubs+enhance | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 |
-| subs2dubs+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - |
-| subs2dubs+condense | 🟥 | 🟧 | - | - | - | - | - | - |
-| subs2dubs+enhance+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 |
-| subs2dubs+enhance+condense | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 |
-| subs2dubs+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - |
-| subs2dubs+enhance+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 |
+| Combination | media-bar | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|-----------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| subs2dubs | 🟥 | 🟧 | - | - | - | - | - | - | - | - | - |
+| subs2dubs+enhance | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2dubs+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - | - | - | - |
+| subs2dubs+condense | 🟥 | 🟧 | - | - | - | - | - | - | - | - | - |
+| subs2dubs+enhance+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2dubs+enhance+condense | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2dubs+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - | - | - | - |
+| subs2dubs+enhance+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
 
 ## 2.5 SUBS2CARDS Mode (Bulk)
 
 <!-- MODE: subs2cards, BULK: true -->
-| Combination | media-bar | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process |
-|-------------|-----------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|
-| subs2cards | 🟥 | 🟧 | - | - | - | - | - | - |
-| subs2cards+enhance | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 |
-| subs2cards+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - |
-| subs2cards+condense | 🟥 | 🟧 | - | - | - | - | - | - |
-| subs2cards+stt | 🟥 | 🟧 | - | - | - | - | - | - |
-| subs2cards+enhance+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 |
-| subs2cards+enhance+condense | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 |
-| subs2cards+enhance+stt | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 |
-| subs2cards+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - |
-| subs2cards+translit+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - |
-| subs2cards+condense+stt | 🟥 | 🟧 | - | - | - | - | - | - |
-| subs2cards+enhance+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 |
-| subs2cards+enhance+translit+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 |
-| subs2cards+enhance+condense+stt | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 |
-| subs2cards+translit+condense+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - |
-| subs2cards+enhance+translit+condense+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 |
+| Combination | media-bar | item-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
+|-------------|-----------|----------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
+| subs2cards | 🟥 | 🟧 | - | - | - | - | - | - | - | - | - |
+| subs2cards+enhance | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2cards+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - | - | - | - |
+| subs2cards+condense | 🟥 | 🟧 | - | - | - | - | - | - | - | - | - |
+| subs2cards+stt | 🟥 | 🟧 | - | - | - | - | - | - | - | - | - |
+| subs2cards+enhance+translit | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2cards+enhance+condense | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2cards+enhance+stt | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2cards+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - | - | - | - |
+| subs2cards+translit+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - | - | - | - |
+| subs2cards+condense+stt | 🟥 | 🟧 | - | - | - | - | - | - | - | - | - |
+| subs2cards+enhance+translit+condense | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2cards+enhance+translit+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2cards+enhance+condense+stt | 🟥 | 🟧 | - | - | - | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| subs2cards+translit+condense+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | - | - | - | - | - | - |
+| subs2cards+enhance+translit+condense+stt | 🟥 | 🟧 | 🟩 | 🟩 | 🟨 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
 
 ---
 
@@ -258,16 +266,19 @@ The following progress bars occur **sequentially** (not concurrently) and theref
 1. **`item-bar`** and **`translit-process`**: Subtitle line processing and transliteration happen in sequence
 2. **`translit-docker-dl`** and **`translit-init`**: Both are setup phases that happen one after another
 3. **`demucs-docker-dl`** and **`demucs-model-dl`**: Both are setup phases, but note the sub-download rule below
+4. **`audiosep-docker-dl`** and **`audiosep-model-dl`**: Both are setup phases (same as demucs)
 
-## Rule: demucs-model-dl Is a Sub-Download
+## Rule: Model Download Is a Sub-Download
 
-`demucs-model-dl` (model weights download) is a **sub-step** of the Demucs setup. It is always **ONE level below** `demucs-docker-dl`:
+`*-model-dl` bars (model weights download) are **sub-steps** of the Docker setup. They are always **ONE level below** their corresponding `*-docker-dl`:
 
-| demucs-docker-dl | demucs-model-dl |
-|------------------|-----------------|
+| *-docker-dl | *-model-dl |
+|-------------|------------|
 | 🟧 | 🟨 |
 | 🟨 | 🟩 |
 | 🟩 | 🟦 |
+
+This applies to both `demucs-model-dl` and `audiosep-model-dl`.
 
 ## Rule: All Features Enabled
 
@@ -285,13 +296,15 @@ When `handler.go` receives a processing request from the frontend:
 
 ## Primary Feature by Mode
 
-| Mode | Primary Processing Bar | Primary Download Bars |
-|------|----------------------|----------------------|
-| Enhance | `demucs-process` | `demucs-docker-dl`, `demucs-model-dl` |
+| Mode | Primary Processing Bars | Primary Download Bars |
+|------|------------------------|----------------------|
+| Enhance | `demucs-process`, `audiosep-process` | `demucs-docker-dl`, `demucs-model-dl`, `audiosep-docker-dl`, `audiosep-model-dl` |
 | Translit | `translit-process` | `translit-docker-dl`, `translit-init` |
 | Condense | `item-bar` | (none) |
 | Subs2Dubs | `item-bar` | (none) |
 | Subs2Cards | `item-bar` | (none) |
+
+Note: Demucs and Audio-Separator are alternative providers for voice enhancement. Only one is active at runtime, but both are pre-allocated identical importance levels.
 
 ## Secondary Features
 

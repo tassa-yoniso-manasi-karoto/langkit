@@ -193,9 +193,14 @@ func ComputeImportanceMap(mode Mode, isBulk bool, features FeatureSet) Importanc
 	// Determine primary feature bars based on mode
 	switch mode {
 	case Enhance:
+		// Demucs bars
 		m[progress.BarDemucsProcess] = primaryProcLevel
 		m[progress.BarDemucsDockerDL] = primaryDLLevel
 		m[progress.BarDemucsModelDL] = demoteLevel(primaryDLLevel, true)
+		// Audio-separator bars (alternative to Demucs, same importance levels)
+		m[progress.BarAudioSepProcess] = primaryProcLevel
+		m[progress.BarAudioSepDockerDL] = primaryDLLevel
+		m[progress.BarAudioSepModelDL] = demoteLevel(primaryDLLevel, true)
 	case Translit:
 		m[progress.BarTranslitProcess] = primaryProcLevel
 		m[progress.BarTranslitDockerDL] = primaryDLLevel
@@ -209,9 +214,14 @@ func ComputeImportanceMap(mode Mode, isBulk bool, features FeatureSet) Importanc
 
 	// If enhance is enabled but not primary (mode != Enhance)
 	if features.HasEnhance && mode != Enhance {
+		// Demucs bars
 		m[progress.BarDemucsProcess] = secondaryProcLevel
 		m[progress.BarDemucsDockerDL] = secondaryDLLevel
 		m[progress.BarDemucsModelDL] = demoteLevel(secondaryDLLevel, true)
+		// Audio-separator bars (alternative to Demucs, same importance levels)
+		m[progress.BarAudioSepProcess] = secondaryProcLevel
+		m[progress.BarAudioSepDockerDL] = secondaryDLLevel
+		m[progress.BarAudioSepModelDL] = demoteLevel(secondaryDLLevel, true)
 	}
 
 	// If translit is enabled but not primary (mode != Translit)
