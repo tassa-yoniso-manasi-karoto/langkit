@@ -27,7 +27,7 @@ Guidelines for LLMs updating this changelog from git history:
 - The use of em dashes as punctuation is absolutely forbidden
 -->
 
-## [1.1.0-alpha] - Unreleased
+## [1.1.0-alpha] - 2026-01-01
 
 ### Added
 

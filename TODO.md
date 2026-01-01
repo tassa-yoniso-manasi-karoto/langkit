@@ -1,23 +1,6 @@
-Pre-release Testing Checklist
-
-Voice Separation Models
-
-- Test previous models still work (Demucs)
-- Test new model (MelBand RoFormer)
-- Verify download progress bars display correctly
-
-Windows-Specific Testing
-
-- New voice separation model works
-- Old voice separation model still works
-- BusyBox executes for maintenance operations
-- Download progress bars work correctly
-- Provider status reactivity works
-
-Fresh Install / Setup
-
-- No ghost rendering issues (quick check)
-
+- check on windows
+  - BusyBox executes for maintenance operations 
+  - No ghost rendering issues (quick check)
 
 <hr>
 
