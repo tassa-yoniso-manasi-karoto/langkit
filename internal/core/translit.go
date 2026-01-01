@@ -22,7 +22,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/go-ichiran"
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
 
-	astisub "github.com/asticode/go-astisub"
+	astisub "github.com/tassa-yoniso-manasi-karoto/go-astisub"
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"

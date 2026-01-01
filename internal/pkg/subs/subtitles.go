@@ -10,7 +10,7 @@ import (
 
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
-	astisub "github.com/asticode/go-astisub"
+	astisub "github.com/tassa-yoniso-manasi-karoto/go-astisub"
 )
 
 type Subtitles struct {

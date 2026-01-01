@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/asticode/go-astisub"
+	"github.com/tassa-yoniso-manasi-karoto/go-astisub"
 )
 
 const (

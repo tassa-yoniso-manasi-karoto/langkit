@@ -5,7 +5,6 @@ go 1.23.12
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/adrg/xdg v0.5.3
-	github.com/asticode/go-astisub v0.38.0
 	github.com/barbashov/iso639-3 v1.0.0
 	github.com/bogem/id3v2 v1.2.0
 	github.com/compose-spec/compose-go/v2 v2.8.2
@@ -33,6 +32,7 @@ require (
 	github.com/stretchr/testify v1.11.0
 	github.com/tassa-yoniso-manasi-karoto/dockerutil v0.0.0-20251219114917-92ee7ec684b1
 	github.com/tassa-yoniso-manasi-karoto/elevenlabs-go v0.0.0-20240928025137-897c7419acac
+	github.com/tassa-yoniso-manasi-karoto/go-astisub v0.38.1-0.20260101141257-0a670a72dfef
 	github.com/tassa-yoniso-manasi-karoto/go-ichiran v1.0.3-beta.0.20251219122339-8997bbf64d5a
 	github.com/tassa-yoniso-manasi-karoto/translitkit v0.0.0-20251219122617-744329832b99
 	github.com/tidwall/pretty v1.2.1
@@ -58,6 +58,7 @@ require (
 	github.com/akavel/rsrc v0.10.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asticode/go-astikit v0.51.1 // indirect
+	github.com/asticode/go-astisub v0.38.0 // indirect
 	github.com/asticode/go-astits v1.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.36.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.29.6 // indirect

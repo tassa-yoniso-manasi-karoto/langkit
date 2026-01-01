@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	astisub "github.com/asticode/go-astisub"
+	astisub "github.com/tassa-yoniso-manasi-karoto/go-astisub"
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/schollz/progressbar/v3"
