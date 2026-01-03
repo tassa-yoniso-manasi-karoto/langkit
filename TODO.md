@@ -1,11 +1,8 @@
 - check on windows
-  - BusyBox executes for maintenance operations 
   - No ghost rendering issues (quick check)
 
-<hr>
-
-
-- 🚧🚧 add tlit in TSV/CSV
+- 🚧 add tlit in TSV/CSV
+- 🚧 use mkv toolnix to merge outputs WHILE PRESERVING TAGS & METADATA
 
 
 - Wave svg reset too fast make longer loop

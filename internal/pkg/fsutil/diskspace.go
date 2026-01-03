@@ -2,6 +2,7 @@ package fsutil
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,9 @@ import (
 )
 
 const GB = 1024 * 1024 * 1024
+
+// ErrInsufficientDiskSpace is returned when there is not enough disk space to proceed.
+var ErrInsufficientDiskSpace = errors.New("insufficient disk space")
 
 // GetAvailableDiskSpace returns available disk space in bytes for the given path.
 // Works cross-platform (Linux, macOS, Windows) via gopsutil.
@@ -59,6 +63,8 @@ func findMountpoint(path string, partitions []disk.PartitionStat) string {
 
 // GetDockerDataRoot returns the Docker data root directory where images are stored.
 // Falls back to XDG_DATA_HOME/docker or common locations if docker info fails.
+// Returns an error if the Docker root is not accessible from the host filesystem
+// (e.g., Docker Desktop on Windows using WSL2 backend where data lives inside the VM).
 func GetDockerDataRoot() (string, error) {
 	// Try to get from docker info command
 	cmd := exec.Command("docker", "info", "--format", "{{.DockerRootDir}}")
@@ -69,11 +75,17 @@ func GetDockerDataRoot() (string, error) {
 	if err := cmd.Run(); err == nil {
 		dataRoot := strings.TrimSpace(out.String())
 		if dataRoot != "" {
-			return dataRoot, nil
+			// Verify the path is accessible from the host filesystem.
+			// On Windows with Docker Desktop (WSL2), docker info returns a Linux path
+			// like /var/lib/docker which doesn't exist on the Windows host.
+			if _, err := os.Stat(dataRoot); err == nil {
+				return dataRoot, nil
+			}
+			// Path from docker info is not accessible (likely WSL2 on Windows)
 		}
 	}
 
-	// Fallback to common locations if docker info fails
+	// Fallback to common locations if docker info fails or returns inaccessible path
 	// XDG_DATA_HOME/docker is used by rootless Docker, /var/lib/docker is the standard system location
 	commonPaths := []string{
 		filepath.Join(xdg.DataHome, "docker"),
@@ -85,7 +97,7 @@ func GetDockerDataRoot() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not determine Docker data root")
+	return "", fmt.Errorf("Docker data root not accessible from host filesystem (possibly using WSL2 backend)")
 }
 
 // CheckDiskSpace validates that there is sufficient disk space at the given path.
@@ -100,8 +112,8 @@ func CheckDiskSpace(path string, requiredGB int, logger *zerolog.Logger) error {
 	requiredBytes := uint64(requiredGB) * GB
 
 	if available < requiredBytes {
-		return fmt.Errorf("insufficient disk space at %s: %.2f GB available, %d GB required",
-			path, availableGB, requiredGB)
+		return fmt.Errorf("%w at %s: %.2f GB available, %d GB required",
+			ErrInsufficientDiskSpace, path, availableGB, requiredGB)
 	}
 
 	logger.Debug().

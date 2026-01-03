@@ -161,7 +161,11 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 
 	// Check both media path and Docker data root (if using Docker demucs)
 	if err := fsutil.CheckDiskSpaceBoth(checkPath, requiredDiskSpaceGB, usingDockerVoiceSep, tsk.Handler.ZeroLog()); err != nil {
-		return tsk.Handler.LogErr(err, AbortAllTasks, "")
+		if errors.Is(err, fsutil.ErrInsufficientDiskSpace) {
+			return tsk.Handler.LogErr(err, AbortAllTasks, "")
+		}
+		// Non-critical errors (e.g., can't determine Docker root on WSL2) - log and continue
+		tsk.Handler.ZeroLog().Debug().Err(err).Msg("Disk space check encountered non-critical error")
 	}
 
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
