@@ -27,6 +27,12 @@ Guidelines for LLMs updating this changelog from git history:
 - The use of em dashes as punctuation is absolutely forbidden
 -->
 
+## [1.1.1-alpha] - 2026-01-03
+
+### Fixed
+
+- Disk space check no longer cause errors on Windows on runs that use Docker 
+
 ## [1.1.0-alpha] - 2026-01-01
 
 ### Added

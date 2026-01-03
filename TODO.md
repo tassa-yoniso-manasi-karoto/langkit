@@ -1,5 +1,3 @@
-- check on windows
-  - No ghost rendering issues (quick check)
 
 - 🚧 add tlit in TSV/CSV
 - 🚧 use mkv toolnix to merge outputs WHILE PRESERVING TAGS & METADATA
