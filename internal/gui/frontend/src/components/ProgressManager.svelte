@@ -116,11 +116,19 @@
         taskErrors = new Map();
         statusText = "In progress...";
         lastProcessingState = true;
+        // Reset hero bar - App.svelte already clears all bars via
+        // progressBars.set([]) when starting a new process, so no
+        // flush needed here; just clear the hero tracking.
+        heroBarId = null;
     } else if (!isProcessing && lastProcessingState) {
         // When processing stops, update the status text based on state
         // But don't clear visual state immediately - let user see the error
         lastProcessingState = false;
-        
+
+        // Elect hero bar from the final complete set of bars.
+        // All bars are known at this point, so the election is reliable.
+        heroBarId = findHeroBarId($progressBars);
+
         // Update status text based on the final state
         if (userCancelled) {
             statusText = "Processing canceled by user";
@@ -147,88 +155,118 @@
         : userCancelled ? 'state-user-cancel' // Apply cancel state for static gradient
         : 'state-normal'; // Default or normal state
 
-    // Check for large bars that need cleanup when user becomes active
+    // The "hero" bar stays visible as green completion feedback until the user
+    // returns. Elected when processing ends (all bars known). During processing,
+    // the tallest bar is protected implicitly via size comparison.
+    let heroBarId: string | null = null;
+
+    // When user becomes active, schedule removal of the hero bar if it completed
+    // while the user was away.
     $: if (userActivityState === 'active') {
-        checkForCompletedLargeBars();
+        scheduleHeroBarRemovalIfComplete();
     }
-    
-    // Function to handle cleanup of completed large bars
-    function checkForCompletedLargeBars() {
-        // Don't reset flags immediately when processing stops
-        // This allows error messages to remain visible for the user
-        // The reset will happen after all bars are removed with a timeout (see reactive statement above)
 
-        $progressBars.forEach(bar => {
-            // For download bars, consider complete when progress rounds to 100%
-            const isDownloadComplete = bar.type === 'download' && Math.round(bar.progress) >= 100;
-            const isRegularComplete = bar.progress >= 100;
-            const isComplete = isDownloadComplete || isRegularComplete;
-
-            if (isComplete && !taskErrors.has(bar.id)) {
-                const barSize = bar.size || 'h-2.5';
-
-                // Parse height size to determine if it's large
-                const sizeMatch = barSize.match(/h-([0-9.]+)/);
-                const sizeValue = sizeMatch ? parseFloat(sizeMatch[1]) : 2.5;
-                const isLargeBar = sizeValue > 3;  // Larger than h-3
-
-                if (isLargeBar && userActivityState === 'active') {
-                    // Only remove completed large bars if user is active
-                    // and wait a bit longer to ensure user sees completion
-                    setTimeout(() => removeProgressBar(bar.id), 120000); // 2 minutes
-                }
-            }
-        });
-    }
-    
     // Watch for processing state changes to handle error visibility
     let processingWasActive = false;
-    
+
     // Update processingWasActive whenever isProcessing changes
     $: {
         processingWasActive = isProcessing;
     }
-    
-    // Automatic removal of fully completed bars (not in error) after 2 minutes
+
+    // Helper: parse the numeric height value from a size class like "h-5" or "h-2.5"
+    function parseBarSize(bar: ProgressBarData): number {
+        const barSize = bar.size || 'h-2.5';
+        const sizeMatch = barSize.match(/h-([0-9.]+)/);
+        return sizeMatch ? parseFloat(sizeMatch[1]) : 2.5;
+    }
+
+    // Find the "hero" bar: the single most important bar that should
+    // remain visible as positive feedback until the user comes back.
+    // In bulk mode this is media-bar; otherwise the largest bar in the current set.
+    function findHeroBarId(bars: ProgressBarData[]): string | null {
+        // If a media-bar exists, it's the bulk-mode overall progress tracker
+        const mediaBar = bars.find(b => b.id === 'media-bar');
+        if (mediaBar) return mediaBar.id;
+
+        // Single-file mode: pick the bar with the largest height class
+        let bestId: string | null = null;
+        let bestSize = 0;
+        for (const bar of bars) {
+            const size = parseBarSize(bar);
+            if (size > bestSize) {
+                bestSize = size;
+                bestId = bar.id;
+            }
+        }
+        return bestId;
+    }
+
+    // Schedule removal of the hero bar once the user comes back and it's complete.
+    // Called reactively when userActivityState becomes 'active'.
+    function scheduleHeroBarRemovalIfComplete() {
+        if (!heroBarId) return;
+        if (scheduledForRemoval.has(heroBarId)) return;
+
+        const hero = $progressBars.find(b => b.id === heroBarId);
+        if (!hero) return;
+
+        const isDownloadComplete = hero.type === 'download' && Math.round(hero.progress) >= 100;
+        const isComplete = hero.progress >= 100 || isDownloadComplete;
+        if (isComplete && !taskErrors.has(hero.id) && !hero.errorState) {
+            scheduledForRemoval.add(heroBarId);
+            const id = heroBarId;
+            setTimeout(() => {
+                removeProgressBar(id);
+                scheduledForRemoval.delete(id);
+            }, 120000);
+        }
+    }
+
+    // Track which bars have been scheduled for removal to avoid duplicate timeouts
+    const scheduledForRemoval = new Set<string>();
+
+    // Automatic removal of fully completed bars (not in error) after 2 minutes.
+    //
+    // During processing: the tallest bar is protected via size comparison (the
+    // bars arrive gradually, so we can't elect a definitive hero yet). All other
+    // completed bars get the 2-min timeout.
+    //
+    // After processing: heroBarId is set from the final complete bar set. Only
+    // that specific bar is protected; it waits for user activity to be GC'd.
     onMount(() => {
-        // Track which bars have been scheduled for removal to avoid duplicate timeouts
-        const scheduledForRemoval = new Set<string>();
-
-        // Track progress bars
         const progressSub = progressBars.subscribe((bars) => {
+            // Compute the max size among all current bars for mid-run protection
+            let maxSize = 0;
             for (const bar of bars) {
-                // Skip if already scheduled for removal
-                if (scheduledForRemoval.has(bar.id)) {
-                    continue;
-                }
+                const size = parseBarSize(bar);
+                if (size > maxSize) maxSize = size;
+            }
 
-                // For download bars, consider complete when progress rounds to 100%
-                // (handles rounding issues where 529MB/530MB = 99.81% displays as 100%)
+            for (const bar of bars) {
+                if (scheduledForRemoval.has(bar.id)) continue;
+
                 const isDownloadComplete = bar.type === 'download' && Math.round(bar.progress) >= 100;
-                const isRegularComplete = bar.progress >= 100;
-                const isComplete = isDownloadComplete || isRegularComplete;
+                const isComplete = bar.progress >= 100 || isDownloadComplete;
 
                 if (isComplete && !taskErrors.has(bar.id) && !bar.errorState) {
-                    // Only auto-remove small bars (h-3 or smaller), or larger bars if user is active
-                    const barSize = bar.size || 'h-2.5';
-
-                    // Parse height size to determine if it's small
-                    // h-3 or smaller is considered small, anything larger is considered large
-                    const sizeMatch = barSize.match(/h-([0-9.]+)/);
-                    const sizeValue = sizeMatch ? parseFloat(sizeMatch[1]) : 2.5;
-                    const isSmallBar = sizeValue <= 3;
-
-                    if (isSmallBar && !bar.errorState) {
-                        // Mark as scheduled to prevent duplicate timeouts
-                        scheduledForRemoval.add(bar.id);
-                        // Remove small bars after a delay whether user is active or not
-                        setTimeout(() => {
-                            removeProgressBar(bar.id);
-                            scheduledForRemoval.delete(bar.id);
-                        }, 120000); // 2 minutes
+                    if (isProcessing) {
+                        // During processing: protect the tallest bar(s).
+                        // As new taller bars arrive, old protected bars lose
+                        // protection and get scheduled on the next store update.
+                        if (parseBarSize(bar) >= maxSize) continue;
+                    } else {
+                        // After processing: protect only the elected hero bar.
+                        // It will be cleaned up when user becomes active.
+                        if (bar.id === heroBarId) continue;
                     }
-                    // Larger bars will remain until user activity is detected (handled in checkForCompletedLargeBars)
-                    // Bars with errors remain visible until manually cleared
+
+                    scheduledForRemoval.add(bar.id);
+                    const barId = bar.id;
+                    setTimeout(() => {
+                        removeProgressBar(barId);
+                        scheduledForRemoval.delete(barId);
+                    }, 120000); // 2 minutes
                 }
             }
         });

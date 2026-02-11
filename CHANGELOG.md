@@ -27,6 +27,12 @@ Guidelines for LLMs updating this changelog from git history:
 - The use of em dashes as punctuation is absolutely forbidden
 -->
 
+## [1.1.2-alpha] - 2026-02-11
+
+### Fixed
+
+- Progress bar accumulation during long processing runs
+
 ## [1.1.1-alpha] - 2026-01-03
 
 ### Fixed

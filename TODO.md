@@ -1,9 +1,21 @@
+- PROGRESSBARS:
+  - 🚨🚨🚨 processing JPN should not be bigger size than processing voice sep
+
+- 🚨🚨🚨 should NOT abort_all, give it leaway: "selecting audiotrack: No audiotrack tagged with the requested target language exists. If it isn't a misinput please use the audiotrack override to set a track number manually."
+
+- 🚨🚨🚨 romanized.srt get their ' trimmed
+
+- "continuing with x errors" progress status: x doesn't get reset across processing runs
+
+- 🐢🐢🐢 Wave svg reset too fast make longer loop
+
+ 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
 - 🚧 add tlit in TSV/CSV
-- 🚧 use mkv toolnix to merge outputs WHILE PRESERVING TAGS & METADATA
+- 🚧 use MKVtoolnix to merge outputs WHILE PRESERVING TAGS & METADATA
+  - A-V time shift
+  - sub time shift
 
-
-- Wave svg reset too fast make longer loop
 - Fix useless log spam of LLM providers
 
 - without leakless: https://github.com/go-rod/rod/issues/739#issuecomment-1272420000
