@@ -182,20 +182,18 @@ func (tsk *Task) outputDir() string {
 	return filepath.Dir(tsk.TargSubFile)
 }
 
-// outputBase returns the base name for all output files.
+// outputBase returns the base name for all output files, preserving the original filename.
 // For standalone subtitles: uses TargSubFile (preserves existing naming & resumption)
 // For embedded subtitles: derives from MediaSourceFile + lang suffix
 func (tsk *Task) outputBase() string {
 	// Standalone subtitle: use existing naming (preserves resumption compatibility)
 	if tsk.TargSubFile != "" && !tsk.isEmbeddedSubtitle() {
-		base := strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
-		return strings.ReplaceAll(base, "'", " ")
+		return strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
 	}
 
 	// Embedded subtitle: derive from MediaSourceFile + language suffix
 	if tsk.MediaSourceFile != "" {
 		base := strings.TrimSuffix(filepath.Base(tsk.MediaSourceFile), filepath.Ext(tsk.MediaSourceFile))
-		base = strings.ReplaceAll(base, "'", " ")
 		// Add language suffix for mpv fuzzy matching
 		if tsk.Targ.Language != nil {
 			base += "." + tsk.Targ.String()
@@ -204,8 +202,13 @@ func (tsk *Task) outputBase() string {
 	}
 
 	// Ultimate fallback (shouldn't happen in normal use)
-	base := strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
-	return strings.ReplaceAll(base, "'", " ")
+	return strings.TrimSuffix(filepath.Base(tsk.TargSubFile), filepath.Ext(tsk.TargSubFile))
+}
+
+// ffmpegSafeBase returns outputBase with characters that break FFmpeg concat
+// (single quotes) replaced. Used only for MediaPrefix and media output paths.
+func (tsk *Task) ffmpegSafeBase() string {
+	return strings.ReplaceAll(tsk.outputBase(), "'", " ")
 }
 
 func (tsk *Task) outputFile() string {
@@ -213,7 +216,7 @@ func (tsk *Task) outputFile() string {
 }
 
 func (tsk *Task) mediaOutputDir() string {
-	return filepath.Join(tsk.outputDir(), tsk.outputBase()+".media")
+	return filepath.Join(tsk.outputDir(), tsk.ffmpegSafeBase()+".media")
 }
 
 func (tsk *Task) audioBase() string {
@@ -388,7 +391,7 @@ goodEnd:
 				}
 
 				// Set MediaPrefix for extraction
-				tsk.MediaPrefix = filepath.Join(mediaOutDir, tsk.outputBase())
+				tsk.MediaPrefix = filepath.Join(mediaOutDir, tsk.ffmpegSafeBase())
 				tsk.Handler.ZeroLog().Debug().
 					Str("MediaPrefix", tsk.MediaPrefix).
 					Msg("MediaPrefix set for Translit + WantCondensedAudio")
@@ -682,7 +685,7 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 		}
 		
  		// Set media prefix for file output
-		tsk.MediaPrefix = filepath.Join(tsk.mediaOutputDir(), tsk.outputBase())
+		tsk.MediaPrefix = filepath.Join(tsk.mediaOutputDir(), tsk.ffmpegSafeBase())
 		
 		return nil, nil
 	}
@@ -725,7 +728,7 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 	}
 
 	// Set media prefix for file output
-	tsk.MediaPrefix = filepath.Join(tsk.mediaOutputDir(), tsk.outputBase())
+	tsk.MediaPrefix = filepath.Join(tsk.mediaOutputDir(), tsk.ffmpegSafeBase())
 
 	return outStream, nil
 }
