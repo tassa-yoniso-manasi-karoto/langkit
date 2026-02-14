@@ -203,6 +203,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 				if err != nil {
 					tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
+					return nil // skip this file, other files may be processable
 				}
 				// Use IsCCorDubs set by Autosub() - works for both standalone and embedded
 				if tsk.IsCCorDubs {

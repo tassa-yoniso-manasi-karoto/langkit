@@ -1,11 +1,12 @@
 - PROGRESSBARS:
+  - same class = single instance
   - 🚨🚨🚨 processing JPN should not be bigger size than processing voice sep
+  
+- tell user what to do if backend dies
 
 - 🚨🚨🚨 should NOT abort_all, give it leaway: "selecting audiotrack: No audiotrack tagged with the requested target language exists. If it isn't a misinput please use the audiotrack override to set a track number manually."
 
 - 🚨🚨🚨 romanized.srt get their ' trimmed
-
-- "continuing with x errors" progress status: x doesn't get reset across processing runs
 
 - 🐢🐢🐢 Wave svg reset too fast make longer loop
 
