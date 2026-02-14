@@ -57,8 +57,9 @@ func (tsk *Task) collectStandaloneCandidates() []SubtitleCandidate {
 			continue
 		}
 
-		// Skip files that don't match media prefix
-		if !strings.HasPrefix(trimmed, trimmedMedia) {
+		// Skip files that don't match media prefix (case-insensitive for
+		// providers like Crunchyroll that may use different casing)
+		if !strings.HasPrefix(strings.ToLower(trimmed), strings.ToLower(trimmedMedia)) {
 			continue
 		}
 
