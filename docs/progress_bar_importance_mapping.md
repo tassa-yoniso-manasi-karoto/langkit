@@ -85,9 +85,9 @@ No `media-bar`. Primary feature gets maximum visual importance.
 | Combination | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process | item-bar |
 |-------------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|----------|
 | translit | 🟧 | 🟧 | 🟥 | - | - | - | - | - | - | - |
-| translit+enhance | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 | - |
+| translit+enhance | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟥 | 🟨 | 🟩 | 🟥 | - |
 | translit+condense | 🟧 | 🟧 | 🟥 | - | - | - | - | - | - | 🟥 |
-| translit+enhance+condense | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 | 🟥 |
+| translit+enhance+condense | 🟨 | 🟨 | 🟥 | 🟨 | 🟩 | 🟥 | 🟨 | 🟩 | 🟥 | 🟥 |
 
 ## 1.3 CONDENSE Mode
 
@@ -95,7 +95,7 @@ No `media-bar`. Primary feature gets maximum visual importance.
 | Combination | item-bar | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
 |-------------|----------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
 | condense | 🟥 | - | - | - | - | - | - |
-| condense+enhance | 🟥 | 🟨 | 🟩 | 🟧 | 🟨 | 🟩 | 🟧 |
+| condense+enhance | 🟥 | 🟨 | 🟩 | 🟥 | 🟨 | 🟩 | 🟥 |
 
 ## 1.4 SUBS2DUBS Mode
 
@@ -152,9 +152,9 @@ No `media-bar`. Primary feature gets maximum visual importance.
 | Combination | media-bar | translit-docker-dl | translit-init | translit-process | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process | item-bar |
 |-------------|-----------|-------------------|---------------|------------------|------------------|-----------------|----------------|--------------------| ------------------|------------------|----------|
 | translit | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - | - |
-| translit+enhance | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 | - |
+| translit+enhance | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟧 | 🟩 | 🟦 | 🟧 | - |
 | translit+condense | 🟥 | 🟨 | 🟨 | 🟧 | - | - | - | - | - | - | 🟧 |
-| translit+enhance+condense | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 | 🟧 |
+| translit+enhance+condense | 🟥 | 🟩 | 🟩 | 🟧 | 🟩 | 🟦 | 🟧 | 🟩 | 🟦 | 🟧 | 🟧 |
 
 ## 2.3 CONDENSE Mode (Bulk)
 
@@ -162,7 +162,7 @@ No `media-bar`. Primary feature gets maximum visual importance.
 | Combination | media-bar | item-bar | demucs-docker-dl | demucs-model-dl | demucs-process | audiosep-docker-dl | audiosep-model-dl | audiosep-process |
 |-------------|-----------|----------|------------------|-----------------|----------------|--------------------| ------------------|------------------|
 | condense | 🟥 | 🟧 | - | - | - | - | - | - |
-| condense+enhance | 🟥 | 🟧 | 🟩 | 🟦 | 🟨 | 🟩 | 🟦 | 🟨 |
+| condense+enhance | 🟥 | 🟧 | 🟩 | 🟦 | 🟧 | 🟩 | 🟦 | 🟧 |
 
 ## 2.4 SUBS2DUBS Mode (Bulk)
 

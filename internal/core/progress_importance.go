@@ -214,12 +214,20 @@ func ComputeImportanceMap(mode Mode, isBulk bool, features FeatureSet) Importanc
 
 	// If enhance is enabled but not primary (mode != Enhance)
 	if features.HasEnhance && mode != Enhance {
+		// Voice separation is a heavyweight operation (transformer model) that
+		// typically runs much longer than translit or condense. In those modes,
+		// promote its processing bar to primary level so the user sees a
+		// prominent bar for the longest-running part of the pipeline.
+		enhanceProcLevel := secondaryProcLevel
+		if mode == Translit || mode == Condense {
+			enhanceProcLevel = primaryProcLevel
+		}
 		// Demucs bars
-		m[progress.BarDemucsProcess] = secondaryProcLevel
+		m[progress.BarDemucsProcess] = enhanceProcLevel
 		m[progress.BarDemucsDockerDL] = secondaryDLLevel
 		m[progress.BarDemucsModelDL] = demoteLevel(secondaryDLLevel, true)
 		// Audio-separator bars (alternative to Demucs, same importance levels)
-		m[progress.BarAudioSepProcess] = secondaryProcLevel
+		m[progress.BarAudioSepProcess] = enhanceProcLevel
 		m[progress.BarAudioSepDockerDL] = secondaryDLLevel
 		m[progress.BarAudioSepModelDL] = demoteLevel(secondaryDLLevel, true)
 	}
