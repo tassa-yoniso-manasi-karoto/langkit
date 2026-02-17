@@ -82,8 +82,18 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 	// Calculate tasks completed during this session
 	tasksDoneThisSession := e.completedTasks - e.initialProgress
 
+	// Minimum session tasks: relative to total size instead of a fixed constant.
+	// For a 10-file run need ~2 done, for a 4-file run need 1, caps at 5.
+	minTasks := int64(e.totalTasks / 4)
+	if minTasks < 1 {
+		minTasks = 1
+	}
+	if minTasks > 5 {
+		minTasks = 5
+	}
+
 	// If not enough tasks completed in this session OR elapsed time is too short OR progress is too low, return no estimate
-	if tasksDoneThisSession < MinimumTasksForSimpleETASession || 
+	if tasksDoneThisSession < minTasks ||
 		time.Since(e.startTime) < SimpleETAMinimumElapsed ||
 		percentDone < SimpleETAMinimumProgress {
 		return result
@@ -107,16 +117,13 @@ func (e *SimpleETACalculator) CalculateETAWithConfidence() ETAResult {
 	lowerBound := time.Duration(float64(adjustedEstimate) / SimpleETARangeMultiplier)
 	upperBound := time.Duration(float64(adjustedEstimate) * SimpleETARangeMultiplier)
 
-	// Fill the result - no reliability tracking in SimpleETACalculator
 	result = ETAResult{
 		Estimate:         adjustedEstimate,
 		LowerBound:       lowerBound,
 		UpperBound:       upperBound,
-		ReliabilityScore: 0.0, // Set to zero - not used in SimpleETACalculator
-		SampleCount:      1,   // Just one sample for simple calculation
+		ReliabilityScore: 0.0,
+		SampleCount:      1,
 		PercentDone:      percentDone,
-		CrossMultETA:     estimate,
-		CrossMultWeight:  1.0, // Always 100% cross-multiplication
 		Algorithm:        AlgorithmSimple,
 	}
 

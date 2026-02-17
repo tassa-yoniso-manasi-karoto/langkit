@@ -894,141 +894,87 @@ func formatETA(etaDuration time.Duration) string {
 
 // formatDuration formats a time.Duration into a human-readable string
 func formatDuration(d time.Duration) string {
-	if d.Hours() >= 1 {
-		return fmt.Sprintf("%.0fh", math.Floor(d.Hours()))
-	} else if d.Minutes() >= 1 {
-		return fmt.Sprintf("%.0fm", math.Floor(d.Minutes()))
-	} else {
-		seconds := math.Floor(d.Seconds())
-		if seconds < 1 && d > 0 {
-			seconds = 1
+	if d >= time.Hour {
+		d = d.Round(time.Minute)
+		h := int(d.Hours())
+		m := int(d.Minutes()) % 60
+		if m == 0 {
+			return fmt.Sprintf("%dh", h)
 		}
-		return fmt.Sprintf("%.0fs", seconds)
+		return fmt.Sprintf("%dh%02dm", h, m)
+	} else if d >= time.Minute {
+		m := int(math.Round(d.Minutes()))
+		if m < 1 {
+			m = 1
+		}
+		return fmt.Sprintf("%dm", m)
+	} else {
+		s := int(math.Round(d.Seconds()))
+		if s < 1 && d > 0 {
+			s = 1
+		}
+		return fmt.Sprintf("%ds", s)
 	}
 }
 
-// formatETAWithConfidence formats an ETAResult with reliability information into a human-readable string
+// formatETAWithConfidence formats an ETAResult into a human-readable string.
+// Display decision is width-driven: the calculator's bounds are the source of
+// truth, and the formatter just decides point-vs-range based on how tight they are.
 func formatETAWithConfidence(result eta.ETAResult) string {
 	if result.Estimate < 0 {
 		return ""
 	}
-
 	if result.Estimate == 0 {
 		return "Done"
 	}
 
-	// Format bounds with helper function
-	lowerStr := formatDuration(result.LowerBound)
-	upperStr := formatDuration(result.UpperBound)
 	estimateStr := formatDuration(result.Estimate)
 
-	// Check algorithm type directly instead of using implementation details
+	// Simple calculator: always show point estimate, no reliability
 	if result.Algorithm == eta.AlgorithmSimple {
-		// SimpleETACalculator case - never show reliability regardless of dev mode
 		return fmt.Sprintf("ETA: %s", estimateStr)
 	}
 
-	// Format reliability level as percentage - only used for advanced calculator
-	reliabilityStr := fmt.Sprintf("%.0f%%", result.ReliabilityScore*100)
-
-	// Determine whether to show reliability indicator (only in dev mode)
-	showReliability := version.Version == "dev"
-
-	// Calculate whether range is narrow enough to show as point estimate
-	etaSeconds := result.Estimate.Seconds()
-	rangeDifference := (result.UpperBound.Seconds() - result.LowerBound.Seconds())
-	isRangeNarrow := rangeDifference < etaSeconds * 0.2  // Range is within 20% of estimate
-
-	// After 100 samples or 25% completion, evidence shows cross-multiplication
-	// is extremely accurate (proven ~5% error margin)
-	if result.SampleCount >= 100 || result.PercentDone > 0.25 {
-		// Always show point estimate with high sample count
-		if showReliability {
-			return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
-		}
-		return fmt.Sprintf("ETA: %s", estimateStr)
+	// Width-driven display for advanced calculator
+	relativeWidth := 0.0
+	if result.Estimate > 0 {
+		relativeWidth = float64(result.UpperBound-result.LowerBound) / float64(result.Estimate)
 	}
 
-	// With cross-multiplication, we can be more confident at lower thresholds
-	if result.CrossMultETA > 0 && result.CrossMultWeight > 0.7 {
-		// High cross-mult weight indicates math is reliable for this estimate
-		if result.SampleCount >= 50 || result.PercentDone > 0.15 {
-			// Show point estimate with high cross-mult weight and good sample count
-			if showReliability {
-				return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
-			}
-			return fmt.Sprintf("ETA: %s", estimateStr)
-		}
+	// Dev-mode reliability suffix
+	reliabilitySuffix := ""
+	if version.Version == "dev" {
+		reliabilitySuffix = fmt.Sprintf(" (%.0f%%)", result.ReliabilityScore*100)
 	}
 
-	// Medium confidence with cross-multiplication - show very narrow range
-	if result.CrossMultETA > 0 && result.CrossMultWeight > 0.4 {
-		// Medium cross-mult weight (40-70%)
-		if result.SampleCount >= 30 || result.PercentDone > 0.1 {
-			// Create tight visual bounds (±5%) for good sample counts
-			visualLowerBound := time.Duration(float64(result.Estimate) * 0.95)
-			visualUpperBound := time.Duration(float64(result.Estimate) * 1.05)
-
-			tighterLowerStr := formatDuration(visualLowerBound)
-			tighterUpperStr := formatDuration(visualUpperBound)
-
-			// If strings are the same after formatting, use point estimate
-			if tighterLowerStr == tighterUpperStr {
-				if showReliability {
-					return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
-				}
-				return fmt.Sprintf("ETA: %s", estimateStr)
-			}
-
-			if showReliability {
-				return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, reliabilityStr)
-			}
-			return fmt.Sprintf("ETA: %s-%s", tighterLowerStr, tighterUpperStr)
-		}
+	// Tight bounds (<=20% relative width): point estimate
+	if relativeWidth <= 0.20 {
+		return fmt.Sprintf("ETA: %s%s", estimateStr, reliabilitySuffix)
 	}
 
-	// Standard display formats based on sample count, reliability, and variability
-	switch {
-	case (result.SampleCount >= 30 || result.PercentDone > 0.7) && isRangeNarrow && result.Variability < 0.25:
-		// Very high reliability, low variability, many samples, narrow range: Show point estimate
-		if showReliability {
-			return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
-		}
-		return fmt.Sprintf("ETA: %s", estimateStr)
+	// Moderate bounds (<=80%): show calculator's range directly
+	lowerStr := formatDuration(result.LowerBound)
+	upperStr := formatDuration(result.UpperBound)
 
-	case result.SampleCount >= 15 && result.Variability < 0.4:
-		// High reliability, low-moderate variability: Show narrower range with reliability
-		// Use average of estimate and bounds to create a narrower display
-		tighterLower := time.Duration((float64(result.LowerBound) * 0.3) + (float64(result.Estimate) * 0.7))
-		tighterUpper := time.Duration((float64(result.UpperBound) * 0.3) + (float64(result.Estimate) * 0.7))
-
-		tighterLowerStr := formatDuration(tighterLower)
-		tighterUpperStr := formatDuration(tighterUpper)
-
-		// If the strings ended up the same after formatting, use the point estimate
-		if tighterLowerStr == tighterUpperStr {
-			if showReliability {
-				return fmt.Sprintf("ETA: %s (%s)", estimateStr, reliabilityStr)
-			}
-			return fmt.Sprintf("ETA: %s", estimateStr)
-		}
-
-		if showReliability {
-			return fmt.Sprintf("ETA: %s-%s (%s)", tighterLowerStr, tighterUpperStr, reliabilityStr)
-		}
-		return fmt.Sprintf("ETA: %s-%s", tighterLowerStr, tighterUpperStr)
-
-	case result.SampleCount >= 5:
-		// Moderate samples, show range with reliability
-		if showReliability {
-			return fmt.Sprintf("ETA: %s-%s (%s)", lowerStr, upperStr, reliabilityStr)
-		}
-		return fmt.Sprintf("ETA: %s-%s", lowerStr, upperStr)
-
-	default:
-		// Limited data, show range without reliability
-		return fmt.Sprintf("ETA: %s-%s", lowerStr, upperStr)
+	// If lower and upper format to the same string after rounding, show point estimate
+	if lowerStr == upperStr {
+		return fmt.Sprintf("ETA: %s%s", estimateStr, reliabilitySuffix)
 	}
+
+	if relativeWidth <= 0.80 {
+		return fmt.Sprintf("ETA: %s-%s%s", lowerStr, upperStr, reliabilitySuffix)
+	}
+
+	// Very wide bounds (>80%): clamp visual range to ±40% of estimate
+	clampedLower := time.Duration(float64(result.Estimate) * 0.60)
+	clampedUpper := time.Duration(float64(result.Estimate) * 1.40)
+	lowerStr = formatDuration(clampedLower)
+	upperStr = formatDuration(clampedUpper)
+
+	if lowerStr == upperStr {
+		return fmt.Sprintf("ETA: %s%s", estimateStr, reliabilitySuffix)
+	}
+	return fmt.Sprintf("ETA: %s-%s%s", lowerStr, upperStr, reliabilitySuffix)
 }
 
 // SetHighLoadMode pre-emptively enables high load mode of Adaptive Event Throttling System

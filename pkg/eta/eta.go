@@ -25,32 +25,24 @@ func (at AlgorithmType) String() string {
 
 // Time thresholds for ETA calculation and display
 const (
-	SimpleETAMinimumElapsed     = 2 * time.Second  // Minimum elapsed time to show SimpleETACalculator estimate
-	SimpleETAPessimismFactor    = 1.05             // 5% pessimism for SimpleETACalculator
-	SimpleETARangeMultiplier    = 1.10             // 10% range for SimpleETACalculator
-	MinBulkProgressElapsed      = 5 * time.Second  // Minimum elapsed time to show ETA for bulk updates
-	MinimumTasksForSimpleETASession = 100         // Minimum tasks completed in current session before showing ETA
-	SimpleETAMinimumProgress    = 0.25             // Minimum progress (25%) before showing ETA
+	SimpleETAMinimumElapsed  = 2 * time.Second // Minimum elapsed time to show SimpleETACalculator estimate
+	SimpleETAPessimismFactor = 1.05            // 5% pessimism for SimpleETACalculator
+	SimpleETARangeMultiplier = 1.10            // 10% range for SimpleETACalculator
+	MinBulkProgressElapsed   = 5 * time.Second // Minimum elapsed time to show ETA for bulk updates
+	SimpleETAMinimumProgress = 0.15            // Minimum progress (15%) before showing ETA
 )
 
 // ETAResult represents an ETA calculation with estimate ranges
 type ETAResult struct {
-	Estimate         time.Duration // Point estimate (median)
+	Estimate         time.Duration // Point estimate
 	LowerBound       time.Duration // Lower estimate bound
 	UpperBound       time.Duration // Upper estimate bound
-	ReliabilityScore float64       // Reliability indicator (0.0-1.0)
-	SampleCount      int           // Number of samples used
+	ReliabilityScore float64       // Reliability indicator (0.0-1.0), calibrated to interval width
+	SampleCount      int           // Number of effective rate samples used
 	PercentDone      float64       // Percentage of tasks completed (0.0-1.0)
 	Algorithm        AlgorithmType // The algorithm type that produced this result
-	
-	// Advanced fields - may be empty/zero for SimpleETACalculator
-	RatesPerSec      []float64     // Debug: Recent processing rates (items/second)
-	AvgRate          float64       // Debug: Average processing rate (items/second)
-	CumulativeRate   float64       // Debug: Cumulative rate (total items / total time)
-	Variability      float64       // Debug: Measure of processing rate variability
-	CrossMultETA     time.Duration // ETA based on cross-multiplication 
-	CrossMultWeight  float64       // Weight given to cross-multiplication ETA
-	IsLargeJob       bool          // Whether this is considered a large job
+	Variability      float64       // Coefficient of variation of processing rates
+	CumulativeRate   float64       // Global rate: total items / total time (items/second)
 }
 
 // Provider defines the interface for ETA calculation implementations
