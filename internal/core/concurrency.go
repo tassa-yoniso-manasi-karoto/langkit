@@ -69,11 +69,13 @@ func (tsk *Task) Supervisor(ctx context.Context, outStream *os.File, write Proce
 		)
 	}
 
-	updateBar(0)
-
-	// Explicitly rm progress bar when function exits to avoid
-	// lingering "Subtitle lines processed (all files)... 0/1" in GUI
-	defer tsk.Handler.RemoveProgressBar(ProgressBarIDItem)
+	// In bulk mode, item-bar accumulates across files: skip init and
+	// cleanup so progress persists. The first worker increment creates
+	// the bar; ResetProgress() handles end-of-run cleanup.
+	if !tsk.IsBulkProcess {
+		updateBar(0)
+		defer tsk.Handler.RemoveProgressBar(ProgressBarIDItem)
+	}
 
 	supCtx, supCancel := context.WithCancel(ctx)
 	defer supCancel()

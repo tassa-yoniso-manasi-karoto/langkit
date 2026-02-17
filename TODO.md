@@ -1,7 +1,8 @@
+🔳 same class = single instance
+🔳 `Subtitle lines processed (all files)...- [ETA: 3m-15m (92%)]` -> in bulk mode, this bar is being recreated at each file
+
 - PROGRESSBARS:
   - 🚨🚨🚨 processing JPN should not be bigger size than processing voice sep
-
-- `Subtitle lines processed (all files)...- [ETA: 3m-15m (92%)]` -> in bulk mode, this bar is being recreated at each file
 
 - this error should abort_all: "Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). Apostrophe in the names of the files themselves are supported using a workaround."
 
