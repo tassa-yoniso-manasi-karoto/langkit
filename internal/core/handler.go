@@ -245,8 +245,15 @@ func (h *CLIHandler) incrementProgressInternal(
 		h.etaCalculators = make(map[string]eta.Provider)
 	}
 
-	// Update absolute progress tracking
-	h.progressValues[taskID] += increment
+	// Update absolute progress tracking.
+	// increment=0 means "initialize/reinitialize this bar": reset any stale
+	// state so that reused bar IDs start fresh.
+	if increment == 0 {
+		h.progressValues[taskID] = 0
+		delete(h.etaCalculators, taskID)
+	} else {
+		h.progressValues[taskID] += increment
+	}
 	current := h.progressValues[taskID]
 	
 	// Cap progress at total to prevent exceeding 100%
@@ -641,8 +648,16 @@ func (h *GUIHandler) incrementProgressInternal(
 	// Only create or update ETA for media-bar and item-bar
 	isEtaEnabled := taskID == ProgressBarIDMedia || taskID == ProgressBarIDItem
 
-	// Update local progress tracking
-	h.progressMap[taskID] += increment
+	// Update local progress tracking.
+	// increment=0 means "initialize/reinitialize this bar": reset any stale
+	// state so that reused bar IDs (e.g. per-file translit bars in bulk mode)
+	// start fresh even if the previous run errored out mid-way.
+	if increment == 0 {
+		h.progressMap[taskID] = 0
+		delete(h.etaCalculators, taskID)
+	} else {
+		h.progressMap[taskID] += increment
+	}
 	current := h.progressMap[taskID]
 	
 	// Cap progress at total to prevent exceeding 100%

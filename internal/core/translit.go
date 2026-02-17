@@ -437,7 +437,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 
 	// Add download progress callback for Docker image pulls
 	if handler != nil {
-		downloadTaskID = fmt.Sprintf("%s-%s-%d", progress.BarTranslitDockerDL, p.module.Lang, time.Now().UnixNano())
+		downloadTaskID = fmt.Sprintf("%s-%s", progress.BarTranslitDockerDL, p.module.Lang)
 		var lastBytes int64
 
 		p.module.WithDownloadProgressCallback(func(providerName string, current, total int64, status string) {
@@ -481,7 +481,7 @@ func (p *GenericProvider) Initialize(ctx context.Context, handler MessageHandler
 
 func (p *GenericProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {
 	// Generate a unique task ID for this operation
-	taskID := fmt.Sprintf("%s-%s-%d", progress.BarTranslitProcess, p.module.Lang, time.Now().UnixNano())
+	taskID := fmt.Sprintf("%s-%s", progress.BarTranslitProcess, p.module.Lang)
 	m := p.module
 	nativelyUsesChunks := m.SupportsProgress()
 
@@ -619,7 +619,7 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 	ichiranInitTaskID := progress.BarTranslitInit + "-ichiran"
 	if handler != nil {
 		// Add download progress callback for Docker image pulls
-		downloadTaskID = fmt.Sprintf("%s-ichiran-%d", progress.BarTranslitDockerDL, time.Now().UnixNano())
+		downloadTaskID = fmt.Sprintf("%s-ichiran", progress.BarTranslitDockerDL)
 		var lastBytes int64
 		options = append(options, ichiran.WithDownloadProgressCallback(func(current, total int64, status string) {
 			if current >= total {
@@ -745,7 +745,7 @@ func (p *JapaneseProvider) Initialize(ctx context.Context, handler MessageHandle
 
 func (p *JapaneseProvider) ProcessText(ctx context.Context, text string, handler MessageHandler) (StringResult, error) {
 	// Generate a unique task ID for this operation
-	taskID := fmt.Sprintf("%s-jpn-%d", progress.BarTranslitProcess, time.Now().UnixNano())
+	taskID := fmt.Sprintf("%s-jpn", progress.BarTranslitProcess)
 
 	// Calculate optimal chunk size based on text length
 	runeCount := utf8.RuneCountInString(text)
