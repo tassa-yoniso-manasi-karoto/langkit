@@ -10,8 +10,6 @@
 
 - 🐢🐢🐢 Wave svg reset too fast make longer loop
 
-- FIX ETA (seriously)
-
 - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
 - 🚧 add tlit in TSV/CSV
