@@ -59,14 +59,14 @@ func (tsk *Task) enhance(ctx context.Context) (procErr *ProcessingError) {
 	}
 	
 	// Ensure the track has a language
-	if tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language == nil {
+	if tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Language == nil {
 		// Set a default language if none is specified
 		tsk.Handler.ZeroLog().Warn().Msg("Audio track has no language tag, using 'und' (undefined)")
 		// Use the FromPart3Code method to get a Language for 'und' (undefined)
-		tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language = iso.FromPart3Code("und")
+		tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Language = iso.FromPart3Code("und")
 	}
-	
-	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
+
+	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Language)
 	audioPrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
 
 	// Local providers use FLAC to preserve 44.1kHz sample rate (demucs-next has poor resampler)

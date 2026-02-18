@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	iso "github.com/barbashov/iso639-3"
 	"github.com/gookit/color"
 	"github.com/k0kubun/pp"
 
@@ -21,18 +22,20 @@ import (
 
 var SupportedExt = []string{".srt", ".ass", ".ssa"}
 
-// collectStandaloneCandidates scans directory for standalone subtitle files
-func (tsk *Task) collectStandaloneCandidates() []SubtitleCandidate {
+// CollectStandaloneSubs scans directory for standalone subtitle files
+// associated with the given media file. If retainUnknownLang is true,
+// files whose language can't be guessed are kept as Lang=und instead
+// of being dropped (useful for the expectation checker).
+func CollectStandaloneSubs(mediaFile string, retainUnknownLang bool) []SubtitleCandidate {
 	var candidates []SubtitleCandidate
 
-	dir := filepath.Dir(tsk.MediaSourceFile)
+	dir := filepath.Dir(mediaFile)
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		tsk.Handler.ZeroLog().Debug().Err(err).Msg("collectStandaloneCandidates: failed to read directory")
 		return candidates
 	}
 
-	trimmedMedia := strings.TrimSuffix(filepath.Base(tsk.MediaSourceFile), filepath.Ext(tsk.MediaSourceFile))
+	trimmedMedia := strings.TrimSuffix(filepath.Base(mediaFile), filepath.Ext(mediaFile))
 
 	for _, file := range files {
 		if file.IsDir() {
@@ -66,8 +69,10 @@ func (tsk *Task) collectStandaloneCandidates() []SubtitleCandidate {
 		// Guess language from filename
 		lang, err := GuessLangFromFilename(file.Name())
 		if err != nil {
-			tsk.Handler.ZeroLog().Debug().Err(err).Str("file", file.Name()).Msg("guessing lang from filename")
-			continue
+			if !retainUnknownLang {
+				continue
+			}
+			lang = Lang{Language: iso.FromPart3Code("und")}
 		}
 
 		candidate := SubtitleCandidate{
@@ -79,39 +84,21 @@ func (tsk *Task) collectStandaloneCandidates() []SubtitleCandidate {
 			Subtype: subtypeMatcher(file.Name()),
 		}
 
-		tsk.Handler.ZeroLog().Debug().
-			Str("file", file.Name()).
-			Str("lang", lang.Part3).
-			Str("subtag", lang.Subtag).
-			Msg("Found standalone subtitle candidate")
-
 		candidates = append(candidates, candidate)
 	}
 
 	return candidates
 }
 
-// collectEmbeddedCandidates extracts subtitle track info from video container
-func (tsk *Task) collectEmbeddedCandidates() []SubtitleCandidate {
+// CollectEmbeddedSubs extracts subtitle track candidates from pre-computed
+// MediaInfo. The mediaFile path is stored in each candidate for later
+// extraction via Materialize().
+func CollectEmbeddedSubs(mediaFile string, mi MediaInfo) []SubtitleCandidate {
 	var candidates []SubtitleCandidate
 
-	if tsk.MediaSourceFile == "" {
-		return candidates
-	}
-
-	mediaInfo, err := Mediainfo(tsk.MediaSourceFile)
-	if err != nil {
-		tsk.Handler.ZeroLog().Debug().Err(err).Msg("collectEmbeddedCandidates: failed to get mediainfo")
-		return candidates
-	}
-
-	for i, track := range mediaInfo.TextTracks {
+	for i, track := range mi.TextTracks {
 		// Skip non-text-based formats (PGS, VobSub, etc.)
 		if !isTextBasedFormat(track.Format) {
-			tsk.Handler.ZeroLog().Debug().
-				Str("format", track.Format).
-				Str("title", track.Title).
-				Msg("Skipping non-text subtitle track")
 			continue
 		}
 
@@ -123,7 +110,7 @@ func (tsk *Task) collectEmbeddedCandidates() []SubtitleCandidate {
 			Lang: track.Language,
 			Source: SubtitleSource{
 				Type:        SubSourceEmbedded,
-				MediaFile:   tsk.MediaSourceFile,
+				MediaFile:   mediaFile,
 				TrackIndex:  i,
 				StreamIndex: streamIndex,
 				Format:      track.Format,
@@ -131,22 +118,59 @@ func (tsk *Task) collectEmbeddedCandidates() []SubtitleCandidate {
 			},
 			IsDefault: track.Default == "Yes",
 			Title:     track.Title,
-			Subtype:   subtypeMatcher(track.Title), // Derive subtype from Title
+			Subtype:   subtypeMatcher(track.Title),
 		}
-
-		tsk.Handler.ZeroLog().Debug().
-			Int("trackIndex", i).
-			Int("streamIndex", streamIndex).
-			Str("format", track.Format).
-			Str("lang", track.Language.Part3).
-			Str("subtag", track.Language.Subtag).
-			Str("title", track.Title).
-			Bool("default", candidate.IsDefault).
-			Msg("Found embedded subtitle candidate")
 
 		candidates = append(candidates, candidate)
 	}
 
+	return candidates
+}
+
+// CollectAllSubs combines standalone and embedded subtitle candidates.
+func CollectAllSubs(mediaFile string, mi MediaInfo, retainUnknownLang bool) []SubtitleCandidate {
+	standalone := CollectStandaloneSubs(mediaFile, retainUnknownLang)
+	embedded := CollectEmbeddedSubs(mediaFile, mi)
+	return append(standalone, embedded...)
+}
+
+// collectStandaloneCandidates scans directory for standalone subtitle files
+func (tsk *Task) collectStandaloneCandidates() []SubtitleCandidate {
+	candidates := CollectStandaloneSubs(tsk.MediaSourceFile, false)
+	for _, c := range candidates {
+		tsk.Handler.ZeroLog().Debug().
+			Str("file", filepath.Base(c.Source.FilePath)).
+			Str("lang", c.Lang.Part3).
+			Str("subtag", c.Lang.Subtag).
+			Msg("Found standalone subtitle candidate")
+	}
+	return candidates
+}
+
+// collectEmbeddedCandidates extracts subtitle track info from video container
+func (tsk *Task) collectEmbeddedCandidates() []SubtitleCandidate {
+	if tsk.MediaSourceFile == "" {
+		return nil
+	}
+
+	mediaInfo, err := Mediainfo(tsk.MediaSourceFile)
+	if err != nil {
+		tsk.Handler.ZeroLog().Debug().Err(err).Msg("collectEmbeddedCandidates: failed to get mediainfo")
+		return nil
+	}
+
+	candidates := CollectEmbeddedSubs(tsk.MediaSourceFile, mediaInfo)
+	for _, c := range candidates {
+		tsk.Handler.ZeroLog().Debug().
+			Int("trackIndex", c.Source.TrackIndex).
+			Int("streamIndex", c.Source.StreamIndex).
+			Str("format", c.Source.Format).
+			Str("lang", c.Lang.Part3).
+			Str("subtag", c.Lang.Subtag).
+			Str("title", c.Title).
+			Bool("default", c.IsDefault).
+			Msg("Found embedded subtitle candidate")
+	}
 	return candidates
 }
 

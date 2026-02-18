@@ -1211,7 +1211,7 @@ func (h *GUIHandler) CheckMediaLanguageTags(path string) (interface{}, error) {
 
 	// Check if any audio tracks have language tags
 	for _, track := range mediaInfo.AudioTracks {
-		if track.Language != nil {
+		if track.Language.Language != nil {
 			result["hasLanguageTags"] = true
 			break
 		}

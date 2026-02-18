@@ -25,12 +25,12 @@ type SelectionHelper func(*Task, int, AudioTrack) error
 func getIdealTrack(tsk *Task, i int, track AudioTrack) error {
 	num, _ := strconv.Atoi(track.Channels)
 	tsk.Handler.ZeroLog().Trace().
-		Bool("isTargLang?", *track.Language == *tsk.Targ.Language).
+		Bool("isTargLang?", *track.Language.Language == *tsk.Targ.Language).
 		Bool("isTargetChanNum?", num == tsk.TargetChan).
 		Bool("track.Title_empty?", track.Title == "").
 		Bool("track.Title_notEmpty_notAudioDescr", track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")).
 		Msg("getIdealTrack")
-	if *track.Language == *tsk.Targ.Language && num == tsk.TargetChan &&
+	if *track.Language.Language == *tsk.Targ.Language && num == tsk.TargetChan &&
 		(track.Title == "" || track.Title != "" && !strings.Contains(strings.ToLower(track.Title), "audio description")) {
 			tsk.UseAudiotrack = i
 			tsk.Handler.ZeroLog().Debug().Msg("getIdealTrack selected UseAudiotrack")
@@ -40,8 +40,8 @@ func getIdealTrack(tsk *Task, i int, track AudioTrack) error {
 
 func getAnyTargLangMatch(tsk *Task, i int, track AudioTrack) error {
 	tsk.Handler.ZeroLog().Trace().
-		Bool("isTargLang?", *track.Language == *tsk.Targ.Language).Msg("getAnyTargLangMatch")
-	if *track.Language == *tsk.Targ.Language {
+		Bool("isTargLang?", *track.Language.Language == *tsk.Targ.Language).Msg("getAnyTargLangMatch")
+	if *track.Language.Language == *tsk.Targ.Language {
 		tsk.UseAudiotrack = i
 		tsk.Handler.ZeroLog().Debug().Msg("getAnyTargLangMatch selected UseAudiotrack")
 	}
@@ -50,9 +50,9 @@ func getAnyTargLangMatch(tsk *Task, i int, track AudioTrack) error {
 
 func getFirstTrack(tsk *Task, i int, track AudioTrack) error {
 	tsk.Handler.ZeroLog().Trace().
-		Bool("hasLang", track.Language != nil).
-		Bool("lang_isn't_target", *track.Language != *tsk.Targ.Language).Msg("getFirstTrack")
-	if track.Language != nil && *track.Language != *tsk.Targ.Language {
+		Bool("hasLang", track.Language.Language != nil).
+		Bool("lang_isn't_target", *track.Language.Language != *tsk.Targ.Language).Msg("getFirstTrack")
+	if track.Language.Language != nil && *track.Language.Language != *tsk.Targ.Language {
 		return fmt.Errorf("No audiotrack tagged with the requested target language exists. " +
 			"If it isn't a misinput please use the audiotrack override to set a track number manually.")
 	}

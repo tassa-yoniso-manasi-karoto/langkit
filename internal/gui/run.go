@@ -155,8 +155,14 @@ func registerServices(
 		return fmt.Errorf("failed to register processing service: %w", err)
 	}
 	
+	// Register expectation service
+	expectationSvc := services.NewExpectationService(logger)
+	if err := apiServer.RegisterService(expectationSvc); err != nil {
+		return fmt.Errorf("failed to register expectation service: %w", err)
+	}
+
 	// Note: Settings service is not registered here because it needs
 	// a reference to the App struct which is Wails-specific
-	
+
 	return nil
 }

@@ -175,35 +175,27 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	} else {
 		var tasks []Task
 		// initial scanning
-		err = filepath.Walk(userProvided, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return tsk.Handler.LogErr(err, AbortAllTasks,
-					"error during recursive exploration of provided directory").Err
-			}
-			if info.IsDir() && strings.HasSuffix(info.Name(), ".media") {
-				return filepath.SkipDir
-			}
-			filename := filepath.Base(path)
-			if !strings.HasSuffix(path, ".mp4") && !strings.HasSuffix(filename, ".mkv") ||
-				isLangkitMadeMergedOutput(filename) {
-				return nil
-			}
-			
+		mediaPaths, err := DiscoverMediaFiles(userProvided, nil)
+		if err != nil {
+			return tsk.Handler.LogErr(err, AbortAllTasks,
+				"error during recursive exploration of provided directory")
+		}
+		for _, path := range mediaPaths {
 			tsk.NativeSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
-			if ok := tsk.checkIntegrity(); !ok  {
-				return nil
+			if ok := tsk.checkIntegrity(); !ok {
+				continue
 			}
-			
+
 			if tsk.Mode != Enhance {
 				if procErr := tsk.Autosub(); procErr != nil {
-					return nil // don't return err, other files may be processable
+					continue // other files may be processable
 				}
 				foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)
 				if err != nil {
 					tsk.Handler.ZeroLog().Error().Err(err).Msg("can't read foreign subtitles")
-					return nil // skip this file, other files may be processable
+					continue // skip this file, other files may be processable
 				}
 				// Use IsCCorDubs set by Autosub() - works for both standalone and embedded
 				if tsk.IsCCorDubs {
@@ -215,12 +207,8 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 				}
 				totalItems += len(foreignSubs.Items)
 			}
-			
+
 			tasks = append(tasks, *tsk)
-			return nil
-		})
-		if err != nil {
-			return
 		}
 		reporter.Record(func(gs *crash.GlobalScope, es *crash.ExecutionScope) {
 			es.BulkProcessingDir = userProvided

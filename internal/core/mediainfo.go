@@ -117,7 +117,7 @@ type AudioTrack struct {
 	StreamSizeProportion   string `json:"StreamSize_Proportion"`
 	Title                  string `json:"Title"`
 	LangRaw                string `json:"Language"`
-	Language               *iso.Language
+	Language               Lang
 	Default                string `json:"Default"`
 	AlternateGroup         string `json:"AlternateGroup"`
 }
@@ -202,9 +202,16 @@ func Mediainfo(path string) (media MediaInfo, err error) {
 				fmt.Println("Error unmarshalling Audio track:", err)
 				continue
 			}
-			audioTrack.Language = iso.FromAnyCode(audioTrack.LangRaw)
-			if audioTrack.Language == nil {
-				audioTrack.Language = iso.FromPart3Code("und")
+			// Use ParseLanguageTags for proper BCP 47 handling (same as TextTrack)
+			if audioTrack.LangRaw != "" {
+				langs, err := ParseLanguageTags([]string{audioTrack.LangRaw})
+				if err == nil && len(langs) > 0 {
+					audioTrack.Language = langs[0]
+				}
+			}
+			// Fallback to "und" if no language detected
+			if audioTrack.Language.Language == nil {
+				audioTrack.Language.Language = iso.FromPart3Code("und")
 			}
 			media.AudioTracks = append(media.AudioTracks, audioTrack)
 		case "Text":

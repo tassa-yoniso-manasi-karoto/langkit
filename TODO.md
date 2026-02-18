@@ -1,18 +1,22 @@
-🔳 same class = single instance
 🔳 `Subtitle lines processed (all files)...- [ETA: 3m-15m (92%)]` -> in bulk mode, this bar is being recreated at each file
 🔳 processing JPN should not be bigger size than processing voice sep
 
-- this error should abort_all: "Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). Apostrophe in the names of the files themselves are supported using a workaround."
+- Data aware logic:
+  - Expectation checker
+  - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
-- 🚨🚨🚨 should NOT abort_all, give it leaway: "selecting audiotrack: No audiotrack tagged with the requested target language exists. If it isn't a misinput please use the audiotrack override to set a track number manually."
+- "Do-no-interrupt" mode:
+   - this error should abort_all: "Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). Apostrophe in the names of the files themselves are supported using a workaround."
+   - should NOT abort_all, give it leaway: "selecting audiotrack: No audiotrack tagged with the requested target language exists. If it isn't a misinput please use the audiotrack override to set a track number manually."
 
 - groups of "autosubs failed: no subtitle matching target language Japanese was found" could be mutualized in a user-friendly "meta-error" displayed in progress manager: "Folder X does not appear to contain subtitles in language Y."
 
 - 🐢🐢🐢 Wave svg reset too fast make longer loop
 
-- 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
-
 - 🚧 add tlit in TSV/CSV
+
+- ASR/STT Benchmarker
+
 - 🚧 use MKVtoolnix to merge outputs WHILE PRESERVING TAGS & METADATA
   - A-V time shift
   - sub time shift

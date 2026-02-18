@@ -1,0 +1,69 @@
+webrpc = v1
+name = langkit-expectation
+version = v1.0.0
+
+# Media expectation checker service
+
+struct ExpectationProfile
+  - name: string
+  - expectedAudioLangs: []string
+  - expectedSubtitleLangs: []string
+  - requireVideoTrack: bool
+  - requireLanguageTags: bool
+  - durationTolerancePercent: float64
+  - subtitleLineThresholdPct: float64
+  - checkExternalAudioFiles: bool
+  - videoExtensions: []string
+
+struct AutoCheckConfig
+  - enabled: bool
+  - quorumPct: float64
+  - softFloorPct: float64
+  - minGroupSize: int32
+
+struct CheckRequest
+  - path: string
+  - profile?: ExpectationProfile
+  - autoConfig?: AutoCheckConfig
+
+struct ValidationIssue
+  - severity: string
+  - source: string
+  - filePath: string
+  - category: string
+  - message: string
+
+struct DirectoryConsensusSummary
+  - directory: string
+  - fileCount: int32
+  - bonusExcluded: int32
+  - consensusAudioLangs: []string
+  - consensusSubLangs: []string
+  - consensusAudioTrackCount: int32
+  - medianDurationSec: float64
+
+struct FileSummary
+  - filePath: string
+  - fileName: string
+  - errorCount: int32
+  - warningCount: int32
+  - infoCount: int32
+  - passed: bool
+
+struct ValidationReport
+  - rootPath: string
+  - totalFiles: int32
+  - issues: []ValidationIssue
+  - fileSummaries: []FileSummary
+  - interpretedSummaries: []string
+  - consensusSummaries: []DirectoryConsensusSummary
+  - errorCount: int32
+  - warningCount: int32
+  - infoCount: int32
+  - durationMs: int64
+
+service ExpectationService
+  - RunCheck(request: CheckRequest) => (report: ValidationReport)
+  - ListProfiles() => (profiles: []ExpectationProfile)
+  - SaveProfile(profile: ExpectationProfile) => ()
+  - DeleteProfile(name: string) => ()

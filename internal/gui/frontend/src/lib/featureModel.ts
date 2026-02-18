@@ -517,6 +517,30 @@ const featuresArray: FeatureDefinition[] = [
             'subtitle': ['style', 'provider', 'dockerRecreate', 'browserAccessURL'],
             'merge': ['mergeOutputFiles', 'mergingFormat']
         }
+    },
+    {
+        id: 'expectationCheck',
+        label: 'Check Media',
+        options: {
+            checkMode: {
+                type: 'dropdown',
+                label: 'Check Mode',
+                default: 'auto',
+                choices: ['auto', 'profile', 'both'],
+                hovertip: "Auto: detect anomalies by internal consistency.\nProfile: verify against explicit expectations.\nBoth: run auto + profile checks together."
+            },
+            quorum: {
+                type: 'slider',
+                label: 'Consensus threshold (%)',
+                default: 75,
+                min: 50,
+                max: 100,
+                step: 5,
+                showCondition: "feature.expectationCheck.checkMode === 'auto' || feature.expectationCheck.checkMode === 'both'",
+                hovertip: "Minimum percentage of files that must share a property for a missing instance to be flagged as a Warning."
+            }
+        },
+        requiresLanguage: false
     }
 ];
 

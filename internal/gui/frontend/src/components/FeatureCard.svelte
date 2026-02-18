@@ -629,6 +629,19 @@
             return voiceEnhancingNeedsDocker;
         }
 
+        // Handle feature.FEATUREID.OPTIONID comparison conditions
+        // Supports: feature.X.Y === 'val' || feature.X.Y === 'val2'
+        const featureCondMatch = condition.match(/feature\.(\w+)\.(\w+)/);
+        if (featureCondMatch && featureCondMatch[1] === feature.id) {
+            const optKey = featureCondMatch[2];
+            const currentVal = options[optKey];
+            // Extract all quoted values from === comparisons
+            const valueMatches = [...condition.matchAll(/===\s*'([^']+)'/g)];
+            if (valueMatches.length > 0) {
+                return valueMatches.some(m => m[1] === currentVal);
+            }
+        }
+
         // Fallback for any unhandled conditions - log warning and return false
         logger.warn('featureCard', `Unhandled showCondition: ${condition}`);
         return false;

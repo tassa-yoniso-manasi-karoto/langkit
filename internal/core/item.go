@@ -217,8 +217,8 @@ func (tsk *Task) ConcatWAVsToAudio() error {
 	// Get language code from the audio track, similar to enhance.go
 	var langCode string
 	if len(tsk.Meta.MediaInfo.AudioTracks) > tsk.UseAudiotrack &&
-	   tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language != nil {
-		langCode = Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
+	   tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Language != nil {
+		langCode = Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Language)
 	} else {
 		// Fallback to target language if audio track language is not available
 		langCode = tsk.Targ.String()

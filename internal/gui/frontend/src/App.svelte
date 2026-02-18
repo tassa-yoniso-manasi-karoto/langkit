@@ -59,6 +59,12 @@
         IncrementStatistic
     } from './api/services/settings';
     import { RefreshSTTModelsAfterSettingsUpdate } from './api/services/models';
+    import { RunExpectationCheck } from './api/services/expectation';
+    import type { CheckRequest, AutoCheckConfig, ExpectationProfile as ExpProfile } from './api/services/expectation';
+    import { checkResultStore, checkState } from './lib/checkResultStore';
+    import CheckResults from './components/CheckResults.svelte';
+    import ProfileManager from './components/ProfileManager.svelte';
+    import ConfirmDialog from './components/ConfirmDialog.svelte';
     import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces
@@ -94,7 +100,8 @@
         subtitleRomanization: false,
         selectiveTransliteration: false,
         subtitleTokenization: false,
-        condensedAudio: false
+        condensedAudio: false,
+        expectationCheck: false
     };
     let currentFeatureOptions: FeatureOptions | undefined;
     let isProcessing = false;
@@ -104,8 +111,13 @@
     let showGlow = true;
     let defaultTargetLanguage = "";
     let quickAccessLangTag = "";
-    
-    
+    let showCheckConfirmDialog = false;
+    let selectedExpectationProfile = '';
+
+    // Derive whether to show profile manager
+    $: showProfileManager = selectedFeatures.expectationCheck &&
+        currentFeatureOptions?.expectationCheck?.checkMode !== 'auto';
+
     // Window state tracking
     let isWindowMinimized = false;
     let isWindowMaximized = false;
@@ -285,6 +297,11 @@
         }
     }
     
+    // Clear check results when media path changes
+    $: if (mediaSource) {
+        checkResultStore.clear();
+    }
+
     // Update LogViewer button position whenever processing state changes
     // This handles the slide appearance/disappearance of the cancel button
     $: {
@@ -482,9 +499,22 @@
         }
     }
     
+    let prevExpectationFingerprint = '';
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
         currentFeatureOptions = event.detail;
         logger.debug('app', 'Feature options changed', { options: event.detail });
+
+        // Invalidate check results when expectation settings change
+        var ec = currentFeatureOptions?.expectationCheck;
+        var fingerprint = ec
+            ? (ec.checkMode || '') + '|' + (selectedExpectationProfile || '') + '|' + (ec.quorum || '')
+            : '';
+        if (fingerprint !== prevExpectationFingerprint) {
+            prevExpectationFingerprint = fingerprint;
+            if ($checkResultStore.report) {
+                checkResultStore.clear();
+            }
+        }
     }
 
     // Helper to check for actual error logs (not user cancellations)
@@ -606,14 +636,153 @@
         }
     }
 
+    async function handleExpectationCheck() {
+        if (!currentFeatureOptions || !mediaSource) return;
+
+        var opts = currentFeatureOptions.expectationCheck || {};
+        var mode = opts.checkMode || 'auto';
+
+        var request: CheckRequest = { path: mediaSource.path };
+
+        // Build autoConfig for auto or both mode
+        if (mode === 'auto' || mode === 'both') {
+            request.autoConfig = {
+                enabled: true,
+                quorumPct: opts.quorum != null ? opts.quorum : 75,
+                softFloorPct: 20,
+                minGroupSize: 3,
+            };
+        }
+
+        // Build profile for profile or both mode
+        if (mode === 'profile' || mode === 'both') {
+            var profileName = selectedExpectationProfile;
+            if (profileName) {
+                // Load the named profile from the backend
+                try {
+                    var { ListExpectationProfiles } = await import('./api/services/expectation');
+                    var profiles = await ListExpectationProfiles();
+                    var found = profiles.find(function(p) { return p.name === profileName; });
+                    if (found) {
+                        request.profile = found;
+                    } else {
+                        invalidationErrorStore.addError({
+                            id: "check-profile-missing",
+                            message: 'Profile "' + profileName + '" not found',
+                            severity: "critical",
+                            dismissible: true
+                        });
+                        return;
+                    }
+                } catch (e) {
+                    logger.error('app', 'Failed to load profile', { error: e });
+                    invalidationErrorStore.addError({
+                    id: "check-profile-error",
+                    message: "Failed to load profiles: " + (e?.message || "Unknown error"),
+                    severity: "critical",
+                    dismissible: true
+                });
+                return;
+            }
+            } else {
+                // "From Settings" profile: derive from current settings
+                var currentSettings = get(settings);
+                var audioLangs: string[] = [];
+                var subLangs: string[] = [];
+                if (currentSettings.targetLanguage) {
+                    audioLangs.push(currentSettings.targetLanguage);
+                    subLangs.push(currentSettings.targetLanguage);
+                }
+                if (currentSettings.nativeLanguages) {
+                    var nativeParts = currentSettings.nativeLanguages.split(',');
+                    for (var ni = 0; ni < nativeParts.length; ni++) {
+                        var nt = nativeParts[ni].trim();
+                        if (nt && subLangs.indexOf(nt) === -1) {
+                            subLangs.push(nt);
+                        }
+                    }
+                }
+                if (audioLangs.length > 0 || subLangs.length > 0) {
+                    request.profile = {
+                        name: 'From Settings',
+                        expectedAudioLangs: audioLangs,
+                        expectedSubtitleLangs: subLangs,
+                        requireVideoTrack: true,
+                        requireLanguageTags: true,
+                        durationTolerancePercent: 2.0,
+                        subtitleLineThresholdPct: 80.0,
+                        checkExternalAudioFiles: false,
+                        videoExtensions: [],
+                    };
+                }
+            }
+        }
+
+        checkResultStore.setRunning();
+        invalidationErrorStore.removeError('check-failed');
+        invalidationErrorStore.removeError('check-no-profile');
+        invalidationErrorStore.removeError('check-profile-missing');
+        invalidationErrorStore.removeError('check-profile-error');
+        logger.info('app', 'Starting expectation check', { mode: mode, path: mediaSource.path });
+
+        try {
+            var report = await RunExpectationCheck(request);
+            checkResultStore.setReport(report);
+            logger.info('app', 'Expectation check completed', {
+                totalFiles: report.totalFiles,
+                errors: report.errorCount,
+                warnings: report.warningCount
+            });
+        } catch (error: any) {
+            checkResultStore.clear();
+            logger.error('app', 'Expectation check failed', { error });
+            invalidationErrorStore.addError({
+                id: "check-failed",
+                message: "Expectation check failed: " + (error?.message || "Unknown error"),
+                severity: "critical",
+                dismissible: true
+            });
+        }
+    }
+
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
-	
+
+        // Determine if any processing features are selected
+        var hasProcessingFeatures = false;
+        var processingKeys = Object.keys(selectedFeatures) as (keyof typeof selectedFeatures)[];
+        for (var k = 0; k < processingKeys.length; k++) {
+            if (processingKeys[k] !== 'expectationCheck' && selectedFeatures[processingKeys[k]]) {
+                hasProcessingFeatures = true;
+                break;
+            }
+        }
+
+        // Branch: if expectationCheck is selected without processing features, run check only
+        if (selectedFeatures.expectationCheck && !hasProcessingFeatures) {
+            await handleExpectationCheck();
+            return;
+        }
+
+        // If expectationCheck is selected with processing features, run check first
+        if (selectedFeatures.expectationCheck && hasProcessingFeatures && $checkState === 'unchecked') {
+            await handleExpectationCheck();
+            // After check completes, the user must click Process again
+            // (with results visible, confirmation handshake applies if errors found)
+            return;
+        }
+
+        // Confirmation handshake: if check found errors and not yet acknowledged
+        if ($checkState === 'checked_with_errors_unacknowledged') {
+            showCheckConfirmDialog = true;
+            return;
+        }
+
         // Increment process start count
         try {
             const newCount = await IncrementStatistic('countProcessStart');
-            logger.trace('app', `Process start count incremented to: ${newCount}`);
-            
+            logger.trace('app', 'Process start count incremented to: ' + newCount);
+
             // Update the local store with the new value
             statisticsStore.updatePartial({ countProcessStart: newCount });
         } catch (error) {
@@ -621,18 +790,18 @@
         }
 
         processingStartTime = Date.now(); // Returns milliseconds since Unix epoch
-        logger.trace('app', `Starting new processing run at timestamp: ${processingStartTime} (${new Date(processingStartTime).toISOString()})`);
+        logger.trace('app', 'Starting new processing run at timestamp: ' + processingStartTime + ' (' + new Date(processingStartTime).toISOString() + ')');
         isProcessing = true;
         progress = 0;
         errorTooltipDismissed = false; // Reset error notification dismissal for new run
-        
+
         // Apply "Show log viewer by default" setting when starting a process
         const currentSettings = get(settings);
         if (currentSettings && currentSettings.showLogViewerByDefault) {
             showLogViewer = true;
             logger.trace('app', 'Showing log viewer based on default setting');
         }
-        
+
         // Completely clear all progress bars when starting a new process
         // This ensures we don't have lingering error states from previous runs
         progressBars.set([]);
@@ -717,6 +886,17 @@
                 dismissible: true
             });
         }
+    }
+
+    function handleCheckConfirm() {
+        showCheckConfirmDialog = false;
+        checkResultStore.acknowledge();
+        // Re-trigger handleProcess now that errors are acknowledged
+        handleProcess();
+    }
+
+    function handleCheckCancel() {
+        showCheckConfirmDialog = false;
     }
 
     async function loadSettings() {
@@ -1744,6 +1924,16 @@
                             <!-- Placeholder with same height to prevent layout shift -->
                             <div class="h-20 rounded-lg bg-white/5 border-2 border-dashed border-primary/10 animate-pulse"></div>
                         {/if}
+
+                        <!-- Profile Manager (visible when expectationCheck is in profile/both mode) -->
+                        {#if showProfileManager}
+                            <ProfileManager bind:selectedProfileName={selectedExpectationProfile} />
+                        {/if}
+
+                        <!-- Check Results -->
+                        {#if $checkResultStore.report}
+                            <CheckResults />
+                        {/if}
                     </div>
                 </div>
 
@@ -1757,7 +1947,7 @@
                     <!-- Process Button Row with hardware acceleration -->
                     <div class="max-w-2xl mx-auto flex justify-center items-center gap-4 pb-0 will-change-transform">
                         <ProcessButton
-                            {isProcessing}
+                            isProcessing={isProcessing || $checkResultStore.isRunning}
                             on:process={handleProcess}
                         />
                         
@@ -1907,6 +2097,14 @@
             triggerChangelogCheck = false;
         }
     }}
+/>
+
+<!-- Confirmation dialog for processing with unacknowledged check errors -->
+<ConfirmDialog
+    open={showCheckConfirmDialog}
+    message={"Pre-check found " + ($checkResultStore.report ? $checkResultStore.report.errorCount : 0) + " error(s). Proceed with processing anyway?"}
+    on:confirm={handleCheckConfirm}
+    on:cancel={handleCheckCancel}
 />
 
 <style>

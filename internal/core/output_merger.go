@@ -85,7 +85,7 @@ func (tsk *Task) GetOutputFileByFeature(feature string) (MediaOutputFile, bool) 
 }
 
 func (tsk *Task) GetMergedOutputPath() string {
-	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language)
+	langCode := Str(tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language.Language)
 	basePrefix := filepath.Join(filepath.Dir(tsk.MediaSourceFile), tsk.audioBase()+"."+langCode)
 	ext := tsk.MergingFormat
 	if ext == "" {
@@ -175,12 +175,12 @@ func (tsk *Task) prepareFilesForMerging() (map[MediaOutputType][]MediaOutputFile
 	filesByType := make(map[MediaOutputType][]MediaOutputFile)
 	// lang is set by Mediainfo() no matter what, even if just "und"
 	lang := tsk.Meta.MediaInfo.AudioTracks[tsk.UseAudiotrack].Language
-	
+
 	// Always include original video as the base
 	videoFile := MediaOutputFile{
 		Path:        tsk.MediaSourceFile,
 		Type:        OutputVideo,
-		Lang:        Lang{lang, ""},
+		Lang:        lang,
 		IsGenerated: false,
 		Feature:     "original",
 		Priority:    0,
@@ -287,8 +287,8 @@ func (tsk *Task) buildMergeCommand(filesByType map[MediaOutputType][]MediaOutput
 	
 	// Explicitly set language metadata for audio tracks first
 	for i, track := range audioTracks {
-		if track.Language != nil {
-			langCode := Str(track.Language)
+		if track.Language.Language != nil {
+			langCode := Str(track.Language.Language)
 			cmd = append(cmd, 
 				"-metadata:s:a:"+fmt.Sprint(i),
 				"language="+langCode,
