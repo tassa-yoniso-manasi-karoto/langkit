@@ -302,6 +302,19 @@
         checkResultStore.clear();
     }
 
+    // Mark check results stale when language settings change
+    // (these feed the "From Settings" profile)
+    let prevSettingsFingerprint = '';
+    $: {
+        var sf = ($settings.targetLanguage || '') + '|' +
+                 ($settings.nativeLanguages || '');
+        if (prevSettingsFingerprint && sf !== prevSettingsFingerprint
+            && $checkResultStore.report) {
+            checkResultStore.markStale();
+        }
+        prevSettingsFingerprint = sf;
+    }
+
     // Update LogViewer button position whenever processing state changes
     // This handles the slide appearance/disappearance of the cancel button
     $: {
@@ -504,7 +517,7 @@
         currentFeatureOptions = event.detail;
         logger.debug('app', 'Feature options changed', { options: event.detail });
 
-        // Invalidate check results when expectation settings change
+        // Mark check results stale when expectation settings change
         var ec = currentFeatureOptions?.expectationCheck;
         var fingerprint = ec
             ? (ec.checkMode || '') + '|' + (selectedExpectationProfile || '') + '|' + (ec.quorum || '')
@@ -512,7 +525,7 @@
         if (fingerprint !== prevExpectationFingerprint) {
             prevExpectationFingerprint = fingerprint;
             if ($checkResultStore.report) {
-                checkResultStore.clear();
+                checkResultStore.markStale();
             }
         }
     }
@@ -710,7 +723,6 @@
                         requireVideoTrack: true,
                         requireLanguageTags: true,
                         durationTolerancePercent: 2.0,
-                        subtitleLineThresholdPct: 80.0,
                         checkExternalAudioFiles: false,
                         videoExtensions: [],
                     };
@@ -765,7 +777,9 @@
         }
 
         // If expectationCheck is selected with processing features, run check first
-        if (selectedFeatures.expectationCheck && hasProcessingFeatures && $checkState === 'unchecked') {
+        // (also rerun if results are stale from settings changes)
+        if (selectedFeatures.expectationCheck && hasProcessingFeatures
+            && ($checkState === 'unchecked' || $checkState === 'stale')) {
             await handleExpectationCheck();
             // After check completes, the user must click Process again
             // (with results visible, confirmation handshake applies if errors found)

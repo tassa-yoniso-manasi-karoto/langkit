@@ -88,7 +88,6 @@ to disk and selectable via a dropdown in the GUI.
 | `requireVideoTrack`         | `bool`         | Whether each media file must contain a video track (default: true). |
 | `requireLanguageTags`       | `bool`         | Whether audio/subtitle tracks must have language metadata (default: true). |
 | `durationTolerancePercent`  | `float64`      | Allowed deviation in duration between audio tracks and video track, as a percentage (default: 2.0%). Combined with an absolute floor of 2 seconds to avoid noise on short media. |
-| `subtitleLineThresholdPct`  | `float64`      | Minimum subtitle line count relative to the longest subtitle for the same media, expressed as a percentage. Files below this threshold are flagged as potentially corrupted (default: 80%). |
 | `checkExternalAudioFiles`   | `bool`         | Whether to look for and validate external audio files alongside the video (default: false). |
 | `videoExtensions`           | `[]string`     | Video file extensions to consider. Defaults to processing-parity mode (`.mp4`, `.mkv`). Broadening to `.avi`, `.mov`, etc. is an explicit opt-in. |
 
@@ -107,11 +106,9 @@ profiles:
     expectedAudioLangs: ["ja", "th"]
     expectedSubtitleLangs: ["ja", "th", "en"]
     requireLanguageTags: true
-    subtitleLineThresholdPct: 75
   - name: "JP drama"
     expectedAudioLangs: ["ja"]
     expectedSubtitleLangs: ["ja", "en"]
-    subtitleLineThresholdPct: 85
 ```
 
 The Go struct for persistence wraps the slice:
@@ -338,19 +335,14 @@ For each text-based subtitle file (`.srt`, `.ass`, `.ssa`):
 
 1. **Parse check**: Attempt `subs.OpenFile()`. If it fails, report
    as **Error** (unparseable / corrupted).
-2. **Line count comparison**: Among all subtitle files for the
-   *same* media file, compare line counts **within the same
-   subtitle type group**. The existing `subtypeMatcher()` from
-   `lang.go` classifies subtitles as CC, Dub, StrippedSDH, or Sub.
-   CC/SDH subtitles naturally have more lines than dialogue-only
-   subtitles, so comparisons should only be made within the same
-   subtype. If a file has fewer than `subtitleLineThresholdPct`% of
-   the maximum for its type group, flag as **Warning**.
-3. **Empty file check**: A subtitle file with zero parseable lines
+2. **Empty file check**: A subtitle file with zero parseable lines
    is an **Error**.
-4. **Encoding sanity**: If `OpenFile` succeeds but produces lines
+3. **Encoding sanity**: If `OpenFile` succeeds but produces lines
    with a high proportion of replacement characters (U+FFFD) or
    null bytes, flag as **Warning** (likely encoding issue).
+4. **Tail coverage sanity**: Compare subtitle end coverage against
+   video duration using a robust tail sample (median of the last
+   cues). Large end gaps are flagged with tiered severity.
 
 #### 6.4.3 Embedded vs. Standalone Comparison
 
@@ -359,7 +351,6 @@ the same language:
 
 - This is an **Info** observation (the user may have intentionally
   provided an external file to override the embedded one).
-- If line counts differ significantly, note it as a **Warning**.
 
 ### 6.5 Consistency Checks (Auto Mode)
 
@@ -563,7 +554,6 @@ type ExpectationProfile struct {
     RequireVideoTrack       bool     `yaml:"requireVideoTrack"`
     RequireLanguageTags     bool     `yaml:"requireLanguageTags"`
     DurationTolerancePct    float64  `yaml:"durationTolerancePercent"`
-    SubtitleLineThresholdPct float64 `yaml:"subtitleLineThresholdPct"`
     CheckExternalAudio      bool     `yaml:"checkExternalAudioFiles"`
     VideoExtensions         []string `yaml:"videoExtensions"`
 }
@@ -704,7 +694,7 @@ A new subcommand:
 ```
 # Profile mode (explicit expectations)
 langkit check [path] --audio-langs ja,en --sub-langs ja,en \
-    --duration-tolerance 2 --subtitle-threshold 80
+    --duration-tolerance 2
 langkit check [path] --profile "Thai anime"
 
 # Auto mode (consistency detection)
@@ -759,7 +749,6 @@ struct ExpectationProfile
   - requireVideoTrack: bool
   - requireLanguageTags: bool
   - durationTolerancePercent: float64
-  - subtitleLineThresholdPct: float64
   - checkExternalAudioFiles: bool
   - videoExtensions: []string
 
@@ -912,7 +901,7 @@ Profiles are managed within the feature card's options area:
    target-language audio.
 2. **Creation**: A "+ New" option in the dropdown opens inline
    fields (language tag inputs, toggle switches for booleans,
-   numeric inputs for thresholds). Reuses existing `TextInput`,
+   numeric inputs for duration tolerance). Reuses existing `TextInput`,
    `NumericInput`, and `SelectInput` components.
 3. **Saving**: A "Save" button calls
    `ExpectationService.SaveProfile()`. Profiles are immediately
@@ -1256,6 +1245,14 @@ would catch both internal inconsistencies and expectation
 violations before any processing begins. The preflight-service
 design makes this a single function call addition.
 
+### 11.4 Optional Cue-Count Heuristics (Low Priority)
+
+Cue/line-count comparison heuristics across subtitle files are
+intentionally out of the active design. They may be revisited only
+as an explicitly optional experiment, because real-world subtitle
+variation across providers/languages can make this signal too noisy
+for default preflight checks.
+
 ## 12. Open Questions
 
 1. **External audio file discovery**: What naming convention
@@ -1263,9 +1260,10 @@ design makes this a single function call addition.
    The prefix-matching from `collectStandaloneCandidates()` could
    be reused.
 
-2. **Subtitle line count threshold calibration**: Real-world
-   variation may produce false positives despite subtype grouping.
-   The threshold is per-profile so users can tune it.
+2. **Optional cue-count heuristics (future-only)**: Should cue/line-
+   count heuristics ever be reintroduced as an optional experiment,
+   or left out permanently due to low practical value and high
+   false-positive risk?
 
 3. **Autosub interaction**: Should the checker warn about
    suboptimal auto-selection outcomes (e.g. "only a signs-only
@@ -1316,8 +1314,8 @@ design makes this a single function call addition.
   noise
 
 ### Phase 3: Subtitle Validation & Interpreted Summaries
-- Subtitle integrity (parse, line count comparison with subtype
-  awareness)
+- Subtitle integrity (parse, empty-file detection, encoding sanity,
+  tail-coverage checks)
 - Duration consistency checks with hybrid tolerance (profile)
 - Full interpreted summary generation for both modes
   (aggregation, episode-aware naming, source tagging)

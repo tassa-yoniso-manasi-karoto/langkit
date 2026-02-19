@@ -127,6 +127,59 @@ func CollectEmbeddedSubs(mediaFile string, mi MediaInfo) []SubtitleCandidate {
 	return candidates
 }
 
+// audioExtensions is the set of file extensions recognized as standalone
+// audio files for external audio discovery.
+var audioExtensions = map[string]bool{
+	".mp3": true, ".aac": true, ".wma": true, ".flac": true,
+	".m4a": true, ".opus": true, ".ogg": true, ".wav": true,
+	".aiff": true, ".ac3": true, ".dts": true, ".eac3": true,
+	".mka": true, ".webm": true, ".mpc": true,
+}
+
+// CollectExternalAudio scans the directory of a video file for sidecar
+// audio files that share its base name prefix. Langkit-generated audio
+// artifacts (vocals-only, enhanced, merged) are excluded.
+func CollectExternalAudio(mediaFile string) []ExternalAudioFile {
+	dir := filepath.Dir(mediaFile)
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	trimmedMedia := strings.TrimSuffix(filepath.Base(mediaFile), filepath.Ext(mediaFile))
+	var results []ExternalAudioFile
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		ext := strings.ToLower(filepath.Ext(file.Name()))
+		if !audioExtensions[ext] {
+			continue
+		}
+
+		// Prefix match (case-insensitive, same as subtitle discovery)
+		trimmed := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+		if !strings.HasPrefix(strings.ToLower(trimmed), strings.ToLower(trimmedMedia)) {
+			continue
+		}
+
+		// Exclude Langkit-generated audio artifacts
+		if isLangkitMadeAudioArtifact(file.Name()) {
+			continue
+		}
+
+		fullPath := filepath.Join(dir, file.Name())
+		dur, _ := media.ProbeDuration(fullPath)
+		results = append(results, ExternalAudioFile{
+			Path:     fullPath,
+			Duration: dur,
+		})
+	}
+	return results
+}
+
 // CollectAllSubs combines standalone and embedded subtitle candidates.
 func CollectAllSubs(mediaFile string, mi MediaInfo, retainUnknownLang bool) []SubtitleCandidate {
 	standalone := CollectStandaloneSubs(mediaFile, retainUnknownLang)

@@ -60,7 +60,6 @@ func (s *ExpectationService) RunCheck(ctx context.Context, request *generated.Ch
 			RequireVideoTrack:        request.Profile.RequireVideoTrack,
 			RequireLanguageTags:      request.Profile.RequireLanguageTags,
 			DurationTolerancePct:     request.Profile.DurationTolerancePercent,
-			SubtitleLineThresholdPct: request.Profile.SubtitleLineThresholdPct,
 			CheckExternalAudio:       request.Profile.CheckExternalAudioFiles,
 			VideoExtensions:          request.Profile.VideoExtensions,
 		}
@@ -217,7 +216,6 @@ func convertProfileToGen(p core.ExpectationProfile) *generated.ExpectationProfil
 		RequireVideoTrack:        p.RequireVideoTrack,
 		RequireLanguageTags:      p.RequireLanguageTags,
 		DurationTolerancePercent: p.DurationTolerancePct,
-		SubtitleLineThresholdPct: p.SubtitleLineThresholdPct,
 		CheckExternalAudioFiles:  p.CheckExternalAudio,
 		VideoExtensions:          p.VideoExtensions,
 	}
@@ -231,7 +229,6 @@ func convertProfileFromGen(p *generated.ExpectationProfile) core.ExpectationProf
 		RequireVideoTrack:        p.RequireVideoTrack,
 		RequireLanguageTags:      p.RequireLanguageTags,
 		DurationTolerancePct:     p.DurationTolerancePercent,
-		SubtitleLineThresholdPct: p.SubtitleLineThresholdPct,
 		CheckExternalAudio:       p.CheckExternalAudioFiles,
 		VideoExtensions:          p.VideoExtensions,
 	}

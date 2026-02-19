@@ -2,7 +2,8 @@
 🔳 processing JPN should not be bigger size than processing voice sep
 
 - Data aware logic:
-  - Expectation checker
+  - BUG: `S03E01: duration (23m 51s) is unusually short compared to siblings (median: 23m 52s)` length of VIDEO should not be compared within the folder
+  - BUG: ‼️IMPORTANT‼️ `Tensura_S02E31_Despair.mp4`'s tha audiotrack is broken but goes undetected!
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
 - "Do-no-interrupt" mode:

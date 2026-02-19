@@ -42,8 +42,15 @@ Examples:
 		jsonOutput, _ := cmd.Flags().GetBool("json")
 		failOn, _ := cmd.Flags().GetString("fail-on")
 
-		// Build profile: start from saved profile or defaults
-		var p core.ExpectationProfile
+		// Build profile only when user explicitly requests one.
+		// Without this, --auto alone would still run profile checks
+		// against default settings, producing unwanted findings.
+		hasExplicitProfile := profileName != "" ||
+			len(audioLangs) > 0 || len(subLangs) > 0 ||
+			cmd.Flags().Changed("duration-tolerance") ||
+			cmd.Flags().Changed("require-tags")
+
+		var profile *core.ExpectationProfile
 		if profileName != "" {
 			saved, err := core.GetProfile(profileName)
 			if err != nil {
@@ -54,25 +61,32 @@ Examples:
 				fmt.Fprintf(os.Stderr, "Error: profile %q not found\n", profileName)
 				os.Exit(1)
 			}
-			p = *saved
-		} else {
-			p = core.DefaultProfile()
-		}
-
-		// CLI flags override saved profile values when explicitly set
-		if len(audioLangs) > 0 {
+			p := *saved
+			if len(audioLangs) > 0 {
+				p.ExpectedAudioLangs = audioLangs
+			}
+			if len(subLangs) > 0 {
+				p.ExpectedSubtitleLangs = subLangs
+			}
+			if cmd.Flags().Changed("duration-tolerance") {
+				p.DurationTolerancePct = durTolerance
+			}
+			if cmd.Flags().Changed("require-tags") {
+				p.RequireLanguageTags = requireTags
+			}
+			profile = &p
+		} else if hasExplicitProfile {
+			p := core.DefaultProfile()
 			p.ExpectedAudioLangs = audioLangs
-		}
-		if len(subLangs) > 0 {
 			p.ExpectedSubtitleLangs = subLangs
+			if cmd.Flags().Changed("duration-tolerance") {
+				p.DurationTolerancePct = durTolerance
+			}
+			if cmd.Flags().Changed("require-tags") {
+				p.RequireLanguageTags = requireTags
+			}
+			profile = &p
 		}
-		if cmd.Flags().Changed("duration-tolerance") {
-			p.DurationTolerancePct = durTolerance
-		}
-		if cmd.Flags().Changed("require-tags") {
-			p.RequireLanguageTags = requireTags
-		}
-		profile := &p
 
 		// Auto mode config
 		var autoConfig *core.AutoCheckConfig

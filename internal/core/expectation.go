@@ -12,7 +12,6 @@ type ExpectationProfile struct {
 	RequireVideoTrack       bool     `yaml:"requireVideoTrack" json:"requireVideoTrack"`
 	RequireLanguageTags     bool     `yaml:"requireLanguageTags" json:"requireLanguageTags"`
 	DurationTolerancePct    float64  `yaml:"durationTolerancePercent" json:"durationTolerancePercent"`
-	SubtitleLineThresholdPct float64 `yaml:"subtitleLineThresholdPct" json:"subtitleLineThresholdPct"`
 	CheckExternalAudio      bool     `yaml:"checkExternalAudioFiles" json:"checkExternalAudioFiles"`
 	VideoExtensions         []string `yaml:"videoExtensions" json:"videoExtensions"`
 }
@@ -20,10 +19,9 @@ type ExpectationProfile struct {
 // DefaultProfile returns a profile with sensible defaults.
 func DefaultProfile() ExpectationProfile {
 	return ExpectationProfile{
-		RequireVideoTrack:       true,
-		RequireLanguageTags:     true,
-		DurationTolerancePct:    2.0,
-		SubtitleLineThresholdPct: 80.0,
+		RequireVideoTrack:    true,
+		RequireLanguageTags:  true,
+		DurationTolerancePct: 2.0,
 	}
 }
 
@@ -132,6 +130,13 @@ type FileCheckResult struct {
 	IntegrityErr    error
 	VideoDuration   float64 // seconds, 0 if unavailable
 	AudioDurations  []float64
+	ExternalAudio   []ExternalAudioFile
+}
+
+// ExternalAudioFile represents an audio file found alongside a video.
+type ExternalAudioFile struct {
+	Path     string
+	Duration float64 // seconds, 0 if probe failed
 }
 
 // SubCheckResult stores the parse results for a single subtitle candidate.

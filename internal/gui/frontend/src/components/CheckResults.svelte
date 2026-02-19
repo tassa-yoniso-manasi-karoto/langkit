@@ -106,6 +106,14 @@
 
 {#if report}
     <div class="space-y-3" transition:slide={{ duration: isLite ? 0 : 300, easing: cubicOut }}>
+        <!-- Stale banner -->
+        {#if $checkResultStore.stale}
+            <div class="px-4 py-2 rounded-xl border border-amber-500/20 bg-amber-500/10 flex items-center gap-2">
+                <span class="material-icons text-sm text-amber-400">update</span>
+                <span class="text-xs text-amber-300">Settings changed since last check — rerun to update</span>
+            </div>
+        {/if}
+
         <!-- Tier 1: Summary Bar -->
         <div class="px-4 py-3 rounded-xl border
             {report.errorCount > 0

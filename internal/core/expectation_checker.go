@@ -74,7 +74,8 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 			return nil, ctx.Err()
 		}
 
-		result := probeFile(filePath)
+		checkExtAudio := profile != nil && profile.CheckExternalAudio
+		result := probeFile(filePath, checkExtAudio)
 		report.FileResults[filePath] = result
 
 		// Structural checks (always run)
@@ -113,6 +114,7 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 			checkSubtitleLanguages(report, filePath, result, expectedSubLangs)
 			checkLanguageTags(report, filePath, result, profile, expectedAudioLangs, expectedSubLangs)
 			checkDurationConsistency(report, filePath, result, profile)
+			checkExternalAudioDuration(report, filePath, result, profile)
 			checkSubtitleIntegrity(report, filePath, result)
 			checkEmbeddedStandaloneOverlap(report, filePath, result)
 		}
@@ -163,7 +165,8 @@ func runAutoMode(report *ValidationReport, files []string, config *AutoCheckConf
 }
 
 // probeFile gathers all metadata for a single media file.
-func probeFile(filePath string) *FileCheckResult {
+// If checkExternalAudio is true, also discovers and probes sidecar audio files.
+func probeFile(filePath string, checkExternalAudio bool) *FileCheckResult {
 	result := &FileCheckResult{
 		VideoFile: filePath,
 	}
@@ -205,6 +208,11 @@ func probeFile(filePath string) *FileCheckResult {
 		}
 		scr := probeSubtitle(i, sc.Source.FilePath)
 		result.SubCheckResults = append(result.SubCheckResults, scr)
+	}
+
+	// Discover external audio files alongside the video
+	if checkExternalAudio {
+		result.ExternalAudio = CollectExternalAudio(filePath)
 	}
 
 	return result
@@ -301,6 +309,13 @@ func checkVideoTrack(report *ValidationReport, filePath string, result *FileChec
 	}
 }
 
+// langMatchesExpected checks whether a track's language matches an
+// expected language using getIdx() for script/subtag-aware matching.
+func langMatchesExpected(track, expected Lang) bool {
+	_, found := getIdx([]Lang{expected}, track)
+	return found
+}
+
 func checkAudioLanguages(report *ValidationReport, filePath string, result *FileCheckResult, expected []Lang) {
 	if len(expected) == 0 {
 		return
@@ -308,8 +323,7 @@ func checkAudioLanguages(report *ValidationReport, filePath string, result *File
 	for _, expLang := range expected {
 		found := false
 		for _, at := range result.MediaInfo.AudioTracks {
-			if at.Language.Language != nil && expLang.Language != nil &&
-				*at.Language.Language == *expLang.Language {
+			if langMatchesExpected(at.Language, expLang) {
 				found = true
 				break
 			}
@@ -334,8 +348,7 @@ func checkSubtitleLanguages(report *ValidationReport, filePath string, result *F
 		found := false
 		// Check embedded text tracks
 		for _, tt := range result.MediaInfo.TextTracks {
-			if tt.Language.Language != nil && expLang.Language != nil &&
-				*tt.Language.Language == *expLang.Language {
+			if langMatchesExpected(tt.Language, expLang) {
 				found = true
 				break
 			}
@@ -343,8 +356,7 @@ func checkSubtitleLanguages(report *ValidationReport, filePath string, result *F
 		// Check standalone subtitle candidates
 		if !found {
 			for _, sc := range result.SubCandidates {
-				if sc.Lang.Language != nil && expLang.Language != nil &&
-					*sc.Lang.Language == *expLang.Language {
+				if langMatchesExpected(sc.Lang, expLang) {
 					found = true
 					break
 				}
@@ -415,9 +427,7 @@ func unsatisfiedLangs(expected []Lang, tracks []AudioTrack) []Lang {
 	for _, exp := range expected {
 		found := false
 		for _, at := range tracks {
-			if at.Language.Language != nil && exp.Language != nil &&
-				at.Language.Part3 != "und" &&
-				*at.Language.Language == *exp.Language {
+			if at.Language.Part3 != "und" && langMatchesExpected(at.Language, exp) {
 				found = true
 				break
 			}
@@ -435,18 +445,14 @@ func unsatisfiedSubtitleLangs(expected []Lang, tracks []TextTrack, candidates []
 	for _, exp := range expected {
 		found := false
 		for _, tt := range tracks {
-			if tt.Language.Language != nil && exp.Language != nil &&
-				tt.Language.Part3 != "und" &&
-				*tt.Language.Language == *exp.Language {
+			if tt.Language.Part3 != "und" && langMatchesExpected(tt.Language, exp) {
 				found = true
 				break
 			}
 		}
 		if !found {
 			for _, sc := range candidates {
-				if sc.Lang.Language != nil && exp.Language != nil &&
-					sc.Lang.Part3 != "und" &&
-					*sc.Lang.Language == *exp.Language {
+				if sc.Lang.Part3 != "und" && langMatchesExpected(sc.Lang, exp) {
 					found = true
 					break
 				}
@@ -506,6 +512,65 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 				Category: "duration",
 				Message: "Audio track " + itoa(i+1) + " duration (" +
 					media.FormatDuration(audioDur) + ") deviates from video (" +
+					media.FormatDuration(result.VideoDuration) + ")",
+			})
+		}
+	}
+}
+
+// checkExternalAudioDuration validates external audio file durations against
+// the video duration using the same hybrid tolerance model as embedded tracks.
+func checkExternalAudioDuration(report *ValidationReport, filePath string, result *FileCheckResult, profile *ExpectationProfile) {
+	if !profile.CheckExternalAudio || result.VideoDuration == 0 {
+		return
+	}
+	if len(result.ExternalAudio) == 0 {
+		return
+	}
+
+	tolerancePct := profile.DurationTolerancePct
+	if tolerancePct == 0 {
+		tolerancePct = 2.0
+	}
+	const absoluteFloor = 2.0
+
+	for _, ea := range result.ExternalAudio {
+		if ea.Duration == 0 {
+			report.AddIssue(Issue{
+				Severity: SeverityInfo,
+				Source:   SourceProfile,
+				FilePath: filePath,
+				Category: "duration",
+				Message:  "Duration unavailable for external audio: " + filepath.Base(ea.Path),
+			})
+			continue
+		}
+
+		deviation := math.Abs(ea.Duration - result.VideoDuration)
+		effectiveTolerance := math.Max(
+			result.VideoDuration*tolerancePct/100.0,
+			absoluteFloor,
+		)
+
+		extName := filepath.Base(ea.Path)
+		if deviation > result.VideoDuration*0.10 {
+			report.AddIssue(Issue{
+				Severity: SeverityError,
+				Source:   SourceProfile,
+				FilePath: filePath,
+				Category: "duration",
+				Message: "External audio " + extName + " duration (" +
+					media.FormatDuration(ea.Duration) + ") deviates >10% from video (" +
+					media.FormatDuration(result.VideoDuration) + ")",
+			})
+		} else if deviation > effectiveTolerance {
+			report.AddIssue(Issue{
+				Severity: SeverityWarning,
+				Source:   SourceProfile,
+				FilePath: filePath,
+				Category: "duration",
+				Message: "External audio " + extName + " duration (" +
+					media.FormatDuration(ea.Duration) + ") deviates from video (" +
 					media.FormatDuration(result.VideoDuration) + ")",
 			})
 		}

@@ -11,7 +11,6 @@ struct ExpectationProfile
   - requireVideoTrack: bool
   - requireLanguageTags: bool
   - durationTolerancePercent: float64
-  - subtitleLineThresholdPct: float64
   - checkExternalAudioFiles: bool
   - videoExtensions: []string
 

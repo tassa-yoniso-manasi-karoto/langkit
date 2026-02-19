@@ -35,7 +35,6 @@
     let editRequireVideoTrack = true;
     let editRequireLanguageTags = true;
     let editDurationTolerance = 2.0;
-    let editSubtitleLineThreshold = 80.0;
 
     $: isLite = $liteModeStore.enabled;
 
@@ -116,7 +115,6 @@
         editRequireVideoTrack = true;
         editRequireLanguageTags = true;
         editDurationTolerance = 2.0;
-        editSubtitleLineThreshold = 80.0;
     }
 
     function loadProfile(name: string) {
@@ -139,7 +137,6 @@
         editRequireVideoTrack = found.requireVideoTrack;
         editRequireLanguageTags = found.requireLanguageTags;
         editDurationTolerance = found.durationTolerancePercent ?? 2.0;
-        editSubtitleLineThreshold = found.subtitleLineThresholdPct ?? 80.0;
     }
 
     function startNewProfile() {
@@ -155,7 +152,6 @@
         editRequireVideoTrack = true;
         editRequireLanguageTags = true;
         editDurationTolerance = 2.0;
-        editSubtitleLineThreshold = 80.0;
     }
 
     function parseLangList(str: string): string[] {
@@ -196,7 +192,6 @@
             requireVideoTrack: editRequireVideoTrack,
             requireLanguageTags: editRequireLanguageTags,
             durationTolerancePercent: editDurationTolerance,
-            subtitleLineThresholdPct: editSubtitleLineThreshold,
             checkExternalAudioFiles: preservedCheckExternalAudio,
             videoExtensions: preservedVideoExtensions,
         };
@@ -313,21 +308,12 @@
                 </label>
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="block text-xs text-white/50 mb-1">Duration tolerance (%)</label>
-                    <input type="number" bind:value={editDurationTolerance}
-                           min="0" max="50" step="0.5"
-                           class="w-full h-8 px-2 text-xs rounded-md bg-white/5 border border-white/10 text-white/90
-                                  focus:outline-none focus:border-primary/50 transition-colors" />
-                </div>
-                <div>
-                    <label class="block text-xs text-white/50 mb-1">Subtitle threshold (%)</label>
-                    <input type="number" bind:value={editSubtitleLineThreshold}
-                           min="0" max="100" step="5"
-                           class="w-full h-8 px-2 text-xs rounded-md bg-white/5 border border-white/10 text-white/90
-                                  focus:outline-none focus:border-primary/50 transition-colors" />
-                </div>
+            <div>
+                <label class="block text-xs text-white/50 mb-1">Duration tolerance (%)</label>
+                <input type="number" bind:value={editDurationTolerance}
+                       min="0" max="50" step="0.5"
+                       class="w-full h-8 px-2 text-xs rounded-md bg-white/5 border border-white/10 text-white/90
+                              focus:outline-none focus:border-primary/50 transition-colors" />
             </div>
 
             <!-- Save button (only for named profiles) -->

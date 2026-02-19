@@ -51,3 +51,19 @@ func isLangkitMadeTranslit(s string) bool {
 func isLangkitMadeMergedOutput(s string) bool {
 	return strings.Contains(s, langkitMadeMergedMarker())
 }
+
+// isLangkitMadeAudioArtifact returns true if the filename matches any
+// Langkit-generated audio output (vocals-only, enhanced, or merged).
+func isLangkitMadeAudioArtifact(s string) bool {
+	upper := strings.ToUpper(s)
+	if strings.Contains(upper, ".VOCALS.") {
+		return true
+	}
+	if strings.Contains(upper, langkitMadeEnhancedMarker()) {
+		return true
+	}
+	if strings.Contains(upper, langkitMadeMergedMarker()) {
+		return true
+	}
+	return false
+}

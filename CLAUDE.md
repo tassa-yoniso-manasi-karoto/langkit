@@ -32,6 +32,15 @@ investigate YOURSELF. The default instruction of plan mode say you should resear
 - Build GO: `go build -o langkit-cli ./cmd/cli`
 - Build Wails v2: `wails build`
 
+## RIDL / WebRPC code generation
+- Schemas live in `api/schemas/` and are compiled from `api/schemas/api.ridl`.
+- Run from `api/`:
+  - Validate schema: `make validate`
+  - Generate both Go + TypeScript: `make all`
+- Generated code (DO NOT READ THESE FILES!):
+  - Go server/client code: `internal/api/generated/api.gen.go`
+  - TypeScript client code: `internal/gui/frontend/src/api/generated/api.gen.ts`
+
 ## Code Style Guidelines
 - In Svelte / Typescript, the template literals with interpolation (${variable}) break syntax highlighting in my IDE, don't use them and prefer simple string concatenations.
 - **Imports**: Standard library first, third-party next, internal packages last
