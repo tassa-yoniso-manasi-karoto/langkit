@@ -76,7 +76,7 @@ func FormatReportCLI(report *ValidationReport) string {
 	if len(summaries) > 0 {
 		b.WriteString("\n")
 		for _, s := range summaries {
-			b.WriteString("  " + s + "\n")
+			b.WriteString("  " + s.Message + "\n")
 		}
 	}
 
@@ -132,6 +132,10 @@ func FormatReportJSON(report *ValidationReport) ([]byte, error) {
 		ConsensusAudioTrackCount int    `json:"consensusAudioTrackCount"`
 		MedianDurationSec      float64  `json:"medianDurationSec"`
 	}
+	type jsonSummary struct {
+		Source  string `json:"source"`
+		Message string `json:"message"`
+	}
 	type jsonReport struct {
 		RootPath             string          `json:"rootPath"`
 		TotalFiles           int             `json:"totalFiles"`
@@ -140,8 +144,17 @@ func FormatReportJSON(report *ValidationReport) ([]byte, error) {
 		InfoCount            int             `json:"infoCount"`
 		DurationMs           int64           `json:"durationMs"`
 		Issues               []jsonIssue     `json:"issues"`
-		InterpretedSummaries []string        `json:"interpretedSummaries"`
+		InterpretedSummaries []jsonSummary   `json:"interpretedSummaries"`
 		Consensus            []jsonConsensus `json:"consensus,omitempty"`
+	}
+
+	coreSummaries := GenerateInterpretedSummaries(report)
+	jsonSummaries := make([]jsonSummary, len(coreSummaries))
+	for i, s := range coreSummaries {
+		jsonSummaries[i] = jsonSummary{
+			Source:  string(s.Source),
+			Message: s.Message,
+		}
 	}
 
 	jr := jsonReport{
@@ -151,7 +164,7 @@ func FormatReportJSON(report *ValidationReport) ([]byte, error) {
 		WarningCount:         report.WarningCount,
 		InfoCount:            report.InfoCount,
 		DurationMs:           report.Duration.Milliseconds(),
-		InterpretedSummaries: GenerateInterpretedSummaries(report),
+		InterpretedSummaries: jsonSummaries,
 	}
 
 	for _, iss := range report.Issues {
@@ -188,10 +201,32 @@ func FormatReportJSON(report *ValidationReport) ([]byte, error) {
 	return json.MarshalIndent(jr, "", "  ")
 }
 
+// InterpretedSummary is an aggregated human-readable sentence derived
+// from raw findings, tagged with the source that produced it.
+type InterpretedSummary struct {
+	Source  IssueSource
+	Message string
+}
+
+// sourceOrder returns a sort key so that profile comes first,
+// structural second, auto third.
+func sourceOrder(s IssueSource) int {
+	switch s {
+	case SourceProfile:
+		return 0
+	case SourceStructural:
+		return 1
+	case SourceAuto:
+		return 2
+	default:
+		return 3
+	}
+}
+
 // GenerateInterpretedSummaries produces aggregated human-readable
-// sentences from the raw findings.
-func GenerateInterpretedSummaries(report *ValidationReport) []string {
-	var summaries []string
+// sentences from the raw findings, tagged by source.
+func GenerateInterpretedSummaries(report *ValidationReport) []InterpretedSummary {
+	var summaries []InterpretedSummary
 
 	// Group issues by (message, source) → list of full file paths
 	type aggregateKey struct {
@@ -235,8 +270,10 @@ func GenerateInterpretedSummaries(report *ValidationReport) []string {
 		if key.category == "language" {
 			for dir, count := range dirCounts {
 				if total, ok := dirFileCount[dir]; ok && count >= total && total > 1 {
-					summaries = append(summaries,
-						fmt.Sprintf("Directory %s: %s", filepath.Base(dir), key.message))
+					summaries = append(summaries, InterpretedSummary{
+						Source:  key.source,
+						Message: fmt.Sprintf("Directory %s: %s", filepath.Base(dir), key.message),
+					})
 					emittedDirSummary = true
 				}
 			}
@@ -252,19 +289,28 @@ func GenerateInterpretedSummaries(report *ValidationReport) []string {
 			names[i] = displayName(p)
 		}
 
+		var msg string
 		if len(names) > 3 {
-			summaries = append(summaries,
-				fmt.Sprintf("%d files: %s", len(names), key.message))
+			msg = fmt.Sprintf("%d files: %s", len(names), key.message)
 		} else if len(names) > 1 {
-			summaries = append(summaries,
-				fmt.Sprintf("%s: %s", strings.Join(names, ", "), key.message))
+			msg = fmt.Sprintf("%s: %s", strings.Join(names, ", "), key.message)
 		} else {
-			summaries = append(summaries,
-				fmt.Sprintf("%s: %s", names[0], key.message))
+			msg = fmt.Sprintf("%s: %s", names[0], key.message)
 		}
+		summaries = append(summaries, InterpretedSummary{
+			Source:  key.source,
+			Message: msg,
+		})
 	}
 
-	sort.Strings(summaries)
+	// Sort by source (profile → structural → auto), then by message
+	sort.Slice(summaries, func(i, j int) bool {
+		oi, oj := sourceOrder(summaries[i].Source), sourceOrder(summaries[j].Source)
+		if oi != oj {
+			return oi < oj
+		}
+		return summaries[i].Message < summaries[j].Message
+	})
 	return summaries
 }
 

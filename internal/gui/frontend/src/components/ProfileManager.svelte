@@ -4,6 +4,7 @@
     import { cubicOut } from 'svelte/easing';
     import { settings, liteModeStore } from '../lib/stores';
     import { expectationProfilesStore } from '../lib/expectationProfilesStore';
+    import { checkResultStore } from '../lib/checkResultStore';
     import type { ExpectationProfile } from '../api/services/expectation';
     import { logger } from '../lib/logger';
 
@@ -206,6 +207,11 @@
             selectedProfileName = newName;
             loadedProfileName = newName;
             isCreatingNew = false;
+            // Profile content may have changed even if the name didn't,
+            // so invalidate any cached check results.
+            if ($checkResultStore.report) {
+                checkResultStore.markStale();
+            }
         } catch (e) {
             logger.error('profileManager', 'Failed to save profile', { error: e });
         }

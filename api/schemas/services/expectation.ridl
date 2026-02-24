@@ -41,6 +41,10 @@ struct DirectoryConsensusSummary
   - consensusAudioTrackCount: int32
   - medianDurationSec: float64
 
+struct InterpretedSummary
+  - source: string
+  - message: string
+
 struct FileSummary
   - filePath: string
   - fileName: string
@@ -54,7 +58,7 @@ struct ValidationReport
   - totalFiles: int32
   - issues: []ValidationIssue
   - fileSummaries: []FileSummary
-  - interpretedSummaries: []string
+  - interpretedSummaries: []InterpretedSummary
   - consensusSummaries: []DirectoryConsensusSummary
   - errorCount: int32
   - warningCount: int32

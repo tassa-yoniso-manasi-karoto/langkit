@@ -4,6 +4,7 @@ import type {
     ValidationReport,
     ExpectationProfile,
     AutoCheckConfig,
+    InterpretedSummary,
 } from '../generated/api.gen';
 import { getAPIBaseUrl, createFetch } from '../client';
 
@@ -13,6 +14,7 @@ export type {
     ValidationReport,
     ExpectationProfile,
     AutoCheckConfig,
+    InterpretedSummary,
 };
 
 // Use a longer timeout for RunCheck since it scans many files

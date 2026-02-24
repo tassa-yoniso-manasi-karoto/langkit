@@ -513,21 +513,34 @@
     }
     
     let prevExpectationFingerprint = '';
+
+    // Reactive fingerprint: recalculated whenever feature options,
+    // profile selection, or settings (for "From Settings" mode) change.
+    $: expectationFingerprint = (function() {
+        var ec = currentFeatureOptions?.expectationCheck;
+        if (!ec) return '';
+        var fp = (ec.checkMode || '') + '|'
+            + (selectedExpectationProfile || '') + '|'
+            + (ec.quorum || '');
+        // "From Settings" derives the profile from settings at check time,
+        // so settings content must be part of the fingerprint.
+        if (!selectedExpectationProfile && (ec.checkMode === 'profile' || ec.checkMode === 'both')) {
+            fp += '|' + ($settings.targetLanguage || '')
+                + '|' + ($settings.nativeLanguages || '');
+        }
+        return fp;
+    })();
+
+    $: if (expectationFingerprint !== prevExpectationFingerprint) {
+        prevExpectationFingerprint = expectationFingerprint;
+        if ($checkResultStore.report) {
+            checkResultStore.markStale();
+        }
+    }
+
     function handleOptionsChange(event: CustomEvent<FeatureOptions>) {
         currentFeatureOptions = event.detail;
         logger.debug('app', 'Feature options changed', { options: event.detail });
-
-        // Mark check results stale when expectation settings change
-        var ec = currentFeatureOptions?.expectationCheck;
-        var fingerprint = ec
-            ? (ec.checkMode || '') + '|' + (selectedExpectationProfile || '') + '|' + (ec.quorum || '')
-            : '';
-        if (fingerprint !== prevExpectationFingerprint) {
-            prevExpectationFingerprint = fingerprint;
-            if ($checkResultStore.report) {
-                checkResultStore.markStale();
-            }
-        }
     }
 
     // Helper to check for actual error logs (not user cancellations)
@@ -2116,7 +2129,7 @@
 <!-- Confirmation dialog for processing with unacknowledged check errors -->
 <ConfirmDialog
     open={showCheckConfirmDialog}
-    message={"Pre-check found " + ($checkResultStore.report ? $checkResultStore.report.errorCount : 0) + " error(s). Proceed with processing anyway?"}
+    message={"Check found " + ($checkResultStore.report ? $checkResultStore.report.errorCount : 0) + " error(s), " + ($checkResultStore.report ? $checkResultStore.report.warningCount : 0) + " warning(s). Proceed anyway?"}
     on:confirm={handleCheckConfirm}
     on:cancel={handleCheckCancel}
 />

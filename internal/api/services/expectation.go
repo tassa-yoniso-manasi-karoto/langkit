@@ -145,7 +145,13 @@ func convertReport(report *core.ValidationReport) *generated.ValidationReport {
 	}
 
 	// Generate interpreted summaries
-	gr.InterpretedSummaries = core.GenerateInterpretedSummaries(report)
+	coreSummaries := core.GenerateInterpretedSummaries(report)
+	for _, s := range coreSummaries {
+		gr.InterpretedSummaries = append(gr.InterpretedSummaries, &generated.InterpretedSummary{
+			Source:  string(s.Source),
+			Message: s.Message,
+		})
+	}
 
 	// Build file summaries
 	fileIssues := make(map[string]struct {

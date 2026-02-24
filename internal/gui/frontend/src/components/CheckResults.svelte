@@ -3,7 +3,7 @@
     import { cubicOut } from 'svelte/easing';
     import { liteModeStore } from '../lib/stores';
     import { checkResultStore, checkState } from '../lib/checkResultStore';
-    import type { ValidationReport, ValidationIssue } from '../api/services/expectation';
+    import type { ValidationReport, ValidationIssue, InterpretedSummary } from '../api/services/expectation';
 
     // Severity filter state
     let showErrors = true;
@@ -45,7 +45,39 @@
         return true;
     }) : [];
 
-    $: filteredSummaries = report ? (report.interpretedSummaries || []) : [];
+    $: filteredSummaries = report ? (report.interpretedSummaries || []).filter(function(s) {
+        if (hasBothSources) {
+            if (s.source === 'profile' && !showProfile) return false;
+            if (s.source === 'auto' && !showAuto) return false;
+        }
+        return true;
+    }) : [];
+
+    // Group filtered summaries by source for sectioned display
+    interface SummaryGroup {
+        source: string;
+        label: string;
+        items: InterpretedSummary[];
+    }
+
+    $: summaryGroups = (function(): SummaryGroup[] {
+        var groups: SummaryGroup[] = [];
+        var currentSource = '';
+        for (var i = 0; i < filteredSummaries.length; i++) {
+            var s = filteredSummaries[i];
+            if (s.source !== currentSource) {
+                currentSource = s.source;
+                var label = currentSource === 'profile' ? 'Profile'
+                    : currentSource === 'auto' ? 'Auto'
+                    : 'Structural';
+                groups.push({ source: currentSource, label: label, items: [] });
+            }
+            groups[groups.length - 1].items.push(s);
+        }
+        return groups;
+    })();
+
+    $: hasMultipleSummarySources = summaryGroups.length > 1;
 
     // Group filtered issues by file
     $: issuesByFile = groupByFile(filteredIssues);
@@ -242,13 +274,32 @@
                 {#if summariesOpen}
                     <div class="px-4 pb-3 border-t border-white/5"
                          transition:slide={{ duration: isLite ? 0 : 200 }}>
-                        <ul class="mt-2 space-y-1">
-                            {#each filteredSummaries as summary}
-                                <li class="text-xs text-white/70 py-0.5 pl-3 border-l-2 border-white/10">
-                                    {summary}
-                                </li>
+                        {#if hasMultipleSummarySources}
+                            {#each summaryGroups as group, gi}
+                                <div class="{gi > 0 ? 'mt-3 pt-2 border-t border-white/5' : 'mt-2'}">
+                                    <div class="text-[10px] uppercase tracking-wider mb-1
+                                        {group.source === 'profile' ? 'text-purple-400/60' : group.source === 'auto' ? 'text-cyan-400/60' : 'text-white/30'}">
+                                        {group.label}
+                                    </div>
+                                    <ul class="space-y-1">
+                                        {#each group.items as summary}
+                                            <li class="text-xs text-white/70 py-0.5 pl-3 border-l-2
+                                                {summary.source === 'profile' ? 'border-purple-500/30' : summary.source === 'auto' ? 'border-cyan-500/30' : 'border-white/10'}">
+                                                {summary.message}
+                                            </li>
+                                        {/each}
+                                    </ul>
+                                </div>
                             {/each}
-                        </ul>
+                        {:else}
+                            <ul class="mt-2 space-y-1">
+                                {#each filteredSummaries as summary}
+                                    <li class="text-xs text-white/70 py-0.5 pl-3 border-l-2 border-white/10">
+                                        {summary.message}
+                                    </li>
+                                {/each}
+                            </ul>
+                        {/if}
                     </div>
                 {/if}
             </div>

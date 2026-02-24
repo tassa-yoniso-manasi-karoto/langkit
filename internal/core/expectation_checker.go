@@ -108,6 +108,29 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		}
 	}
 
+	// Structural checks: always run regardless of profile/auto mode.
+	// Duration tolerance comes from the profile if available, else a
+	// sensible default. The source tag reflects the origin.
+	tolerancePct := 2.0
+	durationSource := SourceStructural
+	if profile != nil && profile.DurationTolerancePct > 0 {
+		tolerancePct = profile.DurationTolerancePct
+		durationSource = SourceProfile
+	}
+
+	for _, filePath := range files {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		result := report.FileResults[filePath]
+		if result.MediaInfoErr != nil {
+			continue
+		}
+		checkDurationConsistency(report, filePath, result, tolerancePct, durationSource)
+		checkSubtitleIntegrity(report, filePath, result)
+		checkEmbeddedStandaloneOverlap(report, filePath, result)
+	}
+
 	// Pass 2: Decode integrity + domain checks.
 	// Each mode runs its own scoped decode pass. The deduplication
 	// inside runDecodeIntegrity ensures streams already checked by a
@@ -136,10 +159,7 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 			checkAudioLanguages(report, filePath, result, expectedAudioLangs)
 			checkSubtitleLanguages(report, filePath, result, expectedSubLangs)
 			checkLanguageTags(report, filePath, result, profile, expectedAudioLangs, expectedSubLangs)
-			checkDurationConsistency(report, filePath, result, profile)
 			checkExternalAudioDuration(report, filePath, result, profile)
-			checkSubtitleIntegrity(report, filePath, result)
-			checkEmbeddedStandaloneOverlap(report, filePath, result)
 		}
 	}
 
@@ -661,12 +681,11 @@ func unsatisfiedSubtitleLangs(expected []Lang, tracks []TextTrack, candidates []
 	return unsatisfied
 }
 
-func checkDurationConsistency(report *ValidationReport, filePath string, result *FileCheckResult, profile *ExpectationProfile) {
+func checkDurationConsistency(report *ValidationReport, filePath string, result *FileCheckResult, tolerancePct float64, source IssueSource) {
 	if result.VideoDuration == 0 {
 		return
 	}
 
-	tolerancePct := profile.DurationTolerancePct
 	if tolerancePct == 0 {
 		tolerancePct = 2.0
 	}
@@ -676,7 +695,7 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 		if audioDur == 0 {
 			report.AddIssue(Issue{
 				Severity: SeverityInfo,
-				Source:   SourceProfile,
+				Source:   source,
 				FilePath: filePath,
 				Category: "duration",
 				Message:  "Duration unavailable for audio track " + itoa(i+1),
@@ -693,7 +712,7 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 		if deviation > result.VideoDuration*0.10 {
 			report.AddIssue(Issue{
 				Severity: SeverityError,
-				Source:   SourceProfile,
+				Source:   source,
 				FilePath: filePath,
 				Category: "duration",
 				Message: "Audio track " + itoa(i+1) + " duration (" +
@@ -703,7 +722,7 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 		} else if deviation > effectiveTolerance {
 			report.AddIssue(Issue{
 				Severity: SeverityWarning,
-				Source:   SourceProfile,
+				Source:   source,
 				FilePath: filePath,
 				Category: "duration",
 				Message: "Audio track " + itoa(i+1) + " duration (" +
