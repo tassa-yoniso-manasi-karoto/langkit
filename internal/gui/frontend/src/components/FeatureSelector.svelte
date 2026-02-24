@@ -60,7 +60,6 @@
         selectiveTransliteration: false,
         subtitleTokenization: false,
         condensedAudio: false,
-        expectationCheck: false
     };
     export let quickAccessLangTag = '';
     export let showLogViewer: boolean;
@@ -1740,17 +1739,6 @@
                 logger.debug('FeatureSelector', 'LLM not ready, skipping summary provider fetch');
             }
             
-            // Load expectation profiles for the Check Media feature
-            try {
-                const { ListExpectationProfiles } = await import('../api/services/expectation');
-                const profiles = await ListExpectationProfiles();
-                const profileNames = profiles.map(function(p) { return p.name; });
-                updateFeatureChoices('expectationCheck', 'profile', profileNames, profileNames[0] || '');
-                logger.debug('FeatureSelector', 'Loaded expectation profiles', { count: profileNames.length });
-            } catch (error) {
-                logger.warn('FeatureSelector', 'Failed to load expectation profiles', { error });
-            }
-
             // Initialize canonical feature order from feature definitions
             const canonicalOrder = reactiveFeatures.map(f => f.id);
             featureGroupStore.initializeCanonicalOrder(canonicalOrder);

@@ -6,7 +6,6 @@
   - subs2cards audio clips
 
 - Data aware logic:
-  - BUG: `S03E01: duration (23m 51s) is unusually short compared to siblings (median: 23m 52s)` length of VIDEO should not be compared within the folder
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
 - "Do-no-interrupt" mode: <<<--- IMPLEMENT AS PART OF THE PRE-FLIGHT  CHECK: the user knows the problem immediately at processing starts instead auto-tolerating mid-run

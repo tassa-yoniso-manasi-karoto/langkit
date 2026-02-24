@@ -152,11 +152,12 @@ func convertReport(report *core.ValidationReport) *generated.ValidationReport {
 	// Convert issues
 	for _, iss := range report.Issues {
 		gr.Issues = append(gr.Issues, &generated.ValidationIssue{
-			Severity: iss.Severity.String(),
-			Source:   string(iss.Source),
-			FilePath: iss.FilePath,
-			Category: iss.Category,
-			Message:  iss.Message,
+			Severity:  iss.Severity.String(),
+			Source:    string(iss.Source),
+			FilePath:  iss.FilePath,
+			Category:  iss.Category,
+			IssueCode: iss.Code,
+			Message:   iss.Message,
 		})
 	}
 

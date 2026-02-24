@@ -76,6 +76,7 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 			Source:   SourceStructural,
 			FilePath: rootPath,
 			Category: "structure",
+			Code:     CodeNoMediaFiles,
 			Message:  "No media files found",
 		})
 		report.Duration = time.Since(start)
@@ -122,6 +123,7 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "structure",
+				Code:     CodeMediainfoFailed,
 				Message:  "Could not read media metadata: " + result.MediaInfoErr.Error(),
 			})
 			continue
@@ -224,6 +226,9 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 			decodeDepth, nil, log, cb)
 	}
 
+	// Post-processing: merge correlated decode + duration findings
+	mergeCorrelatedFindings(report, log)
+
 	report.Duration = time.Since(start)
 	log.Info().
 		Dur("elapsed", report.Duration).
@@ -261,6 +266,7 @@ func runAutoMode(report *ValidationReport, files []string, config *AutoCheckConf
 				Source:   SourceAuto,
 				FilePath: dir,
 				Category: "consistency",
+				Code:     CodeAutoGroupTooSmall,
 				Message: "Skipped auto-check for " + filepath.Base(dir) +
 					" (" + itoa(dc.FileCount) + " eligible files, minimum is " +
 					itoa(config.MinGroupSize) + ")",
@@ -388,10 +394,13 @@ func checkDecodeResults(report *ValidationReport, filePath string, result *FileC
 			continue
 		}
 		var msg string
+		var code string
 		if dr.StreamIndex == -1 {
 			msg = "Video stream decode failed"
+			code = CodeVideoDecodeFailed
 		} else {
 			msg = "Audio stream " + itoa(dr.StreamIndex) + " decode failed"
+			code = CodeAudioDecodeFailed
 		}
 		if dr.ErrorOutput != "" {
 			// Trim to first line for conciseness
@@ -406,8 +415,163 @@ func checkDecodeResults(report *ValidationReport, filePath string, result *FileC
 			Source:   SourceStructural,
 			FilePath: filePath,
 			Category: "integrity",
+			Code:     code,
 			Message:  msg,
 		})
+	}
+}
+
+// mergeCorrelatedFindings replaces paired decode-failure + duration-deviation
+// issues on the same audio track with a single CodeCorruptTrack issue.
+// A corrupt stream typically appears as both "Audio stream N decode failed"
+// and "Audio track M duration deviates" — these share a single root cause.
+func mergeCorrelatedFindings(report *ValidationReport, log zerolog.Logger) {
+	// Build per-file set of corrupt audio track positions (0-based).
+	// StreamIndex (container stream order) → audio track position requires
+	// the MediaInfo AudioTracks list for mapping.
+	type corruptInfo struct {
+		trackPos    int    // 0-based audio track position
+		streamIndex int    // container stream index
+		audioDur    float64
+		videoDur    float64
+	}
+
+	fileCorrupt := make(map[string][]corruptInfo) // filePath → corrupt tracks
+
+	for filePath, result := range report.FileResults {
+		if result == nil || result.MediaInfoErr != nil || len(result.DecodeResults) == 0 {
+			continue
+		}
+
+		// Map StreamIndex → audio track position
+		streamToPos := make(map[int]int)
+		for i, at := range result.MediaInfo.AudioTracks {
+			idx, err := strconv.Atoi(at.StreamOrder)
+			if err == nil {
+				streamToPos[idx] = i
+			}
+		}
+
+		for _, dr := range result.DecodeResults {
+			if !dr.Corrupted || dr.StreamIndex == -1 {
+				continue // skip video or non-corrupt
+			}
+			if pos, ok := streamToPos[dr.StreamIndex]; ok {
+				ci := corruptInfo{
+					trackPos:    pos,
+					streamIndex: dr.StreamIndex,
+					videoDur:    result.VideoDuration,
+				}
+				if pos < len(result.AudioDurations) {
+					ci.audioDur = result.AudioDurations[pos]
+				}
+				fileCorrupt[filePath] = append(fileCorrupt[filePath], ci)
+			}
+		}
+	}
+
+	if len(fileCorrupt) == 0 {
+		return
+	}
+
+	// Build lookup: (filePath, trackPos) → true for mergeable pairs
+	type trackKey struct {
+		filePath string
+		trackPos int
+	}
+	mergeSet := make(map[trackKey]corruptInfo)
+	for fp, tracks := range fileCorrupt {
+		for _, ci := range tracks {
+			mergeSet[trackKey{fp, ci.trackPos}] = ci
+		}
+	}
+
+	// Filter issues: remove decode + duration pairs, collect merged issues
+	var merged []Issue
+	kept := make([]Issue, 0, len(report.Issues))
+	removedErrors := 0
+	removedWarnings := 0
+	removedInfos := 0
+
+	for _, iss := range report.Issues {
+		switch iss.Code {
+		case CodeAudioDecodeFailed:
+			// Check if this decode issue maps to a known corrupt track
+			fp := iss.FilePath
+			if tracks, ok := fileCorrupt[fp]; ok {
+				removed := false
+				for _, ci := range tracks {
+					// Match by stream index in the message
+					if strings.Contains(iss.Message, "Audio stream "+itoa(ci.streamIndex)+" decode failed") {
+						// Check if a corresponding duration issue exists
+						if ci.audioDur > 0 && ci.videoDur > 0 {
+							removed = true
+							removedErrors++
+							break
+						}
+					}
+				}
+				if removed {
+					continue
+				}
+			}
+			kept = append(kept, iss)
+
+		case CodeAudioDurationMismatch:
+			// Check if this duration issue corresponds to a corrupt track
+			fp := iss.FilePath
+			removed := false
+			for trackPos := range mergeSet {
+				if trackPos.filePath == fp {
+					// Match by track number in message: "Audio track N"
+					if strings.Contains(iss.Message, "Audio track "+itoa(trackPos.trackPos+1)+" duration") {
+						removed = true
+						switch iss.Severity {
+						case SeverityError:
+							removedErrors++
+						case SeverityWarning:
+							removedWarnings++
+						}
+						break
+					}
+				}
+			}
+			if !removed {
+				kept = append(kept, iss)
+			}
+
+		default:
+			kept = append(kept, iss)
+		}
+	}
+
+	// Emit merged issues
+	for fp, tracks := range fileCorrupt {
+		for _, ci := range tracks {
+			if ci.audioDur > 0 && ci.videoDur > 0 {
+				merged = append(merged, Issue{
+					Severity: SeverityError,
+					Source:   SourceStructural,
+					FilePath: fp,
+					Category: "integrity",
+					Code:     CodeCorruptTrack,
+					Message: "Audio track " + itoa(ci.trackPos+1) +
+						" corrupt — decoded " + media.FormatDuration(ci.audioDur) +
+						" of " + media.FormatDuration(ci.videoDur) + " video",
+				})
+			}
+		}
+	}
+
+	if len(merged) > 0 {
+		report.Issues = append(kept, merged...)
+		// Recount severities
+		report.ErrorCount = report.ErrorCount - removedErrors + len(merged)
+		report.WarningCount -= removedWarnings
+		report.InfoCount -= removedInfos
+		log.Debug().
+			Int("mergedPairs", len(merged)).
+			Msg("Merged correlated decode+duration findings")
 	}
 }
 
@@ -531,6 +695,7 @@ func runDecodeIntegrity(
 				Source:   SourceStructural,
 				FilePath: w.filePath,
 				Category: "integrity",
+				Code:     CodeAudioDecodeFailed,
 				Message:  "Decode integrity check failed: " + err.Error(),
 			})
 			result.DecodeCorrupted = true
@@ -618,6 +783,7 @@ func checkVideoTrack(report *ValidationReport, filePath string, result *FileChec
 			Source:   SourceProfile,
 			FilePath: filePath,
 			Category: "structure",
+			Code:     CodeNoVideoTrack,
 			Message:  "No video track found",
 		})
 	}
@@ -648,6 +814,7 @@ func checkAudioLanguages(report *ValidationReport, filePath string, result *File
 				Source:   SourceProfile,
 				FilePath: filePath,
 				Category: "language",
+				Code:     CodeMissingAudioLang,
 				Message:  "Missing expected audio language: " + langDisplayName(expLang),
 			})
 		}
@@ -682,6 +849,7 @@ func checkSubtitleLanguages(report *ValidationReport, filePath string, result *F
 				Source:   SourceProfile,
 				FilePath: filePath,
 				Category: "language",
+				Code:     CodeMissingSubLang,
 				Message:  "Missing expected subtitle language: " + langDisplayName(expLang),
 			})
 		}
@@ -711,6 +879,7 @@ func checkLanguageTags(report *ValidationReport, filePath string, result *FileCh
 				Source:   SourceProfile,
 				FilePath: filePath,
 				Category: "language",
+				Code:     CodeUntaggedTrack,
 				Message:  "Audio track " + itoa(i+1) + " has no language tag",
 			})
 		}
@@ -729,6 +898,7 @@ func checkLanguageTags(report *ValidationReport, filePath string, result *FileCh
 				Source:   SourceProfile,
 				FilePath: filePath,
 				Category: "language",
+				Code:     CodeUntaggedTrack,
 				Message:  "Subtitle track " + itoa(i+1) + " has no language tag",
 			})
 		}
@@ -796,6 +966,7 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 				Source:   source,
 				FilePath: filePath,
 				Category: "duration",
+				Code:     CodeDurationUnavailable,
 				Message:  "Duration unavailable for audio track " + itoa(i+1),
 			})
 			continue
@@ -813,6 +984,7 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 				Source:   source,
 				FilePath: filePath,
 				Category: "duration",
+				Code:     CodeAudioDurationMismatch,
 				Message: "Audio track " + itoa(i+1) + " duration (" +
 					media.FormatDuration(audioDur) + ") deviates >10% from video (" +
 					media.FormatDuration(result.VideoDuration) + ")",
@@ -823,6 +995,7 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 				Source:   source,
 				FilePath: filePath,
 				Category: "duration",
+				Code:     CodeAudioDurationMismatch,
 				Message: "Audio track " + itoa(i+1) + " duration (" +
 					media.FormatDuration(audioDur) + ") deviates from video (" +
 					media.FormatDuration(result.VideoDuration) + ")",
@@ -854,6 +1027,7 @@ func checkExternalAudioDuration(report *ValidationReport, filePath string, resul
 				Source:   SourceProfile,
 				FilePath: filePath,
 				Category: "duration",
+				Code:     CodeDurationUnavailable,
 				Message:  "Duration unavailable for external audio: " + filepath.Base(ea.Path),
 			})
 			continue
@@ -872,6 +1046,7 @@ func checkExternalAudioDuration(report *ValidationReport, filePath string, resul
 				Source:   SourceProfile,
 				FilePath: filePath,
 				Category: "duration",
+				Code:     CodeExtAudioDuration,
 				Message: "External audio " + extName + " duration (" +
 					media.FormatDuration(ea.Duration) + ") deviates >10% from video (" +
 					media.FormatDuration(result.VideoDuration) + ")",
@@ -882,6 +1057,7 @@ func checkExternalAudioDuration(report *ValidationReport, filePath string, resul
 				Source:   SourceProfile,
 				FilePath: filePath,
 				Category: "duration",
+				Code:     CodeExtAudioDuration,
 				Message: "External audio " + extName + " duration (" +
 					media.FormatDuration(ea.Duration) + ") deviates from video (" +
 					media.FormatDuration(result.VideoDuration) + ")",
@@ -906,6 +1082,7 @@ func checkSubtitleIntegrity(report *ValidationReport, filePath string, result *F
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "subtitle",
+				Code:     CodeSubParseFailed,
 				Message:  "Subtitle file " + subName + " is unparseable: " + scr.ParseErr,
 			})
 			continue
@@ -918,6 +1095,7 @@ func checkSubtitleIntegrity(report *ValidationReport, filePath string, result *F
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "subtitle",
+				Code:     CodeSubEmpty,
 				Message:  "Subtitle file " + subName + " has zero parseable lines",
 			})
 			continue
@@ -930,6 +1108,7 @@ func checkSubtitleIntegrity(report *ValidationReport, filePath string, result *F
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "subtitle",
+				Code:     CodeSubEncoding,
 				Message:  "Subtitle file " + subName + " may have encoding issues (replacement characters detected)",
 			})
 		}
@@ -977,6 +1156,7 @@ func checkSubtitleCoverage(report *ValidationReport, filePath string, result *Fi
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "subtitle",
+				Code:     CodeSubLowCoverage,
 				Message: "Subtitle file " + subName + " ends at " +
 					media.FormatDuration(scr.TailEndSec) +
 					" but video is " + media.FormatDuration(vd) +
@@ -988,6 +1168,7 @@ func checkSubtitleCoverage(report *ValidationReport, filePath string, result *Fi
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "subtitle",
+				Code:     CodeSubLowCoverage,
 				Message: "Subtitle file " + subName + " ends at " +
 					media.FormatDuration(scr.TailEndSec) +
 					" but video is " + media.FormatDuration(vd) +
@@ -999,6 +1180,7 @@ func checkSubtitleCoverage(report *ValidationReport, filePath string, result *Fi
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "subtitle",
+				Code:     CodeSubLowCoverage,
 				Message: "Subtitle file " + subName + " ends at " +
 					media.FormatDuration(scr.TailEndSec) +
 					", video is " + media.FormatDuration(vd),
@@ -1041,6 +1223,7 @@ func checkEmbeddedStandaloneOverlap(report *ValidationReport, filePath string, r
 				Source:   SourceStructural,
 				FilePath: filePath,
 				Category: "subtitle",
+				Code:     CodeSubOverlap,
 				Message:  "Both embedded and standalone subtitles exist for language " + lang,
 			})
 		}

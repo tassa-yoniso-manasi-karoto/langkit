@@ -245,6 +245,7 @@ func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths [
 						Source:   SourceAuto,
 						FilePath: fp,
 						Category: "consistency",
+						Code:     CodeAutoAudioCount,
 						Message: "has " + itoa(trackCount) +
 							" audio tracks (most files have " +
 							itoa(dc.ConsensusAudioCount) + ")",
@@ -278,6 +279,7 @@ func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths [
 					Source:   SourceAuto,
 					FilePath: fp,
 					Category: "consistency",
+					Code:     CodeAutoSubCount,
 					Message: "has " + itoa(fileCount) + " " + lang +
 						" subtitle source(s) (most files have " +
 						itoa(modeCount) + ")",
@@ -301,6 +303,11 @@ func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths [
 // consensus, emitting findings based on confidence tier.
 // Messages are file-agnostic to allow aggregation in interpreted summaries.
 func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[string]bool, allLangCounts map[string]int, n int, quorumLangs, softLangs []string, trackType string, config *AutoCheckConfig) {
+	code := CodeAutoMissingAudio
+	if trackType == "subtitle" {
+		code = CodeAutoMissingSub
+	}
+
 	// Check quorum-tier languages (missing → Warning)
 	for _, lang := range quorumLangs {
 		if !fileLangs[lang] {
@@ -310,6 +317,7 @@ func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[strin
 				Source:   SourceAuto,
 				FilePath: fp,
 				Category: "consistency",
+				Code:     code,
 				Message: "missing " + lang + " " + trackType +
 					" (present in " + itoa(support) +
 					" of " + itoa(n) + " files)",
@@ -326,6 +334,7 @@ func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[strin
 				Source:   SourceAuto,
 				FilePath: fp,
 				Category: "consistency",
+				Code:     code,
 				Message: "missing " + lang + " " + trackType +
 					" (present in " + itoa(support) +
 					" of " + itoa(n) + " files)",
@@ -385,6 +394,7 @@ func checkDurationOutliers(report *ValidationReport, dc *DirectoryConsensus, fil
 				Source:   SourceAuto,
 				FilePath: fp,
 				Category: "consistency",
+				Code:     CodeAutoDurationOutlier,
 				Message: "duration (" + formatDur(dur) +
 					") is unusually " + direction +
 					" compared to siblings (median: " +

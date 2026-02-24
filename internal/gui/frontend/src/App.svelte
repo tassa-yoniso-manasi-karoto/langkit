@@ -32,7 +32,6 @@
     import GlowEffect from './components/GlowEffect.svelte';
     import BackgroundGradient from './components/BackgroundGradient.svelte';
     import Settings from './components/Settings.svelte';
-    import ProcessButton from './components/ProcessButton.svelte';
     import UpdateNotification from './components/UpdateNotification.svelte';
     import ProgressManager from './components/ProgressManager.svelte';
     import LogViewerNotification from './components/LogViewerNotification.svelte';
@@ -59,12 +58,13 @@
         IncrementStatistic
     } from './api/services/settings';
     import { RefreshSTTModelsAfterSettingsUpdate } from './api/services/models';
-    import { RunExpectationCheck } from './api/services/expectation';
+    import { RunExpectationCheck, ListExpectationProfiles } from './api/services/expectation';
     import type { CheckRequest, AutoCheckConfig, ExpectationProfile as ExpProfile } from './api/services/expectation';
     import { checkResultStore, checkState } from './lib/checkResultStore';
-    import CheckResults from './components/CheckResults.svelte';
-    import ProfileManager from './components/ProfileManager.svelte';
-    import ConfirmDialog from './components/ConfirmDialog.svelte';
+    import { expectationProfilesStore } from './lib/expectationProfilesStore';
+    import PreflightBar from './components/PreflightBar.svelte';
+    import PreflightDrawer from './components/PreflightDrawer.svelte';
+    import DiagnosticModal from './components/DiagnosticModal.svelte';
     import type { gui } from '../wailsjs/go/models';
 
     // Define interfaces
@@ -101,7 +101,6 @@
         selectiveTransliteration: false,
         subtitleTokenization: false,
         condensedAudio: false,
-        expectationCheck: false
     };
     let currentFeatureOptions: FeatureOptions | undefined;
     let isProcessing = false;
@@ -111,12 +110,23 @@
     let showGlow = true;
     let defaultTargetLanguage = "";
     let quickAccessLangTag = "";
-    let showCheckConfirmDialog = false;
     let selectedExpectationProfile = '';
 
-    // Derive whether to show profile manager
-    $: showProfileManager = selectedFeatures.expectationCheck &&
-        currentFeatureOptions?.expectationCheck?.checkMode !== 'auto';
+    // Inspector pane state (repurposed LogViewer panel)
+    let inspectorMode: 'logs' | 'preflight' = 'logs';
+
+    // Preflight bar state (standalone, no longer tied to feature cards)
+    let checkMode: string = 'auto';
+    let checkQuorum: number = 75;
+
+    // Diagnostic modal state
+    let showDiagnosticModal = false;
+
+    // Expectation profiles (shared between PreflightBar and DiagnosticModal)
+    let expectationProfiles: ExpProfile[] = [];
+    var unsubProfiles = expectationProfilesStore.subscribe(function(p) {
+        expectationProfiles = p;
+    });
 
     // Window state tracking
     let isWindowMinimized = false;
@@ -512,27 +522,13 @@
         }
     }
     
-    let prevExpectationFingerprint = '';
+    let prevCheckFingerprint = '';
 
-    // Reactive fingerprint: recalculated whenever feature options,
-    // profile selection, or settings (for "From Settings" mode) change.
-    $: expectationFingerprint = (function() {
-        var ec = currentFeatureOptions?.expectationCheck;
-        if (!ec) return '';
-        var fp = (ec.checkMode || '') + '|'
-            + (selectedExpectationProfile || '') + '|'
-            + (ec.quorum || '');
-        // "From Settings" derives the profile from settings at check time,
-        // so settings content must be part of the fingerprint.
-        if (!selectedExpectationProfile && (ec.checkMode === 'profile' || ec.checkMode === 'both')) {
-            fp += '|' + ($settings.targetLanguage || '')
-                + '|' + ($settings.nativeLanguages || '');
-        }
-        return fp;
-    })();
+    // Reactive fingerprint for stale detection: tracks check config changes
+    $: checkFingerprint = checkMode + '|' + selectedExpectationProfile + '|' + checkQuorum;
 
-    $: if (expectationFingerprint !== prevExpectationFingerprint) {
-        prevExpectationFingerprint = expectationFingerprint;
+    $: if (checkFingerprint !== prevCheckFingerprint) {
+        prevCheckFingerprint = checkFingerprint;
         if ($checkResultStore.report) {
             checkResultStore.markStale();
         }
@@ -663,18 +659,16 @@
     }
 
     async function handleExpectationCheck() {
-        if (!currentFeatureOptions || !mediaSource) return;
+        if (!mediaSource) return;
 
-        var opts = currentFeatureOptions.expectationCheck || {};
-        var mode = opts.checkMode || 'auto';
-
+        var mode = checkMode;
         var request: CheckRequest = { path: mediaSource.path };
 
         // Build autoConfig for auto or both mode
         if (mode === 'auto' || mode === 'both') {
             request.autoConfig = {
                 enabled: true,
-                quorumPct: opts.quorum != null ? opts.quorum : 75,
+                quorumPct: checkQuorum,
                 softFloorPct: 20,
                 minGroupSize: 3,
             };
@@ -686,7 +680,6 @@
             if (profileName) {
                 // Load the named profile from the backend
                 try {
-                    var { ListExpectationProfiles } = await import('./api/services/expectation');
                     var profiles = await ListExpectationProfiles();
                     var found = profiles.find(function(p) { return p.name === profileName; });
                     if (found) {
@@ -703,13 +696,13 @@
                 } catch (e) {
                     logger.error('app', 'Failed to load profile', { error: e });
                     invalidationErrorStore.addError({
-                    id: "check-profile-error",
-                    message: "Failed to load profiles: " + (e?.message || "Unknown error"),
-                    severity: "critical",
-                    dismissible: true
-                });
-                return;
-            }
+                        id: "check-profile-error",
+                        message: "Failed to load profiles: " + (e as any)?.message || "Unknown error",
+                        severity: "critical",
+                        dismissible: true
+                    });
+                    return;
+                }
             } else {
                 // "From Settings" profile: derive from current settings
                 var currentSettings = get(settings);
@@ -773,36 +766,23 @@
     async function handleProcess() {
         if (!currentFeatureOptions || !mediaSource) return;
 
-        // Determine if any processing features are selected
-        var hasProcessingFeatures = false;
-        var processingKeys = Object.keys(selectedFeatures) as (keyof typeof selectedFeatures)[];
-        for (var k = 0; k < processingKeys.length; k++) {
-            if (processingKeys[k] !== 'expectationCheck' && selectedFeatures[processingKeys[k]]) {
-                hasProcessingFeatures = true;
-                break;
-            }
-        }
-
-        // Branch: if expectationCheck is selected without processing features, run check only
-        if (selectedFeatures.expectationCheck && !hasProcessingFeatures) {
-            await handleExpectationCheck();
-            return;
-        }
-
-        // If expectationCheck is selected with processing features, run check first
-        // (also rerun if results are stale from settings changes)
-        if (selectedFeatures.expectationCheck && hasProcessingFeatures
-            && ($checkState === 'unchecked' || $checkState === 'stale')) {
-            await handleExpectationCheck();
-            // After check completes, the user must click Process again
-            // (with results visible, confirmation handshake applies if errors found)
-            return;
-        }
-
-        // Confirmation handshake: if check found errors and not yet acknowledged
+        // Errors-only blocking: if check found errors and not yet acknowledged,
+        // open inspector in preflight tab and change button to acknowledge
         if ($checkState === 'checked_with_errors_unacknowledged') {
-            showCheckConfirmDialog = true;
-            return;
+            checkResultStore.acknowledge();
+            // Fall through to start processing
+        }
+
+        // Silent preflight check: run if unchecked or stale
+        if ($checkState === 'unchecked' || $checkState === 'stale') {
+            await handleExpectationCheck();
+            // If errors found, open inspector in preflight tab and stop
+            if ($checkResultStore.report && $checkResultStore.report.errorCount > 0) {
+                showLogViewer = true;
+                inspectorMode = 'preflight';
+                return;
+            }
+            // Warnings/info do NOT block — proceed to processing
         }
 
         // Increment process start count
@@ -821,6 +801,9 @@
         isProcessing = true;
         progress = 0;
         errorTooltipDismissed = false; // Reset error notification dismissal for new run
+
+        // Switch inspector to logs tab when processing starts
+        inspectorMode = 'logs';
 
         // Apply "Show log viewer by default" setting when starting a process
         const currentSettings = get(settings);
@@ -915,15 +898,25 @@
         }
     }
 
-    function handleCheckConfirm() {
-        showCheckConfirmDialog = false;
-        checkResultStore.acknowledge();
-        // Re-trigger handleProcess now that errors are acknowledged
-        handleProcess();
+    // Preflight bar event handlers
+    function handlePreflightModeChange(e: CustomEvent<{ mode: string; profileName: string; quorum: number }>) {
+        checkMode = e.detail.mode;
+        selectedExpectationProfile = e.detail.profileName;
+        checkQuorum = e.detail.quorum;
     }
 
-    function handleCheckCancel() {
-        showCheckConfirmDialog = false;
+    function handleCheckLibrary() {
+        showDiagnosticModal = true;
+        // Auto-run check when opening diagnostic modal
+        handleExpectationCheck();
+    }
+
+    function handleDiagnosticClose() {
+        showDiagnosticModal = false;
+    }
+
+    function handleDiagnosticRunCheck() {
+        handleExpectationCheck();
     }
 
     async function loadSettings() {
@@ -1630,9 +1623,14 @@
             logger.info('app', 'Starting WebAssembly subsystem initialization');
             
             // Load settings before initializing WebAssembly
-            await loadSettings(); 
+            await loadSettings();
             const $currentSettings = get(settings);
-            
+
+            // Load expectation profiles for preflight bar
+            expectationProfilesStore.ensureLoaded().catch(function(e) {
+                logger.warn('app', 'Failed to load expectation profiles', { error: e });
+            });
+
             // Load statistics data
             await loadStatisticsData();
             
@@ -1787,6 +1785,7 @@
 
     // Cleanup on component destruction
     onDestroy(() => {
+        unsubProfiles();
         if (windowCheckInterval) clearInterval(windowCheckInterval);
         
         // Clear periodic status check intervals
@@ -1952,15 +1951,6 @@
                             <div class="h-20 rounded-lg bg-white/5 border-2 border-dashed border-primary/10 animate-pulse"></div>
                         {/if}
 
-                        <!-- Profile Manager (visible when expectationCheck is in profile/both mode) -->
-                        {#if showProfileManager}
-                            <ProfileManager bind:selectedProfileName={selectedExpectationProfile} />
-                        {/if}
-
-                        <!-- Check Results -->
-                        {#if $checkResultStore.report}
-                            <CheckResults />
-                        {/if}
                     </div>
                 </div>
 
@@ -1971,16 +1961,26 @@
                         <ProgressManager {isProcessing} {isWindowMinimized} {userActivityState} />
                     </div>
                     
-                    <!-- Process Button Row with hardware acceleration -->
-                    <div class="max-w-2xl mx-auto flex justify-center items-center gap-4 pb-0 will-change-transform">
-                        <ProcessButton
-                            isProcessing={isProcessing || $checkResultStore.isRunning}
-                            on:process={handleProcess}
-                        />
-                        
-                        <!-- Cancel button with optimized transitions -->
+                    <!-- Preflight Bar + Action Buttons -->
+                    <div class="max-w-2xl mx-auto flex items-end gap-3 pb-0 will-change-transform">
+                        <!-- Preflight bar (mode dropdown, quorum, process/check buttons) -->
+                        <div class="flex-1">
+                            <PreflightBar
+                                profiles={expectationProfiles}
+                                bind:checkMode
+                                bind:quorum={checkQuorum}
+                                bind:selectedProfileName={selectedExpectationProfile}
+                                isProcessing={isProcessing || $checkResultStore.isRunning}
+                                checkState={$checkState}
+                                on:process={handleProcess}
+                                on:checkLibrary={handleCheckLibrary}
+                                on:modeChange={handlePreflightModeChange}
+                            />
+                        </div>
+
+                        <!-- Cancel button -->
                         {#if isProcessing}
-                            <div class="h-14 w-12 flex items-center">
+                            <div class="h-14 w-12 flex items-center shrink-0">
                                 <button
                                     class="h-12 w-12 flex items-center justify-center rounded-lg
                                            bg-red-600/40 text-white transition-all duration-200
@@ -2003,9 +2003,9 @@
                                 </button>
                             </div>
                         {/if}
-                        
-                        <!-- Log viewer toggle button with notifications and pulsing effects -->
-                        <div class="relative">
+
+                        <!-- Inspector toggle button -->
+                        <div class="relative shrink-0">
                             <button
                                 class="h-12 w-12 flex items-center justify-center rounded-lg
                                        transition-all duration-200 will-change-transform
@@ -2019,7 +2019,7 @@
                                        {hasErrorLogs() && !showLogViewer ? 'log-button-error-pulse' : ''}"
                                 on:mouseenter={handleLogButtonHover}
                                 on:click={toggleLogViewer}
-                                aria-label="{showLogViewer ? 'Hide log viewer' : 'Show log viewer'}"
+                                aria-label="{showLogViewer ? 'Hide inspector' : 'Show inspector'}"
                                 bind:this={logViewerButton}
                             >
                                 <span class="material-icons">
@@ -2032,25 +2032,22 @@
                                         !
                                     </span>
                                 {/if}
-
-                                <!-- Removed duplicate button -->
                             </button>
-                            
+
                             <!-- Log Viewer Notification -->
-                            <LogViewerNotification 
+                            <LogViewerNotification
                                 processingStartTime={processingStartTime}
-                                position={logViewerButtonPosition} 
+                                position={logViewerButtonPosition}
                                 isProcessing={isProcessing}
                                 hasErrorsFromParent={hasErrorLogs()}
-                                isVisible={((isProcessing && !tooltipDismissed) || 
-                                            (hasErrorLogs() && (!errorTooltipDismissed || tooltipVisible))) && 
-                                            !showLogViewer && 
+                                isVisible={((isProcessing && !tooltipDismissed) ||
+                                            (hasErrorLogs() && (!errorTooltipDismissed || tooltipVisible))) &&
+                                            !showLogViewer &&
                                             !!logViewerButtonPosition}
                                 onOpenLogViewer={toggleLogViewer}
                                 onDismiss={() => {
                                     tooltipDismissed = true;
                                     tooltipVisible = false;
-                                    // Also dismiss error notifications
                                     if (hasErrorLogs()) {
                                         errorTooltipDismissed = true;
                                     }
@@ -2062,9 +2059,9 @@
             </div>
         </div>
 
-        <!-- Log viewer panel with optimized rendering -->
+        <!-- Inspector pane (Logs | Preflight tabs) -->
         {#if showLogViewer}
-            <div class="w-[45%] rounded-lg overflow-hidden will-change-transform
+            <div class="w-[45%] rounded-lg overflow-hidden will-change-transform flex flex-col
                         shadow-[4px_4px_0_0_rgba(159,110,247,0.4),8px_8px_16px_-2px_rgba(159,110,247,0.35)]
                         hover:shadow-[4px_4px_0_0_rgba(159,110,247,0.5),8px_8px_20px_-2px_rgba(159,110,247,0.4)]"
                  style="transform: translateZ(0); contain: content;"
@@ -2073,7 +2070,44 @@
                  role="region"
                  aria-live="polite"
             >
-                <LogViewer version={version} isProcessing={isProcessing} userActivityState={userActivityState} />
+                <!-- Tab bar -->
+                <div class="flex border-b border-white/10 bg-black/20 shrink-0">
+                    <button
+                        class="flex-1 px-4 py-2 text-xs font-medium transition-colors
+                               {inspectorMode === 'preflight'
+                                   ? 'text-primary border-b-2 border-primary'
+                                   : 'text-white/50 hover:text-white/70'}"
+                        on:click={() => inspectorMode = 'preflight'}
+                    >
+                        Preflight
+                        {#if $checkResultStore.report && $checkResultStore.report.errorCount > 0}
+                            <span class="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-red-500/30 text-red-300 rounded-full">
+                                {$checkResultStore.report.errorCount}
+                            </span>
+                        {/if}
+                    </button>
+                    <button
+                        class="flex-1 px-4 py-2 text-xs font-medium transition-colors
+                               {inspectorMode === 'logs'
+                                   ? 'text-primary border-b-2 border-primary'
+                                   : 'text-white/50 hover:text-white/70'}"
+                        on:click={() => inspectorMode = 'logs'}
+                    >
+                        Logs
+                        {#if hasErrorLogs()}
+                            <span class="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-red-500/30 text-red-300 rounded-full">!</span>
+                        {/if}
+                    </button>
+                </div>
+
+                <!-- Tab content -->
+                <div class="flex-1 overflow-hidden">
+                    {#if inspectorMode === 'preflight'}
+                        <PreflightDrawer report={$checkResultStore.report} />
+                    {:else}
+                        <LogViewer version={version} isProcessing={isProcessing} userActivityState={userActivityState} />
+                    {/if}
+                </div>
             </div>
         {/if}
     </div>
@@ -2126,12 +2160,13 @@
     }}
 />
 
-<!-- Confirmation dialog for processing with unacknowledged check errors -->
-<ConfirmDialog
-    open={showCheckConfirmDialog}
-    message={"Check found " + ($checkResultStore.report ? $checkResultStore.report.errorCount : 0) + " error(s), " + ($checkResultStore.report ? $checkResultStore.report.warningCount : 0) + " warning(s). Proceed anyway?"}
-    on:confirm={handleCheckConfirm}
-    on:cancel={handleCheckCancel}
+<!-- Diagnostic modal for library auditing and profile management -->
+<DiagnosticModal
+    open={showDiagnosticModal}
+    profiles={expectationProfiles}
+    report={$checkResultStore.report}
+    on:close={handleDiagnosticClose}
+    on:runCheck={handleDiagnosticRunCheck}
 />
 
 <style>

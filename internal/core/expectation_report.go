@@ -121,6 +121,7 @@ func FormatReportJSON(report *ValidationReport) ([]byte, error) {
 		Source   string `json:"source"`
 		FilePath string `json:"filePath"`
 		Category string `json:"category"`
+		Code     string `json:"code"`
 		Message  string `json:"message"`
 	}
 	type jsonConsensus struct {
@@ -173,6 +174,7 @@ func FormatReportJSON(report *ValidationReport) ([]byte, error) {
 			Source:   string(iss.Source),
 			FilePath: iss.FilePath,
 			Category: iss.Category,
+			Code:     iss.Code,
 			Message:  iss.Message,
 		})
 	}
@@ -223,79 +225,145 @@ func sourceOrder(s IssueSource) int {
 	}
 }
 
+// codeLabel maps issue codes to human-readable cluster labels.
+func codeLabel(code string) string {
+	switch code {
+	case CodeMediainfoFailed:
+		return "MediaInfo Failures"
+	case CodeNoMediaFiles:
+		return "No Media Files"
+	case CodeNoVideoTrack:
+		return "Missing Video Track"
+	case CodeAudioDecodeFailed:
+		return "Audio Decode Failures"
+	case CodeVideoDecodeFailed:
+		return "Video Decode Failures"
+	case CodeCorruptTrack:
+		return "Corrupt Audio Tracks"
+	case CodeAudioDurationMismatch:
+		return "Audio Duration Mismatches"
+	case CodeExtAudioDuration:
+		return "External Audio Duration Issues"
+	case CodeDurationUnavailable:
+		return "Duration Unavailable"
+	case CodeMissingAudioLang:
+		return "Missing Audio Languages"
+	case CodeMissingSubLang:
+		return "Missing Subtitle Languages"
+	case CodeUntaggedTrack:
+		return "Untagged Tracks"
+	case CodeSubParseFailed:
+		return "Subtitle Parse Failures"
+	case CodeSubEmpty:
+		return "Empty Subtitles"
+	case CodeSubEncoding:
+		return "Subtitle Encoding Issues"
+	case CodeSubLowCoverage:
+		return "Low Subtitle Coverage"
+	case CodeSubOverlap:
+		return "Subtitle Overlap"
+	case CodeAutoMissingAudio:
+		return "Missing Consensus Audio"
+	case CodeAutoMissingSub:
+		return "Missing Consensus Subtitles"
+	case CodeAutoAudioCount:
+		return "Audio Track Count Anomalies"
+	case CodeAutoSubCount:
+		return "Subtitle Count Anomalies"
+	case CodeAutoDurationOutlier:
+		return "Duration Outliers"
+	case CodeAutoGroupTooSmall:
+		return "Group Too Small for Auto Checks"
+	default:
+		return code
+	}
+}
+
 // GenerateInterpretedSummaries produces aggregated human-readable
-// sentences from the raw findings, tagged by source.
+// sentences from the raw findings, grouped by issue code and source.
 func GenerateInterpretedSummaries(report *ValidationReport) []InterpretedSummary {
 	var summaries []InterpretedSummary
 
-	// Group issues by (message, source) → list of full file paths
+	// Group issues by (code, source)
 	type aggregateKey struct {
-		category string
-		message  string
-		source   IssueSource
+		code   string
+		source IssueSource
 	}
-	pathsByKey := make(map[aggregateKey][]string)
+	type aggregateEntry struct {
+		paths    []string
+		issues   []Issue
+		severity Severity // worst severity in the group
+	}
+	groups := make(map[aggregateKey]*aggregateEntry)
 
 	for _, iss := range report.Issues {
 		if iss.Severity == SeverityInfo {
 			continue
 		}
-		key := aggregateKey{
-			category: iss.Category,
-			message:  iss.Message,
-			source:   iss.Source,
+		key := aggregateKey{code: iss.Code, source: iss.Source}
+		entry := groups[key]
+		if entry == nil {
+			entry = &aggregateEntry{severity: iss.Severity}
+			groups[key] = entry
 		}
-		pathsByKey[key] = append(pathsByKey[key], iss.FilePath)
+		entry.paths = append(entry.paths, iss.FilePath)
+		entry.issues = append(entry.issues, iss)
+		if iss.Severity < entry.severity { // lower = more severe
+			entry.severity = iss.Severity
+		}
 	}
 
-	// Count files per directory for directory-level detection
+	// Count files per directory for directory-level aggregation
 	dirFileCount := make(map[string]int)
 	for _, fr := range report.FileResults {
 		dir := filepath.Dir(fr.VideoFile)
 		dirFileCount[dir]++
 	}
 
-	for key, paths := range pathsByKey {
-		if len(paths) == 0 {
+	for key, entry := range groups {
+		if len(entry.paths) == 0 {
 			continue
 		}
 
-		// Check if all files in a specific directory share this issue
-		dirCounts := make(map[string]int)
-		for _, p := range paths {
-			dirCounts[filepath.Dir(p)]++
-		}
+		label := codeLabel(key.code)
 
-		emittedDirSummary := false
-		if key.category == "language" {
+		// Directory-level aggregation for language issues
+		if key.code == CodeMissingAudioLang || key.code == CodeMissingSubLang ||
+			key.code == CodeAutoMissingAudio || key.code == CodeAutoMissingSub {
+			dirCounts := make(map[string]int)
+			for _, p := range entry.paths {
+				dirCounts[filepath.Dir(p)]++
+			}
+			emittedDirSummary := false
 			for dir, count := range dirCounts {
 				if total, ok := dirFileCount[dir]; ok && count >= total && total > 1 {
+					// Use representative message from this group
 					summaries = append(summaries, InterpretedSummary{
 						Source:  key.source,
-						Message: fmt.Sprintf("Directory %s: %s", filepath.Base(dir), key.message),
+						Message: "Directory " + filepath.Base(dir) + ": " + entry.issues[0].Message,
 					})
 					emittedDirSummary = true
 				}
 			}
+			if emittedDirSummary {
+				continue
+			}
 		}
 
-		if emittedDirSummary {
-			continue
-		}
-
-		// Convert to display names for output
-		names := make([]string, len(paths))
-		for i, p := range paths {
-			names[i] = displayName(p)
-		}
+		// Deduplicate file paths (same file can have multiple issues
+		// with the same code, e.g. multiple untagged tracks)
+		uniquePaths := dedup(entry.paths)
+		n := len(uniquePaths)
 
 		var msg string
-		if len(names) > 3 {
-			msg = fmt.Sprintf("%d files: %s", len(names), key.message)
-		} else if len(names) > 1 {
-			msg = fmt.Sprintf("%s: %s", strings.Join(names, ", "), key.message)
+		if n > 3 {
+			msg = label + " (" + itoa(n) + " files)"
 		} else {
-			msg = fmt.Sprintf("%s: %s", names[0], key.message)
+			names := make([]string, n)
+			for i, p := range uniquePaths {
+				names[i] = displayName(p)
+			}
+			msg = label + ": " + strings.Join(names, ", ")
 		}
 		summaries = append(summaries, InterpretedSummary{
 			Source:  key.source,
@@ -312,6 +380,19 @@ func GenerateInterpretedSummaries(report *ValidationReport) []InterpretedSummary
 		return summaries[i].Message < summaries[j].Message
 	})
 	return summaries
+}
+
+// dedup returns unique strings from a slice, preserving order.
+func dedup(ss []string) []string {
+	seen := make(map[string]bool, len(ss))
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func groupByFile(issues []Issue) map[string][]Issue {

@@ -59,12 +59,45 @@ const (
 	SourceStructural IssueSource = "structural"
 )
 
+// Issue codes — stable, machine-readable keys for grouping findings
+// by problem type regardless of per-file message variations.
+const (
+	// Structural
+	CodeMediainfoFailed       = "mediainfo_failed"
+	CodeNoMediaFiles          = "no_media_files"
+	CodeNoVideoTrack          = "no_video_track"
+	CodeAudioDecodeFailed     = "audio_decode_failed"
+	CodeVideoDecodeFailed     = "video_decode_failed"
+	CodeCorruptTrack          = "corrupt_track"          // merged decode+duration
+	CodeAudioDurationMismatch = "audio_duration_mismatch"
+	CodeExtAudioDuration      = "ext_audio_duration"
+	CodeDurationUnavailable   = "duration_unavailable"
+	// Language
+	CodeMissingAudioLang = "missing_audio_lang"
+	CodeMissingSubLang   = "missing_sub_lang"
+	CodeUntaggedTrack    = "untagged_track"
+	// Subtitle
+	CodeSubParseFailed = "sub_parse_failed"
+	CodeSubEmpty       = "sub_empty"
+	CodeSubEncoding    = "sub_encoding"
+	CodeSubLowCoverage = "sub_low_coverage"
+	CodeSubOverlap     = "sub_overlap"
+	// Auto / consistency
+	CodeAutoMissingAudio    = "auto_missing_audio"
+	CodeAutoMissingSub      = "auto_missing_sub"
+	CodeAutoAudioCount      = "auto_audio_count"
+	CodeAutoSubCount        = "auto_sub_count"
+	CodeAutoDurationOutlier = "auto_duration_outlier"
+	CodeAutoGroupTooSmall   = "auto_group_too_small"
+)
+
 // Issue represents a single validation finding.
 type Issue struct {
 	Severity Severity
 	Source   IssueSource
 	FilePath string
-	Category string // "integrity", "language", "duration", "subtitle", "structure"
+	Category string // "integrity", "language", "duration", "subtitle", "structure", "consistency"
+	Code     string // stable grouping key (one of the Code* constants)
 	Message  string
 }
 

@@ -30,6 +30,7 @@ struct ValidationIssue
   - source: string
   - filePath: string
   - category: string
+  - issueCode: string
   - message: string
 
 struct DirectoryConsensusSummary
