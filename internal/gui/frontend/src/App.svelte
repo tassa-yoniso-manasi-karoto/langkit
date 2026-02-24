@@ -658,8 +658,8 @@
         }
     }
 
-    async function handleExpectationCheck() {
-        if (!mediaSource) return;
+    async function handleExpectationCheck(): Promise<boolean> {
+        if (!mediaSource) return false;
 
         var mode = checkMode;
         var request: CheckRequest = { path: mediaSource.path };
@@ -691,7 +691,7 @@
                             severity: "critical",
                             dismissible: true
                         });
-                        return;
+                        return false;
                     }
                 } catch (e) {
                     logger.error('app', 'Failed to load profile', { error: e });
@@ -701,7 +701,7 @@
                         severity: "critical",
                         dismissible: true
                     });
-                    return;
+                    return false;
                 }
             } else {
                 // "From Settings" profile: derive from current settings
@@ -751,6 +751,7 @@
                 errors: report.errorCount,
                 warnings: report.warningCount
             });
+            return true;
         } catch (error: any) {
             checkResultStore.clear();
             logger.error('app', 'Expectation check failed', { error });
@@ -760,6 +761,7 @@
                 severity: "critical",
                 dismissible: true
             });
+            return false;
         }
     }
 
@@ -905,10 +907,18 @@
         checkQuorum = e.detail.quorum;
     }
 
-    function handleCheckLibrary() {
+    async function handleCheckLibrary(e?: CustomEvent<{ intent: 'run' | 'manage' }>) {
+        var intent = e?.detail?.intent || 'run';
+
+        if (intent === 'manage') {
+            showDiagnosticModal = true;
+            return;
+        }
+
+        // Run check first so progress bars are visible in the main view, then
+        // open the diagnostic modal once the run finishes.
+        await handleExpectationCheck();
         showDiagnosticModal = true;
-        // Auto-run check when opening diagnostic modal
-        handleExpectationCheck();
     }
 
     function handleDiagnosticClose() {
@@ -2101,14 +2111,15 @@
                 </div>
 
                 <!-- Tab content -->
-                <div class="flex-1 overflow-hidden">
-                    {#if inspectorMode === 'preflight'}
-                        <PreflightDrawer report={$checkResultStore.report} />
-                    {:else}
-                        <LogViewer version={version} isProcessing={isProcessing} userActivityState={userActivityState} />
-                    {/if}
+                    <div class="flex-1 overflow-hidden">
+                        {#if inspectorMode === 'preflight'}
+                        <PreflightDrawer report={$checkResultStore.report}
+                                         on:runCheck={handleDiagnosticRunCheck} />
+                        {:else}
+                            <LogViewer version={version} isProcessing={isProcessing} userActivityState={userActivityState} />
+                        {/if}
+                    </div>
                 </div>
-            </div>
         {/if}
     </div>
 </div>
@@ -2165,6 +2176,7 @@
     open={showDiagnosticModal}
     profiles={expectationProfiles}
     report={$checkResultStore.report}
+    bind:selectedProfileName={selectedExpectationProfile}
     on:close={handleDiagnosticClose}
     on:runCheck={handleDiagnosticRunCheck}
 />

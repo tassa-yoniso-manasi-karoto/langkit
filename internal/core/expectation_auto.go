@@ -405,12 +405,20 @@ func checkDurationOutliers(report *ValidationReport, dc *DirectoryConsensus, fil
 }
 
 // langCode returns a stable language code string for consensus counting.
-// Uses Part3 (ISO 639-3) when available, falls back to "und".
+// Uses Part3 (ISO 639-3) and preserves Subtag when available so variants like
+// zh-CN and zh-HK do not collapse into a single "zho" bucket.
+// Falls back to "und" when language is unavailable.
 func langCode(l Lang) string {
 	if l.Language == nil {
 		return "und"
 	}
 	if l.Part3 != "" {
+		if l.Subtag != "" {
+			subtag := strings.ToLower(strings.TrimSpace(l.Subtag))
+			if subtag != "" {
+				return l.Part3 + "-" + subtag
+			}
+		}
 		return l.Part3
 	}
 	return "und"
