@@ -2,6 +2,8 @@ package core
 
 import (
 	"time"
+
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
 // ExpectationProfile defines what the user expects from their media library.
@@ -126,8 +128,8 @@ type FileCheckResult struct {
 	MediaInfoErr    error // non-nil if Mediainfo() failed
 	SubCandidates   []SubtitleCandidate
 	SubCheckResults []SubCheckResult // subset of SubCandidates; CandidateIdx maps back
-	Integrity       bool
-	IntegrityErr    error
+	DecodeResults   []media.DecodeCheckResult
+	DecodeCorrupted bool
 	VideoDuration   float64 // seconds, 0 if unavailable
 	AudioDurations  []float64
 	ExternalAudio   []ExternalAudioFile

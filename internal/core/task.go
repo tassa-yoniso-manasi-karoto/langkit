@@ -50,9 +50,10 @@ func (m Mode) String() string{
 }
 
 type Meta struct {
-	FFmpeg string
-	MediaInfo MediaInfo
-	WorkersMax int
+	FFmpeg      string
+	MediaInfo   MediaInfo
+	WorkersMax  int
+	DecodeDepth media.IntegrityDepth // cached per-run, resolved in Routing()
 }
 
 

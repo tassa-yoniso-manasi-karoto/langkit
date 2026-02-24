@@ -37,6 +37,7 @@ struct Settings
   - timeoutSep: int32  # seconds
   - timeoutSTT: int32  # seconds
   - timeoutDL: int32   # seconds
+  - integrityDecodeDepth: string  # sampled or full
   - demucsMaxSegmentMinutes: int32  # max minutes per segment to avoid GPU OOM
   - logViewerVirtualizationThreshold: int32
   - eventThrottling: EventThrottling

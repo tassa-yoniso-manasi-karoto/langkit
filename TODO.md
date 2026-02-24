@@ -1,7 +1,12 @@
 🔳 `Subtitle lines processed (all files)...- [ETA: 3m-15m (92%)]` -> in bulk mode, this bar is being recreated at each file
 🔳 processing JPN should not be bigger size than processing voice sep
 
+- ENHANCED as source for:
+  - condensed audio
+  - subs2cards audio clips
+
 - Data aware logic:
+  - CHECK: if progress update for expectation checker was implemented.
   - BUG: `S03E01: duration (23m 51s) is unusually short compared to siblings (median: 23m 52s)` length of VIDEO should not be compared within the folder
   - BUG: ‼️IMPORTANT‼️ `Tensura_S02E31_Despair.mp4`'s tha audiotrack is broken but goes undetected!
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
@@ -52,7 +57,6 @@
 - condensed audio
   - live edit summary prompt
   - multiple previous subtitle for summarization fully contextualized (Providing x previous subtitles or their summaries of previous episodes as context)
-  - ENHANCE condensed audio
 
 .
 
@@ -69,5 +73,4 @@
 *might:*
 
 - with [libvips binding](https://github.com/h2non/bimg) or imagor: fuzz trim to remove black padding if ratio is different => REQUIRE NON GOLANG LIBS TO BE INSTALLED
-- use Enhanced voice audiotrack as basis for audio clips
 - lossless AVIF extraction from AV1 (HQ but worse than JPEG in size)

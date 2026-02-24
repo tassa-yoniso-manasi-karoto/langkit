@@ -104,6 +104,8 @@ import { isDeveloperMode } from '../lib/developerMode';
             minInterval: 0,
             maxInterval: 250
         },
+        // Integrity decode depth
+        integrityDecodeDepth: 'sampled',
         // File handling settings
         intermediaryFileMode: 'keep',
         deleteResumptionFiles: false,
@@ -833,6 +835,42 @@ import { isDeveloperMode } from '../lib/developerMode';
                             </div>
                         </section>
                         
+                        <!-- Integrity Checks -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">verified_user</span>
+                                Integrity Checks
+                            </h3>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>Decode depth</span>
+                                        <Hovertip position="right">
+                                            <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                            <div class="max-w-xs">
+                                                <p class="mb-2">Controls how thoroughly media files are checked for bitstream corruption:</p>
+                                                <ul class="list-disc ml-4 space-y-1">
+                                                    <li><strong class="text-primary/90">Sampled:</strong> Decodes 3 short windows (start, middle, end) per stream. Fast and catches most corruption.</li>
+                                                    <li><strong class="text-primary/90">Full:</strong> Decodes the entire audio stream. Slower but catches all bitstream errors.</li>
+                                                </ul>
+                                            </div>
+                                        </Hovertip>
+                                    </div>
+                                    <span class="setting-description">How deeply to decode-check media streams for corruption</span>
+                                </div>
+                                <div class="setting-control">
+                                    <SelectInput
+                                        bind:value={currentSettings.integrityDecodeDepth}
+                                        className="px-3 py-2 rounded-lg"
+                                        on:change={updateSettings}
+                                    >
+                                        <option value="sampled">Sampled (Recommended)</option>
+                                        <option value="full">Full (Strict, slower)</option>
+                                    </SelectInput>
+                                </div>
+                            </div>
+                        </section>
+
                         <!-- Intermediary File Handling Settings -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">

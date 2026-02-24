@@ -11,6 +11,7 @@ import (
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
 // Compile-time check that ExpectationService implements api.Service
@@ -75,7 +76,8 @@ func (s *ExpectationService) RunCheck(ctx context.Context, request *generated.Ch
 		}
 	}
 
-	report, err := core.RunCheck(ctx, request.Path, profile, autoConfig)
+	// Empty depth: RunCheck will load from settings
+	report, err := core.RunCheck(ctx, request.Path, profile, autoConfig, media.IntegrityDepth(""))
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Expectation check failed")
 		return nil, err

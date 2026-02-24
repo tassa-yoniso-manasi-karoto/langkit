@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
@@ -16,8 +18,19 @@ import (
 // If profile is nil, only structural checks (integrity) run.
 // If autoConfig is non-nil and Enabled, auto consistency checks run.
 // Both can be combined. The function respects context cancellation.
-func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile, autoConfig *AutoCheckConfig) (*ValidationReport, error) {
+// decodeDepth overrides the settings value; pass "" to use the setting.
+func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile, autoConfig *AutoCheckConfig, decodeDepth media.IntegrityDepth) (*ValidationReport, error) {
 	start := time.Now()
+
+	// Resolve decode depth: explicit param > settings > default sampled
+	if decodeDepth == "" {
+		settings, err := config.LoadSettings()
+		if err == nil {
+			decodeDepth = media.NormalizeIntegrityDepth(settings.IntegrityDecodeDepth)
+		} else {
+			decodeDepth = media.IntegritySampled
+		}
+	}
 
 	report := &ValidationReport{
 		Profile:     profile,
@@ -68,7 +81,7 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		}
 	}
 
-	// Probe pass: gather metadata for every file
+	// Pass 1: Probe – gather metadata for every file (no decode)
 	for _, filePath := range files {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -78,11 +91,7 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		result := probeFile(filePath, checkExtAudio)
 		report.FileResults[filePath] = result
 
-		// Structural checks (always run)
-		checkIntegrityResult(report, filePath, result)
-
-		// If mediainfo failed, emit a structural issue and skip
-		// metadata-dependent checks for this file
+		// If mediainfo failed, emit a structural issue
 		if result.MediaInfoErr != nil {
 			report.AddIssue(Issue{
 				Severity: SeverityError,
@@ -99,8 +108,22 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		}
 	}
 
+	// Pass 2: Decode integrity + domain checks.
+	// Each mode runs its own scoped decode pass. The deduplication
+	// inside runDecodeIntegrity ensures streams already checked by a
+	// prior pass are not re-decoded.
+	decodeRan := false
+
 	// Profile checks (only on files with successful mediainfo)
 	if profile != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		// Decode integrity scoped to expected audio languages
+		runDecodeIntegrity(report, files, report.FileResults,
+			decodeDepth, expectedAudioLangs)
+		decodeRan = true
+
 		for _, filePath := range files {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -120,12 +143,23 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		}
 	}
 
-	// Auto checks: group files by directory and run consistency checks
+	// Auto checks: group files by directory and run consistency checks.
+	// Always runs its own decode pass (scoped to consensus languages)
+	// even when profile already ran — dedup skips already-checked streams.
 	if autoConfig != nil && autoConfig.Enabled {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		runAutoDecodeIntegrity(report, files, report.FileResults,
+			decodeDepth, autoConfig)
+		decodeRan = true
 		runAutoMode(report, files, autoConfig)
+	}
+
+	// Structural-only fallback: if neither profile nor auto ran decode
+	if !decodeRan {
+		runDecodeIntegrity(report, files, report.FileResults,
+			decodeDepth, nil)
 	}
 
 	report.Duration = time.Since(start)
@@ -166,15 +200,12 @@ func runAutoMode(report *ValidationReport, files []string, config *AutoCheckConf
 
 // probeFile gathers all metadata for a single media file.
 // If checkExternalAudio is true, also discovers and probes sidecar audio files.
+// Decode integrity is NOT run here; it runs in a separate pass so that
+// stream scoping can use language information from mediainfo or consensus.
 func probeFile(filePath string, checkExternalAudio bool) *FileCheckResult {
 	result := &FileCheckResult{
 		VideoFile: filePath,
 	}
-
-	// Integrity check
-	isCorrupted, err := media.CheckValidData(filePath)
-	result.Integrity = !isCorrupted
-	result.IntegrityErr = err
 
 	// Mediainfo
 	mi, err := Mediainfo(filePath)
@@ -274,23 +305,188 @@ func probeSubtitle(candidateIdx int, filePath string) SubCheckResult {
 	return scr
 }
 
-func checkIntegrityResult(report *ValidationReport, filePath string, result *FileCheckResult) {
-	if !result.Integrity {
+// checkDecodeResults emits issues for any streams that failed decode.
+// Corruption is always attributed to SourceStructural because it is a
+// fundamental media defect, not an expectation mismatch.
+func checkDecodeResults(report *ValidationReport, filePath string, result *FileCheckResult) {
+	for _, dr := range result.DecodeResults {
+		if !dr.Corrupted {
+			continue
+		}
+		var msg string
+		if dr.StreamIndex == -1 {
+			msg = "Video stream decode failed"
+		} else {
+			msg = "Audio stream " + itoa(dr.StreamIndex) + " decode failed"
+		}
+		if dr.ErrorOutput != "" {
+			// Trim to first line for conciseness
+			firstLine := dr.ErrorOutput
+			if idx := strings.Index(firstLine, "\n"); idx != -1 {
+				firstLine = firstLine[:idx]
+			}
+			msg += ": " + strings.TrimSpace(firstLine)
+		}
 		report.AddIssue(Issue{
 			Severity: SeverityError,
 			Source:   SourceStructural,
 			FilePath: filePath,
 			Category: "integrity",
-			Message:  "Video file is corrupted or malformed",
+			Message:  msg,
 		})
-	} else if result.IntegrityErr != nil {
-		report.AddIssue(Issue{
-			Severity: SeverityWarning,
-			Source:   SourceStructural,
-			FilePath: filePath,
-			Category: "integrity",
-			Message:  "Could not fully verify integrity: " + result.IntegrityErr.Error(),
-		})
+	}
+}
+
+// ResolveAudioStreamIndices returns 0-based StreamOrder values for audio
+// tracks matching the given languages. If no languages are given or no
+// matches are found, returns all audio stream indices.
+func ResolveAudioStreamIndices(mi MediaInfo, langs ...Lang) []int {
+	var matched []int
+	for _, at := range mi.AudioTracks {
+		for _, lang := range langs {
+			if langMatchesExpected(at.Language, lang) {
+				idx, err := strconv.Atoi(at.StreamOrder)
+				if err == nil {
+					matched = append(matched, idx)
+				}
+				break
+			}
+		}
+	}
+	if len(matched) > 0 {
+		return matched
+	}
+	return allAudioStreamIndices(mi)
+}
+
+// allAudioStreamIndices returns StreamOrder values for all audio tracks.
+func allAudioStreamIndices(mi MediaInfo) []int {
+	var indices []int
+	for _, at := range mi.AudioTracks {
+		idx, err := strconv.Atoi(at.StreamOrder)
+		if err == nil {
+			indices = append(indices, idx)
+		}
+	}
+	return indices
+}
+
+// runDecodeIntegrity runs decode checks on all files and stores results.
+func runDecodeIntegrity(
+	report *ValidationReport,
+	files []string,
+	fileResults map[string]*FileCheckResult,
+	depth media.IntegrityDepth,
+	scopeLangs []Lang,
+) {
+	for _, filePath := range files {
+		result := fileResults[filePath]
+		if result == nil || result.MediaInfoErr != nil {
+			continue
+		}
+		// Skip files already known to be corrupted
+		if result.DecodeCorrupted {
+			continue
+		}
+
+		indices := ResolveAudioStreamIndices(result.MediaInfo, scopeLangs...)
+
+		// Deduplicate: remove indices already covered by a previous pass
+		if len(result.DecodeResults) > 0 {
+			covered := make(map[int]bool)
+			for _, dr := range result.DecodeResults {
+				covered[dr.StreamIndex] = true
+			}
+			var novel []int
+			for _, idx := range indices {
+				if !covered[idx] {
+					novel = append(novel, idx)
+				}
+			}
+			indices = novel
+		}
+
+		checkVideo := result.MediaInfo.VideoTrack.Type != ""
+		// Skip video if already checked
+		for _, dr := range result.DecodeResults {
+			if dr.StreamIndex == -1 {
+				checkVideo = false
+				break
+			}
+		}
+
+		if len(indices) == 0 && !checkVideo {
+			continue // nothing new to check
+		}
+
+		scope := media.DecodeScope{
+			AudioStreamIndices: indices,
+			CheckVideo:         checkVideo,
+		}
+
+		decodeResults, err := media.CheckDecodeIntegrity(filePath, depth, scope)
+		if err != nil {
+			report.AddIssue(Issue{
+				Severity: SeverityError,
+				Source:   SourceStructural,
+				FilePath: filePath,
+				Category: "integrity",
+				Message:  "Decode integrity check failed: " + err.Error(),
+			})
+			result.DecodeCorrupted = true
+			continue
+		}
+		result.DecodeResults = append(result.DecodeResults, decodeResults...)
+
+		for _, dr := range decodeResults {
+			if dr.Corrupted {
+				result.DecodeCorrupted = true
+				break
+			}
+		}
+
+		checkDecodeResults(report, filePath, result)
+	}
+}
+
+// runAutoDecodeIntegrity builds preliminary consensus per directory group
+// and scopes decode integrity to each group's quorum audio languages.
+// This satisfies PRD 6.3: auto mode uses consensus-derived scope.
+// Note: DecodeCorrupted is not yet set during preliminary consensus, so
+// all files with valid mediainfo participate. runAutoMode will rebuild
+// consensus afterward with decode results available.
+func runAutoDecodeIntegrity(
+	report *ValidationReport,
+	files []string,
+	fileResults map[string]*FileCheckResult,
+	depth media.IntegrityDepth,
+	autoConfig *AutoCheckConfig,
+) {
+	// Group files by immediate parent directory
+	dirFiles := make(map[string][]string)
+	for _, fp := range files {
+		dir := filepath.Dir(fp)
+		dirFiles[dir] = append(dirFiles[dir], fp)
+	}
+
+	for dir, fps := range dirFiles {
+		// Build preliminary consensus for language scoping
+		dc := buildConsensus(dir, fps, fileResults, autoConfig)
+
+		// Convert quorum audio languages to Lang for scoping
+		var scopeLangs []Lang
+		for _, code := range dc.QuorumAudioLangs {
+			langs, err := ParseLanguageTags([]string{code})
+			if err == nil {
+				scopeLangs = append(scopeLangs, langs...)
+			}
+		}
+
+		// Run decode integrity for this directory group,
+		// scoped to consensus languages (falls back to all
+		// audio streams if no quorum languages were found).
+		runDecodeIntegrity(report, fps, fileResults,
+			depth, scopeLangs)
 	}
 }
 

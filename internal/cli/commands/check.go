@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
 var checkCmd = &cobra.Command{
@@ -41,6 +42,7 @@ Examples:
 		softFloor, _ := cmd.Flags().GetFloat64("soft-floor")
 		jsonOutput, _ := cmd.Flags().GetBool("json")
 		failOn, _ := cmd.Flags().GetString("fail-on")
+		decodeDepthStr, _ := cmd.Flags().GetString("decode-depth")
 
 		// Build profile only when user explicitly requests one.
 		// Without this, --auto alone would still run profile checks
@@ -109,8 +111,18 @@ Examples:
 			autoConfig = &ac
 		}
 
+		// Validate decode depth
+		var decodeDepth media.IntegrityDepth
+		if decodeDepthStr != "" {
+			decodeDepth = media.IntegrityDepth(decodeDepthStr)
+			if decodeDepth != media.IntegritySampled && decodeDepth != media.IntegrityFull {
+				fmt.Fprintf(os.Stderr, "Error: --decode-depth must be 'sampled' or 'full'\n")
+				os.Exit(1)
+			}
+		}
+
 		ctx := context.Background()
-		report, err := core.RunCheck(ctx, path, profile, autoConfig)
+		report, err := core.RunCheck(ctx, path, profile, autoConfig, decodeDepth)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -236,6 +248,8 @@ func init() {
 		"Output results as JSON")
 	checkCmd.Flags().String("fail-on", "error",
 		"Exit non-zero on: 'error' (default) or 'warning'")
+	checkCmd.Flags().String("decode-depth", "",
+		"Decode integrity depth: 'sampled' (default from settings) or 'full'")
 
 	// Profile save subcommand flags
 	profilesSaveCmd.Flags().StringSlice("audio-langs", nil,

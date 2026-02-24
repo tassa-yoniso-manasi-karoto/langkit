@@ -810,12 +810,16 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 	return outStream, nil
 }
 
-// processMediaInfo handles media info extraction and audio track selection
+// processMediaInfo handles media info extraction and audio track selection.
+// Skips the Mediainfo() call if tsk.Meta.MediaInfo was already populated
+// (e.g. by checkIntegrity in routing).
 func (tsk *Task) processMediaInfo() *ProcessingError {
-	var err error
-	tsk.Meta.MediaInfo, err = Mediainfo(tsk.MediaSourceFile)
-	if err != nil {
-		return tsk.Handler.LogErr(err, AbortTask, "failed to get media info")
+	if tsk.Meta.MediaInfo.GeneralTrack.Type == "" {
+		var err error
+		tsk.Meta.MediaInfo, err = Mediainfo(tsk.MediaSourceFile)
+		if err != nil {
+			return tsk.Handler.LogErr(err, AbortTask, "failed to get media info")
+		}
 	}
 
 	if len(tsk.Meta.MediaInfo.AudioTracks) == 0 {

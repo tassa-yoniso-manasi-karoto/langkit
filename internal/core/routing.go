@@ -1,20 +1,22 @@
 package core
 
 import (
-	"os"
-	"strings"
-	"path/filepath"
-	"fmt"
-	"io"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
-	
+
 	"github.com/k0kubun/pp"
 	"github.com/gookit/color"
 	"github.com/schollz/progressbar/v3"
 
 	"github.com/tassa-yoniso-manasi-karoto/dockerutil"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/executils"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/crash"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/fsutil"
@@ -35,6 +37,13 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	// Reset totalItems at the start of each processing run to prevent accumulation
 	// across cancellations and restarts
 	totalItems = 0
+
+	// Resolve decode depth once per run to avoid repeated LoadSettings()
+	// calls (which have global side effects) during per-file integrity checks.
+	tsk.Meta.DecodeDepth = media.IntegritySampled
+	if settings, err := config.LoadSettings(); err == nil {
+		tsk.Meta.DecodeDepth = media.NormalizeIntegrityDepth(settings.IntegrityDecodeDepth)
+	}
 
 	// safety measure against cross-runtime dataraces: see commit message
 	// of b8faf4e for lessons learned on this topic
@@ -395,14 +404,76 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 
 
 func (tsk *Task) checkIntegrity() bool {
-	isCorrupted, err := media.CheckValidData(tsk.MediaSourceFile)
-	l := tsk.Handler.ZeroLog().Error().Err(err).Str("video", tsk.MediaSourceFile)
-	if isCorrupted {
-		l.Msg("Invalid data found when processing video. Video is misformed or corrupted.")
-	} else if err != nil {
-		l.Msg("unspecified error found trying to check the video's integrity")
+	// Use decode depth cached at the start of the Routing() run.
+	depth := tsk.Meta.DecodeDepth
+	if depth == "" {
+		depth = media.IntegritySampled
 	}
-	return !isCorrupted
+
+	// Run mediainfo first so we can scope the decode check and
+	// cache the result for later reuse in processMediaInfo().
+	mi, err := Mediainfo(tsk.MediaSourceFile)
+	if err != nil {
+		tsk.Handler.ZeroLog().Error().Err(err).
+			Str("video", tsk.MediaSourceFile).
+			Msg("failed to get media info during integrity check")
+		return false
+	}
+	tsk.Meta.MediaInfo = mi
+
+	// Resolve the audio stream that will actually be used for processing.
+	// Priority: 1) explicitly pinned track, 2) target-language match,
+	// 3) first audio stream. Never fall back to all streams — routing
+	// only needs to validate the stream it will process.
+	var audioIndices []int
+	if tsk.UseAudiotrack >= 0 && tsk.UseAudiotrack < len(mi.AudioTracks) {
+		// Pinned track from CLI -a flag or GUI
+		if idx, parseErr := strconv.Atoi(mi.AudioTracks[tsk.UseAudiotrack].StreamOrder); parseErr == nil {
+			audioIndices = []int{idx}
+		}
+	}
+	if len(audioIndices) == 0 && tsk.Targ.Language != nil {
+		// Language-matched tracks (returns matched only, not all)
+		for _, at := range mi.AudioTracks {
+			if langMatchesExpected(at.Language, tsk.Targ) {
+				if idx, parseErr := strconv.Atoi(at.StreamOrder); parseErr == nil {
+					audioIndices = append(audioIndices, idx)
+				}
+				break // only need one match for routing
+			}
+		}
+	}
+	if len(audioIndices) == 0 && len(mi.AudioTracks) > 0 {
+		// Fallback: first audio stream only
+		if idx, parseErr := strconv.Atoi(mi.AudioTracks[0].StreamOrder); parseErr == nil {
+			audioIndices = []int{idx}
+		}
+	}
+
+	scope := media.DecodeScope{
+		AudioStreamIndices: audioIndices,
+		CheckVideo:         mi.VideoTrack.Type != "",
+	}
+
+	results, err := media.CheckDecodeIntegrity(tsk.MediaSourceFile, depth, scope)
+	if err != nil {
+		tsk.Handler.ZeroLog().Error().Err(err).
+			Str("video", tsk.MediaSourceFile).
+			Msg("error running decode integrity check")
+		return false
+	}
+
+	for _, dr := range results {
+		if dr.Corrupted {
+			tsk.Handler.ZeroLog().Error().
+				Str("video", tsk.MediaSourceFile).
+				Int("streamIndex", dr.StreamIndex).
+				Str("error", dr.ErrorOutput).
+				Msg("Decode integrity check failed: media stream is corrupted")
+			return false
+		}
+	}
+	return true
 }
 
 // i is the total sum

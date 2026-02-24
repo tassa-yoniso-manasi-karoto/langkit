@@ -56,7 +56,7 @@ func isAutoEligible(fp string, r *FileCheckResult) bool {
 	if r == nil || r.MediaInfoErr != nil {
 		return false
 	}
-	if !r.Integrity {
+	if r.DecodeCorrupted {
 		return false
 	}
 	return true

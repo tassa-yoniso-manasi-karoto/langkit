@@ -47,6 +47,9 @@ type Settings struct {
 	TimeoutSTT int `json:"timeoutSTT" mapstructure:"timeout_stt"` // seconds
 	TimeoutDL  int `json:"timeoutDL" mapstructure:"timeout_dl"`   // seconds
 
+	// Integrity check depth: "sampled" (default) or "full"
+	IntegrityDecodeDepth string `json:"integrityDecodeDepth" mapstructure:"integrity_decode_depth"`
+
 	// Demucs settings
 	DemucsMaxSegmentMinutes int `json:"demucsMaxSegmentMinutes" mapstructure:"demucs_max_segment_minutes"` // max minutes per segment to avoid GPU OOM
 
@@ -202,6 +205,9 @@ func InitConfig(customPath string) error {
 	viper.SetDefault("timeout_stt", 90)   // 90 seconds for each subtitle segment transcription
 	viper.SetDefault("timeout_dl", 600)   // 10 minutes for downloading files
 
+	// Default integrity check depth
+	viper.SetDefault("integrity_decode_depth", "sampled")
+
 	// Demucs settings - 0 means use GPU-auto-detected value from voice package
 	viper.SetDefault("demucs_max_segment_minutes", 0)
 
@@ -313,6 +319,7 @@ func SaveSettings(settings Settings) error {
 	viper.Set("timeout_sep", settings.TimeoutSep)
 	viper.Set("timeout_stt", settings.TimeoutSTT)
 	viper.Set("timeout_dl", settings.TimeoutDL)
+	viper.Set("integrity_decode_depth", settings.IntegrityDecodeDepth)
 	viper.Set("demucs_max_segment_minutes", settings.DemucsMaxSegmentMinutes)
 	viper.Set("log_viewer_virtualization_threshold", settings.LogViewerVirtualizationThreshold)
 
@@ -363,9 +370,14 @@ func LoadSettings() (Settings, error) {
 		return Settings{}, err
 	}
 	
+	// Normalize integrity decode depth
+	if settings.IntegrityDecodeDepth != "sampled" && settings.IntegrityDecodeDepth != "full" {
+		settings.IntegrityDecodeDepth = "sampled"
+	}
+
 	// Update settings struct with environment variables
 	applyEnvironmentVariables(&settings)
-	
+
 	// Load keys into the voice package
 	settings.LoadKeys()
 	
