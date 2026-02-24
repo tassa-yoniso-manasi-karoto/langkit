@@ -107,56 +107,61 @@ func registerServices(
 	handler *core.GUIHandler,
 	ctx context.Context,
 ) error {
+	serviceLogger := logger
+	if handler != nil && handler.ZeroLog() != nil {
+		serviceLogger = *handler.ZeroLog()
+	}
+
 	// Register language service
-	langSvc := services.NewLanguageService(logger)
+	langSvc := services.NewLanguageService(serviceLogger)
 	if err := apiServer.RegisterService(langSvc); err != nil {
 		return fmt.Errorf("failed to register language service: %w", err)
 	}
 	
 	// Register dependency service
-	depsSvc := services.NewDependencyService(logger, wsServer)
+	depsSvc := services.NewDependencyService(serviceLogger, wsServer)
 	if err := apiServer.RegisterService(depsSvc); err != nil {
 		return fmt.Errorf("failed to register dependency service: %w", err)
 	}
 	
 	// Register dry run service (handler implements DryRunProvider)
-	dryRunSvc := services.NewDryRunService(logger, handler)
+	dryRunSvc := services.NewDryRunService(serviceLogger, handler)
 	if err := apiServer.RegisterService(dryRunSvc); err != nil {
 		return fmt.Errorf("failed to register dry run service: %w", err)
 	}
 	
 	// Register logging service (handler implements LoggingProvider)
-	loggingSvc := services.NewLoggingService(logger, handler, wsServer, throttler, handler, ctx)
+	loggingSvc := services.NewLoggingService(serviceLogger, handler, wsServer, throttler, handler, ctx)
 	if err := apiServer.RegisterService(loggingSvc); err != nil {
 		return fmt.Errorf("failed to register logging service: %w", err)
 	}
 	
 	// Register system service
-	systemSvc := services.NewSystemService(logger)
+	systemSvc := services.NewSystemService(serviceLogger)
 	if err := apiServer.RegisterService(systemSvc); err != nil {
 		return fmt.Errorf("failed to register system service: %w", err)
 	}
 	
 	// Register model service (handler implements STTModelProvider and LLMRegistryProvider)
-	modelSvc := services.NewModelService(logger, handler, handler)
+	modelSvc := services.NewModelService(serviceLogger, handler, handler)
 	if err := apiServer.RegisterService(modelSvc); err != nil {
 		return fmt.Errorf("failed to register model service: %w", err)
 	}
 	
 	// Register media service (handler implements MediaProvider)
-	mediaSvc := services.NewMediaService(logger, handler)
+	mediaSvc := services.NewMediaService(serviceLogger, handler)
 	if err := apiServer.RegisterService(mediaSvc); err != nil {
 		return fmt.Errorf("failed to register media service: %w", err)
 	}
 	
 	// Register processing service (handler implements ProcessingProvider)
-	processingSvc := services.NewProcessingService(logger, handler, wsServer)
+	processingSvc := services.NewProcessingService(serviceLogger, handler, wsServer)
 	if err := apiServer.RegisterService(processingSvc); err != nil {
 		return fmt.Errorf("failed to register processing service: %w", err)
 	}
 	
 	// Register expectation service
-	expectationSvc := services.NewExpectationService(logger, handler)
+	expectationSvc := services.NewExpectationService(serviceLogger, handler)
 	if err := apiServer.RegisterService(expectationSvc); err != nil {
 		return fmt.Errorf("failed to register expectation service: %w", err)
 	}
