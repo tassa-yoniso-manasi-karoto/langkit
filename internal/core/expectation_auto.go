@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 // Bonus content exclusion (PRD 5.3.3)
@@ -65,7 +67,7 @@ func isAutoEligible(fp string, r *FileCheckResult) bool {
 // buildConsensus computes the DirectoryConsensus for a group of files.
 // Only files passing isAutoEligible participate. Bonus content is
 // counted separately in BonusExcluded.
-func buildConsensus(dir string, filePaths []string, results map[string]*FileCheckResult, config *AutoCheckConfig) *DirectoryConsensus {
+func buildConsensus(dir string, filePaths []string, results map[string]*FileCheckResult, config *AutoCheckConfig, log zerolog.Logger) *DirectoryConsensus {
 	dc := &DirectoryConsensus{
 		Directory:        dir,
 		AudioLangs:       make(map[string]int),
@@ -184,12 +186,23 @@ func buildConsensus(dir string, filePaths []string, results map[string]*FileChec
 		dc.MedianDuration = median(sorted)
 	}
 
+	log.Debug().
+		Str("dir", filepath.Base(dir)).
+		Int("eligibleCount", dc.FileCount).
+		Int("bonusExcluded", dc.BonusExcluded).
+		Strs("quorumAudioLangs", dc.QuorumAudioLangs).
+		Strs("quorumSubLangs", dc.QuorumSubLangs).
+		Int("consensusAudioCount", dc.ConsensusAudioCount).
+		Float64("medianDuration", dc.MedianDuration).
+		Msg("Built consensus")
+
 	return dc
 }
 
 // runAutoChecks runs all consistency checks (PRD 6.5.1-6.5.5) for
 // files in a single directory group against the computed consensus.
-func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths []string, results map[string]*FileCheckResult, config *AutoCheckConfig) {
+func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths []string, results map[string]*FileCheckResult, config *AutoCheckConfig, log zerolog.Logger) {
+	issuesBefore := len(report.Issues)
 	n := dc.FileCount
 
 	for _, fp := range filePaths {
@@ -275,8 +288,13 @@ func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths [
 
 	// 6.5.3 Duration outlier detection (requires n >= 6)
 	if len(dc.Durations) >= 6 {
-		checkDurationOutliers(report, dc, filePaths, results)
+		checkDurationOutliers(report, dc, filePaths, results, log)
 	}
+
+	log.Debug().
+		Str("dir", filepath.Base(dc.Directory)).
+		Int("issuesEmitted", len(report.Issues)-issuesBefore).
+		Msg("Auto checks complete for directory")
 }
 
 // checkLangConsensus checks a single file's language set against the
@@ -318,7 +336,7 @@ func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[strin
 
 // checkDurationOutliers uses Tukey fences to detect duration anomalies.
 // Only called when n >= 6 (per PRD 6.5.3).
-func checkDurationOutliers(report *ValidationReport, dc *DirectoryConsensus, filePaths []string, results map[string]*FileCheckResult) {
+func checkDurationOutliers(report *ValidationReport, dc *DirectoryConsensus, filePaths []string, results map[string]*FileCheckResult, log zerolog.Logger) {
 	sorted := make([]float64, len(dc.Durations))
 	copy(sorted, dc.Durations)
 	sort.Float64s(sorted)
@@ -339,6 +357,14 @@ func checkDurationOutliers(report *ValidationReport, dc *DirectoryConsensus, fil
 		lowerFence = q1 - 1.5*iqr
 		upperFence = q3 + 1.5*iqr
 	}
+
+	log.Debug().
+		Float64("q1", q1).
+		Float64("q3", q3).
+		Float64("iqr", iqr).
+		Float64("lowerFence", lowerFence).
+		Float64("upperFence", upperFence).
+		Msg("Duration outlier fences")
 
 	for _, fp := range filePaths {
 		r := results[fp]

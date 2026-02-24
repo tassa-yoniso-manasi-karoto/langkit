@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/adrg/xdg"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,29 +29,35 @@ func profilesPath() (string, error) {
 
 // LoadProfiles reads all saved profiles from disk.
 // Returns an empty slice (not error) if the file doesn't exist yet.
-func LoadProfiles() ([]ExpectationProfile, error) {
+func LoadProfiles(log zerolog.Logger) ([]ExpectationProfile, error) {
 	path, err := profilesPath()
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debug().Str("path", path).Msg("Loading profiles")
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			log.Debug().Msg("No profiles file yet")
 			return nil, nil
 		}
+		log.Error().Err(err).Str("path", path).Msg("Failed to read profiles")
 		return nil, fmt.Errorf("reading profiles: %w", err)
 	}
 
 	var pf ProfilesFile
 	if err := yaml.Unmarshal(data, &pf); err != nil {
+		log.Error().Err(err).Str("path", path).Msg("Failed to parse profiles")
 		return nil, fmt.Errorf("parsing profiles: %w", err)
 	}
+	log.Debug().Int("count", len(pf.Profiles)).Msg("Profiles loaded")
 	return pf.Profiles, nil
 }
 
 // SaveAllProfiles writes the full profiles list to disk.
-func SaveAllProfiles(profiles []ExpectationProfile) error {
+func SaveAllProfiles(profiles []ExpectationProfile, log zerolog.Logger) error {
 	path, err := profilesPath()
 	if err != nil {
 		return err
@@ -62,12 +69,13 @@ func SaveAllProfiles(profiles []ExpectationProfile) error {
 		return fmt.Errorf("marshaling profiles: %w", err)
 	}
 
+	log.Debug().Str("path", path).Int("count", len(profiles)).Msg("Saving profiles")
 	return os.WriteFile(path, data, 0644)
 }
 
 // GetProfile returns a saved profile by name, or nil if not found.
-func GetProfile(name string) (*ExpectationProfile, error) {
-	profiles, err := LoadProfiles()
+func GetProfile(name string, log zerolog.Logger) (*ExpectationProfile, error) {
+	profiles, err := LoadProfiles(log)
 	if err != nil {
 		return nil, err
 	}
@@ -81,12 +89,12 @@ func GetProfile(name string) (*ExpectationProfile, error) {
 
 // SaveProfile upserts a profile: updates if a profile with the same
 // name exists, appends otherwise.
-func SaveProfile(profile ExpectationProfile) error {
+func SaveProfile(profile ExpectationProfile, log zerolog.Logger) error {
 	if profile.Name == "" {
 		return fmt.Errorf("profile name cannot be empty")
 	}
 
-	profiles, err := LoadProfiles()
+	profiles, err := LoadProfiles(log)
 	if err != nil {
 		return err
 	}
@@ -103,13 +111,18 @@ func SaveProfile(profile ExpectationProfile) error {
 		profiles = append(profiles, profile)
 	}
 
-	return SaveAllProfiles(profiles)
+	action := "updated"
+	if !found {
+		action = "created"
+	}
+	log.Debug().Str("name", profile.Name).Str("action", action).Msg("Saving profile")
+	return SaveAllProfiles(profiles, log)
 }
 
 // DeleteProfile removes a profile by name. Returns an error if the
 // profile doesn't exist.
-func DeleteProfile(name string) error {
-	profiles, err := LoadProfiles()
+func DeleteProfile(name string, log zerolog.Logger) error {
+	profiles, err := LoadProfiles(log)
 	if err != nil {
 		return err
 	}
@@ -128,5 +141,6 @@ func DeleteProfile(name string) error {
 		return fmt.Errorf("profile %q not found", name)
 	}
 
-	return SaveAllProfiles(remaining)
+	log.Debug().Str("name", name).Msg("Deleting profile")
+	return SaveAllProfiles(remaining, log)
 }

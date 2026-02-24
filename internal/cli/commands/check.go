@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
@@ -31,6 +32,12 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		path := args[0]
+		consoleLevel := zerolog.TraceLevel
+		if levelStr, _ := cmd.Flags().GetString("log-level"); levelStr != "" {
+			consoleLevel = parseLogLevel(levelStr)
+		}
+		log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
+			Level(consoleLevel).With().Timestamp().Logger()
 
 		profileName, _ := cmd.Flags().GetString("profile")
 		audioLangs, _ := cmd.Flags().GetStringSlice("audio-langs")
@@ -54,7 +61,7 @@ Examples:
 
 		var profile *core.ExpectationProfile
 		if profileName != "" {
-			saved, err := core.GetProfile(profileName)
+			saved, err := core.GetProfile(profileName, log)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error loading profile: %v\n", err)
 				os.Exit(1)
@@ -122,7 +129,8 @@ Examples:
 		}
 
 		ctx := context.Background()
-		report, err := core.RunCheck(ctx, path, profile, autoConfig, decodeDepth)
+		report, err := core.RunCheck(ctx, path, profile, autoConfig, decodeDepth,
+			core.CheckCallbacks{Logger: log})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -165,7 +173,9 @@ var profilesListCmd = &cobra.Command{
 	Short: "List saved expectation profiles",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		profiles, err := core.LoadProfiles()
+		log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
+			Level(zerolog.WarnLevel).With().Timestamp().Logger()
+		profiles, err := core.LoadProfiles(log)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -192,6 +202,8 @@ var profilesSaveCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
+		log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
+			Level(zerolog.WarnLevel).With().Timestamp().Logger()
 		audioLangs, _ := cmd.Flags().GetStringSlice("audio-langs")
 		subLangs, _ := cmd.Flags().GetStringSlice("sub-langs")
 		durTolerance, _ := cmd.Flags().GetFloat64("duration-tolerance")
@@ -204,7 +216,7 @@ var profilesSaveCmd = &cobra.Command{
 		p.DurationTolerancePct = durTolerance
 		p.RequireLanguageTags = requireTags
 
-		if err := core.SaveProfile(p); err != nil {
+		if err := core.SaveProfile(p, log); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -218,7 +230,9 @@ var profilesDeleteCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
-		if err := core.DeleteProfile(name); err != nil {
+		log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
+			Level(zerolog.WarnLevel).With().Timestamp().Logger()
+		if err := core.DeleteProfile(name, log); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

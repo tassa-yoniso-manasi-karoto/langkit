@@ -10,8 +10,10 @@ import (
 
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/generated"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/api/interfaces"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/core"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
 )
 
 // Compile-time check that ExpectationService implements api.Service
@@ -19,14 +21,16 @@ var _ api.Service = (*ExpectationService)(nil)
 
 // ExpectationService implements the WebRPC ExpectationService interface
 type ExpectationService struct {
-	logger  zerolog.Logger
-	handler http.Handler
+	logger   zerolog.Logger
+	handler  http.Handler
+	progress interfaces.ProgressReporter // optional, for GUI progress bars
 }
 
 // NewExpectationService creates a new expectation service instance
-func NewExpectationService(logger zerolog.Logger) *ExpectationService {
+func NewExpectationService(logger zerolog.Logger, progress interfaces.ProgressReporter) *ExpectationService {
 	svc := &ExpectationService{
-		logger: logger,
+		logger:   logger,
+		progress: progress,
 	}
 	svc.handler = generated.NewExpectationServiceServer(svc)
 	return svc
@@ -76,8 +80,20 @@ func (s *ExpectationService) RunCheck(ctx context.Context, request *generated.Ch
 		}
 	}
 
+	// Build callbacks with logger and optional progress
+	cb := core.CheckCallbacks{Logger: s.logger}
+	if s.progress != nil {
+		pr := s.progress
+		cb.OnProgress = func(barID string, increment, total int, label string) {
+			pr.IncrementProgress(barID, increment, total, 20,
+				"Checking media", label, "")
+		}
+		defer pr.RemoveProgressBar(progress.BarCheckProbe)
+		defer pr.RemoveProgressBar(progress.BarCheckDecode)
+	}
+
 	// Empty depth: RunCheck will load from settings
-	report, err := core.RunCheck(ctx, request.Path, profile, autoConfig, media.IntegrityDepth(""))
+	report, err := core.RunCheck(ctx, request.Path, profile, autoConfig, media.IntegrityDepth(""), cb)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Expectation check failed")
 		return nil, err
@@ -88,7 +104,7 @@ func (s *ExpectationService) RunCheck(ctx context.Context, request *generated.Ch
 
 // ListProfiles returns all saved expectation profiles.
 func (s *ExpectationService) ListProfiles(ctx context.Context) ([]*generated.ExpectationProfile, error) {
-	profiles, err := core.LoadProfiles()
+	profiles, err := core.LoadProfiles(s.logger)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to load profiles")
 		return nil, err
@@ -104,7 +120,7 @@ func (s *ExpectationService) ListProfiles(ctx context.Context) ([]*generated.Exp
 // SaveProfile creates or updates an expectation profile.
 func (s *ExpectationService) SaveProfile(ctx context.Context, profile *generated.ExpectationProfile) error {
 	p := convertProfileFromGen(profile)
-	if err := core.SaveProfile(p); err != nil {
+	if err := core.SaveProfile(p, s.logger); err != nil {
 		s.logger.Error().Err(err).Str("name", profile.Name).Msg("Failed to save profile")
 		return err
 	}
@@ -114,7 +130,7 @@ func (s *ExpectationService) SaveProfile(ctx context.Context, profile *generated
 
 // DeleteProfile removes an expectation profile by name.
 func (s *ExpectationService) DeleteProfile(ctx context.Context, name string) error {
-	if err := core.DeleteProfile(name); err != nil {
+	if err := core.DeleteProfile(name, s.logger); err != nil {
 		s.logger.Error().Err(err).Str("name", name).Msg("Failed to delete profile")
 		return err
 	}

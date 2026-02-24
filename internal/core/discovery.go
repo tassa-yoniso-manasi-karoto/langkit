@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 // DefaultVideoExtensions are the extensions that Routing() processes.
@@ -16,7 +18,7 @@ var DefaultVideoExtensions = []string{".mp4", ".mkv"}
 //
 // If path is a regular file, it is returned as-is (no filtering).
 // If extensions is nil, DefaultVideoExtensions is used.
-func DiscoverMediaFiles(root string, extensions []string) ([]string, error) {
+func DiscoverMediaFiles(root string, extensions []string, log zerolog.Logger) ([]string, error) {
 	stat, err := os.Stat(root)
 	if err != nil {
 		return nil, err
@@ -35,11 +37,14 @@ func DiscoverMediaFiles(root string, extensions []string) ([]string, error) {
 	}
 
 	var files []string
+	skippedMediaDirs := 0
+	skippedMerged := 0
 	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if info.IsDir() && strings.HasSuffix(info.Name(), ".media") {
+			skippedMediaDirs++
 			return filepath.SkipDir
 		}
 		if info.IsDir() {
@@ -51,10 +56,20 @@ func DiscoverMediaFiles(root string, extensions []string) ([]string, error) {
 			return nil
 		}
 		if isLangkitMadeMergedOutput(filename) {
+			skippedMerged++
 			return nil
 		}
 		files = append(files, path)
 		return nil
 	})
+
+	log.Debug().
+		Str("root", root).
+		Strs("extensions", extensions).
+		Int("accepted", len(files)).
+		Int("skippedMediaDirs", skippedMediaDirs).
+		Int("skippedMergedOutputs", skippedMerged).
+		Msg("Discovery walk complete")
+
 	return files, err
 }

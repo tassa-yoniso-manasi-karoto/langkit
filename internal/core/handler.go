@@ -9,7 +9,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1130,49 +1129,23 @@ func GetCurrentDryRunConfig() *DryRunConfig {
 	return currentDryRunConfig
 }
 
-// GetVideosInDirectory implements interfaces.MediaProvider interface
+// GetVideosInDirectory implements interfaces.MediaProvider interface.
+// Uses DiscoverMediaFiles for parity with Routing() and the expectation
+// checker: same extensions, .media skip, merged output exclusion.
 func (h *GUIHandler) GetVideosInDirectory(dirPath string) ([]interface{}, error) {
-	var videos []interface{}
-
-	// Common video file extensions
-	videoExts := map[string]bool{
-		".mp4":  true,
-		".mkv":  true,
-		".avi":  true,
-		".mov":  true,
-		".wmv":  true,
-		".flv":  true,
-		".webm": true,
-		".m4v":  true,
-	}
-
-	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip directories
-		if info.IsDir() {
-			return nil
-		}
-
-		// Check if file has video extension
-		ext := strings.ToLower(filepath.Ext(path))
-		if videoExts[ext] {
-			// Create VideoInfo that matches the generated type
-			videos = append(videos, map[string]string{
-				"name": info.Name(),
-				"path": path,
-			})
-		}
-
-		return nil
-	})
-
+	log := h.ZeroLog().With().Str("component", "discovery").Logger()
+	files, err := DiscoverMediaFiles(dirPath, nil, log)
 	if err != nil {
 		return nil, err
 	}
 
+	var videos []interface{}
+	for _, path := range files {
+		videos = append(videos, map[string]string{
+			"name": filepath.Base(path),
+			"path": path,
+		})
+	}
 	return videos, nil
 }
 

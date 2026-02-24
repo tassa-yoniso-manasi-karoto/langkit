@@ -24,4 +24,8 @@ const (
 	BarTranslitProcess  = "translit-process"   // Romanization/tokenization processing
 	BarTranslitDockerDL = "translit-docker-dl" // Provider Docker image download
 	BarTranslitInit     = "translit-init"      // Database initialization (e.g., Ichiran)
+
+	// Expectation checker bars
+	BarCheckProbe  = "check-probe"  // Per-file probe (mediainfo) progress
+	BarCheckDecode = "check-decode" // Per-file decode integrity progress
 )

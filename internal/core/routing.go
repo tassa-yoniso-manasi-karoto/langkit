@@ -184,7 +184,8 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	} else {
 		var tasks []Task
 		// initial scanning
-		mediaPaths, err := DiscoverMediaFiles(userProvided, nil)
+		mediaPaths, err := DiscoverMediaFiles(userProvided, nil,
+			tsk.Handler.ZeroLog().With().Str("component", "discovery").Logger())
 		if err != nil {
 			return tsk.Handler.LogErr(err, AbortAllTasks,
 				"error during recursive exploration of provided directory")

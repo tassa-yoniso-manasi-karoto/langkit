@@ -6,12 +6,10 @@
   - subs2cards audio clips
 
 - Data aware logic:
-  - CHECK: if progress update for expectation checker was implemented.
   - BUG: `S03E01: duration (23m 51s) is unusually short compared to siblings (median: 23m 52s)` length of VIDEO should not be compared within the folder
-  - BUG: ‼️IMPORTANT‼️ `Tensura_S02E31_Despair.mp4`'s tha audiotrack is broken but goes undetected!
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
-- "Do-no-interrupt" mode:
+- "Do-no-interrupt" mode: <<<--- IMPLEMENT AS PART OF THE PRE-FLIGHT  CHECK: the user knows the problem immediately at processing starts instead auto-tolerating mid-run
    - this error should abort_all: "Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). Apostrophe in the names of the files themselves are supported using a workaround."
    - should NOT abort_all, give it leaway: "selecting audiotrack: No audiotrack tagged with the requested target language exists. If it isn't a misinput please use the audiotrack override to set a track number manually."
 

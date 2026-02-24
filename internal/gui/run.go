@@ -156,7 +156,7 @@ func registerServices(
 	}
 	
 	// Register expectation service
-	expectationSvc := services.NewExpectationService(logger)
+	expectationSvc := services.NewExpectationService(logger, handler)
 	if err := apiServer.RegisterService(expectationSvc); err != nil {
 		return fmt.Errorf("failed to register expectation service: %w", err)
 	}

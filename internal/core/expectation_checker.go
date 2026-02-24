@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/config"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
+	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/progress"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/subs"
 )
 
@@ -19,18 +22,30 @@ import (
 // If autoConfig is non-nil and Enabled, auto consistency checks run.
 // Both can be combined. The function respects context cancellation.
 // decodeDepth overrides the settings value; pass "" to use the setting.
-func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile, autoConfig *AutoCheckConfig, decodeDepth media.IntegrityDepth) (*ValidationReport, error) {
+func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile, autoConfig *AutoCheckConfig, decodeDepth media.IntegrityDepth, cb CheckCallbacks) (*ValidationReport, error) {
 	start := time.Now()
+	log := cb.Logger.With().Str("component", "expectation-checker").Logger()
 
 	// Resolve decode depth: explicit param > settings > default sampled
+	depthSource := "explicit"
 	if decodeDepth == "" {
 		settings, err := config.LoadSettings()
 		if err == nil {
 			decodeDepth = media.NormalizeIntegrityDepth(settings.IntegrityDecodeDepth)
+			depthSource = "settings"
 		} else {
 			decodeDepth = media.IntegritySampled
+			depthSource = "fallback"
 		}
 	}
+
+	log.Info().
+		Str("rootPath", rootPath).
+		Bool("hasProfile", profile != nil).
+		Bool("hasAutoConfig", autoConfig != nil && autoConfig.Enabled).
+		Str("decodeDepth", string(decodeDepth)).
+		Str("depthSource", depthSource).
+		Msg("Starting expectation check")
 
 	report := &ValidationReport{
 		Profile:     profile,
@@ -46,11 +61,14 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		extensions = profile.VideoExtensions
 	}
 
-	files, err := DiscoverMediaFiles(rootPath, extensions)
+	files, err := DiscoverMediaFiles(rootPath, extensions, log)
 	if err != nil {
+		log.Error().Err(err).Msg("Discovery failed")
 		return nil, err
 	}
 	report.TotalFiles = len(files)
+
+	log.Info().Int("fileCount", len(files)).Msg("Discovery complete")
 
 	if len(files) == 0 {
 		report.AddIssue(Issue{
@@ -70,18 +88,23 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		if len(profile.ExpectedAudioLangs) > 0 {
 			expectedAudioLangs, err = ParseLanguageTags(profile.ExpectedAudioLangs)
 			if err != nil {
+				log.Error().Err(err).Strs("tags", profile.ExpectedAudioLangs).Msg("Failed to parse expected audio languages")
 				return nil, err
 			}
+			log.Debug().Strs("audioLangs", profile.ExpectedAudioLangs).Msg("Parsed expected audio languages")
 		}
 		if len(profile.ExpectedSubtitleLangs) > 0 {
 			expectedSubLangs, err = ParseLanguageTags(profile.ExpectedSubtitleLangs)
 			if err != nil {
+				log.Error().Err(err).Strs("tags", profile.ExpectedSubtitleLangs).Msg("Failed to parse expected subtitle languages")
 				return nil, err
 			}
+			log.Debug().Strs("subLangs", profile.ExpectedSubtitleLangs).Msg("Parsed expected subtitle languages")
 		}
 	}
 
 	// Pass 1: Probe – gather metadata for every file (no decode)
+	log.Debug().Msg("Starting probe pass")
 	for _, filePath := range files {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -93,6 +116,7 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 
 		// If mediainfo failed, emit a structural issue
 		if result.MediaInfoErr != nil {
+			log.Warn().Str("file", filepath.Base(filePath)).Err(result.MediaInfoErr).Msg("Mediainfo failed")
 			report.AddIssue(Issue{
 				Severity: SeverityError,
 				Source:   SourceStructural,
@@ -103,14 +127,28 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 			continue
 		}
 
+		log.Debug().
+			Str("file", filepath.Base(filePath)).
+			Int("audioTracks", len(result.MediaInfo.AudioTracks)).
+			Int("textTracks", len(result.MediaInfo.TextTracks)).
+			Int("subCandidates", len(result.SubCandidates)).
+			Int("externalAudio", len(result.ExternalAudio)).
+			Msg("Probed file")
+
 		if profile != nil {
 			checkVideoTrack(report, filePath, result, profile)
+		}
+
+		if cb.OnProgress != nil {
+			cb.OnProgress(progress.BarCheckProbe, 1, len(files),
+				"Probing: "+filepath.Base(filePath))
 		}
 	}
 
 	// Structural checks: always run regardless of profile/auto mode.
 	// Duration tolerance comes from the profile if available, else a
 	// sensible default. The source tag reflects the origin.
+	log.Debug().Msg("Running structural checks")
 	tolerancePct := 2.0
 	durationSource := SourceStructural
 	if profile != nil && profile.DurationTolerancePct > 0 {
@@ -142,11 +180,13 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		log.Debug().Msg("Running profile decode integrity")
 		// Decode integrity scoped to expected audio languages
 		runDecodeIntegrity(report, files, report.FileResults,
-			decodeDepth, expectedAudioLangs)
+			decodeDepth, expectedAudioLangs, log, cb)
 		decodeRan = true
 
+		log.Debug().Msg("Running profile domain checks")
 		for _, filePath := range files {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -170,25 +210,34 @@ func RunCheck(ctx context.Context, rootPath string, profile *ExpectationProfile,
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		log.Debug().Msg("Running auto decode integrity")
 		runAutoDecodeIntegrity(report, files, report.FileResults,
-			decodeDepth, autoConfig)
+			decodeDepth, autoConfig, log, cb)
 		decodeRan = true
-		runAutoMode(report, files, autoConfig)
+		runAutoMode(report, files, autoConfig, log)
 	}
 
 	// Structural-only fallback: if neither profile nor auto ran decode
 	if !decodeRan {
+		log.Debug().Msg("Running structural-only decode integrity")
 		runDecodeIntegrity(report, files, report.FileResults,
-			decodeDepth, nil)
+			decodeDepth, nil, log, cb)
 	}
 
 	report.Duration = time.Since(start)
+	log.Info().
+		Dur("elapsed", report.Duration).
+		Int("totalFiles", report.TotalFiles).
+		Int("errors", report.ErrorCount).
+		Int("warnings", report.WarningCount).
+		Int("infos", report.InfoCount).
+		Msg("Expectation check complete")
 	return report, nil
 }
 
 // runAutoMode groups files by immediate parent directory and runs
 // consistency checks for each group meeting the minimum size.
-func runAutoMode(report *ValidationReport, files []string, config *AutoCheckConfig) {
+func runAutoMode(report *ValidationReport, files []string, config *AutoCheckConfig, log zerolog.Logger) {
 	// Group files by immediate parent directory
 	dirFiles := make(map[string][]string)
 	for _, fp := range files {
@@ -198,10 +247,15 @@ func runAutoMode(report *ValidationReport, files []string, config *AutoCheckConf
 
 	for dir, fps := range dirFiles {
 		// Build consensus for this directory
-		dc := buildConsensus(dir, fps, report.FileResults, config)
+		dc := buildConsensus(dir, fps, report.FileResults, config, log)
 		report.Consensus[dir] = dc
 
 		if dc.FileCount < config.MinGroupSize {
+			log.Debug().
+				Str("dir", filepath.Base(dir)).
+				Int("fileCount", dc.FileCount).
+				Int("minGroupSize", config.MinGroupSize).
+				Msg("Skipped auto-check: group too small")
 			report.AddIssue(Issue{
 				Severity: SeverityInfo,
 				Source:   SourceAuto,
@@ -214,7 +268,7 @@ func runAutoMode(report *ValidationReport, files []string, config *AutoCheckConf
 			continue
 		}
 
-		runAutoChecks(report, dc, fps, report.FileResults, config)
+		runAutoChecks(report, dc, fps, report.FileResults, config, log)
 	}
 }
 
@@ -398,20 +452,30 @@ func runDecodeIntegrity(
 	fileResults map[string]*FileCheckResult,
 	depth media.IntegrityDepth,
 	scopeLangs []Lang,
+	log zerolog.Logger,
+	cb CheckCallbacks,
 ) {
+	// Pre-compute which files will actually be decoded so the progress
+	// bar total reflects real work rather than the full file list.
+	type decodeWork struct {
+		filePath    string
+		indices     []int
+		checkVideo  bool
+		dedupSkipped int
+	}
+	var work []decodeWork
 	for _, filePath := range files {
 		result := fileResults[filePath]
 		if result == nil || result.MediaInfoErr != nil {
 			continue
 		}
-		// Skip files already known to be corrupted
 		if result.DecodeCorrupted {
 			continue
 		}
 
 		indices := ResolveAudioStreamIndices(result.MediaInfo, scopeLangs...)
 
-		// Deduplicate: remove indices already covered by a previous pass
+		dedupSkipped := 0
 		if len(result.DecodeResults) > 0 {
 			covered := make(map[int]bool)
 			for _, dr := range result.DecodeResults {
@@ -421,13 +485,14 @@ func runDecodeIntegrity(
 			for _, idx := range indices {
 				if !covered[idx] {
 					novel = append(novel, idx)
+				} else {
+					dedupSkipped++
 				}
 			}
 			indices = novel
 		}
 
 		checkVideo := result.MediaInfo.VideoTrack.Type != ""
-		// Skip video if already checked
 		for _, dr := range result.DecodeResults {
 			if dr.StreamIndex == -1 {
 				checkVideo = false
@@ -436,36 +501,61 @@ func runDecodeIntegrity(
 		}
 
 		if len(indices) == 0 && !checkVideo {
-			continue // nothing new to check
+			continue
 		}
+
+		work = append(work, decodeWork{filePath, indices, checkVideo, dedupSkipped})
+	}
+
+	for _, w := range work {
+		result := fileResults[w.filePath]
+
+		log.Debug().
+			Str("file", filepath.Base(w.filePath)).
+			Str("depth", string(depth)).
+			Bool("checkVideo", w.checkVideo).
+			Ints("audioStreams", w.indices).
+			Int("dedupSkipped", w.dedupSkipped).
+			Msg("Decode integrity starting")
 
 		scope := media.DecodeScope{
-			AudioStreamIndices: indices,
-			CheckVideo:         checkVideo,
+			AudioStreamIndices: w.indices,
+			CheckVideo:         w.checkVideo,
 		}
 
-		decodeResults, err := media.CheckDecodeIntegrity(filePath, depth, scope)
+		decodeResults, err := media.CheckDecodeIntegrity(w.filePath, depth, scope)
 		if err != nil {
+			log.Error().Str("file", filepath.Base(w.filePath)).Err(err).Msg("Decode integrity check failed")
 			report.AddIssue(Issue{
 				Severity: SeverityError,
 				Source:   SourceStructural,
-				FilePath: filePath,
+				FilePath: w.filePath,
 				Category: "integrity",
 				Message:  "Decode integrity check failed: " + err.Error(),
 			})
 			result.DecodeCorrupted = true
-			continue
 		}
-		result.DecodeResults = append(result.DecodeResults, decodeResults...)
+		if err == nil {
+			result.DecodeResults = append(result.DecodeResults, decodeResults...)
 
-		for _, dr := range decodeResults {
-			if dr.Corrupted {
-				result.DecodeCorrupted = true
-				break
+			for _, dr := range decodeResults {
+				if dr.Corrupted {
+					log.Warn().
+						Str("file", filepath.Base(w.filePath)).
+						Int("streamIndex", dr.StreamIndex).
+						Msg("Corrupted stream detected")
+					result.DecodeCorrupted = true
+					break
+				}
 			}
+
+			checkDecodeResults(report, w.filePath, result)
 		}
 
-		checkDecodeResults(report, filePath, result)
+		if cb.OnProgress != nil {
+			cb.OnProgress(progress.BarCheckDecode, 1, len(work),
+				"Verifying: "+filepath.Base(w.filePath))
+		}
 	}
 }
 
@@ -481,6 +571,8 @@ func runAutoDecodeIntegrity(
 	fileResults map[string]*FileCheckResult,
 	depth media.IntegrityDepth,
 	autoConfig *AutoCheckConfig,
+	log zerolog.Logger,
+	cb CheckCallbacks,
 ) {
 	// Group files by immediate parent directory
 	dirFiles := make(map[string][]string)
@@ -491,7 +583,7 @@ func runAutoDecodeIntegrity(
 
 	for dir, fps := range dirFiles {
 		// Build preliminary consensus for language scoping
-		dc := buildConsensus(dir, fps, fileResults, autoConfig)
+		dc := buildConsensus(dir, fps, fileResults, autoConfig, log)
 
 		// Convert quorum audio languages to Lang for scoping
 		var scopeLangs []Lang
@@ -502,11 +594,17 @@ func runAutoDecodeIntegrity(
 			}
 		}
 
+		log.Debug().
+			Str("dir", filepath.Base(dir)).
+			Strs("quorumLangs", dc.QuorumAudioLangs).
+			Int("fileCount", len(fps)).
+			Msg("Auto decode integrity: scoped to consensus languages")
+
 		// Run decode integrity for this directory group,
 		// scoped to consensus languages (falls back to all
 		// audio streams if no quorum languages were found).
 		runDecodeIntegrity(report, fps, fileResults,
-			depth, scopeLangs)
+			depth, scopeLangs, log, cb)
 	}
 }
 

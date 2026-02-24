@@ -3,6 +3,7 @@ package core
 import (
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/tassa-yoniso-manasi-karoto/langkit/internal/pkg/media"
 )
 
@@ -171,4 +172,10 @@ func (r *ValidationReport) AddIssue(issue Issue) {
 // HasErrors returns true if the report contains any Error-severity issues.
 func (r *ValidationReport) HasErrors() bool {
 	return r.ErrorCount > 0
+}
+
+// CheckCallbacks carries optional logger and progress reporting into RunCheck.
+type CheckCallbacks struct {
+	Logger     zerolog.Logger
+	OnProgress func(barID string, increment, total int, label string)
 }
