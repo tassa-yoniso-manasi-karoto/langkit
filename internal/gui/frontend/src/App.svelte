@@ -2083,7 +2083,7 @@
                 <!-- Tab bar -->
                 <div class="flex border-b border-white/10 bg-black/20 shrink-0">
                     <button
-                        class="flex-1 px-4 py-2 text-xs font-medium transition-colors
+                        class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors
                                {inspectorMode === 'preflight'
                                    ? 'text-primary border-b-2 border-primary'
                                    : 'text-white/50 hover:text-white/70'}"
@@ -2091,13 +2091,13 @@
                     >
                         Preflight
                         {#if $checkResultStore.report && $checkResultStore.report.errorCount > 0}
-                            <span class="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-red-500/30 text-red-300 rounded-full">
+                            <span class="ml-1 inline-flex items-center justify-center w-4 h-4 text-[11px] bg-red-500/30 text-red-300 rounded-full">
                                 {$checkResultStore.report.errorCount}
                             </span>
                         {/if}
                     </button>
                     <button
-                        class="flex-1 px-4 py-2 text-xs font-medium transition-colors
+                        class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors
                                {inspectorMode === 'logs'
                                    ? 'text-primary border-b-2 border-primary'
                                    : 'text-white/50 hover:text-white/70'}"
@@ -2105,7 +2105,7 @@
                     >
                         Logs
                         {#if hasErrorLogs()}
-                            <span class="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] bg-red-500/30 text-red-300 rounded-full">!</span>
+                            <span class="ml-1 inline-flex items-center justify-center w-4 h-4 text-[11px] bg-red-500/30 text-red-300 rounded-full">!</span>
                         {/if}
                     </button>
                 </div>
@@ -2176,6 +2176,7 @@
     open={showDiagnosticModal}
     profiles={expectationProfiles}
     report={$checkResultStore.report}
+    mediaPath={mediaSource ? mediaSource.path : ''}
     bind:selectedProfileName={selectedExpectationProfile}
     on:close={handleDiagnosticClose}
     on:runCheck={handleDiagnosticRunCheck}
