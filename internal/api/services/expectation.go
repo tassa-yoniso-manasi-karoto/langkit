@@ -141,12 +141,16 @@ func (s *ExpectationService) DeleteProfile(ctx context.Context, name string) err
 // convertReport converts a core.ValidationReport to the generated WebRPC type.
 func convertReport(report *core.ValidationReport) *generated.ValidationReport {
 	gr := &generated.ValidationReport{
-		RootPath:     report.RootPath,
-		TotalFiles:   int32(report.TotalFiles),
-		ErrorCount:   int32(report.ErrorCount),
-		WarningCount: int32(report.WarningCount),
-		InfoCount:    int32(report.InfoCount),
-		DurationMs:   report.Duration.Milliseconds(),
+		RootPath:               report.RootPath,
+		TotalFiles:             int32(report.TotalFiles),
+		ErrorCount:             int32(report.ErrorCount),
+		WarningCount:           int32(report.WarningCount),
+		InfoCount:              int32(report.InfoCount),
+		DurationMs:             report.Duration.Milliseconds(),
+		Issues:                 []*generated.ValidationIssue{},
+		FileSummaries:          []*generated.FileSummary{},
+		InterpretedSummaries:   []*generated.InterpretedSummary{},
+		ConsensusSummaries:     []*generated.DirectoryConsensusSummary{},
 	}
 
 	// Convert issues

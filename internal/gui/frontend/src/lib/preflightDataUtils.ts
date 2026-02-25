@@ -91,7 +91,8 @@ export function sourceLabel(source: string): string {
     return 'Unknown';
 }
 
-export function getClusters(issues: ValidationIssue[]): Cluster[] {
+export function getClusters(issues: ValidationIssue[] | null | undefined): Cluster[] {
+    if (!issues) return [];
     var byCode: Record<string, ValidationIssue[]> = {};
     for (var i = 0; i < issues.length; i++) {
         var issue = issues[i];
@@ -253,7 +254,8 @@ function buildTriageFiles(issues: ValidationIssue[]): TriageFile[] {
     return files;
 }
 
-export function getTriageFiles(issues: ValidationIssue[]): TriageFile[] {
+export function getTriageFiles(issues: ValidationIssue[] | null | undefined): TriageFile[] {
+    if (!issues) return [];
     return buildTriageFiles(issues);
 }
 

@@ -660,6 +660,7 @@
 
     async function handleExpectationCheck(): Promise<boolean> {
         if (!mediaSource) return false;
+        if ($checkResultStore.isRunning) return false;
 
         var mode = checkMode;
         var request: CheckRequest = { path: mediaSource.path };
@@ -736,7 +737,7 @@
             }
         }
 
-        checkResultStore.setRunning();
+        var token = checkResultStore.setRunning();
         invalidationErrorStore.removeError('check-failed');
         invalidationErrorStore.removeError('check-no-profile');
         invalidationErrorStore.removeError('check-profile-missing');
@@ -745,7 +746,7 @@
 
         try {
             var report = await RunExpectationCheck(request);
-            checkResultStore.setReport(report);
+            checkResultStore.setReport(token, report);
             logger.info('app', 'Expectation check completed', {
                 totalFiles: report.totalFiles,
                 errors: report.errorCount,
@@ -753,7 +754,10 @@
             });
             return true;
         } catch (error: any) {
-            checkResultStore.clear();
+            // Only clear if this is still the active run
+            if (checkResultStore.currentToken() === token) {
+                checkResultStore.clear();
+            }
             logger.error('app', 'Expectation check failed', { error });
             invalidationErrorStore.addError({
                 id: "check-failed",
@@ -777,7 +781,11 @@
 
         // Silent preflight check: run if unchecked or stale
         if ($checkState === 'unchecked' || $checkState === 'stale') {
-            await handleExpectationCheck();
+            var checkOk = await handleExpectationCheck();
+            if (!checkOk) {
+                // Check failed (network error, timeout, etc.) — don't proceed
+                return;
+            }
             // If errors found, open inspector in preflight tab and stop
             if ($checkResultStore.report && $checkResultStore.report.errorCount > 0) {
                 showLogViewer = true;

@@ -6,27 +6,39 @@ export interface CheckResultState {
     acknowledged: boolean;
     isRunning: boolean;
     stale: boolean;
+    /** Monotonic token that ties an in-flight check to its result. */
+    runToken: number;
 }
 
 function createCheckResultStore() {
+    var nextToken = 0;
+
     const { subscribe, set, update } = writable<CheckResultState>({
         report: null,
         acknowledged: false,
         isRunning: false,
         stale: false,
+        runToken: 0,
     });
 
     return {
         subscribe,
 
-        /** Called when a check starts */
-        setRunning: () => {
-            set({ report: null, acknowledged: false, isRunning: true, stale: false });
+        /** Called when a check starts. Returns a token the caller must
+         *  pass back to setReport so stale completions are discarded. */
+        setRunning: (): number => {
+            var token = ++nextToken;
+            set({ report: null, acknowledged: false, isRunning: true, stale: false, runToken: token });
+            return token;
         },
 
-        /** Called when a check completes */
-        setReport: (report: ValidationReport) => {
-            set({ report, acknowledged: false, isRunning: false, stale: false });
+        /** Called when a check completes. Only writes if the token
+         *  matches the current run — otherwise the result is stale. */
+        setReport: (token: number, report: ValidationReport) => {
+            update(function(state) {
+                if (state.runToken !== token) return state;
+                return { report: report, acknowledged: false, isRunning: false, stale: false, runToken: state.runToken };
+            });
         },
 
         /** Called when the user acknowledges errors */
@@ -44,7 +56,15 @@ function createCheckResultStore() {
 
         /** Called when the media path changes or user clears results */
         clear: () => {
-            set({ report: null, acknowledged: false, isRunning: false, stale: false });
+            set({ report: null, acknowledged: false, isRunning: false, stale: false, runToken: ++nextToken });
+        },
+
+        /** Returns the current run token for conditional clearing. */
+        currentToken: (): number => {
+            var t = 0;
+            var unsub = subscribe(function(s) { t = s.runToken; });
+            unsub();
+            return t;
         },
     };
 }

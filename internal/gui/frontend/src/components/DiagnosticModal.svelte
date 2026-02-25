@@ -236,11 +236,13 @@
                     <div class="flex items-center gap-2">
                         <button
                             class="px-3 py-1.5 text-sm rounded-md border border-white/10 bg-white/5
-                                   text-white/70 hover:bg-white/10 hover:text-white/85 transition-colors"
+                                   text-white/70 hover:bg-white/10 hover:text-white/85 transition-colors
+                                   disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={$checkResultStore.isRunning}
                             on:click={() => dispatch('runCheck')}
                         >
-                            <span class="material-icons text-sm align-middle mr-1">refresh</span>
-                            Re-run Check
+                            <span class="material-icons text-sm align-middle mr-1">{$checkResultStore.isRunning ? 'hourglass_empty' : 'refresh'}</span>
+                            {$checkResultStore.isRunning ? 'Checking...' : 'Re-run Check'}
                         </button>
                         <button
                             class="w-8 h-8 flex items-center justify-center rounded-md
