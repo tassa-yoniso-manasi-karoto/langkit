@@ -88,9 +88,22 @@
         </div>
     {:else}
         <div class="h-full relative">
-            <div class="flex-1 h-full overflow-y-auto p-4 space-y-4 transition-opacity"
-                 class:opacity-50={$checkResultStore.stale}
-                 class:pointer-events-none={$checkResultStore.stale}>
+            <div class="flex-1 h-full overflow-y-auto p-4 space-y-4">
+
+                {#if $checkResultStore.stale}
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-400/35 bg-amber-500/[0.12]"
+                         transition:slide={{ duration: isLite ? 0 : 150 }}>
+                        <span class="material-icons text-amber-300" style="font-size:16px;">info</span>
+                        <span class="text-xs text-amber-200/90 flex-1">Results may be out of date</span>
+                        <button
+                            class="px-2.5 py-0.5 text-xs font-medium rounded-md border border-amber-400/35
+                                   bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 transition-colors"
+                            on:click={() => dispatch('runCheck')}
+                        >
+                            Re-run
+                        </button>
+                    </div>
+                {/if}
 
                 <!-- Headline stat strip -->
                 <div class="rounded-lg border border-white/10 bg-white/5 px-4 py-3 flex items-center gap-3">
@@ -152,7 +165,7 @@
                                     </div>
                                 {/if}
                                 {#if cs.medianDurationSec > 0 || cs.consensusAudioTrackCount >= 0}
-                                    <div class="flex items-center gap-2 mt-1 text-xs text-white/55">
+                                    <div class="flex items-center gap-2 mt-4 text-xs text-white/55">
                                         <span class="w-12 shrink-0"></span>
                                         {#if cs.medianDurationSec > 0}
                                             <span class="flex items-center gap-1">
@@ -199,25 +212,6 @@
                 {/if}
             </div>
 
-            {#if $checkResultStore.stale}
-                <div class={(isLite ? 'bg-black/70' : 'bg-black/55 backdrop-blur-sm') + ' absolute inset-0 flex items-center justify-center p-4'}>
-                    <div class="max-w-xs w-full rounded-lg border border-amber-400/25 bg-amber-500/10 p-4 text-center"
-                         transition:slide={{ duration: isLite ? 0 : 200 }}>
-                        <div class="text-sm text-amber-200 font-medium mb-1">Results are out of date</div>
-                        <div class="text-xs text-amber-200/80 mb-3">
-                            Re-run preflight to refresh this analysis.
-                        </div>
-                        <button
-                            class="w-full px-3 py-2 rounded-md text-sm border border-amber-400/35
-                                   bg-amber-500/15 text-amber-200 hover:bg-amber-500/25 transition-colors"
-                            on:click={() => dispatch('runCheck')}
-                        >
-                            <span class="material-icons text-sm align-middle mr-1">refresh</span>
-                            Re-run Check
-                        </button>
-                    </div>
-                </div>
-            {/if}
         </div>
     {/if}
 </div>

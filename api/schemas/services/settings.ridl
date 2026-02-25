@@ -38,6 +38,7 @@ struct Settings
   - timeoutSTT: int32  # seconds
   - timeoutDL: int32   # seconds
   - integrityDecodeDepth: string  # sampled or full
+  - preflightQuorumPct: int32     # consensus quorum threshold (50-100)
   - demucsMaxSegmentMinutes: int32  # max minutes per segment to avoid GPU OOM
   - logViewerVirtualizationThreshold: int32
   - eventThrottling: EventThrottling

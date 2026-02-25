@@ -90,7 +90,6 @@ import { isDeveloperMode } from '../lib/developerMode';
         maxAPIRetries: 10,
         maxLogEntries: 10000,
         maxWorkers: 1,
-        convertValues: false, // Add missing property, default to false
         useWasm: true,
         wasmSizeThreshold: 500,
         forceWasmMode: 'auto',
@@ -104,8 +103,9 @@ import { isDeveloperMode } from '../lib/developerMode';
             minInterval: 0,
             maxInterval: 250
         },
-        // Integrity decode depth
+        // Integrity / preflight settings
         integrityDecodeDepth: 'sampled',
+        preflightQuorumPct: 75,
         // File handling settings
         intermediaryFileMode: 'keep',
         deleteResumptionFiles: false,
@@ -867,6 +867,27 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         <option value="sampled">Sampled (Recommended)</option>
                                         <option value="full">Full (Strict, slower)</option>
                                     </SelectInput>
+                                </div>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>Consensus quorum</span>
+                                        <Hovertip position="right">
+                                            <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                            <div class="max-w-xs">
+                                                <p>Minimum percentage of files that must share a trait (audio language, subtitle language, track count) for it to be considered the "consensus" value. Lower values are more lenient; higher values require stronger agreement.</p>
+                                            </div>
+                                        </Hovertip>
+                                    </div>
+                                    <span class="setting-description">Threshold for auto-consistency checks</span>
+                                </div>
+                                <div class="setting-control flex items-center gap-3">
+                                    <input type="range" min="50" max="100" step="5"
+                                           bind:value={currentSettings.preflightQuorumPct}
+                                           on:change={updateSettings}
+                                           class="flex-1 h-[3px] accent-primary" />
+                                    <span class="font-mono text-sm text-white/80 font-medium w-10 text-right">{currentSettings.preflightQuorumPct}%</span>
                                 </div>
                             </div>
                         </section>

@@ -117,7 +117,6 @@
 
     // Preflight bar state (standalone, no longer tied to feature cards)
     let checkMode: string = 'auto';
-    let checkQuorum: number = 75;
 
     // Diagnostic modal state
     let showDiagnosticModal = false;
@@ -524,6 +523,9 @@
     
     let prevCheckFingerprint = '';
 
+    // Read quorum from persisted settings (default 75)
+    $: checkQuorum = $settings.preflightQuorumPct || 75;
+
     // Reactive fingerprint for stale detection: tracks check config changes
     $: checkFingerprint = checkMode + '|' + selectedExpectationProfile + '|' + checkQuorum;
 
@@ -909,10 +911,9 @@
     }
 
     // Preflight bar event handlers
-    function handlePreflightModeChange(e: CustomEvent<{ mode: string; profileName: string; quorum: number }>) {
+    function handlePreflightModeChange(e: CustomEvent<{ mode: string; profileName: string }>) {
         checkMode = e.detail.mode;
         selectedExpectationProfile = e.detail.profileName;
-        checkQuorum = e.detail.quorum;
     }
 
     async function handleCheckLibrary(e?: CustomEvent<{ intent: 'run' | 'manage' }>) {
@@ -1976,17 +1977,16 @@
                 <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
                     <!-- Progress Manager with minimal spacing -->
                     <div class="mb-2">
-                        <ProgressManager {isProcessing} {isWindowMinimized} {userActivityState} />
+                        <ProgressManager {isProcessing} isChecking={$checkResultStore.isRunning} {isWindowMinimized} {userActivityState} />
                     </div>
                     
                     <!-- Preflight Bar + Action Buttons -->
                     <div class="max-w-2xl mx-auto flex items-end gap-3 pb-0 will-change-transform">
-                        <!-- Preflight bar (mode dropdown, quorum, process/check buttons) -->
+                        <!-- Preflight bar (mode dropdown, process/check buttons) -->
                         <div class="flex-1">
                             <PreflightBar
                                 profiles={expectationProfiles}
                                 bind:checkMode
-                                bind:quorum={checkQuorum}
                                 bind:selectedProfileName={selectedExpectationProfile}
                                 isProcessing={isProcessing || $checkResultStore.isRunning}
                                 checkState={$checkState}

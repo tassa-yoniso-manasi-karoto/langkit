@@ -50,6 +50,9 @@ type Settings struct {
 	// Integrity check depth: "sampled" (default) or "full"
 	IntegrityDecodeDepth string `json:"integrityDecodeDepth" mapstructure:"integrity_decode_depth"`
 
+	// Preflight consensus quorum threshold (50-100, default 75)
+	PreflightQuorumPct int `json:"preflightQuorumPct" mapstructure:"preflight_quorum_pct"`
+
 	// Demucs settings
 	DemucsMaxSegmentMinutes int `json:"demucsMaxSegmentMinutes" mapstructure:"demucs_max_segment_minutes"` // max minutes per segment to avoid GPU OOM
 
@@ -208,6 +211,9 @@ func InitConfig(customPath string) error {
 	// Default integrity check depth
 	viper.SetDefault("integrity_decode_depth", "sampled")
 
+	// Default preflight quorum threshold
+	viper.SetDefault("preflight_quorum_pct", 75)
+
 	// Demucs settings - 0 means use GPU-auto-detected value from voice package
 	viper.SetDefault("demucs_max_segment_minutes", 0)
 
@@ -320,6 +326,7 @@ func SaveSettings(settings Settings) error {
 	viper.Set("timeout_stt", settings.TimeoutSTT)
 	viper.Set("timeout_dl", settings.TimeoutDL)
 	viper.Set("integrity_decode_depth", settings.IntegrityDecodeDepth)
+	viper.Set("preflight_quorum_pct", settings.PreflightQuorumPct)
 	viper.Set("demucs_max_segment_minutes", settings.DemucsMaxSegmentMinutes)
 	viper.Set("log_viewer_virtualization_threshold", settings.LogViewerVirtualizationThreshold)
 

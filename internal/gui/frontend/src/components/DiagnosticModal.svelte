@@ -219,11 +219,12 @@
          on:click={handleClose}>
     </div>
 
-    <div class="fixed inset-0 z-50 overflow-y-auto" on:click|stopPropagation>
-        <div class="container mx-auto max-w-6xl p-4 min-h-screen flex items-center"
+    <div class="fixed inset-0 z-50 overflow-y-auto" on:click={handleClose}>
+        <div class="container mx-auto max-w-7xl p-4 min-h-screen flex items-center"
              transition:slide={{ duration: isLite ? 0 : 220 }}>
             <div class="relative w-full rounded-xl border border-white/10 shadow-2xl overflow-hidden
-                        {isLite ? 'bg-bgold-900/95' : 'bg-bgold-900/80 backdrop-blur-xl'}">
+                        {isLite ? 'bg-bgold-900/95' : 'bg-bgold-900/80 backdrop-blur-xl'}"
+                 on:click|stopPropagation>
 
                 <!-- Header -->
                 <div class="flex items-center justify-between px-5 py-3 border-b border-white/10">
@@ -263,9 +264,7 @@
                     </div>
 
                     <!-- Right: Results -->
-                    <div class="relative flex-1 p-4 overflow-y-auto transition-opacity"
-                         class:opacity-50={$checkResultStore.stale}
-                         class:pointer-events-none={$checkResultStore.stale}>
+                    <div class="relative flex-1 p-4 overflow-y-auto">
 
                         {#if $checkResultStore.isRunning && !report}
                             <div class="h-full flex items-center justify-center">
@@ -276,6 +275,22 @@
                             </div>
                         {:else if report}
                             <div class="space-y-3.5 pb-2">
+
+                                {#if $checkResultStore.stale}
+                                    <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border border-amber-400/35 bg-amber-500/[0.12]"
+                                         transition:slide={{ duration: isLite ? 0 : 150 }}>
+                                        <span class="material-icons text-amber-300" style="font-size:18px;">info</span>
+                                        <span class="text-sm text-amber-200/90 flex-1">Results may be out of date</span>
+                                        <button
+                                            class="px-3 py-1 text-xs font-medium rounded-md border border-amber-400/35
+                                                   bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 transition-colors"
+                                            on:click={() => dispatch('runCheck')}
+                                        >
+                                            <span class="material-icons text-xs align-middle mr-0.5">refresh</span>
+                                            Re-run
+                                        </button>
+                                    </div>
+                                {/if}
 
                                 <!-- Telemetry strip -->
                                 <div class="flex rounded-xl border border-white/10 bg-white/5 overflow-hidden">
@@ -300,21 +315,26 @@
                                 <!-- Clusters + Consensus bento -->
                                 <div class="grid grid-cols-1 xl:grid-cols-[1.3fr_1fr] gap-3">
                                     <!-- Top Problem Clusters (with impact bars) -->
-                                    <div class="rounded-xl border border-white/10 bg-white/5 p-3">
+                                    <div class={'rounded-xl border bg-white/5 p-3 '
+                                        + (report.errorCount > 0
+                                            ? 'border-red-400/20 border-l-2 border-l-red-400/40 shadow-[0_0_20px_rgba(248,113,113,0.06)]'
+                                            : report.warningCount > 0
+                                                ? 'border-amber-400/20 border-l-2 border-l-amber-400/40'
+                                                : 'border-white/10')}>
                                         <div class="text-[11px] uppercase tracking-[0.08em] text-white/35 font-medium mb-2">
                                             Top Problem Clusters
                                         </div>
                                         {#if topClusters.length === 0}
                                             <div class="text-sm text-white/40">No clustered findings</div>
                                         {:else}
-                                            <div class="space-y-1">
+                                            <div class="space-y-1.5">
                                                 {#each topClusters as cluster}
-                                                    <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-white/5 transition-colors">
+                                                    <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.06] transition-colors">
                                                         <div class={'w-1.5 h-1.5 rounded-full shrink-0 ' + dotBgClass(cluster.severity)}
                                                              class:severity-dot-glow={cluster.severity === 'error'}></div>
                                                         <div class="flex-1 min-w-0">
-                                                            <div class="text-sm font-medium text-white/85 truncate">{cluster.label}</div>
-                                                            <div class="text-[11px] text-white/35">
+                                                            <div class="text-base font-medium text-white/85 truncate">{cluster.label}</div>
+                                                            <div class="text-xs text-white/35">
                                                                 {cluster.fileCount} file{cluster.fileCount !== 1 ? 's' : ''} · {sourceLabel(cluster.source)}
                                                             </div>
                                                         </div>
@@ -363,7 +383,7 @@
                                                             </div>
                                                         {/if}
                                                         {#if cs.medianDurationSec > 0 || cs.consensusAudioTrackCount >= 0}
-                                                            <div class="flex items-center gap-2 mt-1 text-xs text-white/55">
+                                                            <div class="flex items-center gap-2 mt-4 text-xs text-white/55">
                                                                 <span class="w-12 shrink-0"></span>
                                                                 {#if cs.medianDurationSec > 0}
                                                                     <span class="flex items-center gap-1">
@@ -460,25 +480,6 @@
                         {/if}
                     </div>
 
-                    {#if $checkResultStore.stale}
-                        <div class={(isLite ? 'bg-black/70' : 'bg-black/55 backdrop-blur-sm') + ' absolute inset-y-0 right-0 left-[18rem] flex items-center justify-center p-4'}>
-                            <div class="max-w-sm w-full rounded-lg border border-amber-400/25 bg-amber-500/10 p-4 text-center"
-                                 transition:slide={{ duration: isLite ? 0 : 200 }}>
-                                <div class="text-sm text-amber-200 font-medium mb-1">Results are out of date</div>
-                                <div class="text-xs text-amber-200/80 mb-3">
-                                    Profile or check settings changed. Re-run to refresh diagnostics.
-                                </div>
-                                <button
-                                    class="w-full px-3 py-2 rounded-md text-sm border border-amber-400/35
-                                           bg-amber-500/15 text-amber-200 hover:bg-amber-500/25 transition-colors"
-                                    on:click={() => dispatch('runCheck')}
-                                >
-                                    <span class="material-icons text-sm align-middle mr-1">refresh</span>
-                                    Re-run Check
-                                </button>
-                            </div>
-                        </div>
-                    {/if}
                 </div>
             </div>
         </div>

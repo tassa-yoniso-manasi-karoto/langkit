@@ -82,6 +82,8 @@
     
     // Application processing state
     export let isProcessing = false;
+    // Preflight check state (distinct from processing)
+    export let isChecking = false;
     // Window state prop to disable animations when minimized
     export let isWindowMinimized = false;
     // User activity state from parent
@@ -108,6 +110,18 @@
     let lastProcessingState = false;
     let errorClearTimeout: ReturnType<typeof setTimeout> | null = null;
     
+    // Track check state transitions for status text
+    let lastCheckingState = false;
+    $: if (isChecking && !lastCheckingState) {
+        lastCheckingState = true;
+        statusText = "Checking media...";
+    } else if (!isChecking && lastCheckingState) {
+        lastCheckingState = false;
+        if (!isProcessing) {
+            statusText = "Processing Status";
+        }
+    }
+
     // Reset state counters when processing starts
     $: if (isProcessing && !lastProcessingState) {
         // When processing starts after being stopped, reset all error states and counters
@@ -449,7 +463,7 @@
         abortedTasksCount = 0;
         isGlobalAbort = false;
         taskErrors.clear();
-        statusText = isProcessing ? "In progress..." : "Processing Status";
+        statusText = isProcessing ? "In progress..." : isChecking ? "Checking media..." : "Processing Status";
     }
 </script>
 
@@ -503,7 +517,7 @@
                      </svg>
                 {:else}
                     <!-- Fallback simple span for normal/cancel/completion states OR while minimized to save CPU -->
-                    {@const isCompleteAndSuccessful = !isProcessing && !userCancelled && !isGlobalAbort && abortedTasksCount === 0}
+                    {@const isCompleteAndSuccessful = !isProcessing && !userCancelled && !isGlobalAbort && abortedTasksCount === 0 && !isChecking}
                     <span class="font-bold text-xl status-text"
                           class:gradient-text-completion={isCompleteAndSuccessful}
                           class:text-gray-300={!isCompleteAndSuccessful && !isGlobalAbort && abortedTasksCount === 0 && !userCancelled}
