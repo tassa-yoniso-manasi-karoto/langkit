@@ -62,7 +62,7 @@
     import type { CheckRequest, AutoCheckConfig, ExpectationProfile as ExpProfile } from './api/services/expectation';
     import { checkResultStore, checkState } from './lib/checkResultStore';
     import { expectationProfilesStore } from './lib/expectationProfilesStore';
-    import PreflightBar from './components/PreflightBar.svelte';
+    import ActionBar from './components/ActionBar.svelte';
     import PreflightDrawer from './components/PreflightDrawer.svelte';
     import DiagnosticModal from './components/DiagnosticModal.svelte';
     import type { gui } from '../wailsjs/go/models';
@@ -121,7 +121,7 @@
     // Diagnostic modal state
     let showDiagnosticModal = false;
 
-    // Expectation profiles (shared between PreflightBar and DiagnosticModal)
+    // Expectation profiles (shared between ActionBar and DiagnosticModal)
     let expectationProfiles: ExpProfile[] = [];
     var unsubProfiles = expectationProfilesStore.subscribe(function(p) {
         expectationProfiles = p;
@@ -779,22 +779,6 @@
         if ($checkState === 'checked_with_errors_unacknowledged') {
             checkResultStore.acknowledge();
             // Fall through to start processing
-        }
-
-        // Silent preflight check: run if unchecked or stale
-        if ($checkState === 'unchecked' || $checkState === 'stale') {
-            var checkOk = await handleExpectationCheck();
-            if (!checkOk) {
-                // Check failed (network error, timeout, etc.) — don't proceed
-                return;
-            }
-            // If errors found, open inspector in preflight tab and stop
-            if ($checkResultStore.report && $checkResultStore.report.errorCount > 0) {
-                showLogViewer = true;
-                inspectorMode = 'preflight';
-                return;
-            }
-            // Warnings/info do NOT block — proceed to processing
         }
 
         // Increment process start count
@@ -1980,11 +1964,11 @@
                         <ProgressManager {isProcessing} isChecking={$checkResultStore.isRunning} {isWindowMinimized} {userActivityState} />
                     </div>
                     
-                    <!-- Preflight Bar + Action Buttons -->
+                    <!-- Action Bar + Cancel Button -->
                     <div class="max-w-2xl mx-auto flex items-end gap-3 pb-0 will-change-transform">
-                        <!-- Preflight bar (mode dropdown, process/check buttons) -->
+                        <!-- Action bar (mode dropdown, check/process buttons) -->
                         <div class="flex-1">
-                            <PreflightBar
+                            <ActionBar
                                 profiles={expectationProfiles}
                                 bind:checkMode
                                 bind:selectedProfileName={selectedExpectationProfile}

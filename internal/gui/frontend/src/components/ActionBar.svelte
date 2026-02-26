@@ -1,8 +1,10 @@
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
+    import { createEventDispatcher, onDestroy } from 'svelte';
     import { liteModeStore } from '../lib/stores';
     import type { ExpectationProfile } from '../api/generated/api.gen';
     import type { CheckState } from '../lib/checkResultStore';
+    import { invalidationErrorStore } from '../lib/invalidationErrorStore';
+    import ProcessErrorTooltip from './ProcessErrorTooltip.svelte';
 
     export let profiles: ExpectationProfile[] = [];
     export let checkMode: string = 'auto';
@@ -88,6 +90,52 @@
 
     $: isAcknowledge = checkState === 'checked_with_errors_unacknowledged';
     $: busy = isProcessing || checkState === 'running';
+
+    // Invalidation error gating (restores old ProcessButton behavior)
+    var errors: any[] = [];
+    var showTooltip = false;
+    var processButtonRef: HTMLButtonElement;
+    var tooltipPosition = { x: 0, y: 0 };
+
+    var unsubErrors = invalidationErrorStore.subscribe(function(val) {
+        errors = val;
+    });
+    onDestroy(function() { unsubErrors(); });
+
+    $: hasCriticalErrors = errors.some(function(e) {
+        return e.severity === 'critical';
+    });
+    $: shouldGrayOut = busy || errors.some(function(e) {
+        return (e.id === 'no-media' || e.id === 'no-features')
+            && e.severity === 'critical';
+    });
+    $: hasAnyErrors = errors.length > 0;
+
+    function handleProcessClick() {
+        if (hasCriticalErrors || busy) return;
+        dispatch('process');
+    }
+
+    function handleProcessMouseOver(event: MouseEvent) {
+        if (!hasAnyErrors) return;
+        showTooltip = true;
+        tooltipPosition = {
+            x: event.clientX,
+            y: event.clientY - 10
+        };
+    }
+
+    function handleProcessMouseMove(event: MouseEvent) {
+        if (!showTooltip || !hasAnyErrors) return;
+        tooltipPosition = {
+            x: event.clientX,
+            y: event.clientY - 10
+        };
+    }
+
+    function handleProcessMouseOut() {
+        showTooltip = false;
+    }
 </script>
 
 <div class="flex items-center gap-2">
@@ -115,20 +163,28 @@
     </button>
 
     <button
+        bind:this={processButtonRef}
         class={'flex-1 h-12 px-5 text-sm font-semibold rounded-lg border transition-all '
             + 'flex items-center justify-center gap-1.5 whitespace-nowrap '
             + (isAcknowledge
                 ? 'border-amber-400/30 bg-amber-500/[0.12] text-amber-200 hover:bg-amber-500/20 btn-process-ack'
                 : 'border-transparent bg-primary text-white btn-process')
-            + (busy ? ' opacity-50 cursor-not-allowed' : '')}
-        disabled={busy}
-        on:click={() => dispatch('process')}
+            + (shouldGrayOut ? ' opacity-50 cursor-not-allowed' : '')}
+        disabled={busy || hasCriticalErrors}
+        on:click={handleProcessClick}
+        on:mouseover={handleProcessMouseOver}
+        on:mousemove={handleProcessMouseMove}
+        on:mouseout={handleProcessMouseOut}
     >
         <span class={'material-icons text-sm' + (busy ? ' animate-spin' : '')}>
             {processIcon}
         </span>
         {processLabel}
     </button>
+
+    {#if showTooltip && hasAnyErrors}
+        <ProcessErrorTooltip position={tooltipPosition} />
+    {/if}
 </div>
 
 <style>
