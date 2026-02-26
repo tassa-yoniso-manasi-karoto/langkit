@@ -32,6 +32,7 @@ struct ValidationIssue
   - category: string
   - issueCode: string
   - message: string
+  - subjectLabel: string
 
 struct DirectoryConsensusSummary
   - directory: string

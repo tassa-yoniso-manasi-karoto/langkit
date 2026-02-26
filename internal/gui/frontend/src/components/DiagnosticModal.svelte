@@ -68,12 +68,17 @@
     }
 
     // Group a single file's issues by issueCode for the tree view
+    interface IssueItem {
+        message: string;
+        subjectLabel: string;
+    }
+
     interface IssueCodeGroup {
         code: string;
         label: string;
         severity: string;
         count: number;
-        messages: string[];
+        items: IssueItem[];
     }
 
     function groupIssuesByCode(issues: ValidationIssue[]): IssueCodeGroup[] {
@@ -95,12 +100,15 @@
             var c = order[j];
             var entry = byCode[c];
             var seen: Record<string, boolean> = {};
-            var messages: string[] = [];
+            var items: IssueItem[] = [];
             for (var k = 0; k < entry.issues.length; k++) {
                 var msg = entry.issues[k].message || '';
                 if (msg && !seen[msg]) {
                     seen[msg] = true;
-                    messages.push(msg);
+                    items.push({
+                        message: msg,
+                        subjectLabel: entry.issues[k].subjectLabel || '',
+                    });
                 }
             }
             groups.push({
@@ -108,7 +116,7 @@
                 label: codeLabelMap[c] || humanize(c),
                 severity: normalizeSeverity(entry.severity),
                 count: entry.issues.length,
-                messages: messages,
+                items: items,
             });
         }
         groups.sort(function(a, b) {
@@ -125,6 +133,61 @@
             result += parts[i].charAt(0).toUpperCase() + parts[i].slice(1);
         }
         return result || 'Unknown';
+    }
+
+    // Episode-aware filename truncation: preserves "S02E31" markers
+    // while truncating the series title prefix. Returns structured
+    // parts so the episode marker can be styled independently.
+    interface BasenameParts {
+        prefix: string;
+        episode: string;
+        suffix: string;
+    }
+
+    var episodePattern = /(?:S\d+E\d+|E\d+|\d+x\d+)/i;
+
+    function smartBasename(name: string): BasenameParts {
+        var match = episodePattern.exec(name);
+        if (!match || match.index === undefined) {
+            return { prefix: name, episode: '', suffix: '' };
+        }
+
+        var markerStart = match.index;
+        var prefix = name.slice(0, markerStart);
+        var episode = match[0];
+        var suffix = name.slice(markerStart + episode.length);
+
+        // Clean separators at boundaries
+        prefix = prefix.replace(/[\s._-]+$/, '');
+        suffix = suffix.replace(/^[\s._-]+/, '');
+
+        var maxPrefix = 18;
+        if (prefix.length > maxPrefix) {
+            prefix = prefix.slice(0, maxPrefix) + '\u2026';
+        }
+
+        var maxSuffix = 24;
+        if (suffix.length > maxSuffix) {
+            suffix = suffix.slice(0, maxSuffix) + '\u2026';
+        }
+
+        return { prefix: prefix, episode: episode, suffix: suffix };
+    }
+
+    // Splits a message around the subjectLabel so the label can
+    // be rendered as an inline code block wherever it appears.
+    type MsgPart = { text: string; isLabel: boolean };
+
+    function splitByLabel(msg: string, label: string): MsgPart[] {
+        if (!label) return [{ text: msg, isLabel: false }];
+        var idx = msg.indexOf(label);
+        if (idx === -1) return [{ text: msg, isLabel: false }];
+        var parts: MsgPart[] = [];
+        if (idx > 0) parts.push({ text: msg.slice(0, idx), isLabel: false });
+        parts.push({ text: label, isLabel: true });
+        var rest = msg.slice(idx + label.length);
+        if (rest) parts.push({ text: rest, isLabel: false });
+        return parts;
     }
 
     // Severity dots for file list (one per issue code, sorted by severity)
@@ -421,6 +484,7 @@
                                                 <div class="px-3 py-4 text-sm text-white/40">No files with findings</div>
                                             {:else}
                                                 {#each triageFiles as triage}
+                                                    {@const bn = smartBasename(triage.name)}
                                                     <button
                                                         class={'w-full flex items-center justify-between px-3 py-2 '
                                                             + 'border-b border-white/[0.06] border-l-2 text-left transition-colors '
@@ -429,7 +493,8 @@
                                                                 : 'border-l-transparent text-white/55 hover:bg-white/5')}
                                                         on:click={() => activeTriageFilePath = triage.path}
                                                     >
-                                                        <span class="font-mono text-xs truncate">{triage.name}</span>
+                                                        <span class="text-xs truncate" title={triage.name}
+                                                            >{#if bn.episode}<span class="text-white/50">{bn.prefix}</span>{' '}<span class="font-mono font-medium text-white/75">{bn.episode}</span>{#if bn.suffix}{' '}<span class="text-white/50">{bn.suffix}</span>{/if}{:else}{triage.name}{/if}</span>
                                                         <div class="flex gap-1 shrink-0 ml-2">
                                                             {#each fileSeverityDots(triage.issues) as sev}
                                                                 <div class="w-1.5 h-1.5 rounded-full" style={dotColorStyle(sev)}></div>
@@ -443,25 +508,29 @@
                                         <!-- Right: Detail pane (issue tree) -->
                                         <div class="flex-1 p-3.5 overflow-y-auto bg-black/[0.35]">
                                             {#if activeTriageFile}
+                                                {@const hdr = smartBasename(activeTriageFile.name)}
                                                 <div class="flex items-center gap-2 mb-3">
-                                                    <span class="font-mono text-xs text-white/55">{activeTriageFile.name}</span>
+                                                    <span class="text-xs text-white/60" title={activeTriageFile.name}
+                                                        >{#if hdr.episode}<span class="text-white/45">{hdr.prefix}</span>{' '}<span class="font-mono font-medium text-white/70">{hdr.episode}</span>{#if hdr.suffix}{' '}<span class="text-white/45">{hdr.suffix}</span>{/if}{:else}{activeTriageFile.name}{/if}</span>
                                                     <span class="text-[10px] px-2 py-0.5 rounded-full border font-medium {statusBadgeClass(activeTriageFile.status)}">
                                                         {statusText(activeTriageFile.status)}
                                                     </span>
                                                 </div>
-                                                <div class="space-y-2">
+                                                <div class="space-y-3.5">
                                                     {#each activeIssueGroups as group}
                                                         <div>
                                                             <div class="flex items-center gap-1.5 text-xs font-medium">
                                                                 <div class={'w-[5px] h-[5px] rounded-full shrink-0 ' + dotBgClass(group.severity)}></div>
-                                                                <span class="text-white/75">{group.label}</span>
-                                                                <span class="text-white/35 font-normal">× {group.count}</span>
+                                                                <span class="text-white/85">{group.label}</span>
+                                                                <span class="text-white/40 font-normal">× {group.count}</span>
                                                             </div>
-                                                            {#each group.messages as msg}
-                                                                <div class="ml-3 pl-2.5 text-xs text-white/55 leading-relaxed border-l border-white/[0.06]">
-                                                                    {msg}
-                                                                </div>
-                                                            {/each}
+                                                            <div class="mt-1.5 space-y-1.5">
+                                                                {#each group.items as item}
+                                                                    <div class="ml-3 pl-2.5 py-0.5 text-xs text-white/65 leading-relaxed border-l border-white/[0.08]">
+                                                                        {#each splitByLabel(item.message, item.subjectLabel) as part}{#if part.isLabel}<code class="inline-code">{part.text}</code>{:else}{part.text}{/if}{/each}
+                                                                    </div>
+                                                                {/each}
+                                                            </div>
                                                         </div>
                                                     {/each}
                                                 </div>
@@ -489,5 +558,14 @@
 <style>
     .severity-dot-glow {
         box-shadow: 0 0 8px rgba(248, 113, 113, 0.6);
+    }
+    .inline-code {
+        font-family: 'DM Mono', monospace;
+        font-size: 0.7rem;
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.25rem;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.75);
     }
 </style>

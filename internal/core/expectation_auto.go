@@ -275,14 +275,15 @@ func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths [
 			fileCount := subCountByLang[lang]
 			if fileCount != modeCount {
 				report.AddIssue(Issue{
-					Severity: SeverityInfo,
-					Source:   SourceAuto,
-					FilePath: fp,
-					Category: "consistency",
-					Code:     CodeAutoSubCount,
+					Severity:     SeverityInfo,
+					Source:       SourceAuto,
+					FilePath:     fp,
+					Category:     "consistency",
+					Code:         CodeAutoSubCount,
 					Message: "has " + itoa(fileCount) + " " + lang +
 						" subtitle source(s) (most files have " +
 						itoa(modeCount) + ")",
+					SubjectLabel: lang,
 				})
 			}
 		}
@@ -313,14 +314,15 @@ func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[strin
 		if !fileLangs[lang] {
 			support := allLangCounts[lang]
 			report.AddIssue(Issue{
-				Severity: SeverityWarning,
-				Source:   SourceAuto,
-				FilePath: fp,
-				Category: "consistency",
-				Code:     code,
+				Severity:     SeverityWarning,
+				Source:       SourceAuto,
+				FilePath:     fp,
+				Category:     "consistency",
+				Code:         code,
 				Message: "missing " + lang + " " + trackType +
 					" (present in " + itoa(support) +
 					" of " + itoa(n) + " files)",
+				SubjectLabel: lang,
 			})
 		}
 	}
@@ -330,14 +332,15 @@ func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[strin
 		if !fileLangs[lang] {
 			support := allLangCounts[lang]
 			report.AddIssue(Issue{
-				Severity: SeverityInfo,
-				Source:   SourceAuto,
-				FilePath: fp,
-				Category: "consistency",
-				Code:     code,
+				Severity:     SeverityInfo,
+				Source:       SourceAuto,
+				FilePath:     fp,
+				Category:     "consistency",
+				Code:         code,
 				Message: "missing " + lang + " " + trackType +
 					" (present in " + itoa(support) +
 					" of " + itoa(n) + " files)",
+				SubjectLabel: lang,
 			})
 		}
 	}

@@ -178,7 +178,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	}
 
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
-		if ok := tsk.checkIntegrity(); ok  {
+		if ok := tsk.checkIntegrity(ctx); ok  {
 			tsk.Execute(ctx)
 		}
 	} else {
@@ -194,7 +194,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			tsk.NativeSubFile = ""
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
-			if ok := tsk.checkIntegrity(); !ok {
+			if ok := tsk.checkIntegrity(ctx); !ok {
 				continue
 			}
 
@@ -404,7 +404,7 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 }
 
 
-func (tsk *Task) checkIntegrity() bool {
+func (tsk *Task) checkIntegrity(ctx context.Context) bool {
 	// Use decode depth cached at the start of the Routing() run.
 	depth := tsk.Meta.DecodeDepth
 	if depth == "" {
@@ -422,32 +422,15 @@ func (tsk *Task) checkIntegrity() bool {
 	}
 	tsk.Meta.MediaInfo = mi
 
-	// Resolve the audio stream that will actually be used for processing.
-	// Priority: 1) explicitly pinned track, 2) target-language match,
-	// 3) first audio stream. Never fall back to all streams — routing
-	// only needs to validate the stream it will process.
+	// Validate all audio tracks rather than predicting which one
+	// processing will pick. The decode is sampled (3 windows) so
+	// per-track overhead is bounded, and this avoids the mismatch
+	// where checkIntegrity selects one track but prepareAudio later
+	// picks a different one via getIdealTrack.
 	var audioIndices []int
-	if tsk.UseAudiotrack >= 0 && tsk.UseAudiotrack < len(mi.AudioTracks) {
-		// Pinned track from CLI -a flag or GUI
-		if idx, parseErr := strconv.Atoi(mi.AudioTracks[tsk.UseAudiotrack].StreamOrder); parseErr == nil {
-			audioIndices = []int{idx}
-		}
-	}
-	if len(audioIndices) == 0 && tsk.Targ.Language != nil {
-		// Language-matched tracks (returns matched only, not all)
-		for _, at := range mi.AudioTracks {
-			if langMatchesExpected(at.Language, tsk.Targ) {
-				if idx, parseErr := strconv.Atoi(at.StreamOrder); parseErr == nil {
-					audioIndices = append(audioIndices, idx)
-				}
-				break // only need one match for routing
-			}
-		}
-	}
-	if len(audioIndices) == 0 && len(mi.AudioTracks) > 0 {
-		// Fallback: first audio stream only
-		if idx, parseErr := strconv.Atoi(mi.AudioTracks[0].StreamOrder); parseErr == nil {
-			audioIndices = []int{idx}
+	for _, at := range mi.AudioTracks {
+		if idx, parseErr := strconv.Atoi(at.StreamOrder); parseErr == nil {
+			audioIndices = append(audioIndices, idx)
 		}
 	}
 
@@ -456,7 +439,7 @@ func (tsk *Task) checkIntegrity() bool {
 		CheckVideo:         mi.VideoTrack.Type != "",
 	}
 
-	results, err := media.CheckDecodeIntegrity(tsk.MediaSourceFile, depth, scope)
+	results, err := media.CheckDecodeIntegrity(ctx, tsk.MediaSourceFile, depth, scope)
 	if err != nil {
 		tsk.Handler.ZeroLog().Error().Err(err).
 			Str("video", tsk.MediaSourceFile).

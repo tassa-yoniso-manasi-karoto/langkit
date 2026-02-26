@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -57,7 +58,7 @@ type sampleWindow struct {
 // Execution failures (e.g. FFmpeg binary missing) are surfaced as
 // corrupted results with descriptive error output so they are never
 // silently treated as clean.
-func CheckDecodeIntegrity(path string, depth IntegrityDepth, scope DecodeScope) ([]DecodeCheckResult, error) {
+func CheckDecodeIntegrity(ctx context.Context, path string, depth IntegrityDepth, scope DecodeScope) ([]DecodeCheckResult, error) {
 	var results []DecodeCheckResult
 
 	// Get file duration for sample-point calculation.
@@ -66,13 +67,13 @@ func CheckDecodeIntegrity(path string, depth IntegrityDepth, scope DecodeScope) 
 	// Audio streams
 	for _, idx := range scope.AudioStreamIndices {
 		if depth == IntegrityFull {
-			res := decodeFull(path, idx, false)
+			res := decodeFull(ctx, path, idx, false)
 			results = append(results, res)
 		} else {
 			var failed bool
 			windows := buildSampleWindows(totalDur, durErr)
 			for _, w := range windows {
-				res := decodeSample(path, idx, false, w)
+				res := decodeSample(ctx, path, idx, false, w)
 				if res.Corrupted {
 					results = append(results, res)
 					failed = true
@@ -90,7 +91,7 @@ func CheckDecodeIntegrity(path string, depth IntegrityDepth, scope DecodeScope) 
 		var failed bool
 		windows := buildSampleWindows(totalDur, durErr)
 		for _, w := range windows {
-			res := decodeSample(path, -1, true, w)
+			res := decodeSample(ctx, path, -1, true, w)
 			if res.Corrupted {
 				results = append(results, res)
 				failed = true
@@ -134,7 +135,7 @@ func buildSampleWindows(totalDur float64, durErr error) []sampleWindow {
 }
 
 // decodeFull runs a full decode of a single stream.
-func decodeFull(path string, streamIdx int, isVideo bool) DecodeCheckResult {
+func decodeFull(ctx context.Context, path string, streamIdx int, isVideo bool) DecodeCheckResult {
 	args := baseDecodeArgs()
 	args = append(args, "-i", path)
 	args = append(args, mapAndFilterArgs(streamIdx, isVideo)...)
@@ -145,7 +146,7 @@ func decodeFull(path string, streamIdx int, isVideo bool) DecodeCheckResult {
 		idx = -1
 	}
 
-	stderr, execErr := runFFmpegDecode(args)
+	stderr, execErr := runFFmpegDecode(ctx, args)
 	if execErr != nil {
 		return DecodeCheckResult{
 			Corrupted:   true,
@@ -162,7 +163,7 @@ func decodeFull(path string, streamIdx int, isVideo bool) DecodeCheckResult {
 }
 
 // decodeSample runs a windowed decode of a single stream.
-func decodeSample(path string, streamIdx int, isVideo bool, w sampleWindow) DecodeCheckResult {
+func decodeSample(ctx context.Context, path string, streamIdx int, isVideo bool, w sampleWindow) DecodeCheckResult {
 	args := baseDecodeArgs()
 	// -ss before -i for fast seek
 	args = append(args, "-ss", formatSeconds(w.seekSec))
@@ -176,7 +177,7 @@ func decodeSample(path string, streamIdx int, isVideo bool, w sampleWindow) Deco
 		idx = -1
 	}
 
-	stderr, execErr := runFFmpegDecode(args)
+	stderr, execErr := runFFmpegDecode(ctx, args)
 	if execErr != nil {
 		return DecodeCheckResult{
 			Corrupted:   true,
@@ -221,8 +222,8 @@ func mapAndFilterArgs(streamIdx int, isVideo bool) []string {
 // could not be launched (missing, permission denied, etc.) — distinct
 // from a non-zero exit code caused by corrupt input, which shows up
 // as stderr content with a nil error.
-func runFFmpegDecode(args []string) (string, error) {
-	cmd := executils.NewCommand(FFmpegPath, args...)
+func runFFmpegDecode(ctx context.Context, args []string) (string, error) {
+	cmd := executils.CommandContext(ctx, FFmpegPath, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
