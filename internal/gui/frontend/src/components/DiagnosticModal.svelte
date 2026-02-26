@@ -71,6 +71,8 @@
     interface IssueItem {
         message: string;
         subjectLabel: string;
+        messagePrefix: string;
+        messageSuffix: string;
     }
 
     interface IssueCodeGroup {
@@ -108,6 +110,8 @@
                     items.push({
                         message: msg,
                         subjectLabel: entry.issues[k].subjectLabel || '',
+                        messagePrefix: entry.issues[k].messagePrefix || '',
+                        messageSuffix: entry.issues[k].messageSuffix || '',
                     });
                 }
             }
@@ -172,22 +176,6 @@
         }
 
         return { prefix: prefix, episode: episode, suffix: suffix };
-    }
-
-    // Splits a message around the subjectLabel so the label can
-    // be rendered as an inline code block wherever it appears.
-    type MsgPart = { text: string; isLabel: boolean };
-
-    function splitByLabel(msg: string, label: string): MsgPart[] {
-        if (!label) return [{ text: msg, isLabel: false }];
-        var idx = msg.indexOf(label);
-        if (idx === -1) return [{ text: msg, isLabel: false }];
-        var parts: MsgPart[] = [];
-        if (idx > 0) parts.push({ text: msg.slice(0, idx), isLabel: false });
-        parts.push({ text: label, isLabel: true });
-        var rest = msg.slice(idx + label.length);
-        if (rest) parts.push({ text: rest, isLabel: false });
-        return parts;
     }
 
     // Severity dots for file list (one per issue code, sorted by severity)
@@ -527,7 +515,7 @@
                                                             <div class="mt-1.5 space-y-1.5">
                                                                 {#each group.items as item}
                                                                     <div class="ml-3 pl-2.5 py-0.5 text-xs text-white/65 leading-relaxed border-l border-white/[0.08]">
-                                                                        {#each splitByLabel(item.message, item.subjectLabel) as part}{#if part.isLabel}<code class="inline-code">{part.text}</code>{:else}{part.text}{/if}{/each}
+                                                                        {#if item.subjectLabel}{item.messagePrefix}<code class="inline-code">{item.subjectLabel}</code>{item.messageSuffix}{:else}{item.message}{/if}
                                                                     </div>
                                                                 {/each}
                                                             </div>

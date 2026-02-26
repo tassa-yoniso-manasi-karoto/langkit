@@ -274,16 +274,19 @@ func runAutoChecks(report *ValidationReport, dc *DirectoryConsensus, filePaths [
 			}
 			fileCount := subCountByLang[lang]
 			if fileCount != modeCount {
+				prefix := "has " + itoa(fileCount) + " "
+				suffix := " subtitle source(s) (most files have " +
+					itoa(modeCount) + ")"
 				report.AddIssue(Issue{
-					Severity:     SeverityInfo,
-					Source:       SourceAuto,
-					FilePath:     fp,
-					Category:     "consistency",
-					Code:         CodeAutoSubCount,
-					Message: "has " + itoa(fileCount) + " " + lang +
-						" subtitle source(s) (most files have " +
-						itoa(modeCount) + ")",
-					SubjectLabel: lang,
+					Severity:      SeverityInfo,
+					Source:        SourceAuto,
+					FilePath:      fp,
+					Category:      "consistency",
+					Code:          CodeAutoSubCount,
+					Message:       prefix + lang + suffix,
+					SubjectLabel:  lang,
+					MessagePrefix: prefix,
+					MessageSuffix: suffix,
 				})
 			}
 		}
@@ -313,16 +316,19 @@ func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[strin
 	for _, lang := range quorumLangs {
 		if !fileLangs[lang] {
 			support := allLangCounts[lang]
+			suffix := " " + trackType +
+				" (present in " + itoa(support) +
+				" of " + itoa(n) + " files)"
 			report.AddIssue(Issue{
-				Severity:     SeverityWarning,
-				Source:       SourceAuto,
-				FilePath:     fp,
-				Category:     "consistency",
-				Code:         code,
-				Message: "missing " + lang + " " + trackType +
-					" (present in " + itoa(support) +
-					" of " + itoa(n) + " files)",
-				SubjectLabel: lang,
+				Severity:      SeverityWarning,
+				Source:        SourceAuto,
+				FilePath:      fp,
+				Category:      "consistency",
+				Code:          code,
+				Message:       "missing " + lang + suffix,
+				SubjectLabel:  lang,
+				MessagePrefix: "missing ",
+				MessageSuffix: suffix,
 			})
 		}
 	}
@@ -331,16 +337,19 @@ func checkLangConsensus(report *ValidationReport, fp string, fileLangs map[strin
 	for _, lang := range softLangs {
 		if !fileLangs[lang] {
 			support := allLangCounts[lang]
+			suffix := " " + trackType +
+				" (present in " + itoa(support) +
+				" of " + itoa(n) + " files)"
 			report.AddIssue(Issue{
-				Severity:     SeverityInfo,
-				Source:       SourceAuto,
-				FilePath:     fp,
-				Category:     "consistency",
-				Code:         code,
-				Message: "missing " + lang + " " + trackType +
-					" (present in " + itoa(support) +
-					" of " + itoa(n) + " files)",
-				SubjectLabel: lang,
+				Severity:      SeverityInfo,
+				Source:        SourceAuto,
+				FilePath:      fp,
+				Category:      "consistency",
+				Code:          code,
+				Message:       "missing " + lang + suffix,
+				SubjectLabel:  lang,
+				MessagePrefix: "missing ",
+				MessageSuffix: suffix,
 			})
 		}
 	}

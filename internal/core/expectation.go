@@ -93,13 +93,15 @@ const (
 
 // Issue represents a single validation finding.
 type Issue struct {
-	Severity     Severity
-	Source       IssueSource
-	FilePath     string
-	Category     string // "integrity", "language", "duration", "subtitle", "structure", "consistency"
-	Code         string // stable grouping key (one of the Code* constants)
-	Message      string
-	SubjectLabel string // e.g. "Audio (jpn)", "Subtitle (ara-SA)", "Audio track 2"
+	Severity      Severity
+	Source        IssueSource
+	FilePath      string
+	Category      string // "integrity", "language", "duration", "subtitle", "structure", "consistency"
+	Code          string // stable grouping key (one of the Code* constants)
+	Message       string
+	SubjectLabel  string // e.g. "Audio (jpn)", "Subtitle (ara-SA)", "Audio track 2"
+	MessagePrefix string // text before SubjectLabel (for frontend rendering)
+	MessageSuffix string // text after SubjectLabel (for frontend rendering)
 }
 
 // AutoCheckConfig controls auto mode (consistency detection) behavior.

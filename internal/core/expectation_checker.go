@@ -401,37 +401,46 @@ func checkDecodeResults(report *ValidationReport, filePath string, result *FileC
 		if !dr.Corrupted {
 			continue
 		}
-		var msg string
-		var code string
-		var label string
+		var issueCode string
+		var fullLabel string
+		var langCode string
+		var msgPrefix string
+		var msgSuffix string
 		if dr.StreamIndex == -1 {
-			msg = "Video stream decode failed"
-			code = CodeVideoDecodeFailed
+			issueCode = CodeVideoDecodeFailed
+			fullLabel = "Video stream"
 		} else {
+			issueCode = CodeAudioDecodeFailed
 			if pos, ok := streamToPos[dr.StreamIndex]; ok {
-				label = audioTrackLabel(result.MediaInfo.AudioTracks, pos)
+				fullLabel = audioTrackLabel(result.MediaInfo.AudioTracks, pos)
+				langCode = audioTrackLangCode(result.MediaInfo.AudioTracks, pos)
 			} else {
-				label = "Audio stream " + itoa(dr.StreamIndex)
+				fullLabel = "Audio stream " + itoa(dr.StreamIndex)
 			}
-			msg = label + " decode failed"
-			code = CodeAudioDecodeFailed
 		}
+		tail := " decode failed"
 		if dr.ErrorOutput != "" {
-			// Trim to first line for conciseness
 			firstLine := dr.ErrorOutput
 			if idx := strings.Index(firstLine, "\n"); idx != -1 {
 				firstLine = firstLine[:idx]
 			}
-			msg += ": " + strings.TrimSpace(firstLine)
+			tail += ": " + strings.TrimSpace(firstLine)
+		}
+		msg := fullLabel + tail
+		if langCode != "" {
+			msgPrefix = "Audio "
+			msgSuffix = tail
 		}
 		report.AddIssue(Issue{
-			Severity:     SeverityError,
-			Source:       SourceStructural,
-			FilePath:     filePath,
-			Category:     "integrity",
-			Code:         code,
-			Message:      msg,
-			SubjectLabel: label,
+			Severity:      SeverityError,
+			Source:        SourceStructural,
+			FilePath:      filePath,
+			Category:      "integrity",
+			Code:          issueCode,
+			Message:       msg,
+			SubjectLabel:  langCode,
+			MessagePrefix: msgPrefix,
+			MessageSuffix: msgSuffix,
 		})
 	}
 }
@@ -564,16 +573,26 @@ func mergeCorrelatedFindings(report *ValidationReport, log zerolog.Logger) {
 	for fp, tracks := range fileCorrupt {
 		for _, ci := range tracks {
 			if ci.audioDur > 0 && ci.videoDur > 0 {
+				tracks := report.FileResults[fp].MediaInfo.AudioTracks
+				fullLabel := audioTrackLabel(tracks, ci.trackPos)
+				lc := audioTrackLangCode(tracks, ci.trackPos)
+				tail := " corrupt — decoded " + media.FormatDuration(ci.audioDur) +
+					" of " + media.FormatDuration(ci.videoDur) + " video"
+				var mPfx, mSfx string
+				if lc != "" {
+					mPfx = "Audio "
+					mSfx = tail
+				}
 				merged = append(merged, Issue{
-					Severity: SeverityError,
-					Source:   SourceStructural,
-					FilePath: fp,
-					Category: "integrity",
-					Code:     CodeCorruptTrack,
-					Message: audioTrackLabel(report.FileResults[fp].MediaInfo.AudioTracks, ci.trackPos) +
-						" corrupt — decoded " + media.FormatDuration(ci.audioDur) +
-						" of " + media.FormatDuration(ci.videoDur) + " video",
-					SubjectLabel: audioTrackLabel(report.FileResults[fp].MediaInfo.AudioTracks, ci.trackPos),
+					Severity:      SeverityError,
+					Source:        SourceStructural,
+					FilePath:      fp,
+					Category:      "integrity",
+					Code:          CodeCorruptTrack,
+					Message:       fullLabel + tail,
+					SubjectLabel:  lc,
+					MessagePrefix: mPfx,
+					MessageSuffix: mSfx,
 				})
 			}
 		}
@@ -892,15 +911,13 @@ func checkLanguageTags(report *ValidationReport, filePath string, result *FileCh
 			if len(unsatisfiedAudioLangs) > 0 {
 				severity = SeverityWarning
 			}
-			label := "Audio track " + itoa(i+1)
 			report.AddIssue(Issue{
-				Severity:     severity,
-				Source:       SourceProfile,
-				FilePath:     filePath,
-				Category:     "language",
-				Code:         CodeUntaggedTrack,
-				Message:      label + " has no language tag",
-				SubjectLabel: label,
+				Severity: severity,
+				Source:   SourceProfile,
+				FilePath: filePath,
+				Category: "language",
+				Code:     CodeUntaggedTrack,
+				Message:  "Audio track " + itoa(i+1) + " has no language tag",
 			})
 		}
 	}
@@ -913,15 +930,13 @@ func checkLanguageTags(report *ValidationReport, filePath string, result *FileCh
 			if len(unsatisfiedSubLangs) > 0 {
 				severity = SeverityWarning
 			}
-			label := "Subtitle track " + itoa(i+1)
 			report.AddIssue(Issue{
-				Severity:     severity,
-				Source:       SourceProfile,
-				FilePath:     filePath,
-				Category:     "language",
-				Code:         CodeUntaggedTrack,
-				Message:      label + " has no language tag",
-				SubjectLabel: label,
+				Severity: severity,
+				Source:   SourceProfile,
+				FilePath: filePath,
+				Category: "language",
+				Code:     CodeUntaggedTrack,
+				Message:  "Subtitle track " + itoa(i+1) + " has no language tag",
 			})
 		}
 	}
@@ -983,15 +998,23 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 
 	for i, audioDur := range result.AudioDurations {
 		label := audioTrackLabel(result.MediaInfo.AudioTracks, i)
+		lc := audioTrackLangCode(result.MediaInfo.AudioTracks, i)
 		if audioDur == 0 {
+			var mPfx, mSfx string
+			if lc != "" {
+				mPfx = "Duration unavailable for Audio "
+				mSfx = ""
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityInfo,
-				Source:       source,
-				FilePath:     filePath,
-				Category:     "duration",
-				Code:         CodeDurationUnavailable,
-				Message:      "Duration unavailable for " + label,
-				SubjectLabel: label,
+				Severity:      SeverityInfo,
+				Source:        source,
+				FilePath:      filePath,
+				Category:      "duration",
+				Code:          CodeDurationUnavailable,
+				Message:       "Duration unavailable for " + label,
+				SubjectLabel:  lc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 			continue
 		}
@@ -1003,28 +1026,44 @@ func checkDurationConsistency(report *ValidationReport, filePath string, result 
 		)
 
 		if deviation > result.VideoDuration*0.10 {
+			tail := " duration (" +
+				media.FormatDuration(audioDur) + ") deviates >10% from video (" +
+				media.FormatDuration(result.VideoDuration) + ")"
+			var mPfx, mSfx string
+			if lc != "" {
+				mPfx = "Audio "
+				mSfx = tail
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityError,
-				Source:       source,
-				FilePath:     filePath,
-				Category:     "duration",
-				Code:         CodeAudioDurationMismatch,
-				Message: label + " duration (" +
-					media.FormatDuration(audioDur) + ") deviates >10% from video (" +
-					media.FormatDuration(result.VideoDuration) + ")",
-				SubjectLabel: label,
+				Severity:      SeverityError,
+				Source:        source,
+				FilePath:      filePath,
+				Category:      "duration",
+				Code:          CodeAudioDurationMismatch,
+				Message:       label + tail,
+				SubjectLabel:  lc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 		} else if deviation > effectiveTolerance {
+			tail := " duration (" +
+				media.FormatDuration(audioDur) + ") deviates from video (" +
+				media.FormatDuration(result.VideoDuration) + ")"
+			var mPfx, mSfx string
+			if lc != "" {
+				mPfx = "Audio "
+				mSfx = tail
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityWarning,
-				Source:       source,
-				FilePath:     filePath,
-				Category:     "duration",
-				Code:         CodeAudioDurationMismatch,
-				Message: label + " duration (" +
-					media.FormatDuration(audioDur) + ") deviates from video (" +
-					media.FormatDuration(result.VideoDuration) + ")",
-				SubjectLabel: label,
+				Severity:      SeverityWarning,
+				Source:        source,
+				FilePath:      filePath,
+				Category:      "duration",
+				Code:          CodeAudioDurationMismatch,
+				Message:       label + tail,
+				SubjectLabel:  lc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 		}
 	}
@@ -1100,45 +1139,68 @@ func checkSubtitleIntegrity(report *ValidationReport, filePath string, result *F
 
 	for _, scr := range result.SubCheckResults {
 		subLabel := subtitleLabel(scr.FilePath)
+		slc := subtitleLangCode(scr.FilePath)
 
 		// 6.4.2.1 Parse check
 		if scr.ParseErr != "" {
+			tail := " is unparseable: " + scr.ParseErr
+			var mPfx, mSfx string
+			if slc != "" {
+				mPfx = "Subtitle "
+				mSfx = tail
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityError,
-				Source:       SourceStructural,
-				FilePath:     filePath,
-				Category:     "subtitle",
-				Code:         CodeSubParseFailed,
-				Message:      subLabel + " is unparseable: " + scr.ParseErr,
-				SubjectLabel: subLabel,
+				Severity:      SeverityError,
+				Source:        SourceStructural,
+				FilePath:      filePath,
+				Category:      "subtitle",
+				Code:          CodeSubParseFailed,
+				Message:       subLabel + tail,
+				SubjectLabel:  slc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 			continue
 		}
 
 		// 6.4.2.3 Empty file check
 		if scr.LineCount == 0 {
+			var mPfx, mSfx string
+			if slc != "" {
+				mPfx = "Subtitle "
+				mSfx = " has zero parseable lines"
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityError,
-				Source:       SourceStructural,
-				FilePath:     filePath,
-				Category:     "subtitle",
-				Code:         CodeSubEmpty,
-				Message:      subLabel + " has zero parseable lines",
-				SubjectLabel: subLabel,
+				Severity:      SeverityError,
+				Source:        SourceStructural,
+				FilePath:      filePath,
+				Category:      "subtitle",
+				Code:          CodeSubEmpty,
+				Message:       subLabel + " has zero parseable lines",
+				SubjectLabel:  slc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 			continue
 		}
 
 		// 6.4.2.4 Encoding sanity
 		if scr.EncodingIssue {
+			var mPfx, mSfx string
+			if slc != "" {
+				mPfx = "Subtitle "
+				mSfx = " may have encoding issues (replacement characters detected)"
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityWarning,
-				Source:       SourceStructural,
-				FilePath:     filePath,
-				Category:     "subtitle",
-				Code:         CodeSubEncoding,
-				Message:      subLabel + " may have encoding issues (replacement characters detected)",
-				SubjectLabel: subLabel,
+				Severity:      SeverityWarning,
+				Source:        SourceStructural,
+				FilePath:      filePath,
+				Category:      "subtitle",
+				Code:          CodeSubEncoding,
+				Message:       subLabel + " may have encoding issues (replacement characters detected)",
+				SubjectLabel:  slc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 		}
 	}
@@ -1174,48 +1236,73 @@ func checkSubtitleCoverage(report *ValidationReport, filePath string, result *Fi
 		}
 
 		subLabel := subtitleLabel(scr.FilePath)
+		slc := subtitleLangCode(scr.FilePath)
 
 		errorThreshold := math.Max(900, 0.30*vd)
 		warnThreshold := math.Max(600, 0.20*vd)
 		infoThreshold := math.Max(300, 0.10*vd)
 
 		if tailGap > errorThreshold {
+			tail := " ends at " +
+				media.FormatDuration(scr.TailEndSec) +
+				" but video is " + media.FormatDuration(vd) +
+				" -- likely truncated"
+			var mPfx, mSfx string
+			if slc != "" {
+				mPfx = "Subtitle "
+				mSfx = tail
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityError,
-				Source:       SourceStructural,
-				FilePath:     filePath,
-				Category:     "subtitle",
-				Code:         CodeSubLowCoverage,
-				Message: subLabel + " ends at " +
-					media.FormatDuration(scr.TailEndSec) +
-					" but video is " + media.FormatDuration(vd) +
-					" -- likely truncated",
-				SubjectLabel: subLabel,
+				Severity:      SeverityError,
+				Source:        SourceStructural,
+				FilePath:      filePath,
+				Category:      "subtitle",
+				Code:          CodeSubLowCoverage,
+				Message:       subLabel + tail,
+				SubjectLabel:  slc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 		} else if tailGap > warnThreshold {
+			tail := " ends at " +
+				media.FormatDuration(scr.TailEndSec) +
+				" but video is " + media.FormatDuration(vd) +
+				" -- may be truncated"
+			var mPfx, mSfx string
+			if slc != "" {
+				mPfx = "Subtitle "
+				mSfx = tail
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityWarning,
-				Source:       SourceStructural,
-				FilePath:     filePath,
-				Category:     "subtitle",
-				Code:         CodeSubLowCoverage,
-				Message: subLabel + " ends at " +
-					media.FormatDuration(scr.TailEndSec) +
-					" but video is " + media.FormatDuration(vd) +
-					" -- may be truncated",
-				SubjectLabel: subLabel,
+				Severity:      SeverityWarning,
+				Source:        SourceStructural,
+				FilePath:      filePath,
+				Category:      "subtitle",
+				Code:          CodeSubLowCoverage,
+				Message:       subLabel + tail,
+				SubjectLabel:  slc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 		} else if tailGap > infoThreshold {
+			tail := " ends at " +
+				media.FormatDuration(scr.TailEndSec) +
+				", video is " + media.FormatDuration(vd)
+			var mPfx, mSfx string
+			if slc != "" {
+				mPfx = "Subtitle "
+				mSfx = tail
+			}
 			report.AddIssue(Issue{
-				Severity:     SeverityInfo,
-				Source:       SourceStructural,
-				FilePath:     filePath,
-				Category:     "subtitle",
-				Code:         CodeSubLowCoverage,
-				Message: subLabel + " ends at " +
-					media.FormatDuration(scr.TailEndSec) +
-					", video is " + media.FormatDuration(vd),
-				SubjectLabel: subLabel,
+				Severity:      SeverityInfo,
+				Source:        SourceStructural,
+				FilePath:      filePath,
+				Category:      "subtitle",
+				Code:          CodeSubLowCoverage,
+				Message:       subLabel + tail,
+				SubjectLabel:  slc,
+				MessagePrefix: mPfx,
+				MessageSuffix: mSfx,
 			})
 		}
 	}
@@ -1288,6 +1375,16 @@ func audioTrackLabel(tracks []AudioTrack, idx int) string {
 	return "Audio track " + itoa(idx+1)
 }
 
+// audioTrackLangCode returns just the language code for an audio track,
+// or "" if the track is untagged/unknown.
+func audioTrackLangCode(tracks []AudioTrack, idx int) string {
+	if idx < len(tracks) && tracks[idx].Language.Language != nil &&
+		tracks[idx].Language.Part3 != "" && tracks[idx].Language.Part3 != "und" {
+		return tracks[idx].Language.Part3
+	}
+	return ""
+}
+
 // subtitleLabel returns a human-readable label for a subtitle file,
 // preferring the parsed language over the raw filename.
 func subtitleLabel(filePath string) string {
@@ -1300,4 +1397,18 @@ func subtitleLabel(filePath string) string {
 		return "Subtitle (" + label + ")"
 	}
 	return "Subtitle " + base
+}
+
+// subtitleLangCode returns just the language code for a subtitle file,
+// or "" if the language cannot be guessed.
+func subtitleLangCode(filePath string) string {
+	base := filepath.Base(filePath)
+	if lang, err := GuessLangFromFilename(base); err == nil {
+		code := lang.Part3
+		if lang.Subtag != "" {
+			code += "-" + lang.Subtag
+		}
+		return code
+	}
+	return ""
 }
