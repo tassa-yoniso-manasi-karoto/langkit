@@ -114,6 +114,9 @@
 
     // Inspector pane state (repurposed LogViewer panel)
     let inspectorMode: 'logs' | 'preflight' = 'logs';
+    let pillHover: 'preflight' | 'logs' | null = null;
+    $: pillTarget = pillHover ?? inspectorMode;
+    $: pillLeft = pillTarget === 'preflight' ? '5px' : 'calc(50% + 3px)';
 
     // Preflight bar state (standalone, no longer tied to feature cards)
     let checkMode: string = 'auto';
@@ -2103,14 +2106,28 @@
                  role="region"
                  aria-live="polite"
             >
-                <!-- Tab bar -->
-                <div class="flex border-b border-white/10 bg-black/20 shrink-0">
+                <!-- Tab bar with sliding pill indicator -->
+                <div class="flex border-b border-white/10 shrink-0 relative transition-colors duration-300
+                            {inspectorMode === 'logs'
+                                ? (liteMode ? 'bg-bgold-900/95' : 'bg-bgold-900/80')
+                                : 'bg-black/20'}">
+                    <!-- Sliding pill (outline only, sticky easing) -->
+                    <div class="absolute top-1 bottom-1 rounded-md pointer-events-none"
+                         style="width: calc(50% - 8px); left: {pillLeft};
+                                transition: left 450ms cubic-bezier(0.92, 0, 0.22, 1);
+                                box-shadow: inset -1.5px -1.5px 2px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.35),
+                                            -1px -1px 4px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.18),
+                                            inset 0 0 8px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.06),
+                                            1px 1px 10px -3px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.15);">
+                    </div>
                     <button
-                        class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors
+                        class="flex-1 relative z-10 px-4 py-2.5 text-sm transition-colors
                                {inspectorMode === 'preflight'
-                                   ? 'text-primary border-b-2 border-primary'
+                                   ? 'text-white/90 font-medium'
                                    : 'text-white/50 hover:text-white/70'}"
                         on:click={() => inspectorMode = 'preflight'}
+                        on:mouseenter={() => pillHover = 'preflight'}
+                        on:mouseleave={() => pillHover = null}
                     >
                         Preflight
                         {#if $checkResultStore.report && $checkResultStore.report.errorCount > 0}
@@ -2120,11 +2137,13 @@
                         {/if}
                     </button>
                     <button
-                        class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors
+                        class="flex-1 relative z-10 px-4 py-2.5 text-sm transition-colors
                                {inspectorMode === 'logs'
-                                   ? 'text-primary border-b-2 border-primary'
+                                   ? 'text-white/90 font-medium'
                                    : 'text-white/50 hover:text-white/70'}"
                         on:click={() => inspectorMode = 'logs'}
+                        on:mouseenter={() => pillHover = 'logs'}
+                        on:mouseleave={() => pillHover = null}
                     >
                         Logs
                         {#if hasErrorLogs()}
@@ -2133,15 +2152,21 @@
                     </button>
                 </div>
 
-                <!-- Tab content -->
-                    <div class="flex-1 overflow-hidden">
-                        {#if inspectorMode === 'preflight'}
-                        <PreflightDrawer report={$checkResultStore.report}
-                                         on:runCheck={handleDiagnosticRunCheck} />
-                        {:else}
-                            <LogViewer version={version} isProcessing={isProcessing} userActivityState={userActivityState} />
-                        {/if}
-                    </div>
+                <!-- Tab content with fade transition -->
+                <div class="flex-1 overflow-hidden">
+                    {#key inspectorMode}
+                        <div class="h-full"
+                             in:fade={{ duration: liteMode ? 0 : 250, delay: liteMode ? 0 : 60 }}
+                             out:fade={{ duration: liteMode ? 0 : 200 }}>
+                            {#if inspectorMode === 'preflight'}
+                                <PreflightDrawer report={$checkResultStore.report}
+                                                 on:runCheck={handleDiagnosticRunCheck} />
+                            {:else}
+                                <LogViewer embedded={true} version={version} isProcessing={isProcessing} userActivityState={userActivityState} />
+                            {/if}
+                        </div>
+                    {/key}
+                </div>
                 </div>
         {/if}
     </div>

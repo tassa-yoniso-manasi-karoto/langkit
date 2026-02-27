@@ -1,12 +1,15 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import { fade } from 'svelte/transition';
+    import { liteModeStore } from '../lib/stores';
 
     // A short message to display in the dialog:
     export let message: string = "Are you sure?";
 
     // Control whether the dialog is open:
     export let open: boolean = false;
+
+    $: isLite = $liteModeStore.enabled;
 
     const dispatch = createEventDispatcher();
 
@@ -21,7 +24,7 @@
 
     /**
      * If the user clicks the backdrop, we treat it as cancel.
-     * You could remove this if you don’t want backdrop-click to close.
+     * You could remove this if you don't want backdrop-click to close.
      */
     function handleBackdropClick(e: MouseEvent) {
         // Only close if the click is on the backdrop, not on a child element.
@@ -34,14 +37,14 @@
 {#if open}
     <!-- Overlay -->
     <div
-        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+        class="fixed inset-0 {isLite ? 'bg-black/70' : 'bg-black/50 backdrop-blur-sm'} flex items-center justify-center z-50"
         on:click={handleBackdropClick}
-        transition:fade={{ duration: 150 }}
+        transition:fade={{ duration: isLite ? 0 : 150 }}
     >
         <!-- Modal Box -->
         <div
-            class="bg-[#1e1e1e] rounded-xl border border-white/10 w-full max-w-sm p-6 shadow-2xl"
-            transition:fade={{ duration: 200 }}
+            class="{isLite ? 'bg-bgold-900/95' : 'bg-[#1e1e1e]'} rounded-xl border border-white/10 w-full max-w-sm p-6 shadow-2xl"
+            transition:fade={{ duration: isLite ? 0 : 200 }}
         >
             <!-- Title or icon (Optional) -->
             <h2 class="text-white text-lg font-semibold mb-2">

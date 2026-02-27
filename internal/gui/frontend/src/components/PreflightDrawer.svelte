@@ -69,7 +69,10 @@
     }
 </script>
 
-<div class="h-full flex flex-col overflow-hidden relative">
+<div class="h-full flex flex-col overflow-hidden relative
+            {isLite
+                ? 'bg-gradient-to-b from-bgold-950/85 to-bgold-950/75'
+                : 'bg-bgold-950/30'}">
     {#if $checkResultStore.isRunning && !report}
         <div class="flex-1 flex items-center justify-center">
             <div class="text-center">

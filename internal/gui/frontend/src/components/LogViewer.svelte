@@ -65,6 +65,8 @@
 
     // Optional version prop to handle dev vs. prod initialization
     export let version: string = "";
+    // When true, suppress own border/shadow/rounding (inspector pane provides them)
+    export let embedded: boolean = false;
     // Add isProcessing prop to receive processing state from App.svelte
     export let isProcessing: boolean = false;
     let prevIsProcessing = false;
@@ -2158,14 +2160,19 @@
     });
 </script>
 
-<!-- Main container for the log viewer with glassmorphism -->
-<div class="flex flex-col h-full bg-logbg/60 text-white font-[DM_Mono] text-[11px] rounded-lg border-r border-b border-primary/20 shadow-log"
+<!-- Main container for the log viewer -->
+<div class="flex flex-col h-full text-white font-[DM_Mono] text-[11px]
+            {embedded ? 'bg-bgold-900/70' : 'bg-logbg/60 rounded-lg border-r border-b border-primary/20 shadow-log'}"
      role="log"
      aria-label="Application logs"
      aria-live="polite">
     <!-- Top controls row -->
     <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
-    <div class="px-3 py-2 border-b border-primary/20 {liteMode ? 'bg-bgold-800/90' : 'bg-bgold-800/60 backdrop-blur-md'} h-10 flex items-center justify-between rounded-t-lg">
+    <div class="px-3 py-2 border-b border-primary/20
+                {embedded
+                    ? (liteMode ? 'bg-bgold-900/95' : 'bg-bgold-900/80 backdrop-blur-md')
+                    : (liteMode ? 'bg-bgold-800/90' : 'bg-bgold-800/60 backdrop-blur-md')}
+                h-10 flex items-center justify-between {embedded ? '' : 'rounded-t-lg'}">
         <div class="flex items-center gap-6">
             <!-- Log level filter -->
             <div class="flex items-center gap-2 whitespace-nowrap">
@@ -2225,10 +2232,12 @@
         	{#if isReady}
         		{#if filteredLogs.length === 0}
         			<!-- Empty state -->
-        			<div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-        				<span class="{liteMode ? 'bg-black/30' : 'bg-black/10 backdrop-blur-sm'} border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg" aria-live="polite">
-        					No logs to display
-        				</span>
+        			<div class="absolute top-0 left-0 w-full h-full flex items-center justify-center p-4" aria-live="polite">
+        				<div class="text-center max-w-xs">
+        					<span class="material-icons text-white/20 block mb-2" style="font-size:32px;">terminal</span>
+        					<div class="text-sm text-white/55">No logs to display</div>
+        					<div class="text-xs text-white/35 mt-1">Logs will appear here during processing</div>
+        				</div>
         			</div>
         		{:else}
         			<!-- Virtual scroller container -->
@@ -2285,9 +2294,11 @@
                         <!-- SIMPLIFIED VIRTUALIZATION: More stable with reliable spacers -->
                         {#if userActivityState === 'afk'}
                             <!-- Minimal rendering when user is AFK to save CPU -->
-                            <div class="flex items-center justify-center h-full">
-                                <div class="text-primary/40 text-sm">
-                                    {filteredLogs.length} logs (paused for performance)
+                            <div class="flex items-center justify-center h-full p-4">
+                                <div class="text-center max-w-xs">
+                                    <span class="material-icons text-white/20 block mb-2" style="font-size:32px;">pause_circle</span>
+                                    <div class="text-sm text-white/55">Display paused for performance</div>
+                                    <div class="text-xs text-white/35 mt-1">{filteredLogs.length} logs available</div>
                                 </div>
                             </div>
                         {:else}
@@ -2416,10 +2427,11 @@
                 {/if}
     {:else}
      <!-- Loading state before initialization is complete -->
-     <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-      <span class="{liteMode ? 'bg-black/30' : 'bg-black/10 backdrop-blur-sm'} border border-primary/30 text-primary/60 italic text-sm px-6 py-3 rounded-lg">
-       Initializing Log Viewer...
-      </span>
+     <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center p-4">
+      <div class="text-center max-w-xs">
+       <span class="material-icons text-white/20 block mb-2 animate-spin" style="font-size:32px;">refresh</span>
+       <div class="text-sm text-white/55">Initializing log viewer...</div>
+      </div>
      </div>
     {/if}
    </div>
