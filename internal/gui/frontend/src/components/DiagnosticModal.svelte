@@ -6,6 +6,7 @@
     import { checkResultStore } from '../lib/checkResultStore';
     import { formatLanguageNames } from '../lib/languageDisplay';
     import ProfileManager from './ProfileManager.svelte';
+    import CloseButton from './CloseButton.svelte';
     import {
         getClusters, getTriageFiles, sourceLabel, codeLabelMap,
         normalizeSeverity, severityRank,
@@ -296,13 +297,7 @@
                             <span class="material-icons text-sm align-middle mr-1">{$checkResultStore.isRunning ? 'hourglass_empty' : 'refresh'}</span>
                             {$checkResultStore.isRunning ? 'Checking...' : 'Re-run Check'}
                         </button>
-                        <button
-                            class="w-8 h-8 flex items-center justify-center rounded-md
-                                   text-white/40 hover:bg-red-500/[0.12] hover:text-red-300 transition-colors"
-                            on:click={handleClose}
-                        >
-                            <span class="material-icons text-base">close</span>
-                        </button>
+                        <CloseButton size="sm" on:click={handleClose} />
                     </div>
                 </div>
 

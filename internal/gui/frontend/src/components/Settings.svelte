@@ -13,6 +13,7 @@ import { isDeveloperMode } from '../lib/developerMode';
     import { logger } from '../lib/logger';
     import { debounce } from 'lodash';
     import { getMediumDebounce } from '../lib/debouncePresets';
+    import CloseButton from './CloseButton.svelte';
     
     import TextInput from './TextInput.svelte';
     import NumericInput from './NumericInput.svelte';
@@ -533,12 +534,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 <span class="material-icons text-primary">settings</span>
                                 Settings
                             </h2>
-                            <button class="w-10 h-10 flex items-center justify-center rounded-full
-                                    border-0 hover:border-0 bg-transparent text-gray-300 transition-colors duration-200
-                                    hover:text-red-500 hover:scale-125 hover:font-bold focus:outline-none"
-                                    on:click={onClose}>
-                                <span class="material-icons">close</span>
-                            </button>
+                            <CloseButton on:click={onClose} />
                         </div>
                     </div>
                     
@@ -1324,7 +1320,7 @@ import { isDeveloperMode } from '../lib/developerMode';
 
     :global(.settings-modal .cancel-button:hover) {
       color: white !important;
-      border-color: hsl(var(--error-hard-hue), calc(var(--error-hard-saturation) * 2), calc(var(--error-hard-lightness) / 2.5)) !important;
+      border-color: hsl(var(--fill-red-hue), var(--fill-red-saturation), calc(var(--fill-red-lightness) - 14%)) !important;
     }
 
     :global(.settings-modal .cancel-button:hover::before) {

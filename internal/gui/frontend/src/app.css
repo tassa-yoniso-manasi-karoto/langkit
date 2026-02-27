@@ -383,9 +383,9 @@ input[type="number"]::-webkit-outer-spin-button {
 /* Fill effect color variables */
 :root {
   --fill-red-hue: 0;
-  --fill-red-saturation: 75%;
-  --fill-red-lightness: 50%;
-  --fill-red-alpha: 0.85;
+  --fill-red-saturation: 45%;
+  --fill-red-lightness: 42%;
+  --fill-red-alpha: 0.7;
   --fill-primary-alpha: 0.8;
 }
 

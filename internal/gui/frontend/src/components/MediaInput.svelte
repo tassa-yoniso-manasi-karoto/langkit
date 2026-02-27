@@ -2,6 +2,7 @@
     import { OpenDirectoryDialog, OpenVideoDialog, GetVideosInDirectory } from '../api/services/media';
     import { logger } from '../lib/logger';
     import { isBrowserMode } from '../lib/runtime/stores';
+    import CloseButton from './CloseButton.svelte';
 
     export let mediaSource: MediaSource | null = null;  // Single selected video/directory
     export let previewFiles: MediaSource[] = [];        // Preview only for directories
@@ -214,15 +215,7 @@
                             </span>
                             <span class="truncate font-medium">{mediaSource.path}</span>
                         </div>
-                        <button 
-                            class="flex-shrink-0 text-red-400/70 hover:text-red-400 hover:bg-white/10
-                                   p-1 rounded-md transition-all duration-200
-                                   inline-flex items-center justify-center"
-                            on:click={resetSelection}
-                            title="Remove selection"
-                        >
-                            <span class="material-icons text-[16px]">close</span>
-                        </button>
+                        <CloseButton size="xs" title="Remove selection" on:click={resetSelection} />
                     </div>
 
                     {#if isDirectory && previewFiles.length > 0}
