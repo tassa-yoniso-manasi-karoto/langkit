@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -54,56 +55,117 @@ type sampleWindow struct {
 }
 
 // CheckDecodeIntegrity runs FFmpeg decode probes on the given file
-// according to the requested depth and scope.
+// according to the requested depth and scope. Results are cached
+// persistently on disk so repeated checks on unchanged files are free.
 // Execution failures (e.g. FFmpeg binary missing) are surfaced as
 // corrupted results with descriptive error output so they are never
 // silently treated as clean.
 func CheckDecodeIntegrity(ctx context.Context, path string, depth IntegrityDepth, scope DecodeScope) ([]DecodeCheckResult, error) {
+	// Stat file for cache key
+	stat, statErr := os.Stat(path)
+	var mtime, size int64
+	if statErr == nil {
+		mtime = stat.ModTime().UnixNano()
+		size = stat.Size()
+	}
+	canCache := statErr == nil
+
 	var results []DecodeCheckResult
 
-	// Get file duration for sample-point calculation.
-	totalDur, durErr := ProbeDuration(path)
+	// Get file duration for sample-point calculation (only needed for actual decodes).
+	var totalDur float64
+	var durErr error
+	durProbed := false
 
 	// Audio streams
 	for _, idx := range scope.AudioStreamIndices {
+		// Try cache first
+		if canCache {
+			cacheMu.Lock()
+			cached, ok := lookupCached(path, mtime, size, idx, depth)
+			cacheMu.Unlock()
+			if ok {
+				results = append(results, *cached)
+				continue
+			}
+		}
+
+		// Cache miss — probe duration lazily (only once per call)
+		if !durProbed {
+			totalDur, durErr = ProbeDuration(path)
+			durProbed = true
+		}
+
+		var res DecodeCheckResult
 		if depth == IntegrityFull {
-			res := decodeFull(ctx, path, idx, false)
-			results = append(results, res)
+			res = decodeFull(ctx, path, idx, false)
 		} else {
-			var failed bool
-			windows := buildSampleWindows(totalDur, durErr)
-			for _, w := range windows {
-				res := decodeSample(ctx, path, idx, false, w)
-				if res.Corrupted {
-					results = append(results, res)
-					failed = true
-					break // one failure is enough
-				}
-			}
-			if !failed {
-				results = append(results, DecodeCheckResult{StreamIndex: idx})
-			}
+			res = decodeStreamSampled(ctx, path, idx, false, totalDur, durErr)
+		}
+		results = append(results, res)
+
+		// Cache the result (skip if context was cancelled — partial results are unreliable)
+		if canCache && ctx.Err() == nil {
+			cacheMu.Lock()
+			storeCached(path, mtime, size, idx, depth, res)
+			cacheMu.Unlock()
 		}
 	}
 
 	// Video (always sampled, even in "full" mode)
 	if scope.CheckVideo {
-		var failed bool
-		windows := buildSampleWindows(totalDur, durErr)
-		for _, w := range windows {
-			res := decodeSample(ctx, path, -1, true, w)
-			if res.Corrupted {
-				results = append(results, res)
-				failed = true
-				break
+		// Try cache first
+		if canCache {
+			cacheMu.Lock()
+			cached, ok := lookupCached(path, mtime, size, -1, IntegritySampled)
+			cacheMu.Unlock()
+			if ok {
+				results = append(results, *cached)
+				goto done
 			}
 		}
-		if !failed {
-			results = append(results, DecodeCheckResult{StreamIndex: -1})
+
+		// Cache miss
+		if !durProbed {
+			totalDur, durErr = ProbeDuration(path)
+			durProbed = true
+		}
+
+		res := decodeStreamSampled(ctx, path, -1, true, totalDur, durErr)
+		results = append(results, res)
+
+		if canCache && ctx.Err() == nil {
+			cacheMu.Lock()
+			storeCached(path, mtime, size, -1, IntegritySampled, res)
+			cacheMu.Unlock()
 		}
 	}
 
+done:
+	// Persist cache to disk
+	if canCache {
+		cacheMu.Lock()
+		saveCache()
+		cacheMu.Unlock()
+	}
+
 	return results, nil
+}
+
+// decodeStreamSampled runs sampled decode on a single stream (audio or video).
+func decodeStreamSampled(ctx context.Context, path string, streamIdx int, isVideo bool, totalDur float64, durErr error) DecodeCheckResult {
+	windows := buildSampleWindows(totalDur, durErr)
+	for _, w := range windows {
+		res := decodeSample(ctx, path, streamIdx, isVideo, w)
+		if res.Corrupted {
+			return res
+		}
+	}
+	idx := streamIdx
+	if isVideo {
+		idx = -1
+	}
+	return DecodeCheckResult{StreamIndex: idx}
 }
 
 // buildSampleWindows returns the 3 sample points: start, mid, near-end.
