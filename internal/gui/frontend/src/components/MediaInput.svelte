@@ -155,11 +155,12 @@
 <div class="relative" role="presentation">
     <div
         role="presentation"
-        class="relative border-2 border-dashed border-primary/30 rounded-lg p-4 text-center
-               transition-all duration-200 ease-out bg-ui-element
-               hover:border-primary/50 hover:bg-ui-element-hover
-               {dragOver ? 'border-primary bg-primary/10 scale-[1.01]' : ''}
-               {mediaSource ? 'opacity-95' : ''}"
+        class="relative border-2 border-dashed rounded-lg p-4 text-center
+               transition-all duration-200 ease-out
+               {mediaSource
+                   ? 'border-primary/15 bg-white/[0.02]'
+                   : 'border-primary/30 bg-ui-element hover:border-primary/40 hover:bg-ui-element-hover'}
+               {dragOver ? 'border-primary bg-primary/10 scale-[1.01]' : ''}"
         on:dragenter={handleDragEnter}
         on:dragleave={handleDragLeave}
         on:dragover={handleDragOver}
@@ -206,7 +207,7 @@
             <div class="text-left">
                 <div class="space-y-2">
                     <!-- Selected source display -->
-                    <div class="flex items-center justify-between gap-1 p-2 bg-primary/10 rounded text-sm border border-primary/20 hover:border-primary/40 transition-colors duration-200">
+                    <div class="flex items-center justify-between gap-1 p-2 bg-primary/[0.06] rounded text-sm border border-primary/15 hover:border-primary/30 transition-colors duration-200">
                         <div class="flex items-center gap-2 min-w-0">
                             <span class="material-icons text-primary flex-shrink-0">
                                 {isDirectory ? 'folder' : 'movie'}
@@ -226,9 +227,9 @@
 
                     {#if isDirectory && previewFiles.length > 0}
                         <!-- Directory content preview with tree structure -->
-                        <div class="bg-ui-element p-2 rounded-md">
+                        <div class="p-2 rounded-md border border-white/[0.05]">
                             <!-- Header with total count -->
-                            <div class="flex justify-between items-center mb-1 text-xs text-gray-300">
+                            <div class="flex justify-between items-center mb-1 text-xs text-white/55">
                                 <span class="font-medium">Directory contents:</span>
                                 <span>{previewFiles.length} video{previewFiles.length === 1 ? '' : 's'} in total</span>
                             </div>
@@ -253,9 +254,9 @@
                                             </div>
                                             
                                             <!-- File content -->
-                                            <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/5 rounded pl-1 pr-2 transition-colors duration-150">
-                                                <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
-                                                <span class="truncate text-gray-300 hover:text-white">{file.name}</span>
+                                            <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/[0.04] rounded pl-1 pr-2 transition-colors duration-150">
+                                                <span class="material-icons text-primary/60 text-sm flex-shrink-0">movie</span>
+                                                <span class="truncate text-white/55 hover:text-white/75">{file.name}</span>
                                             </div>
                                         </div>
                                     {/each}
@@ -270,9 +271,9 @@
                                             </div>
                                             
                                             <!-- File content -->
-                                            <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/5 rounded pl-1 pr-2 transition-colors duration-150">
-                                                <span class="material-icons text-primary text-sm flex-shrink-0">movie</span>
-                                                <span class="truncate text-gray-300 hover:text-white">{file.name}</span>
+                                            <div class="flex items-center gap-2 min-w-0 py-0.5 hover:bg-white/[0.04] rounded pl-1 pr-2 transition-colors duration-150">
+                                                <span class="material-icons text-primary/60 text-sm flex-shrink-0">movie</span>
+                                                <span class="truncate text-white/55 hover:text-white/75">{file.name}</span>
                                             </div>
                                         </div>
                                     {/each}
@@ -284,9 +285,9 @@
                                             <div class="absolute left-0 top-[0.7em] w-full tree-line border-t"></div>
                                         </div>
                                         
-                                        <div class="flex items-center gap-2 min-w-0 py-0.5 bg-white/5 rounded pl-1 pr-2">
-                                            <span class="material-icons text-primary text-sm flex-shrink-0">more_horiz</span>
-                                            <span class="text-gray-300">and {previewFiles.length - 8} more files...</span>
+                                        <div class="flex items-center gap-2 min-w-0 py-0.5 bg-white/[0.03] rounded pl-1 pr-2">
+                                            <span class="material-icons text-primary/50 text-sm flex-shrink-0">more_horiz</span>
+                                            <span class="text-white/45">and {previewFiles.length - 8} more files...</span>
                                         </div>
                                     </div>
                                 {/if}
@@ -308,7 +309,7 @@
     
     /* Tree line styling */
     .tree-line {
-        border-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.15);
         border-width: 1px;
     }
     
