@@ -1240,6 +1240,17 @@ func (h *GUIHandler) SendProcessingRequest(ctx context.Context, request interfac
 	
 	tsk.MediaSourceFile = req.Path
 
+	// Populate preflight skip map from acknowledged issues
+	if len(req.AcknowledgedSkips) > 0 {
+		tsk.AcknowledgedSkips = make(map[string][]string, len(req.AcknowledgedSkips))
+		for _, entry := range req.AcknowledgedSkips {
+			tsk.AcknowledgedSkips[entry.FilePath] = entry.IssueCodes
+		}
+		h.logger.Info().
+			Int("skipFiles", len(tsk.AcknowledgedSkips)).
+			Msg("Preflight skip list received")
+	}
+
 	// Determine if bulk processing (directory) and compute importance map
 	isBulk := false
 	if stat, err := os.Stat(req.Path); err == nil {

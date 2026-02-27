@@ -836,6 +836,36 @@
                 transformedOptions.voiceEnhancing = voiceOpts;
             }
 
+            // Build acknowledged skip list from preflight report
+            var acknowledgedSkips: Array<{filePath: string, issueCodes: string[]}> | undefined;
+            if ($checkState === 'checked_with_errors_acknowledged') {
+                var report = $checkResultStore.report;
+                if (report && report.issues) {
+                    var byFile: Record<string, string[]> = {};
+                    for (var i = 0; i < report.issues.length; i++) {
+                        var iss = report.issues[i];
+                        if (!iss.issueCode || !iss.filePath) continue;
+                        if (!byFile[iss.filePath]) byFile[iss.filePath] = [];
+                        if (byFile[iss.filePath].indexOf(iss.issueCode) === -1) {
+                            byFile[iss.filePath].push(iss.issueCode);
+                        }
+                    }
+                    var skipPaths = Object.keys(byFile);
+                    if (skipPaths.length > 0) {
+                        acknowledgedSkips = [];
+                        for (var j = 0; j < skipPaths.length; j++) {
+                            acknowledgedSkips.push({
+                                filePath: skipPaths[j],
+                                issueCodes: byFile[skipPaths[j]],
+                            });
+                        }
+                        logger.info('app', 'Sending acknowledged skip list', {
+                            files: skipPaths.length
+                        });
+                    }
+                }
+            }
+
             // Construct the request object matching the Go backend type
             const request = { // ProcessRequest type
                 path: mediaSource.path,
@@ -843,6 +873,7 @@
                 options: { Options: transformedOptions }, // LLMs: DO NOT CHANGE THIS LINE. As is to match the backend Go type FeatureOptions.
                 languageCode: effectiveLanguageCode,
                 audioTrackIndex: mediaSource?.audioTrackIndex ?? 0, // Use nullish coalescing
+                acknowledgedSkips: acknowledgedSkips,
             };
 
             logger.trace('app', "Sending processing request", { request });

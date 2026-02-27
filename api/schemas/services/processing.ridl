@@ -4,12 +4,17 @@ version = v1.0.0
 
 # Media processing service
 
+struct SkipEntry
+  - filePath: string
+  - issueCodes: []string
+
 struct ProcessRequest
   - path: string
   - selectedFeatures: map<string,bool>
   - options: FeatureOptions
   - languageCode: string
   - audioTrackIndex?: int32
+  - acknowledgedSkips?: []SkipEntry
 
 struct FeatureOptions
   - Options: map<string,map<string,any>>

@@ -182,9 +182,31 @@ type Task struct {
 	// Intermediary file management
 	fileManager          *IntermediaryFileManager
 	
+	// Preflight acknowledgement: per-file skip list from preflight report.
+	// Keys are absolute file paths, values are issue codes the user reviewed.
+	AcknowledgedSkips    map[string][]string
+
 	// Dry run testing fields
 	IsDryRun             bool           // Whether this is a dry run test
 	DryRunConfig         *DryRunConfig  // Configuration for dry run testing
+}
+
+// ShouldSkip returns true if the current file has a preflight
+// acknowledgement for the given issue code.
+func (tsk *Task) ShouldSkip(code string) bool {
+	if tsk.AcknowledgedSkips == nil {
+		return false
+	}
+	codes, ok := tsk.AcknowledgedSkips[tsk.MediaSourceFile]
+	if !ok {
+		return false
+	}
+	for _, c := range codes {
+		if c == code {
+			return true
+		}
+	}
+	return false
 }
 
 func NewTask(handler MessageHandler) (tsk *Task) {

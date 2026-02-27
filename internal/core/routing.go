@@ -178,7 +178,10 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 	}
 
 	if tsk.IsBulkProcess = stat.IsDir(); !tsk.IsBulkProcess {
-		if ok := tsk.checkIntegrity(ctx); ok  {
+		integrityOK := tsk.checkIntegrity(ctx)
+		if integrityOK ||
+			tsk.ShouldSkip(CodeCorruptTrack) ||
+			tsk.ShouldSkip(CodeAudioDecodeFailed) {
 			tsk.Execute(ctx)
 		}
 	} else {
@@ -195,11 +198,21 @@ func (tsk *Task) Routing(ctx context.Context) (procErr *ProcessingError) {
 			tsk.TargSubFile = ""
 			tsk.MediaSourceFile = path
 			if ok := tsk.checkIntegrity(ctx); !ok {
+				if tsk.ShouldSkip(CodeCorruptTrack) || tsk.ShouldSkip(CodeAudioDecodeFailed) {
+					tsk.Handler.ZeroLog().Info().
+						Str("file", filepath.Base(path)).
+						Msg("Skipping file (acknowledged: integrity issue)")
+				}
 				continue
 			}
 
 			if tsk.Mode != Enhance {
 				if procErr := tsk.Autosub(); procErr != nil {
+					if tsk.ShouldSkip(CodeMissingSubLang) {
+						tsk.Handler.ZeroLog().Info().
+							Str("file", filepath.Base(path)).
+							Msg("Skipping file (acknowledged: missing subtitle)")
+					}
 					continue // other files may be processable
 				}
 				foreignSubs, err := subs.OpenFile(tsk.TargSubFile, false)

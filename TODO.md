@@ -6,6 +6,7 @@
   - subs2cards audio clips
 
 - Data aware logic:
+  - collapse "Corrupt Audio Tracks" WITH "Audio Decode Failures"
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
 - "Do-no-interrupt" mode: <<<--- IMPLEMENT AS PART OF THE PRE-FLIGHT  CHECK: the user knows the problem immediately at processing starts instead auto-tolerating mid-run

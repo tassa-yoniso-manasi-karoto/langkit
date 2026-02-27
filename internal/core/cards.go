@@ -829,7 +829,11 @@ func (tsk *Task) processMediaInfo() *ProcessingError {
 
 	for _, fn := range []SelectionHelper{getIdealTrack, getAnyTargLangMatch, getFirstTrack} {
 		if err := tsk.ChooseAudio(fn); err != nil {
-			return tsk.Handler.LogErr(err, AbortAllTasks, "selecting audiotrack")
+			behavior := AbortAllTasks
+			if tsk.ShouldSkip(CodeMissingAudioLang) {
+				behavior = AbortTask
+			}
+			return tsk.Handler.LogErr(err, behavior, "selecting audiotrack")
 		}
 	}
 
