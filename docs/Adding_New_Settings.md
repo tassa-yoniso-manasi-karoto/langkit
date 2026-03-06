@@ -248,7 +248,34 @@ let currentSettings = {
 
 ### 6.2 Add the UI control
 
-Add your setting in the appropriate section of the template:
+`Settings.svelte` now has two responsive template branches:
+
+- **Wide screens (`min-width: 640px`)**: tabbed layout under `{#if useTabLayout}`
+- **Narrow screens**: stacked fallback under `{:else}`
+
+For a new setting inside an existing section, add the control in **both** branches (or extract shared markup) so it appears in all viewport sizes.
+
+In the wide layout, place it under the correct tab branch:
+
+```svelte
+{#if activeSettingsTab === 'language'}
+    <!-- language-related settings -->
+{:else if activeSettingsTab === 'services'}
+    <!-- service-related settings -->
+{:else if activeSettingsTab === 'processing'}
+    <!-- processing-related settings -->
+{:else if activeSettingsTab === 'interface'}
+    <!-- interface-related settings -->
+{:else if activeSettingsTab === 'system'}
+    <!-- system-related settings -->
+{/if}
+```
+
+Then add your control in the corresponding stacked section in the narrow fallback branch.
+
+### 6.3 Control example
+
+Add your setting control in the appropriate section:
 
 ```svelte
 <div class="setting-row">
@@ -286,11 +313,21 @@ Add your setting in the appropriate section of the template:
 </div>
 ```
 
-### 6.3 For settings that need immediate save
+### 6.4 For settings that need immediate save
 
 If the setting should save immediately when changed (like toggles), add `on:change={updateSettings}`.
 
 For settings that save with the "Save" button, just use `bind:value`.
+
+### 6.5 If you add a new settings category (new tab)
+
+If your setting introduces a new top-level category (not just a field in an existing section), also update:
+
+1. `settingsTabs` array in `Settings.svelte` (new `id`, `label`, `icon`)
+2. Wide-layout tab branch (`{:else if activeSettingsTab === 'yourTabId'}`)
+3. Narrow fallback layout with equivalent section(s)
+
+Without these, the setting may exist in one layout but be unreachable in another.
 
 ---
 
