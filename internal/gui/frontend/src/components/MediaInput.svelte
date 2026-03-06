@@ -16,6 +16,7 @@
     let dragOver = false;
     let isDirectory = false;
     const VISIBLE_HEIGHT_VIDEOS = 4; // Number of videos visible without scrolling
+    const DIRECTORY_PREVIEW_DISPLAY_LIMIT = 250;
 
     async function handleDirectorySelect() {
         logger.trace('MediaInput', 'Directory selection initiated');
@@ -229,7 +230,7 @@
                             
                             <!-- Optimized scrollable file list with tree structure and windowing -->
                             <div class="pl-2 space-y-0.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
-                                {#if previewFiles.length <= 10}
+                                {#if previewFiles.length <= DIRECTORY_PREVIEW_DISPLAY_LIMIT}
                                     <!-- For small lists, render everything directly -->
                                     {#each previewFiles as file, i (file.path)}
                                         <div class="flex text-xs" style="contain: content;">
@@ -254,8 +255,8 @@
                                         </div>
                                     {/each}
                                 {:else}
-                                    <!-- For larger lists, show top few files and a summary -->
-                                    {#each previewFiles.slice(0, 8) as file, i (file.path)}
+                                    <!-- For larger lists, show top files and a summary -->
+                                    {#each previewFiles.slice(0, DIRECTORY_PREVIEW_DISPLAY_LIMIT) as file, i (file.path)}
                                         <div class="flex text-xs" style="contain: content;">
                                             <!-- Tree connection lines container -->
                                             <div class="relative w-6 flex-shrink-0">
@@ -280,7 +281,7 @@
                                         
                                         <div class="flex items-center gap-2 min-w-0 py-0.5 bg-white/[0.03] rounded pl-1 pr-2">
                                             <span class="material-icons text-primary/50 text-sm flex-shrink-0">more_horiz</span>
-                                            <span class="text-white/45">and {previewFiles.length - 8} more files...</span>
+                                            <span class="text-white/45">and {previewFiles.length - DIRECTORY_PREVIEW_DISPLAY_LIMIT} more files...</span>
                                         </div>
                                     </div>
                                 {/if}
