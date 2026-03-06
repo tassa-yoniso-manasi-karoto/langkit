@@ -204,6 +204,30 @@ import { isDeveloperMode } from '../lib/developerMode';
     $: liteModeForced = $liteModeStore.isForced;
     $: liteModeReason = $liteModeStore.reason;
 
+    // Tabbed settings layout
+    var settingsTabs = [
+        { id: 'language', label: 'Language', icon: 'translate' },
+        { id: 'services', label: 'Services', icon: 'cloud' },
+        { id: 'processing', label: 'Processing', icon: 'tune' },
+        { id: 'interface', label: 'Interface', icon: 'palette' },
+        { id: 'system', label: 'System', icon: 'build' },
+    ] as const;
+    var activeSettingsTab: typeof settingsTabs[number]['id'] = 'language';
+    var settingsPillHover: typeof settingsTabs[number]['id'] | null = null;
+    $: settingsPillTarget = settingsPillHover ?? activeSettingsTab;
+    $: settingsPillIndex = settingsTabs.findIndex(function(t) { return t.id === settingsPillTarget; });
+    // Keep in sync with the nav layout: py-3 = 12px top pad, gap-1 = 4px, button h-11 = 44px
+    var navPadTop = 12;   // py-3
+    var tabHeight = 44;   // h-11
+    var tabGap = 4;       // gap-1
+    $: settingsPillTop = navPadTop + settingsPillIndex * (tabHeight + tabGap);
+    // Fade-out bg instantly when hovering away; fade-in slowly after pill returns
+    $: settingsTabBgTransition = settingsPillHover
+        ? 'color 200ms ease, background-color 80ms ease'
+        : 'color 200ms ease, background-color 500ms ease 240ms';
+    var useTabLayout = true;
+    var settingsMediaQuery: MediaQueryList | null = null;
+
     // Modified reactive declaration to handle reset state
     $: exportGlowClass = isResetting
         ? '' // No special class needed if force-reset is removed
@@ -351,8 +375,18 @@ import { isDeveloperMode } from '../lib/developerMode';
         }
     }
 
+    function handleSettingsMediaChange(e: MediaQueryListEvent) {
+        useTabLayout = e.matches;
+    }
+
     onMount(async () => {
         logger.info('Settings', 'Component mounting, loading settings');
+
+        // Responsive layout detection
+        settingsMediaQuery = window.matchMedia('(min-width: 640px)');
+        useTabLayout = settingsMediaQuery.matches;
+        settingsMediaQuery.addEventListener('change', handleSettingsMediaChange);
+
         try {
             // Load settings from backend with proper defaults merging
             const loadedSettings = await LoadSettings();
@@ -362,11 +396,11 @@ import { isDeveloperMode } from '../lib/developerMode';
                 targetLanguage: currentSettings.targetLanguage,
                 useWasm: currentSettings.useWasm
             });
-            
+
             // Initialize previous values to current settings
             previousTargetLanguage = currentSettings.targetLanguage;
             previousNativeLanguages = currentSettings.nativeLanguages;
-            
+
             await validateLanguages();
         } catch (error) {
             logger.error('Settings', 'Failed to load settings', { error });
@@ -476,6 +510,9 @@ import { isDeveloperMode } from '../lib/developerMode';
     // Clear interval on component destroy
     onDestroy(() => {
         logger.info('Settings', 'Component unmounting');
+        if (settingsMediaQuery) {
+            settingsMediaQuery.removeEventListener('change', handleSettingsMediaChange);
+        }
     });
 
     async function handleLocate(dependency: 'ffmpeg' | 'mediainfo') {
@@ -508,7 +545,7 @@ import { isDeveloperMode } from '../lib/developerMode';
         
         <!-- Settings panel container as separate sibling -->
         <div class="fixed inset-0 overflow-y-auto settings-panel-container">
-            <div class="container mx-auto max-w-2xl p-4 min-h-screen flex items-center"
+            <div class="container mx-auto {useTabLayout ? 'max-w-7xl' : 'max-w-2xl'} p-4 min-h-screen flex items-center"
                  transition:slide={{ duration: 300 }}
                  on:click|stopPropagation>
                 <!-- Panel container with siblings for blur and content -->
@@ -538,9 +575,51 @@ import { isDeveloperMode } from '../lib/developerMode';
                         </div>
                     </div>
                     
-                    <!-- Content with improved readability and GPU acceleration -->
-                    <div class="p-6 space-y-8 max-h-[calc(100vh-16rem)] overflow-y-auto settings-content will-change-scroll"
-                         style="transform: translateZ(0);">
+                    <!-- Settings body: tabbed layout (wide) or vertical scroll (narrow) -->
+                    {#if useTabLayout}
+                    <div class="flex h-[calc(100vh-14rem)]">
+                        <!-- Sidebar nav -->
+                        <nav class="w-48 shrink-0 border-r border-white/10 overflow-y-auto relative">
+                            <div class="py-3 px-1 flex flex-col gap-1 relative">
+                                <!-- Sliding pill (glow border only, sticky easing) -->
+                                <div class="absolute left-1 right-1 rounded-md pointer-events-none"
+                                     style="height: {tabHeight}px; top: {settingsPillTop}px;
+                                            transition: top 450ms cubic-bezier(0.92, 0, 0.22, 1);
+                                            box-shadow: inset -1.5px -1.5px 3px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.45),
+                                                        -1px -1px 5px 0 hsla(var(--secondary-hue), var(--secondary-saturation), var(--secondary-lightness), 0.12),
+                                                        inset 0 0 12px 0 hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.1),
+                                                        1px 1px 12px -2px hsla(var(--primary-hue), var(--primary-saturation), var(--primary-lightness), 0.25);">
+                                </div>
+                                {#each settingsTabs as tab}
+                                    <button
+                                        class="relative z-10 w-full text-left px-4 h-11 flex items-center gap-3 text-lg
+                                               rounded-md
+                                               {activeSettingsTab === tab.id && settingsPillTarget === tab.id
+                                                   ? 'text-white/90 font-medium bg-primary/[0.07]'
+                                                   : (activeSettingsTab === tab.id
+                                                       ? 'text-white/90 font-medium'
+                                                       : 'text-white/50 hover:text-white/70')}"
+                                        style="transition: {settingsTabBgTransition};"
+                                        on:click={() => activeSettingsTab = tab.id}
+                                        on:mouseenter={() => settingsPillHover = tab.id}
+                                        on:mouseleave={() => settingsPillHover = null}
+                                    >
+                                        <span class="material-icons" style="font-size:18px;">{tab.icon}</span>
+                                        {tab.label}
+                                    </button>
+                                {/each}
+                            </div>
+                        </nav>
+
+                        <!-- Tab content pane -->
+                        <div class="flex-1 overflow-hidden relative settings-content"
+                             style="transform: translateZ(0);">
+                            {#key activeSettingsTab}
+                            <div class="absolute inset-0 overflow-y-auto p-6 space-y-8"
+                                 in:fade={{ duration: liteMode ? 0 : 250, delay: liteMode ? 0 : 60 }}
+                                 out:fade={{ duration: liteMode ? 0 : 200 }}>
+
+                            {#if activeSettingsTab === 'language'}
                         <!-- Language Settings -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
@@ -550,7 +629,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <!-- Target Language with improved input styling -->
                                 <div class="space-y-2">
-                                    <label class="text-sm text-gray-200 font-medium">
+                                    <label class="setting-entry">
                                         Target Language
                                     </label>
                                     <div class="relative">
@@ -563,7 +642,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                             placeholder="e.g. es, yue or pt-BR"
                                             class="w-full {liteMode ? 'bg-ui-element' : 'bg-ui-element backdrop-blur-sm'} border border-primary/30 rounded px-2 py-2
                                                    hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
-                                                   focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
+                                                   focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
                                         />
                                         {#if isValidatingTarget}
                                             <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
@@ -584,7 +663,7 @@ import { isDeveloperMode } from '../lib/developerMode';
 
                                 <!-- Native Languages with improved input styling -->
                                 <div class="space-y-2">
-                                    <label class="text-sm text-gray-200 font-medium">
+                                    <label class="setting-entry">
                                         Native Language(s)
                                     </label>
                                     <div class="relative">
@@ -597,7 +676,713 @@ import { isDeveloperMode } from '../lib/developerMode';
                                             placeholder="e.g. en, fr, es"
                                             class="w-full {liteMode ? 'bg-ui-element' : 'bg-ui-element backdrop-blur-sm'} border border-primary/30 rounded px-2 py-2
                                                    hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
-                                                   focus:outline-none transition-colors duration-200 text-xs font-bold shadow-sm shadow-primary/10"
+                                                   focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
+                                        />
+                                        {#if isValidatingNative}
+                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                                refresh
+                                            </span>
+                                        {:else if nativeLangValid && currentSettings.nativeLanguages}
+                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                                                check_circle
+                                            </span>
+                                        {:else if nativeLangError}
+                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                                                  title={nativeLangError}>
+                                                error
+                                            </span>
+                                        {/if}
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                            {:else if activeSettingsTab === 'services'}
+                        <!-- API and Timeout Settings with improved input styling -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" class="text-primary" stroke-width="0.8" stroke="currentColor">
+                                    <path fill="currentColor" d="M28 26c-.178 0-.347.03-.511.074l-1.056-1.055c.352-.595.567-1.28.567-2.019s-.215-1.424-.567-2.019l1.055-1.055c.165.043.334.074.512.074a2 2 0 1 0-2-2c0 .178.03.347.074.512l-1.055 1.055C24.424 19.215 23.739 19 23 19s-1.424.215-2.019.567l-1.055-1.055c.043-.165.074-.334.074-.512a2 2 0 1 0-2 2c.178 0 .347-.03.512-.074l1.055 1.055C19.215 21.576 19 22.261 19 23s.215 1.424.567 2.019l-1.055 1.055A2 2 0 0 0 18 26a2 2 0 1 0 2 2c0-.178-.03-.347-.074-.512l1.055-1.055c.595.352 1.28.567 2.019.567s1.424-.215 2.019-.567l1.055 1.055A2 2 0 0 0 26 28a2 2 0 1 0 2-2m-7-3c0-1.102.897-2 2-2s2 .898 2 2s-.897 2-2 2s-2-.897-2-2"/>
+                                    <circle cx="22" cy="10" r="2" fill="currentColor"/>
+                                    <path fill="currentColor" d="M21 2c-4.963 0-9 4.037-9 9c0 .779.099 1.547.294 2.291L2 23.586V30h6.414l7-7l-2.707-2.707l-1.414 1.414L12.586 23l-1.59 1.59l-1.287-1.295l-1.418 1.41l1.29 1.299L7.587 28H4v-3.586l9.712-9.712l.856-.867l-.199-.585A7.008 7.008 0 0 1 21 4c3.86 0 7.001 3.14 7.001 7h2c0-4.963-4.037-9-9-9Z"/>
+                                </svg>
+                                API Keys
+                            </h3>
+                            <div class="space-y-4">
+                                <div class="relative glass-input-container">
+                                    <input
+                                        type="password"
+                                        bind:value={currentSettings.apiKeys.replicate}
+                                        class="w-full {liteMode ? 'bg-black/80' : 'bg-black backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                               hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
+                                               focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
+                                               focus:shadow-input-focus transition-all duration-200"
+                                    />
+                                    <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
+                                                 w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
+                                                 setting-entry text-primary">
+                                        Replicate
+                                    </span>
+                                </div>
+                                <div class="relative glass-input-container">
+                                    <input
+                                        type="password"
+                                        bind:value={currentSettings.apiKeys.elevenLabs}
+                                        class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                               hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
+                                               focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
+                                               focus:shadow-input-focus transition-all duration-200"
+                                    />
+                                    <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
+                                                 w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
+                                                 setting-entry text-primary">
+                                        ElevenLabs
+                                    </span>
+                                </div>
+                                 <div class="relative glass-input-container">
+                                     <input
+                                         type="password"
+                                         bind:value={currentSettings.apiKeys.openAI}
+                                         class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                                hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
+                                                focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
+                                                focus:shadow-input-focus transition-all duration-200"
+                                     />
+                                     <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
+                                                  w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
+                                                  setting-entry text-primary">
+                                         OpenAI
+                                     </span>
+                                 </div>
+                                 <div class="relative glass-input-container">
+                                     <input
+                                         type="password"
+                                         bind:value={currentSettings.apiKeys.openRouter}
+                                         class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                                hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
+                                                focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
+                                                focus:shadow-input-focus transition-all duration-200"
+                                     />
+                                     <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
+                                                  w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
+                                                  setting-entry text-primary">
+                                         OpenRouter
+                                     </span>
+                                 </div>
+                                 <div class="relative glass-input-container">
+                                     <input
+                                         type="password"
+                                         bind:value={currentSettings.apiKeys.google}
+                                         class="w-full {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border border-primary/40 rounded-lg pl-[156px] pr-3 py-2
+                                                hover:border-primary/55 hover:shadow-input tracking-wider text-lg text-white
+                                                focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50
+                                                focus:shadow-input-focus transition-all duration-200"
+                                     />
+                                     <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
+                                                  w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
+                                                  setting-entry text-primary">
+                                         Google
+                                     </span>
+                                 </div>
+                            </div>
+                        </section>
+
+                        <!-- Custom Endpoints Settings (Local Inference) -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">cloud_off</span>
+                                Custom Endpoints (Local Inference)
+                            </h3>
+
+                            <!-- Custom STT/ASR Endpoint -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Custom STT/ASR Endpoint</span>
+                                    <span class="setting-description">OpenAI-compatible transcription endpoint</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.customEndpoints.stt.enabled}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            {#if currentSettings.customEndpoints.stt.enabled}
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>STT Endpoint URL</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.stt.endpoint}
+                                            placeholder="http://localhost:8080/v1/audio/transcriptions"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>STT Model (optional)</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.stt.model}
+                                            placeholder="whisper-1"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                            {/if}
+
+                            <!-- Custom LLM Endpoint -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Custom LLM Endpoint</span>
+                                    <span class="setting-description">OpenAI-compatible chat completions (Ollama, llama.cpp)</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.customEndpoints.llm.enabled}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            {#if currentSettings.customEndpoints.llm.enabled}
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>LLM Endpoint URL</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.llm.endpoint}
+                                            placeholder="http://localhost:11434/v1/chat/completions"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <span>LLM Model (optional)</span>
+                                    </div>
+                                    <div class="setting-control">
+                                        <TextInput
+                                            bind:value={currentSettings.customEndpoints.llm.model}
+                                            placeholder="llama3"
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                            {/if}
+                        </section>
+                            {:else if activeSettingsTab === 'processing'}
+                        <!-- Demucs Settings Section -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">graphic_eq</span>
+                                Voice Separation (Demucs)
+                            </h3>
+
+                            <!-- Max segment minutes -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Max segment duration</span>
+                                    <span class="setting-description">Maximum minutes per segment for GPU processing. Set to 0 for auto-optimized based on GPU VRAM.</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.demucsMaxSegmentMinutes}
+                                        min={0}
+                                        max={999}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Integrity Checks -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">verified_user</span>
+                                Integrity Checks
+                            </h3>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>Decode depth</span>
+                                        <Hovertip position="right">
+                                            <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                            <div class="max-w-xs">
+                                                <p class="mb-2">Controls how thoroughly media files are checked for bitstream corruption:</p>
+                                                <ul class="list-disc ml-4 space-y-1">
+                                                    <li><strong class="text-primary/90">Sampled:</strong> Decodes 3 short windows (start, middle, end) per stream. Fast and catches most corruption.</li>
+                                                    <li><strong class="text-primary/90">Full:</strong> Decodes the entire audio stream. Slower but catches all bitstream errors.</li>
+                                                </ul>
+                                            </div>
+                                        </Hovertip>
+                                    </div>
+                                    <span class="setting-description">How deeply to decode-check media streams for corruption</span>
+                                </div>
+                                <div class="setting-control">
+                                    <SelectInput
+                                        bind:value={currentSettings.integrityDecodeDepth}
+                                        className="px-3 py-2 rounded-lg"
+                                        on:change={updateSettings}
+                                    >
+                                        <option value="sampled">Sampled (Recommended)</option>
+                                        <option value="full">Full (Strict, slower)</option>
+                                    </SelectInput>
+                                </div>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>Consensus quorum</span>
+                                        <Hovertip position="right">
+                                            <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                            <div class="max-w-xs">
+                                                <p>Minimum percentage of files that must share a trait (audio language, subtitle language, track count) for it to be considered the "consensus" value. Lower values are more lenient; higher values require stronger agreement.</p>
+                                            </div>
+                                        </Hovertip>
+                                    </div>
+                                    <span class="setting-description">Threshold for auto-consistency checks</span>
+                                </div>
+                                <div class="setting-control flex items-center gap-3">
+                                    <input type="range" min="50" max="100" step="5"
+                                           bind:value={currentSettings.preflightQuorumPct}
+                                           on:change={updateSettings}
+                                           class="flex-1 h-[3px] accent-primary" />
+                                    <span class="font-mono text-sm text-white/80 font-medium w-10 text-right">{currentSettings.preflightQuorumPct}%</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Intermediary File Handling Settings -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">storage</span>
+                                Intermediary Files
+                            </h3>
+
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>Intermediary File Mode</span>
+                                        <Hovertip position="right">
+                                            <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                            <div class="max-w-xs">
+                                                <p class="mb-2">Intermediary files can be useful for reprocessing with different settings, but may consume substantial disk space:</p>
+                                                <ul class="list-disc ml-4 space-y-1">
+                                                    <li><strong class="text-primary/90">Keep:</strong> Preserves files at original quality for maximum reusability</li>
+                                                    <li><strong class="text-primary/90">Recompress:</strong> Compresses files to balance space and reusability</li>
+                                                    <li><strong class="text-primary/90">Delete:</strong> Removes intermediary files immediately after processing</li>
+                                                </ul>
+                                            </div>
+                                        </Hovertip>
+                                    </div>
+                                    <span class="setting-description">How to handle intermediary files produced during processing</span>
+                                </div>
+
+                                <div class="setting-control">
+                                    <SelectInput
+                                        bind:value={currentSettings.intermediaryFileMode}
+                                        className="px-3 py-2 rounded-lg"
+                                        on:change={updateSettings}
+                                    >
+                                        <option value="keep">Keep Files (Original Quality)</option>
+                                        <option value="recompress">Recompress Files (Save Space)</option>
+                                        <option value="delete">Delete Files (Save Maximum Space)</option>
+                                    </SelectInput>
+                                </div>
+                            </div>
+
+                            {#if currentSettings.intermediaryFileMode === "delete"}
+                                <!-- Delete TSV/CSV Option -->
+                                <div class="setting-row">
+                                    <div class="setting-label">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span>Delete Resumption Files</span>
+                                            <Hovertip position="right">
+                                                <span slot="trigger" class="material-icons text-xs text-primary/80 cursor-help">help_outline</span>
+                                                <div class="max-w-xs">
+                                                    <p>TSV/CSV files are used to track processing progress and enable resumption if processing is interrupted. Deleting these files will prevent resuming from where you left off.</p>
+                                                </div>
+                                            </Hovertip>
+                                        </div>
+                                        <span class="setting-description">Also delete TSV/CSV files used for session resumption</span>
+                                    </div>
+
+                                    <div class="setting-control">
+                                        <label class="toggle-switch">
+                                            <input
+                                                type="checkbox"
+                                                bind:checked={currentSettings.deleteResumptionFiles}
+                                                on:change={updateSettings}
+                                                disabled={currentSettings.intermediaryFileMode !== "delete"}
+                                            />
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            {/if}
+                        </section>
+
+                        <!-- Worker Pool Settings with improved styling -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">speed</span>
+                                Worker Pool Settings
+                            </h3>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum Workers</span>
+                                    <span class="setting-description">Number of concurrent worker processes</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.maxWorkers}
+                                        min={1}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- API TIMEOUTS SECTION -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">timer</span>
+                                Timeouts & Retries
+                            </h3>
+                            <!-- Maximum API retries -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum API retries</span>
+                                    <span class="setting-description">Number of retry attempts for failed API calls</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.maxAPIRetries}
+                                        min={1}
+                                        step={1}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Voice separation timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Voice separation timeout</span>
+                                    <span class="setting-description">Timeout in seconds for voice separation operations (Demucs, Spleeter) - Default: 2100</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutSep}
+                                        min={60}
+                                        max={7200}
+                                        step={60}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Speech-to-text timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Speech-to-text timeout</span>
+                                    <span class="setting-description">Timeout in seconds for speech-to-text operations per audio segment - Default: 90</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutSTT}
+                                        min={10}
+                                        max={600}
+                                        step={10}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Download timeout -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Download timeout</span>
+                                    <span class="setting-description">Timeout in seconds for download operations - Default: 600</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.timeoutDL}
+                                        min={30}
+                                        max={3600}
+                                        step={30}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                    />
+                                </div>
+                            </div>
+                        </section>
+                            {:else if activeSettingsTab === 'interface'}
+                        <!-- UI Settings with improved styling -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">palette</span>
+                                Interface Settings
+                            </h3>
+                            <!-- Lite Mode (reduced visual effects) -->
+                            <div class="setting-row">
+                                <div class="setting-label" class:disabled={liteModeForced}>
+                                    <span>Lite mode</span>
+                                    <span class="setting-description">Simplify visuals for better performance on low-end hardware</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch" class:disabled={liteModeForced}>
+                                        <input
+                                            type="checkbox"
+                                            checked={liteModeForced ? true : currentSettings.liteMode}
+                                            on:change={() => {
+                                                if (!liteModeForced) {
+                                                    currentSettings.liteMode = !currentSettings.liteMode;
+                                                    updateSettings();
+                                                    liteModeStore.setUserPreference(currentSettings.liteMode);
+                                                }
+                                            }}
+                                            disabled={liteModeForced}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                                {#if liteModeForced}
+                                    <div class="setting-note-card">
+                                        {#if liteModeReason === 'qt-windows'}
+                                            Forced on due to <ExternalLink href="https://github.com/ankitects/anki/issues/4470">Qt bug on Windows</ExternalLink>
+                                        {:else if liteModeReason === 'no-hw-accel'}
+                                            Forced on because hardware acceleration is unavailable
+                                        {/if}
+                                    </div>
+                                {/if}
+                            </div>
+
+                            <!-- Show log viewer by default -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Show log viewer by default</span>
+                                    <span class="setting-description">Always reveal log viewer on start up</span>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={currentSettings.showLogViewerByDefault}
+                                            on:change={updateSettings}
+                                        />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Changelog Display Frequency -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Show changelog</span>
+                                    <span class="setting-description">When to display the changelog after software updates</span>
+                                </div>
+                                <div class="setting-control">
+                                    <SelectInput
+                                        bind:value={currentSettings.changelogDisplayFrequency}
+                                        className="px-3 py-2 rounded-lg"
+                                        on:change={updateSettings}
+                                    >
+                                        <option value="all">On every update</option>
+                                        <option value="minor_major">On minor and major updates</option>
+                                        <option value="major_only">On major updates only</option>
+                                    </SelectInput>
+                                </div>
+                            </div>
+
+                            <!-- Maximum log entries -->
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Maximum log entries</span>
+                                    <span class="setting-description">Limit the number of log entries to improve performance</span>
+                                </div>
+                                <div class="setting-control">
+                                    <NumericInput
+                                        bind:value={currentSettings.maxLogEntries}
+                                        min={100}
+                                        step={100}
+                                        className="w-48 px-3 py-2 hover:border-primary/55
+                                                hover:shadow-input focus:shadow-input-focus
+                                                focus:border-primary focus:ring-1
+                                                focus:ring-primary/50 {liteMode ? 'bg-black/70' : 'bg-black/40 backdrop-blur-sm'} border-primary/40 text-white"
+                                        on:change={updateSettings}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+                            {:else if activeSettingsTab === 'system'}
+                        <!-- Diagnostic / Debug Export Section with improved styling -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">build</span>
+                                Dependency Paths
+                            </h3>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Custom FFmpeg Path</span>
+                                    <span class="setting-description">Path to the FFmpeg executable</span>
+                                </div>
+                                <div class="setting-control">
+                                    <TextInput bind:value={currentSettings.ffmpegPath} className="w-full" />
+                                    <button on:click={() => handleLocate('ffmpeg')} class="setting-description ml-2 px-3 py-1.5 bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
+                                </div>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-label">
+                                    <span>Custom MediaInfo Path</span>
+                                    <span class="setting-description">Path to the MediaInfo executable</span>
+                                </div>
+                                <div class="setting-control">
+                                    <TextInput bind:value={currentSettings.mediainfoPath} className="w-full" />
+                                    <button on:click={() => handleLocate('mediainfo')} class="setting-description ml-2 px-3 py-1.5 bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Diagnostic / Debug Export Section with improved styling -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span
+                                    class="material-icons text-primary cursor-pointer"
+                                    on:click={handleBugIconClick}
+                                >bug_report</span>
+                                Diagnostic Tools
+                            </h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center gap-4">
+                                    <!-- Conditionally disable backdrop-blur in reduced mode to prevent Qt WebEngine flickering -->
+                                    <button
+                                        class="debug-export-button px-6 py-3 text-white rounded-lg font-semibold
+                                               {liteMode ? 'bg-input-bg/80' : 'bg-input-bg/50 backdrop-blur-sm'} focus:outline-none"
+                                        on:click={exportDebugReport}
+                                        disabled={isExportingDebug}
+                                        class:glow-success={exportGlowClass === 'glow-success'}
+                                        class:glow-error={exportGlowClass === 'glow-error'}
+                                        class:force-reset={exportGlowClass === 'force-reset'}
+                                    >
+                                        Export Debug Report
+                                    </button>
+                                    {#if isExportingDebug}
+                                        <span class="inline-flex items-center gap-1 text-gray-200 text-sm">
+                                            <span class="material-icons animate-spin">autorenew</span>
+                                            Creating debug report, please wait...
+                                        </span>
+                                    {:else if exportSuccess}
+                                        <span class="inline-flex items-center gap-1 text-green-400 text-sm">
+                                            <span class="material-icons">check_circle</span>
+                                            Debug report successfully saved!
+                                        </span>
+                                    {:else if exportError}
+                                        <span class="inline-flex items-center gap-1 text-red-400 text-sm">
+                                            <span class="material-icons">error</span>
+                                            {exportError}
+                                        </span>
+                                    {/if}
+                                </div>
+                            </div>
+                        </section>
+                            {/if}
+
+                            </div>
+                            {/key}
+                        </div>
+                    </div>
+                    {:else}
+                    <!-- Narrow fallback: all sections stacked vertically -->
+                    <div class="p-6 space-y-8 max-h-[calc(100vh-16rem)] overflow-y-auto settings-content will-change-scroll"
+                         style="transform: translateZ(0);">
+                        <!-- Language Settings -->
+                        <section class="space-y-6">
+                            <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
+                                <span class="material-icons text-primary">translate</span>
+                                Default Language Settings
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Target Language with improved input styling -->
+                                <div class="space-y-2">
+                                    <label class="setting-entry">
+                                        Target Language
+                                    </label>
+                                    <div class="relative">
+                                        <input
+                                            type="text"
+                                            bind:value={currentSettings.targetLanguage}
+                                            on:input={() => logger.trace('Settings', 'Target language input changed', { value: currentSettings.targetLanguage })}
+                                            minlength="1"
+                                            maxlength="9"
+                                            placeholder="e.g. es, yue or pt-BR"
+                                            class="w-full {liteMode ? 'bg-ui-element' : 'bg-ui-element backdrop-blur-sm'} border border-primary/30 rounded px-2 py-2
+                                                   hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
+                                                   focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
+                                        />
+                                        {#if isValidatingTarget}
+                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                                refresh
+                                            </span>
+                                        {:else if targetLangValid && currentSettings.targetLanguage}
+                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                                                check_circle
+                                            </span>
+                                        {:else if targetLangError}
+                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                                                  title={targetLangError}>
+                                                error
+                                            </span>
+                                        {/if}
+                                    </div>
+                                </div>
+
+                                <!-- Native Languages with improved input styling -->
+                                <div class="space-y-2">
+                                    <label class="setting-entry">
+                                        Native Language(s)
+                                    </label>
+                                    <div class="relative">
+                                        <input
+                                            type="text"
+                                            bind:value={currentSettings.nativeLanguages}
+                                            on:input={() => logger.trace('Settings', 'Native languages input changed', { value: currentSettings.nativeLanguages })}
+                                            minlength="1"
+                                            maxlength="100"
+                                            placeholder="e.g. en, fr, es"
+                                            class="w-full {liteMode ? 'bg-ui-element' : 'bg-ui-element backdrop-blur-sm'} border border-primary/30 rounded px-2 py-2
+                                                   hover:bg-ui-element-hover hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary
+                                                   focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
                                         />
                                         {#if isValidatingNative}
                                             <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
@@ -640,7 +1425,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     />
                                     <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
                                                  w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
-                                                 text-sm text-primary font-medium">
+                                                 setting-entry text-primary">
                                         Replicate
                                     </span>
                                 </div>
@@ -655,7 +1440,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     />
                                     <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
                                                  w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
-                                                 text-sm text-primary font-medium">
+                                                 setting-entry text-primary">
                                         ElevenLabs
                                     </span>
                                 </div>
@@ -670,7 +1455,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                      />
                                      <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
                                                   w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
-                                                  text-sm text-primary font-medium">
+                                                  setting-entry text-primary">
                                          OpenAI
                                      </span>
                                  </div>
@@ -685,7 +1470,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                      />
                                      <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
                                                   w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
-                                                  text-sm text-primary font-medium">
+                                                  setting-entry text-primary">
                                          OpenRouter
                                      </span>
                                  </div>
@@ -700,7 +1485,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                      />
                                      <span class="absolute left-0 top-0 bottom-0 flex items-center justify-center
                                                   w-[140px] bg-primary/20 border-r border-primary/30 rounded-l-lg
-                                                  text-sm text-primary font-medium">
+                                                  setting-entry text-primary">
                                          Google
                                      </span>
                                  </div>
@@ -830,7 +1615,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 </div>
                             </div>
                         </section>
-                        
+
                         <!-- Integrity Checks -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
@@ -894,7 +1679,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 <span class="material-icons text-primary">storage</span>
                                 Intermediary Files
                             </h3>
-                            
+
                             <div class="setting-row">
                                 <div class="setting-label">
                                     <div class="flex items-center justify-center gap-1">
@@ -913,7 +1698,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     </div>
                                     <span class="setting-description">How to handle intermediary files produced during processing</span>
                                 </div>
-                                
+
                                 <div class="setting-control">
                                     <SelectInput
                                         bind:value={currentSettings.intermediaryFileMode}
@@ -926,7 +1711,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     </SelectInput>
                                 </div>
                             </div>
-                            
+
                             {#if currentSettings.intermediaryFileMode === "delete"}
                                 <!-- Delete TSV/CSV Option -->
                                 <div class="setting-row">
@@ -942,7 +1727,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                         </div>
                                         <span class="setting-description">Also delete TSV/CSV files used for session resumption</span>
                                     </div>
-                                    
+
                                     <div class="setting-control">
                                         <label class="toggle-switch">
                                             <input
@@ -997,7 +1782,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     </div>
                                 {/if}
                             </div>
-                            
+
                             <!-- Show log viewer by default -->
                             <div class="setting-row">
                                 <div class="setting-label">
@@ -1055,7 +1840,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 </div>
                             </div>
                         </section>
-                        
+
                         <!-- Worker Pool Settings with improved styling -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
@@ -1080,7 +1865,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 </div>
                             </div>
                         </section>
-                        
+
                         <!-- API TIMEOUTS SECTION -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
@@ -1105,7 +1890,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     />
                                 </div>
                             </div>
-                            
+
                             <!-- Voice separation timeout -->
                             <div class="setting-row">
                                 <div class="setting-label">
@@ -1125,7 +1910,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     />
                                 </div>
                             </div>
-                            
+
                             <!-- Speech-to-text timeout -->
                             <div class="setting-row">
                                 <div class="setting-label">
@@ -1145,7 +1930,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                     />
                                 </div>
                             </div>
-                            
+
                             <!-- Download timeout -->
                             <div class="setting-row">
                                 <div class="setting-label">
@@ -1180,7 +1965,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 </div>
                                 <div class="setting-control">
                                     <TextInput bind:value={currentSettings.ffmpegPath} className="w-full" />
-                                    <button on:click={() => handleLocate('ffmpeg')} class="ml-2 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
+                                    <button on:click={() => handleLocate('ffmpeg')} class="setting-description ml-2 px-3 py-1.5 bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
                                 </div>
                             </div>
                             <div class="setting-row">
@@ -1190,7 +1975,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                                 </div>
                                 <div class="setting-control">
                                     <TextInput bind:value={currentSettings.mediainfoPath} className="w-full" />
-                                    <button on:click={() => handleLocate('mediainfo')} class="ml-2 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
+                                    <button on:click={() => handleLocate('mediainfo')} class="setting-description ml-2 px-3 py-1.5 bg-gray-600 rounded-md hover:bg-gray-500">Browse</button>
                                 </div>
                             </div>
                         </section>
@@ -1198,8 +1983,8 @@ import { isDeveloperMode } from '../lib/developerMode';
                         <!-- Diagnostic / Debug Export Section with improved styling -->
                         <section class="space-y-6">
                             <h3 class="text-lg font-medium text-primary flex items-center gap-2 settings-heading">
-                                <span 
-                                    class="material-icons text-primary cursor-pointer" 
+                                <span
+                                    class="material-icons text-primary cursor-pointer"
                                     on:click={handleBugIconClick}
                                 >bug_report</span>
                                 Diagnostic Tools
@@ -1238,6 +2023,7 @@ import { isDeveloperMode } from '../lib/developerMode';
                             </div>
                         </section>
                     </div>
+                    {/if}
 
                     <!-- Footer with improved styling -->
                     <div class="p-6 border-t border-primary/30 flex justify-end gap-3 bg-bg-800/50">
@@ -1633,16 +2419,23 @@ import { isDeveloperMode } from '../lib/developerMode';
         gap: 0.25rem;
         align-items: center;
         text-align: center;
+        font-size: 1.125rem;
+    }
+
+    .setting-entry {
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 600;
     }
     
     .setting-description {
-        font-size: 0.75rem;
+        font-size: 0.875rem;
         color: rgba(255, 255, 255, 0.6);
     }
 
     .setting-note-card {
         grid-column: 1 / -1; /* Span both columns */
-        font-size: 0.7rem;
+        font-size: 0.8rem;
         color: rgba(255, 255, 255, 0.6);
         background-color: rgba(60, 60, 80, 0.4);
         padding: 0.4rem 0.6rem;
