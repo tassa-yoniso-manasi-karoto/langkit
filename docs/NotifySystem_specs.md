@@ -462,6 +462,7 @@ function handleLogBehavior(log: LogMessage) {
 - **Abort Task vs. Abort All:** 
   - `abort_task` affects specific tasks but allows others to continue
   - `abort_all` is a more severe global error that halts all processing
+  - The FFmpeg apostrophe-directory-path error (`Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). Apostrophe in the names of the files themselves are supported using a workaround.`) is classified as `abort_all`
 
 - **Prioritized Error States:**
   ```typescript

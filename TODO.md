@@ -8,11 +8,9 @@
   - scrollbar of Modal in QtWebEngine
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
-- this error should abort_all: "Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). Apostrophe in the names of the files themselves are supported using a workaround."
+- Apostrophe in the names of the files cause mismatch with romanized version
 
 - ⭐⭐⭐ PUSH ANKI ADDON UPDATE ⭐⭐⭐
-
-- groups of "autosubs failed: no subtitle matching target language Japanese was found" could be mutualized in a user-friendly "meta-error" displayed in progress manager: "Folder X does not appear to contain subtitles in language Y."
 
 - ENHANCED as source for:
   - condensed audio

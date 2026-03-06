@@ -320,21 +320,21 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 		reporter.SaveSnapshot("Requirements validation failed", tsk.DebugVals()) // necessity: high
 		return procErr
 	}
-	
+
 	// Initialize the intermediary file manager
 	tsk.fileManager = NewIntermediaryFileManager(
 		tsk.IntermediaryFileMode,
 		tsk.Handler,
 		tsk.DeleteResumptionFiles,
 	)
-	
+
 	if tsk.Mode != Enhance {
 		// Handle subtitle detection and language determination
 		if procErr := tsk.setupSubtitles(ctx, reporter); procErr != nil {
 			return procErr
 		}
 	}
-	
+
 	// Register original subtitle files for merging if merging is enabled AND this is a merge-group feature
 	// The frontend tells us this by setting MergeOutputFiles to true only for features in the mergeGroup
 	if tsk.MergeOutputFiles {
@@ -348,11 +348,11 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	} else {
 		tsk.Handler.ZeroLog().Trace().Msg("Skipping output merge registration (no merging requested)")
 	}
-	
+
 	if procErr := tsk.processMediaInfo(); procErr != nil {
 		return procErr
 	}
-	
+
 	// case where no STT is involved
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
 		if tsk.WantTranslit {
@@ -362,7 +362,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 				return err
 			}
 		}
-		
+
 		if procErr := tsk.processAudioEnhancement(ctx); procErr != nil {
 			return procErr
 		}
@@ -387,7 +387,7 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 	if tsk.Mode == Subs2Cards || tsk.Mode == Subs2Dubs || tsk.Mode == Condense {
 		// Check if we can skip WAV extraction due to existing concatenated file
 		tsk.CheckConcatenatedWAV()
-		
+
 		// For Condense mode, we don't need to write TSV output, just extract WAV segments
 		if tsk.Mode == Condense {
 			tsk.Handler.ZeroLog().Info().Msg("Running in Condense mode - extracting audio segments only")
@@ -395,15 +395,15 @@ func (tsk *Task) Execute(ctx context.Context) (procErr *ProcessingError) {
 				reporter.SaveSnapshot("Supervisor failed in Condense mode", tsk.DebugVals())
 				return err
 			}
-			
+
 			// Check if enhanced track is also requested for Condense mode
 			if tsk.WantEnhancedTrack {
 				tsk.Handler.ZeroLog().Info().Msg("Additionally creating enhanced audio track as part of Condense mode...")
-				
+
 				// Ensure we have a separation library specified
 				if tsk.SeparationLib == "" {
 					procErr = tsk.Handler.Log(Warn, AbortTask, "Cannot create enhanced track: No separation library specified for Condense mode with enhanced track option.")
-					if procErr != nil { 
+					if procErr != nil {
 						return procErr
 					}
 				} else {
@@ -516,19 +516,19 @@ mergeOutputs:
 			Bool("mergeOutputFiles", tsk.MergeOutputFiles).
 			Int("outputFilesCount", len(tsk.OutputFiles)).
 			Msg("Processing merge outputs from merge group feature")
-			
+
 		mergeResult, procErr := tsk.MergeOutputs(ctx)
-			if procErr != nil {
-				reporter.SaveSnapshot("Output merging failed", tsk.DebugVals()) // necessity: high
-				return procErr
-			}
-			
-			if mergeResult != nil && !mergeResult.Skipped {
-				tsk.Handler.ZeroLog().Info().
-					Str("outputPath", mergeResult.OutputPath).
-					Bool("success", mergeResult.Success).
-					Msg("Output files merged successfully")
-			}
+		if procErr != nil {
+			reporter.SaveSnapshot("Output merging failed", tsk.DebugVals()) // necessity: high
+			return procErr
+		}
+
+		if mergeResult != nil && !mergeResult.Skipped {
+			tsk.Handler.ZeroLog().Info().
+				Str("outputPath", mergeResult.OutputPath).
+				Bool("success", mergeResult.Success).
+				Msg("Output files merged successfully")
+		}
 	} else {
 		tsk.Handler.ZeroLog().Debug().
 			Bool("mergeOutputFiles", tsk.MergeOutputFiles).
@@ -543,7 +543,7 @@ mergeOutputs:
 		if err := tsk.fileManager.ProcessFiles(tsvFile); err != nil {
 			tsk.Handler.ZeroLog().Warn().Err(err).Msg("Error processing intermediary files")
 		}
-		
+
 		// Clean up empty media directory if all files were deleted
 		if tsk.Mode != Enhance && tsk.Mode != Translit {
 			tsk.fileManager.CleanupMediaDirectory(tsk.mediaOutputDir())
@@ -650,22 +650,17 @@ func write(outStream *os.File, item *ProcessedItem) {
 	fmt.Fprintf(outStream, "%s\n", escape(item.NativeNext))
 }
 
-
-
-
 // validateBasicRequirements validates the basic requirements for task execution
 func (tsk *Task) validateBasicRequirements() *ProcessingError {
 	// Check for apostrophe in directory path (ffmpeg limitation)
 	if strings.Contains(filepath.Dir(tsk.TargSubFile), "'") {
-		return tsk.Handler.Log(Error, AbortTask,
-			"Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). "+
-				"Apostrophe in the names of the files themselves are supported using a workaround.")
+		return tsk.Handler.Log(Error, AbortAllTasks, ffmpegApostropheDirectoryPathError)
 	}
-	
-	if tsk.Mode == Enhance  {
+
+	if tsk.Mode == Enhance {
 		return nil
 	}
-	
+
 	// Ensure either languages or subtitle files are specified
 	if len(tsk.Langs) == 0 && tsk.TargSubFile == "" {
 		return tsk.Handler.Log(Error, AbortAllTasks,
@@ -739,34 +734,34 @@ func (tsk *Task) setupSubtitles(ctx context.Context, reporter *crash.ReporterIns
 func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 	var err error
 	var outStream *os.File
-	
+
 	// Skip for Enhance or Translit modes
 	if tsk.Mode == Enhance || tsk.Mode == Translit {
 		return nil, nil
 	}
-	
+
 	// Set totalItems if not in bulk mode
 	if totalItems == 0 {
 		totalItems = len(tsk.TargSubs.Items)
 	}
-	
+
 	// For Condense mode, we only need to create the media output directory and set MediaPrefix
 	// Skip native subtitles loading and TSV output file creation
 	if tsk.Mode == Condense {
 		tsk.Handler.ZeroLog().Debug().Msg("Preparing output directory for Condense mode")
-		
+
 		// Create media output directory
 		if err := os.MkdirAll(tsk.mediaOutputDir(), os.ModePerm); err != nil {
 			return nil, tsk.Handler.LogErr(err, AbortTask,
 				fmt.Sprintf("can't create output directory: %s", tsk.mediaOutputDir()))
 		}
-		
- 		// Set media prefix for file output
+
+		// Set media prefix for file output
 		tsk.MediaPrefix = filepath.Join(tsk.mediaOutputDir(), tsk.ffmpegSafeBase())
-		
+
 		return nil, nil
 	}
-	
+
 	// Validate requirements for Subs2Cards mode
 	if tsk.Mode == Subs2Cards {
 		if len(tsk.Langs) < 2 && tsk.NativeSubFile == "" {
@@ -793,7 +788,7 @@ func (tsk *Task) prepareOutputDirectory() (*os.File, *ProcessingError) {
 		return nil, tsk.Handler.LogErr(err, AbortTask,
 			fmt.Sprintf("can't create output file: %s", tsk.outputFile()))
 	}
-	
+
 	tsk.Handler.ZeroLog().Debug().
 		Str("outStream", tsk.outputFile()).
 		Msg("outStream file successfully open")
@@ -927,7 +922,7 @@ func (tsk *Task) processDubtitles(ctx context.Context) *ProcessingError {
 	if err = tsk.TargSubs.Write(tsk.TargSubFile); err != nil {
 		return tsk.Handler.LogErr(err, AbortTask, "writing dubtitle file")
 	}
-	
+
 	// Register the dubtitle file for final output merging if merging is enabled
 	if tsk.MergeOutputFiles {
 		tsk.RegisterOutputFile(tsk.TargSubFile, OutputDubtitle, tsk.Targ, "dubtitles", 90)
@@ -941,7 +936,7 @@ func (tsk *Task) processTransliteration(ctx context.Context) *ProcessingError {
 	if !tsk.WantTranslit {
 		return nil
 	}
-	
+
 	// TODO: find a way to provide transliteration in the TSV as well
 	return tsk.Transliterate(ctx)
 }
