@@ -23,7 +23,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openai/openai-go v1.12.0
 	github.com/replicate/replicate-go v0.26.0
-	github.com/revrost/go-openrouter v1.0.0
+	github.com/revrost/go-openrouter v1.1.7
 	github.com/rs/zerolog v1.34.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/shirou/gopsutil/v3 v3.24.5
