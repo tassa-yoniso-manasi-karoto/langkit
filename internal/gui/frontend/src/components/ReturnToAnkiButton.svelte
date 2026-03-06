@@ -92,7 +92,7 @@
                         in:slide={{ axis: 'x', duration: 550, easing: cubicOut }}
                         out:slide={{ axis: 'x', duration: 450, easing: cubicOut }}
                     >
-                        Press&nbsp;<span class="font-semibold text-white/70">ESC</span>&nbsp;to return to Anki
+                        Press&nbsp;<span class="font-semibold text-white/70">D</span>&nbsp;to return to Anki
                     </div>
                 </div>
             {/if}

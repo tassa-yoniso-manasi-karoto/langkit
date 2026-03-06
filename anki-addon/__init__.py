@@ -109,7 +109,7 @@ class LangkitAddon:
         self._keyboard_shortcut.setAutoRepeat(False)
 
     def _fix_deck_shortcut(self):
-        """Fix the deck shortcut to work when Langkit is open."""
+        """Ensure Anki's native deck shortcut (D) works when Langkit is open."""
         # Store original moveToState method
         self._original_moveToState = mw.moveToState
 

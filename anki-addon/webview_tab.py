@@ -207,11 +207,6 @@ class LangkitTab:
         # Handle load finished
         self.web_view.loadFinished.connect(self._on_load_finished)
         
-        # Add ESC key shortcut to return to Anki
-        escape_shortcut = QShortcut(QKeySequence("Escape"), self.web_view)
-        escape_shortcut.activated.connect(self.hide)
-
-
     def show(self):
         """Show the Langkit interface."""
         print(f"[Langkit] show() called, is_visible={self.is_visible}")

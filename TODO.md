@@ -1,20 +1,29 @@
 🔳 `Subtitle lines processed (all files)...- [ETA: 3m-15m (92%)]` -> in bulk mode, this bar is being recreated at each file
 🔳 processing JPN should not be bigger size than processing voice sep
 
-- ENHANCED as source for:
-  - condensed audio
-  - subs2cards audio clips
+- openrouter lib dead? might need update
+
+- when media-bar completes remove ALL progress bar immediately
 
 - Data aware logic:
+  - ⭐⭐⭐ drop down bug on qtwebengine
   - collapse "Corrupt Audio Tracks" WITH "Audio Decode Failures"
+  - mv "Manage Profiles..." out of the dropdown onto a new dedicated button
+  - scrollbar of Modal in QtWebEngine
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
 
 - "Do-no-interrupt" mode: <<<--- IMPLEMENT AS PART OF THE PRE-FLIGHT  CHECK: the user knows the problem immediately at processing starts instead auto-tolerating mid-run
    - this error should abort_all: "Due to ffmpeg limitations, the path of the directory in which the files are located must not contain an apostrophe ('). Apostrophe in the names of the files themselves are supported using a workaround."
    - should NOT abort_all, give it leaway: "selecting audiotrack: No audiotrack tagged with the requested target language exists. If it isn't a misinput please use the audiotrack override to set a track number manually."
 
+- MediaInput, remove "and x more files..."
+
 - groups of "autosubs failed: no subtitle matching target language Japanese was found" could be mutualized in a user-friendly "meta-error" displayed in progress manager: "Folder X does not appear to contain subtitles in language Y."
 
+- ENHANCED as source for:
+  - condensed audio
+  - subs2cards audio clips
+  
 - 🐢🐢🐢 Wave svg reset too fast make longer loop
 
 - 🚧 add tlit in TSV/CSV

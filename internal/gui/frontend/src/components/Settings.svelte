@@ -531,7 +531,23 @@ import { isDeveloperMode } from '../lib/developerMode';
             logger.error('Settings', `Failed to open file dialog for ${dependency}`, { error: err });
         }
     }
+
+    function handleSettingsKeydown(event: KeyboardEvent) {
+        if (event.key !== 'Escape' || !$showSettings) {
+            return;
+        }
+        // Respect child components that explicitly consumed Escape.
+        if (event.defaultPrevented) {
+            return;
+        }
+
+        logger.trace('Settings', 'Closing settings via Escape key');
+        event.preventDefault();
+        onClose();
+    }
 </script>
+
+<svelte:window on:keydown={handleSettingsKeydown} />
 
 {#if $showSettings}
     <div class="settings-modal" data-reduced-mode={liteMode}>

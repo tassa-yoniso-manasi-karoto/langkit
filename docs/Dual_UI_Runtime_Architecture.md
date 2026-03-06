@@ -47,7 +47,7 @@ The frontend uses Svelte stores for reactive runtime detection:
 The add-on uses a "push" approach:
 1. Hides Anki's webviews (toolbar, main, bottom)
 2. Adds Langkit webview to the main layout
-3. Provides ESC key and button to return to Anki
+3. Uses Anki's native `D` deck shortcut and a return button to go back to Anki
 
 This avoids Qt widget lifecycle issues while providing full-screen experience.
 
