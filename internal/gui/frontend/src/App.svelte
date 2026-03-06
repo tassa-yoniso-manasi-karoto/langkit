@@ -124,6 +124,15 @@
     // Diagnostic modal state
     let showDiagnosticModal = false;
 
+    // Treat checker as visually running while check bars are still present
+    // to avoid status flicker when throttled progress events arrive late.
+    let hasCheckProgressBars = false;
+    let isCheckingVisual = false;
+    $: hasCheckProgressBars = $progressBars.some(function(bar) {
+        return bar.id === 'check-probe' || bar.id === 'check-decode';
+    });
+    $: isCheckingVisual = $checkResultStore.isRunning || hasCheckProgressBars;
+
     // Expectation profiles (shared between ActionBar and DiagnosticModal)
     let expectationProfiles: ExpProfile[] = [];
     var unsubProfiles = expectationProfilesStore.subscribe(function(p) {
@@ -1995,7 +2004,7 @@
                 <div class="pt-4 pb-1 bg-gradient-to-t from-sky-dark via-sky-dark">
                     <!-- Progress Manager with minimal spacing -->
                     <div class="mb-2">
-                        <ProgressManager {isProcessing} isChecking={$checkResultStore.isRunning} {isWindowMinimized} {userActivityState} />
+                        <ProgressManager {isProcessing} isChecking={isCheckingVisual} {isWindowMinimized} {userActivityState} />
                     </div>
                     
                     <!-- Action Bar + Cancel Button -->
@@ -2006,7 +2015,7 @@
                                 profiles={expectationProfiles}
                                 bind:checkMode
                                 bind:selectedProfileName={selectedExpectationProfile}
-                                isProcessing={isProcessing || $checkResultStore.isRunning}
+                                isProcessing={isProcessing || isCheckingVisual}
                                 checkState={$checkState}
                                 on:process={handleProcess}
                                 on:checkLibrary={handleCheckLibrary}

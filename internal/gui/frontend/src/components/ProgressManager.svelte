@@ -110,16 +110,18 @@
     let lastProcessingState = false;
     let errorClearTimeout: ReturnType<typeof setTimeout> | null = null;
     
-    // Track check state transitions for status text
+    // Track visual check state transitions for status text
     let lastCheckingState = false;
-    $: if (isChecking && !lastCheckingState) {
+    $: if (!isProcessing && isChecking && !lastCheckingState) {
         lastCheckingState = true;
         statusText = "Checking media...";
-    } else if (!isChecking && lastCheckingState) {
+    } else if (!isProcessing && !isChecking && lastCheckingState) {
         lastCheckingState = false;
-        if (!isProcessing) {
-            statusText = "Processing Status";
-        }
+        statusText = "Processing Status";
+    } else if (isProcessing && !isChecking && lastCheckingState) {
+        // Keep transition bookkeeping consistent if processing starts before
+        // check bars are fully drained from the UI.
+        lastCheckingState = false;
     }
 
     // Reset state counters when processing starts
