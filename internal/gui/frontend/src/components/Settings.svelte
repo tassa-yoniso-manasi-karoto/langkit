@@ -645,15 +645,15 @@ import { isDeveloperMode } from '../lib/developerMode';
                                                    focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
                                         />
                                         {#if isValidatingTarget}
-                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
                                                 refresh
                                             </span>
                                         {:else if targetLangValid && currentSettings.targetLanguage}
-                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-pale-green text-sm" style="font-size: 1.4rem;">
                                                 check_circle
                                             </span>
                                         {:else if targetLangError}
-                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-red-500 text-sm" style="font-size: 1.4rem;"
                                                   title={targetLangError}>
                                                 error
                                             </span>
@@ -679,15 +679,15 @@ import { isDeveloperMode } from '../lib/developerMode';
                                                    focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
                                         />
                                         {#if isValidatingNative}
-                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
                                                 refresh
                                             </span>
                                         {:else if nativeLangValid && currentSettings.nativeLanguages}
-                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-pale-green text-sm" style="font-size: 1.4rem;">
                                                 check_circle
                                             </span>
                                         {:else if nativeLangError}
-                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-red-500 text-sm" style="font-size: 1.4rem;"
                                                   title={nativeLangError}>
                                                 error
                                             </span>
@@ -1351,15 +1351,15 @@ import { isDeveloperMode } from '../lib/developerMode';
                                                    focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
                                         />
                                         {#if isValidatingTarget}
-                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
                                                 refresh
                                             </span>
                                         {:else if targetLangValid && currentSettings.targetLanguage}
-                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-pale-green text-sm" style="font-size: 1.4rem;">
                                                 check_circle
                                             </span>
                                         {:else if targetLangError}
-                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-red-500 text-sm" style="font-size: 1.4rem;"
                                                   title={targetLangError}>
                                                 error
                                             </span>
@@ -1385,15 +1385,15 @@ import { isDeveloperMode } from '../lib/developerMode';
                                                    focus:outline-none transition-colors duration-200 setting-entry font-bold shadow-sm shadow-primary/10"
                                         />
                                         {#if isValidatingNative}
-                                            <span class="absolute right-3 top-1.5 material-icons animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none animate-spin text-primary/70 text-sm" style="font-size: 1.4rem;">
                                                 refresh
                                             </span>
                                         {:else if nativeLangValid && currentSettings.nativeLanguages}
-                                            <span class="absolute right-3 top-1.5 material-icons text-pale-green text-sm" style="font-size: 1.4rem;">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-pale-green text-sm" style="font-size: 1.4rem;">
                                                 check_circle
                                             </span>
                                         {:else if nativeLangError}
-                                            <span class="absolute right-3 top-1.5 material-icons text-red-500 text-sm" style="font-size: 1.4rem;"
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons leading-none text-red-500 text-sm" style="font-size: 1.4rem;"
                                                   title={nativeLangError}>
                                                 error
                                             </span>
