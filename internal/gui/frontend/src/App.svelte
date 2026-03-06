@@ -1403,6 +1403,14 @@
             logger.trace('app', 'Resetting all progress bars');
             resetAllProgressBars();
         });
+
+        wsClient.on('progress.bulk_completed', (data: any) => {
+            const keepIds = Array.isArray(data?.keepIds) ? data.keepIds : ['media-bar'];
+            logger.trace('app', 'Bulk progress completed; pruning non-kept bars', { keepIds });
+            progressBars.update((bars) => {
+                return bars.filter((bar) => keepIds.indexOf(bar.id) !== -1);
+            });
+        });
         
         // Handle individual progress events (sent in direct-pass mode)
         wsClient.on('progress.updated', (data) => {

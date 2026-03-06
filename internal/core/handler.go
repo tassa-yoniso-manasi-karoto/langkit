@@ -747,6 +747,26 @@ func (h *GUIHandler) incrementProgressInternal(
 		"type":          progressType, // "download" for downloads, "" for regular tasks
 	}
 
+	mediaCompleted := taskID == ProgressBarIDMedia && total > 0 && current >= total
+	if mediaCompleted {
+		// On bulk completion, keep only media-bar in the frontend and
+		// remove all other progress bars.
+		if h.throttler != nil {
+			h.throttler.UpdateProgress(taskID, payload)
+			h.throttler.SyncFinalizeProgress([]string{taskID})
+		} else if h.wsNotifier != nil {
+			h.wsNotifier.Emit("progress.updated", payload)
+			h.wsNotifier.Emit("progress.bulk_completed", map[string]interface{}{
+				"keepIds": []string{taskID},
+			})
+		}
+
+		// Reset backend progress tracking for the next run.
+		h.progressMap = make(map[string]int)
+		h.etaCalculators = make(map[string]eta.Provider)
+		return
+	}
+
 	// Send through throttler if available
 	if h.throttler != nil {
 		h.throttler.UpdateProgress(taskID, payload)

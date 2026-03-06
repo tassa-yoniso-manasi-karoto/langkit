@@ -209,6 +209,29 @@ func (c *flushCommand) execute(t *AdaptiveEventThrottler) {
 	}
 }
 
+// Finalize progress command
+type finalizeProgressCommand struct {
+	keepIDs []string
+	done    chan struct{} // Signal completion for sync calls
+}
+
+func (c *finalizeProgressCommand) execute(t *AdaptiveEventThrottler) {
+	// Ensure pending progress is emitted before finalization signal.
+	t.doFlush(true)
+
+	// Emit finalization synchronously so frontend can atomically prune bars.
+	if t.broadcaster != nil {
+		t.broadcaster("progress.bulk_completed", map[string]interface{}{
+			"keepIds": c.keepIDs,
+		})
+	}
+
+	// Signal completion.
+	if c.done != nil {
+		close(c.done)
+	}
+}
+
 // Shutdown command
 type shutdownCommand struct {
 	done chan struct{}
@@ -501,6 +524,21 @@ func (t *AdaptiveEventThrottler) SyncFlush() {
 	<-done
 }
 
+// SyncFinalizeProgress synchronously flushes pending progress updates and then
+// emits a bulk completion event with the set of progress bars to keep.
+func (t *AdaptiveEventThrottler) SyncFinalizeProgress(keepIDs []string) {
+	if !t.isRunning {
+		return
+	}
+
+	done := make(chan struct{})
+	t.commandChan <- &finalizeProgressCommand{
+		keepIDs: keepIDs,
+		done:    done,
+	}
+	<-done
+}
+
 // Shutdown stops the command processor - public API
 func (t *AdaptiveEventThrottler) Shutdown() {
 	if !t.isRunning {
@@ -727,15 +765,10 @@ func (t *AdaptiveEventThrottler) doFlush(sync bool) {
 		// Clear the buffer
 		t.progressBuffer = make(map[string]map[string]interface{})
 		
-		// Send the batch event
+		// Always emit progress batches synchronously to preserve ordering
+		// with lifecycle events such as "progress.bulk_completed".
 		if t.broadcaster != nil {
-			if sync {
-				// Synchronous emission
-				t.broadcaster("progress.batch", progressUpdates)
-			} else {
-				// Asynchronous emission
-				go t.broadcaster("progress.batch", progressUpdates)
-			}
+			t.broadcaster("progress.batch", progressUpdates)
 		}
 	}
 }

@@ -19,13 +19,18 @@
     
     // Update display state based on conditions
     $: {
+        const hasIncompleteBars = $progressBars.some(bar => {
+            const isDownloadComplete = bar.type === 'download' && Math.round(bar.progress) >= 100;
+            return !(bar.progress >= 100 || isDownloadComplete);
+        });
+
         if (userCancelled) {
             currentDisplayState = 'user_cancel';
         } else if (isGlobalAbort) {
             currentDisplayState = 'error_all';
         } else if (abortedTasksCount > 0) {
             currentDisplayState = 'error_task';
-        } else if (!isProcessing && $progressBars.length === 0) {
+        } else if (!isProcessing && !hasIncompleteBars) {
             currentDisplayState = 'complete';
         } else {
             currentDisplayState = 'normal';
