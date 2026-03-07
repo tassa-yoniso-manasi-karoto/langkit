@@ -561,9 +561,9 @@ func (tsk *Task) Autosub() *ProcessingError {
 
 	if len(candidates) == 0 {
 		return tsk.Handler.LogErrFields(
-			fmt.Errorf("no subtitle candidates found for %s", tsk.Targ.Name),
+			fmt.Errorf("no matching subtitle files found for language tag '%s'", tsk.Targ.Name),
 			AbortTask,
-			"autosubs failed",
+			"subtitle auto-discovery failed",
 			map[string]interface{}{"video": filepath.Base(tsk.MediaSourceFile)},
 		)
 	}
@@ -574,14 +574,14 @@ func (tsk *Task) Autosub() *ProcessingError {
 	// Create temp directory for embedded subtitle extraction (uses tmpfs)
 	tempDir, err := os.MkdirTemp("", "langkit-subs-*")
 	if err != nil {
-		return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to create temp directory")
+		return tsk.Handler.LogErr(err, AbortTask, "subtitle auto-discovery: failed to create temp directory")
 	}
 
 	// Materialize target subtitle
 	if targCandidate != nil {
 		path, err := targCandidate.Materialize(tempDir)
 		if err != nil {
-			return tsk.Handler.LogErr(err, AbortTask, "autosub: failed to materialize target subtitle")
+			return tsk.Handler.LogErr(err, AbortTask, "subtitle auto-discovery: failed to materialize target subtitle")
 		}
 		tsk.TargSubFile = path
 		tsk.Targ = targCandidate.Lang
@@ -597,9 +597,9 @@ func (tsk *Task) Autosub() *ProcessingError {
 			Msg("Automatically chosen Target subtitle")
 	} else {
 		return tsk.Handler.LogErrFields(
-			fmt.Errorf("no subtitle matching target language %s was found", tsk.Targ.Name),
+			fmt.Errorf("no subtitle matching target language tag '%s' was found", tsk.Targ.Name),
 			AbortTask,
-			"autosubs failed",
+			"subtitle auto-discovery failed",
 			map[string]interface{}{"video": filepath.Base(tsk.MediaSourceFile)},
 		)
 	}

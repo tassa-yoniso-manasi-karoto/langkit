@@ -11,7 +11,7 @@
 
 Langkit is an all-in-one tool designed to **facilitate language learning from native media content** using a collection of diverse features to transform movies, TV shows, etc., into **easily ‘digestible’ material**.
 
-It supports automatic subtitle detection, bulk/recursive directory processing, seamless resumption of previously interrupted processing runs and multiple native (reference) language fallback.
+It supports automatic subtitle file detection (by language tags), bulk/recursive directory processing, seamless resumption of previously interrupted processing runs and multiple native (reference) language fallback.
 
 <p align="center">
     <img src="https://raw.githubusercontent.com/tassa-yoniso-manasi-karoto/langkit-assets/refs/heads/main/peek.avif" alt="Langkit Demo" width="600" />
@@ -22,8 +22,8 @@ It supports automatic subtitle detection, bulk/recursive directory processing, s
 - **Subs2cards**: Make Anki cards from subtitle timecodes like subs2srs<br>
 &nbsp;&nbsp;&nbsp;&nbsp;⤷ Build a vocabulary deck from your favorite shows through sentence mining
 
-- **Making dubtitles¹**: Make a subtitle file of dubs using Speech-To-Text<br>
-&nbsp;&nbsp;&nbsp;&nbsp;⤷ Useful when you want subtitles that match exactly what's being said in the dubbed audio
+- **Dubtitles (STT Alignment)¹**: Overwrite the text of an *existing* subtitle file with highly accurate Speech-To-Text that matches the dubbing.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;⤷ Fixes the mismatch between official subtitles and dubbed audio by reusing existing timecodes. (Note: This is not an autosub-from-scratch tool).
 
 - **Voice enhancing**: Make voices louder than Music & Effects<br>
 &nbsp;&nbsp;&nbsp;&nbsp;⤷ Helpful when dialogue is hard to hear, common in series recorded on location rather than in a studio
@@ -40,9 +40,9 @@ It supports automatic subtitle detection, bulk/recursive directory processing, s
 - **Selective transliteration**: Selective transliteration of subtitles based on [logogram](https://en.wikipedia.org/wiki/Logogram) frequency. Currently only Japanese Kanjis are supported. Kanji with a frequency rank below the user-defined frequency threshold and regular readings are preserved, while others are converted to hiragana.<br>
 &nbsp;&nbsp;&nbsp;&nbsp;⤷ Learn kanji progressively by only showing the ones at your level
 
-<sub> ¹ 'dubtitles' is a *subtitle file that matches the dubbing lines exactly*. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sup>
+<sub> ¹ 'dubtitles' is a *subtitle file that matches the dubbing lines exactly*. In Langkit, this feature reuses the timecodes of an existing reference subtitle; it is **not** a standalone autosub-from-scratch feature. It is needed because translations of dubbings and of subtitles differ, as explained [here](https://www.quora.com/Why-do-subtitles-on-a-lot-of-dubbed-shows-not-match-up-with-the-dub-itself)</sub>
 
-<sup> ² for the list of supported languages by the transliteration feature see [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators) </sub>
+<sup> ² for the list of supported languages by the transliteration feature see [here](https://github.com/tassa-yoniso-manasi-karoto/translitkit?tab=readme-ov-file#currently-implemented-tokenizers--transliterators) </sup>
 <br>
 <br>
 
@@ -73,8 +73,8 @@ $ langkit translit media.ja.srt
 𝗠𝗮𝗸𝗲 𝗮𝗻 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝘄𝗶𝘁𝗵 𝗲𝗻𝗵𝗮𝗻𝗰𝗲𝗱/𝗮𝗺𝗽𝗹𝗶𝗳𝗶𝗲𝗱 𝘃𝗼𝗶𝗰𝗲𝘀 𝗳𝗿𝗼𝗺 𝘁𝗵𝗲 𝟮𝗻𝗱 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 (𝘋𝘰𝘤𝘬𝘦𝘳 𝘳𝘦𝘲𝘶𝘪𝘳𝘦𝘥 𝘧𝘰𝘳 𝘭𝘰𝘤𝘢𝘭, 𝘰𝘳 𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘧𝘰𝘳 𝘤𝘭𝘰𝘶𝘥)
 $ langkit enhance media.mp4 -a 2 --sep docker-demucs
 
-𝗠𝗮𝗸𝗲 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲𝘀 𝘂𝘀𝗶𝗻𝗴 𝗦𝗽𝗲𝗲𝗰𝗵-𝘁𝗼-𝗧𝗲𝘅𝘁 𝗼𝗻 𝘁𝗵𝗲 𝘁𝗶𝗺𝗲𝗰𝗼𝗱𝗲𝘀 𝗼𝗳 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝗳𝗶𝗹𝗲 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
-$ langkit subs2dubs --stt whisper media.mp4 (media.th.srt) -l "th"
+𝗠𝗮𝗸𝗲 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲𝘀 𝗳𝗿𝗼𝗺 𝗮𝗻 𝗲𝘅𝗶𝘀𝘁𝗶𝗻𝗴 𝗿𝗲𝗳𝗲𝗿𝗲𝗻𝗰𝗲 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘂𝘀𝗶𝗻𝗴 𝗦𝗽𝗲𝗲𝗰𝗵-𝘁𝗼-𝗧𝗲𝘅𝘁 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
+$ langkit subs2dubs --stt whisper media.mp4 reference.en.srt -l "th"
 
 𝗖𝗼𝗺𝗯𝗶𝗻𝗲 𝗮𝗹𝗹 𝗼𝗳 𝘁𝗵𝗲 𝗮𝗯𝗼𝘃𝗲 𝗶𝗻 𝗼𝗻𝗲 𝗰𝗼𝗺𝗺𝗮𝗻𝗱
 $ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep docker-demucs --translit
@@ -133,13 +133,16 @@ This feature works by merging the original audio track with negative gain togeth
 
 
 # Dubtitles
-Creates accurate subtitle files specifically synchronized with dubbed audio tracks using speech-to-text. This addresses the common mismatch between subtitle translations and audio dubs, ensuring text follows closely spoken dialogue.
+Creates subtitle files synchronized with dubbed audio tracks by running speech-to-text inside the time windows of an existing reference subtitle. This addresses the common mismatch between subtitle translations and audio dubs, ensuring text follows closely spoken dialogue.
+
+> [!IMPORTANT]
+> **At this present time this feature does not support creating subtitles from scratch.** You must provide an existing reference subtitle (`.srt`, `.ass`) because Langkit reuses its timing and only replaces the subtitle text with speech-to-text output. If no reference subtitle is available, Langkit has no subtitle timecodes to work from.
 
 > [!IMPORTANT]
 > **Don't rely on the Word Error Rate (WER) for all languages, check for *your* specific target language!**
 
 > [!NOTE]
-> You can also use a **custom local endpoint** (e.g., whisper.cpp, faster-whisper server) for free local STT. Configure custom endpoints in Settings.
+> You can also use a **custom local OpenAI-compatible endpoint** for free local STT. Configure custom endpoints in Settings.
 
 | Provider   | Name (to be passed with --stt) | Num of lang supported (WER<50%)                                                               | WER (ALL languages) (lower is better)                                                           | WER per language                                                               | Price         | Type   |
 |------------|--------------------------------|-----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|---------------|--------|
@@ -371,4 +374,3 @@ All new contributions from commit d540bd4 onward are licensed under **GPL-3.0**.
 # Support the project
 
 If you like it, leave a star on Github!
-
