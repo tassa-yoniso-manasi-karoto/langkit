@@ -58,31 +58,6 @@ Langkit can run as a standalone, but it can now also run directly inside Anki. T
 
 [Anki Addon available here](https://ankiweb.net/shared/info/1639192026)
 
-# tldr cli
-
-```
-𝗕𝗮𝘀𝗶𝗰 𝘀𝘂𝗯𝘀𝟮𝘀𝗿𝘀 𝗳𝘂𝗻𝗰𝘁𝗶𝗼𝗻𝗮𝗹𝗶𝘁𝘆
-$ langkit subs2cards media.mp4 media.th.srt media.en.srt
-
-𝗕𝘂𝗹𝗸 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 𝘄𝗶𝘁𝗵 𝗮𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗰 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘀𝗲𝗹𝗲𝗰𝘁𝗶𝗼𝗻 (𝘩𝘦𝘳𝘦: 𝘭𝘦𝘢𝘳𝘯 𝘣𝘳𝘢𝘻𝘪𝘭𝘪𝘢𝘯 𝘱𝘰𝘳𝘵𝘶𝘨𝘦𝘴𝘦 𝘧𝘳𝘰𝘮 𝘤𝘢𝘯𝘵𝘰𝘯𝘦𝘴𝘦 𝘰𝘳 𝘵𝘳𝘢𝘥𝘪𝘵𝘪𝘰𝘯𝘢𝘭 𝘤𝘩𝘪𝘯𝘦𝘴𝘦)
-$ langkit subs2cards media.mp4 -l "pt-BR,yue,zh-Hant"
-
-𝗦𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘁𝗿𝗮𝗻𝘀𝗹𝗶𝘁𝗲𝗿𝗮𝘁𝗶𝗼𝗻 (+𝘁𝗼𝗸𝗲𝗻𝗶𝘇𝗮𝘁𝗶𝗼𝗻 𝗶𝗳 𝗻𝗲𝗰𝗲𝘀𝘀𝗮𝗿𝘆)
-$ langkit translit media.ja.srt
-
-𝗠𝗮𝗸𝗲 𝗮𝗻 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝘄𝗶𝘁𝗵 𝗲𝗻𝗵𝗮𝗻𝗰𝗲𝗱/𝗮𝗺𝗽𝗹𝗶𝗳𝗶𝗲𝗱 𝘃𝗼𝗶𝗰𝗲𝘀 𝗳𝗿𝗼𝗺 𝘁𝗵𝗲 𝟮𝗻𝗱 𝗮𝘂𝗱𝗶𝗼𝘁𝗿𝗮𝗰𝗸 𝗼𝗳 𝘁𝗵𝗲 𝗺𝗲𝗱𝗶𝗮 (𝘋𝘰𝘤𝘬𝘦𝘳 𝘳𝘦𝘲𝘶𝘪𝘳𝘦𝘥 𝘧𝘰𝘳 𝘭𝘰𝘤𝘢𝘭, 𝘰𝘳 𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘧𝘰𝘳 𝘤𝘭𝘰𝘶𝘥)
-$ langkit enhance media.mp4 -a 2 --sep docker-demucs
-
-𝗠𝗮𝗸𝗲 𝗱𝘂𝗯𝘁𝗶𝘁𝗹𝗲𝘀 𝗳𝗿𝗼𝗺 𝗮𝗻 𝗲𝘅𝗶𝘀𝘁𝗶𝗻𝗴 𝗿𝗲𝗳𝗲𝗿𝗲𝗻𝗰𝗲 𝘀𝘂𝗯𝘁𝗶𝘁𝗹𝗲 𝘂𝘀𝗶𝗻𝗴 𝗦𝗽𝗲𝗲𝗰𝗵-𝘁𝗼-𝗧𝗲𝘅𝘁 (𝘙𝘦𝘱𝘭𝘪𝘤𝘢𝘵𝘦 𝘈𝘗𝘐 𝘵𝘰𝘬𝘦𝘯 𝘯𝘦𝘦𝘥𝘦𝘥)
-$ langkit subs2dubs --stt whisper media.mp4 reference.en.srt -l "th"
-
-𝗖𝗼𝗺𝗯𝗶𝗻𝗲 𝗮𝗹𝗹 𝗼𝗳 𝘁𝗵𝗲 𝗮𝗯𝗼𝘃𝗲 𝗶𝗻 𝗼𝗻𝗲 𝗰𝗼𝗺𝗺𝗮𝗻𝗱
-$ langkit subs2cards /path/to/media/dir/  -l "th,en" --stt whisper --sep docker-demucs --translit
-```
-
-> [!WARNING]
-> The CLI should be considered **pre-release**. The focus of my human-interface work has been the GUI so the CLI is **much more unstable at this point**. Some features are not yet supported on the CLI.
-
 # Features in detail...
 
 # Subs2cards

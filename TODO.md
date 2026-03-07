@@ -1,14 +1,15 @@
 🔳 `Subtitle lines processed (all files)...- [ETA: 3m-15m (92%)]` -> in bulk mode, this bar is being recreated at each file
 🔳 processing JPN should not be bigger size than processing voice sep
 
+- Apostrophe in the names of the files cause mismatch with romanized version
+
 - Data aware logic:
   - ⭐⭐⭐ drop down bug on qtwebengine
+  - no error = reassuring display
   - collapse "Corrupt Audio Tracks" WITH "Audio Decode Failures"
   - mv "Manage Profiles..." out of the dropdown onto a new dedicated button
   - scrollbar of Modal in QtWebEngine
   - 🚧 groom = put irrelevant subs to target dir & demux and mov irrelevant audio tracks
-
-- Apostrophe in the names of the files cause mismatch with romanized version
 
 - ⭐⭐⭐ PUSH ANKI ADDON UPDATE ⭐⭐⭐
 
@@ -35,7 +36,6 @@
 
 - BROWSE FIXMEs / TODOs IN CODEBASE
 - more manual GUI tests
-- could do CLI test run of docker imgs in a Github workflow assuming all the CLI logic works (it doesn't)
 
 .
 
